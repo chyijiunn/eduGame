@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>化學元素四連戰 QUARTO</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            text-align: center;
+            color: #4a5568;
+            margin-bottom: 10px;
+            font-size: 2.5rem;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #718096;
+            margin-bottom: 30px;
+            font-size: 1.1rem;
+        }
+
+        .game-area {
+            display: grid;
+            grid-template-columns: 1fr 400px 1fr;
+            gap: 30px;
+            align-items: start;
+        }
+
+        .board-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .board {
+            display: grid;
+            grid-template-columns: repeat(4, 80px);
+            grid-template-rows: repeat(4, 80px);
+            gap: 4px;
+            background: #2d3748;
+            padding: 10px;
+            border-radius: 12px;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+        }
+
+        .cell {
+            background: #f7fafc;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: bold;
+            font-size: 14px;
+        }
+
+        .cell:hover {
+            background: #edf2f7;
+            border-color: #cbd5e0;
+        }
+
+        .cell.occupied {
+            cursor: not-allowed;
+        }
+
+        .pieces-container {
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .pieces-title {
+            text-align: center;
+            font-size: 1.3rem;
+            color: #4a5568;
+            margin-bottom: 15px;
+            font-weight: bold;
+        }
+
+        .pieces-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+            margin-bottom: 20px;
+        }
+
+        .piece {
+            width: 70px;
+            height: 70px;
+            border-radius: 10px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: bold;
+            font-size: 16px;
+            border: 3px solid transparent;
+            position: relative;
+        }
+
+        .piece:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+        }
+
+        .piece.selected {
+            border-color: #3182ce;
+            transform: scale(1.05);
+            box-shadow: 0 8px 25px rgba(49, 130, 206, 0.3);
+        }
+
+        .piece.used {
+            opacity: 0.3;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+
+        .piece-symbol {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 2px;
+        }
+
+        .piece-name {
+            font-size: 10px;
+            opacity: 0.8;
+        }
+
+        /* 元素特性樣式 */
+        .metal { background: linear-gradient(135deg, #ffd700, #ffed4e); color: #744210; }
+        .nonmetal { background: linear-gradient(135deg, #e2e8f0, #cbd5e0); color: #2d3748; }
+        
+        .solid-state { border-style: solid; }
+        .gas-liquid-state { border-style: dashed; }
+        
+        .active::before { 
+            content: '●'; 
+            position: absolute; 
+            top: 2px; 
+            right: 4px; 
+            font-size: 12px; 
+        }
+        .inactive::before { 
+            content: '○'; 
+            position: absolute; 
+            top: 2px; 
+            right: 4px; 
+            font-size: 12px; 
+        }
+        
+        .molecular { border-width: 2px; }
+        .non-molecular { border-width: 4px; }
+
+        .info-panel {
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .game-status {
+            text-align: center;
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: #4a5568;
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #e6fffa;
+            border-radius: 10px;
+            border-left: 4px solid #38b2ac;
+        }
+
+        .legend {
+            margin-top: 20px;
+        }
+
+        .legend h3 {
+            color: #4a5568;
+            margin-bottom: 10px;
+            font-size: 1.1rem;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+            font-size: 0.9rem;
+        }
+
+        .legend-symbol {
+            width: 20px;
+            height: 20px;
+            margin-right: 10px;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-top: 20px;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary {
+            background: #3182ce;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #2c5aa0;
+        }
+
+        .btn-secondary {
+            background: #e2e8f0;
+            color: #4a5568;
+        }
+
+        .btn-secondary:hover {
+            background: #cbd5e0;
+        }
+
+        .winner-message {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+            text-align: center;
+            z-index: 1000;
+            display: none;
+        }
+
+        .winner-message.show {
+            display: block;
+        }
+
+        .overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 999;
+            display: none;
+        }
+
+        .overlay.show {
+            display: block;
+        }
+
+        @media (max-width: 768px) {
+            .game-area {
+                grid-template-columns: 1fr;
+                gap: 20px;
+            }
+            
+            .board {
+                grid-template-columns: repeat(4, 60px);
+                grid-template-rows: repeat(4, 60px);
+            }
+            
+            .pieces-grid {
+                grid-template-columns: repeat(4, 1fr);
+            }
+            
+            .piece {
+                width: 60px;
+                height: 60px;
+                font-size: 14px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 化學元素四連戰</h1>
+        <p class="subtitle">QUARTO 化學版 - 找出具有相同特性的一條線！</p>
+        
+        <div class="game-area">
+            <div class="info-panel">
+                <div class="game-status" id="gameStatus">
+                    玩家1選擇元素給玩家2
+                </div>
+                
+                <div class="legend">
+                    <h3>🔬 元素特性圖例</h3>
+                    <div class="legend-item">
+                        <div class="legend-symbol metal"></div>
+                        <span>金色 = 金屬 | 灰色 = 非金屬</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-symbol" style="border: 2px solid #333;"></div>
+                        <span>實線 = 固體 | 虛線 = 氣體/液體</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-symbol" style="background: #f0f0f0;">●</div>
+                        <span>● = 活性 | ○ = 不活性</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-symbol" style="border: 2px solid #333;"></div>
+                        <span>細框 = 分子單質 | 粗框 = 非分子單質</span>
+                    </div>
+                </div>
+
+                <div class="controls">
+                    <button class="btn btn-primary" onclick="resetGame()">重新開始</button>
+                    <button class="btn btn-secondary" onclick="showRules()">遊戲規則</button>
+                </div>
+            </div>
+
+            <div class="board-container">
+                <div class="board" id="gameBoard">
+                    <!-- 4x4 格子將由 JavaScript 生成 -->
+                </div>
+            </div>
+
+            <div class="pieces-container">
+                <h3 class="pieces-title">可選元素</h3>
+                <div class="pieces-grid" id="piecesGrid">
+                    <!-- 元素棋子將由 JavaScript 生成 -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="overlay" id="overlay"></div>
+    <div class="winner-message" id="winnerMessage">
+        <h2 id="winnerText"></h2>
+        <p id="winnerDetails"></p>
+        <button class="btn btn-primary" onclick="resetGame()">再玩一次</button>
+    </div>
+
+    <script>
+        // 元素數據
+        const elements = [
+            { symbol: 'Li', name: '鋰', metal: true, state: 'solid', active: true, molecular: false },
+            { symbol: 'Na', name: '鈉', metal: true, state: 'solid', active: true, molecular: false },
+            { symbol: 'Mg', name: '鎂', metal: true, state: 'solid', active: true, molecular: false },
+            { symbol: 'Al', name: '鋁', metal: true, state: 'solid', active: true, molecular: false },
+            { symbol: 'Fe', name: '鐵', metal: true, state: 'solid', active: false, molecular: false },
+            { symbol: 'Cu', name: '銅', metal: true, state: 'solid', active: false, molecular: false },
+            { symbol: 'Zn', name: '鋅', metal: true, state: 'solid', active: false, molecular: false },
+            { symbol: 'Hg', name: '汞', metal: true, state: 'liquid', active: false, molecular: false },
+            { symbol: 'H₂', name: '氫氣', metal: false, state: 'gas', active: false, molecular: true },
+            { symbol: 'N₂', name: '氮氣', metal: false, state: 'gas', active: false, molecular: true },
+            { symbol: 'O₂', name: '氧氣', metal: false, state: 'gas', active: false, molecular: true },
+            { symbol: 'F₂', name: '氟氣', metal: false, state: 'gas', active: true, molecular: true },
+            { symbol: 'Cl₂', name: '氯氣', metal: false, state: 'gas', active: true, molecular: true },
+            { symbol: 'Br₂', name: '溴', metal: false, state: 'liquid', active: true, molecular: true },
+            { symbol: 'I₂', name: '碘', metal: false, state: 'solid', active: true, molecular: true },
+            { symbol: 'C', name: '碳', metal: false, state: 'solid', active: false, molecular: false }
+        ];
+
+        let gameState = {
+            board: Array(16).fill(null),
+            currentPlayer: 1,
+            selectedPiece: null,
+            gamePhase: 'select', // 'select' or 'place'
+            usedPieces: new Set(),
+            gameOver: false
+        };
+
+        function initGame() {
+            createBoard();
+            createPieces();
+            updateGameStatus();
+        }
+
+        function createBoard() {
+            const board = document.getElementById('gameBoard');
+            board.innerHTML = '';
+            
+            for (let i = 0; i < 16; i++) {
+                const cell = document.createElement('div');
+                cell.className = 'cell';
+                cell.dataset.index = i;
+                cell.addEventListener('click', () => placePiece(i));
+                board.appendChild(cell);
+            }
+        }
+
+        function createPieces() {
+            const grid = document.getElementById('piecesGrid');
+            grid.innerHTML = '';
+            
+            elements.forEach((element, index) => {
+                const piece = document.createElement('div');
+                piece.className = 'piece';
+                piece.dataset.index = index;
+                
+                // 添加特性類別
+                piece.classList.add(element.metal ? 'metal' : 'nonmetal');
+                piece.classList.add(element.state === 'solid' ? 'solid-state' : 'gas-liquid-state');
+                piece.classList.add(element.active ? 'active' : 'inactive');
+                piece.classList.add(element.molecular ? 'molecular' : 'non-molecular');
+                
+                piece.innerHTML = `
+                    <div class="piece-symbol">${element.symbol}</div>
+                    <div class="piece-name">${element.name}</div>
+                `;
+                
+                piece.addEventListener('click', () => selectPiece(index));
+                grid.appendChild(piece);
+            });
+        }
+
+        function selectPiece(index) {
+            if (gameState.gamePhase !== 'select' || gameState.usedPieces.has(index) || gameState.gameOver) {
+                return;
+            }
+
+            // 清除之前的選擇
+            document.querySelectorAll('.piece').forEach(p => p.classList.remove('selected'));
+            
+            // 選擇新棋子
+            gameState.selectedPiece = index;
+            document.querySelector(`[data-index="${index}"]`).classList.add('selected');
+            
+            // 切換到放置階段
+            gameState.gamePhase = 'place';
+            gameState.currentPlayer = gameState.currentPlayer === 1 ? 2 : 1;
+            updateGameStatus();
+        }
+
+        function placePiece(cellIndex) {
+            if (gameState.gamePhase !== 'place' || gameState.board[cellIndex] !== null || 
+                gameState.selectedPiece === null || gameState.gameOver) {
+                return;
+            }
+
+            // 放置棋子
+            gameState.board[cellIndex] = gameState.selectedPiece;
+            gameState.usedPieces.add(gameState.selectedPiece);
+            
+            // 更新視覺
+            const cell = document.querySelector(`#gameBoard .cell[data-index="${cellIndex}"]`);
+            const element = elements[gameState.selectedPiece];
+            
+            cell.innerHTML = `
+                <div style="font-size: 14px; font-weight: bold;">${element.symbol}</div>
+            `;
+            cell.classList.add('occupied');
+            
+            // 添加元素特性樣式到格子
+            cell.classList.add(element.metal ? 'metal' : 'nonmetal');
+            cell.classList.add(element.state === 'solid' ? 'solid-state' : 'gas-liquid-state');
+            cell.classList.add(element.active ? 'active' : 'inactive');
+            cell.classList.add(element.molecular ? 'molecular' : 'non-molecular');
+            
+            // 標記棋子為已使用
+            document.querySelector(`.piece[data-index="${gameState.selectedPiece}"]`).classList.add('used');
+            
+            // 檢查勝利
+            const winner = checkWinner();
+            if (winner) {
+                showWinner(winner);
+                return;
+            }
+            
+            // 檢查平局
+            if (gameState.usedPieces.size === 16) {
+                showWinner({ type: 'draw' });
+                return;
+            }
+            
+            // 重置選擇，切換到選擇階段
+            gameState.selectedPiece = null;
+            gameState.gamePhase = 'select';
+            document.querySelectorAll('.piece').forEach(p => p.classList.remove('selected'));
+            updateGameStatus();
+        }
+
+        function checkWinner() {
+            const lines = [
+                // 橫線
+                [0, 1, 2, 3], [4, 5, 6, 7], [8, 9, 10, 11], [12, 13, 14, 15],
+                // 直線
+                [0, 4, 8, 12], [1, 5, 9, 13], [2, 6, 10, 14], [3, 7, 11, 15],
+                // 斜線
+                [0, 5, 10, 15], [3, 6, 9, 12]
+            ];
+
+            for (const line of lines) {
+                const pieces = line.map(i => gameState.board[i]).filter(p => p !== null);
+                if (pieces.length === 4) {
+                    const elements_in_line = pieces.map(i => elements[i]);
+                    
+                    // 檢查四個特性
+                    const properties = [
+                        { name: '金屬性', check: el => el.metal },
+                        { name: '常溫狀態', check: el => el.state === 'solid' },
+                        { name: '活性族群', check: el => el.active },
+                        { name: '單質型態', check: el => el.molecular }
+                    ];
+
+                    for (const prop of properties) {
+                        const values = elements_in_line.map(prop.check);
+                        if (values.every(v => v === true) || values.every(v => v === false)) {
+                            return {
+                                type: 'win',
+                                player: gameState.currentPlayer,
+                                line: line,
+                                property: prop.name,
+                                elements: elements_in_line
+                            };
+                        }
+                    }
+                }
+            }
+            return null;
+        }
+
+        function showWinner(result) {
+            gameState.gameOver = true;
+            const overlay = document.getElementById('overlay');
+            const message = document.getElementById('winnerMessage');
+            const text = document.getElementById('winnerText');
+            const details = document.getElementById('winnerDetails');
+
+            if (result.type === 'draw') {
+                text.textContent = '平局！';
+                details.textContent = '所有元素都已放置，沒有玩家獲勝。';
+            } else {
+                text.textContent = `🎉 玩家 ${result.player} 獲勝！`;
+                const elementNames = result.elements.map(el => el.name).join('、');
+                details.textContent = `獲勝條件：${result.property}相同\n元素：${elementNames}`;
+                
+                // 高亮獲勝線
+                result.line.forEach(index => {
+                    const cell = document.querySelector(`#gameBoard .cell[data-index="${index}"]`);
+                    cell.style.background = '#48bb78';
+                    cell.style.color = 'white';
+                });
+            }
+
+            overlay.classList.add('show');
+            message.classList.add('show');
+        }
+
+        function updateGameStatus() {
+            const status = document.getElementById('gameStatus');
+            if (gameState.gameOver) return;
+            
+            if (gameState.gamePhase === 'select') {
+                status.textContent = `玩家${gameState.currentPlayer}選擇元素給對方`;
+            } else {
+                status.textContent = `玩家${gameState.currentPlayer}放置元素到棋盤`;
+            }
+        }
+
+        function resetGame() {
+            gameState = {
+                board: Array(16).fill(null),
+                currentPlayer: 1,
+                selectedPiece: null,
+                gamePhase: 'select',
+                usedPieces: new Set(),
+                gameOver: false
+            };
+            
+            document.getElementById('overlay').classList.remove('show');
+            document.getElementById('winnerMessage').classList.remove('show');
+            
+            initGame();
+        }
+
+        function showRules() {
+            alert(`🎮 化學元素四連戰規則：
+
+1️⃣ 輪流進行：玩家1選擇一個元素給玩家2，玩家2將其放到4×4棋盤上
+2️⃣ 勝利條件：當棋盤上任意一條線（橫、直、斜）的四個元素具有相同特性時獲勝
+3️⃣ 四個特性：
+   • 金屬性：金屬 vs 非金屬
+   • 常溫狀態：固體 vs 氣體/液體  
+   • 活性族群：活性 vs 不活性
+   • 單質型態：分子單質 vs 非分子單質
+4️⃣ 策略要點：選擇元素時要小心，不要讓對方輕易獲勝！
+
+📋 元素清單：
+金屬：Li, Na, Mg, Al, Fe, Cu, Zn, Hg
+非金屬：H₂, N₂, O₂, F₂, Cl₂, Br₂, I₂, C`);
+        }
+
+        // 初始化遊戲
+        initGame();
+    </script>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9873eed812a94a51',t:'MTc1OTIzNzUzOS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>
