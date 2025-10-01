@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>行星軌道模擬器</title>
+    <style>
+        body {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #0c0c2e 0%, #1a1a3e 50%, #2d1b69 100%);
+            color: white;
+            overflow: hidden;
+            height: 100vh;
+        }
+
+        .container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        .controls {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 100;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 10px;
+            backdrop-filter: blur(10px);
+        }
+
+        .control-group {
+            margin-bottom: 10px;
+        }
+
+        .control-group label {
+            display: block;
+            font-size: 12px;
+            margin-bottom: 5px;
+            color: #ccc;
+        }
+
+        .control-group input {
+            width: 120px;
+            padding: 5px;
+            border: none;
+            border-radius: 5px;
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+        }
+
+        .btn {
+            background: linear-gradient(45deg, #ff6b6b, #ee5a24);
+            border: none;
+            padding: 8px 15px;
+            border-radius: 20px;
+            color: white;
+            cursor: pointer;
+            font-size: 12px;
+            margin: 5px;
+            transition: transform 0.2s;
+        }
+
+        .btn:hover {
+            transform: scale(1.05);
+        }
+
+        .info {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 10px;
+            backdrop-filter: blur(10px);
+            font-size: 14px;
+            max-width: 250px;
+        }
+
+        .canvas-container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+        }
+
+        #gameCanvas {
+            cursor: crosshair;
+            display: block;
+        }
+
+        .trajectory-line {
+            position: absolute;
+            background: rgba(255, 255, 255, 0.5);
+            height: 2px;
+            transform-origin: left center;
+            pointer-events: none;
+        }
+
+        .orbit-type {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px 15px;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: bold;
+        }
+
+        .ellipse { color: #4ecdc4; }
+        .parabola { color: #ffe66d; }
+        .hyperbola { color: #ff6b6b; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="controls">
+            <div class="control-group">
+                <label>重力強度</label>
+                <input type="range" id="gravity" min="50" max="500" value="200">
+            </div>
+            <div class="control-group">
+                <label>行星大小</label>
+                <input type="range" id="planetSize" min="2" max="8" value="4">
+            </div>
+            <button class="btn" onclick="clearPlanets()">清除行星</button>
+            <button class="btn" onclick="toggleTrails()">軌跡開關</button>
+        </div>
+
+        <div class="info">
+            <h3>🚀 操作說明</h3>
+            <p>• 拖拽滑鼠發射行星</p>
+            <p>• 拖拽距離決定初始速度</p>
+            <p>• 觀察不同軌道類型：</p>
+            <p class="ellipse">🔵 橢圓軌道</p>
+            <p class="parabola">🟡 拋物線軌道</p>
+            <p class="hyperbola">🔴 雙曲線軌道</p>
+        </div>
+
+        <div class="canvas-container">
+            <canvas id="gameCanvas"></canvas>
+        </div>
+
+        <div class="orbit-type" id="orbitType">
+            準備發射行星...
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        // 設置畫布大小
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+
+        // 遊戲狀態
+        let planets = [];
+        let sun = { x: canvas.width / 2, y: canvas.height / 2, mass: 1000 };
+        let isDragging = false;
+        let dragStart = { x: 0, y: 0 };
+        let dragEnd = { x: 0, y: 0 };
+        let showTrails = true;
+        let currentOrbitType = '';
+
+        // 行星類別
+        class Planet {
+            constructor(x, y, vx, vy, size = 4) {
+                this.x = x;
+                this.y = y;
+                this.vx = vx;
+                this.vy = vy;
+                this.size = size;
+                this.trail = [];
+                this.color = this.getRandomColor();
+                this.orbitType = 'unknown';
+                this.energy = 0;
+            }
+
+            getRandomColor() {
+                const colors = ['#ff6b6b', '#4ecdc4', '#45b7d1', '#96ceb4', '#feca57', '#ff9ff3'];
+                return colors[Math.floor(Math.random() * colors.length)];
+            }
+
+            update() {
+                // 計算與太陽的距離
+                const dx = sun.x - this.x;
+                const dy = sun.y - this.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+
+                // 避免除以零
+                if (distance < 10) return;
+
+                // 重力計算
+                const gravity = parseFloat(document.getElementById('gravity').value);
+                const force = (gravity * sun.mass) / (distance * distance);
+                const ax = (force * dx) / distance;
+                const ay = (force * dy) / distance;
+
+                // 更新速度和位置
+                this.vx += ax * 0.016;
+                this.vy += ay * 0.016;
+                this.x += this.vx * 0.016;
+                this.y += this.vy * 0.016;
+
+                // 計算軌道能量來判斷軌道類型
+                const kineticEnergy = 0.5 * (this.vx * this.vx + this.vy * this.vy);
+                const potentialEnergy = -gravity * sun.mass / distance;
+                this.energy = kineticEnergy + potentialEnergy;
+
+                // 判斷軌道類型
+                if (this.energy < -10) {
+                    this.orbitType = 'ellipse';
+                } else if (Math.abs(this.energy) < 10) {
+                    this.orbitType = 'parabola';
+                } else {
+                    this.orbitType = 'hyperbola';
+                }
+
+                // 記錄軌跡
+                if (showTrails) {
+                    this.trail.push({ x: this.x, y: this.y });
+                    if (this.trail.length > 200) {
+                        this.trail.shift();
+                    }
+                }
+
+                // 邊界檢查 - 如果行星飛得太遠就移除
+                if (distance > Math.max(canvas.width, canvas.height) * 2) {
+                    const index = planets.indexOf(this);
+                    if (index > -1) planets.splice(index, 1);
+                }
+            }
+
+            draw() {
+                // 繪製軌跡
+                if (showTrails && this.trail.length > 1) {
+                    ctx.strokeStyle = this.color + '40';
+                    ctx.lineWidth = 1;
+                    ctx.beginPath();
+                    ctx.moveTo(this.trail[0].x, this.trail[0].y);
+                    for (let i = 1; i < this.trail.length; i++) {
+                        ctx.lineTo(this.trail[i].x, this.trail[i].y);
+                    }
+                    ctx.stroke();
+                }
+
+                // 繪製行星
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fill();
+
+                // 行星光暈效果
+                const gradient = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, this.size * 2);
+                gradient.addColorStop(0, this.color + '80');
+                gradient.addColorStop(1, this.color + '00');
+                ctx.fillStyle = gradient;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size * 2, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        // 滑鼠事件處理
+        canvas.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            dragStart.x = e.clientX;
+            dragStart.y = e.clientY;
+        });
+
+        canvas.addEventListener('mousemove', (e) => {
+            if (isDragging) {
+                dragEnd.x = e.clientX;
+                dragEnd.y = e.clientY;
+            }
+        });
+
+        canvas.addEventListener('mouseup', (e) => {
+            if (isDragging) {
+                const vx = (dragEnd.x - dragStart.x) * 0.3;
+                const vy = (dragEnd.y - dragStart.y) * 0.3;
+                const size = parseFloat(document.getElementById('planetSize').value);
+                
+                const planet = new Planet(dragStart.x, dragStart.y, vx, vy, size);
+                planets.push(planet);
+                
+                isDragging = false;
+            }
+        });
+
+        // 繪製太陽
+        function drawSun() {
+            // 太陽主體
+            const gradient = ctx.createRadialGradient(sun.x, sun.y, 0, sun.x, sun.y, 25);
+            gradient.addColorStop(0, '#ffd700');
+            gradient.addColorStop(0.7, '#ff8c00');
+            gradient.addColorStop(1, '#ff4500');
+            
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.arc(sun.x, sun.y, 20, 0, Math.PI * 2);
+            ctx.fill();
+
+            // 太陽光暈
+            const haloGradient = ctx.createRadialGradient(sun.x, sun.y, 20, sun.x, sun.y, 50);
+            haloGradient.addColorStop(0, '#ffd70040');
+            haloGradient.addColorStop(1, '#ffd70000');
+            
+            ctx.fillStyle = haloGradient;
+            ctx.beginPath();
+            ctx.arc(sun.x, sun.y, 50, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        // 繪製拖拽線
+        function drawDragLine() {
+            if (isDragging) {
+                ctx.strokeStyle = '#ffffff80';
+                ctx.lineWidth = 2;
+                ctx.setLineDash([5, 5]);
+                ctx.beginPath();
+                ctx.moveTo(dragStart.x, dragStart.y);
+                ctx.lineTo(dragEnd.x, dragEnd.y);
+                ctx.stroke();
+                ctx.setLineDash([]);
+
+                // 顯示發射點
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath();
+                ctx.arc(dragStart.x, dragStart.y, 5, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        // 更新軌道類型顯示
+        function updateOrbitTypeDisplay() {
+            const orbitTypeElement = document.getElementById('orbitType');
+            const orbitCounts = { ellipse: 0, parabola: 0, hyperbola: 0 };
+            
+            planets.forEach(planet => {
+                if (planet.orbitType !== 'unknown') {
+                    orbitCounts[planet.orbitType]++;
+                }
+            });
+
+            let displayText = '';
+            if (orbitCounts.ellipse > 0) displayText += `🔵 橢圓: ${orbitCounts.ellipse} `;
+            if (orbitCounts.parabola > 0) displayText += `🟡 拋物線: ${orbitCounts.parabola} `;
+            if (orbitCounts.hyperbola > 0) displayText += `🔴 雙曲線: ${orbitCounts.hyperbola} `;
+            
+            orbitTypeElement.textContent = displayText || '準備發射行星...';
+        }
+
+        // 遊戲主循環
+        function gameLoop() {
+            // 清除畫布
+            ctx.fillStyle = 'rgba(12, 12, 46, 0.1)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // 繪製星空背景
+            drawStars();
+
+            // 繪製太陽
+            drawSun();
+
+            // 更新和繪製行星
+            planets.forEach(planet => {
+                planet.update();
+                planet.draw();
+            });
+
+            // 繪製拖拽線
+            drawDragLine();
+
+            // 更新軌道類型顯示
+            updateOrbitTypeDisplay();
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        // 繪製星空背景
+        function drawStars() {
+            ctx.fillStyle = '#ffffff20';
+            for (let i = 0; i < 100; i++) {
+                const x = (i * 137.5) % canvas.width;
+                const y = (i * 197.3) % canvas.height;
+                ctx.beginPath();
+                ctx.arc(x, y, Math.random() * 1, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        // 控制函數
+        function clearPlanets() {
+            planets = [];
+        }
+
+        function toggleTrails() {
+            showTrails = !showTrails;
+            if (!showTrails) {
+                planets.forEach(planet => planet.trail = []);
+            }
+        }
+
+        // 更新太陽位置到畫布中心
+        function updateSunPosition() {
+            sun.x = canvas.width / 2;
+            sun.y = canvas.height / 2;
+        }
+
+        window.addEventListener('resize', updateSunPosition);
+
+        // 開始遊戲
+        gameLoop();
+    </script>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'987855f444158276',t:'MTc1OTI4MzcwNS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>
