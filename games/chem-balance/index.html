@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>化學方程式平衡練習</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            box-sizing: border-box;
+        }
+        .equation-input {
+            width: 60px;
+            text-align: center;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 8px;
+            font-size: 18px;
+            font-weight: bold;
+        }
+        .equation-input:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+        .correct {
+            border-color: #10b981;
+            background-color: #ecfdf5;
+        }
+        .incorrect {
+            border-color: #ef4444;
+            background-color: #fef2f2;
+        }
+        .molecule {
+            font-size: 20px;
+            font-weight: 600;
+            color: #374151;
+        }
+        .arrow {
+            font-size: 24px;
+            color: #6b7280;
+            margin: 0 16px;
+        }
+        .hint-box {
+            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+            border-left: 4px solid #f59e0b;
+        }
+        .success-animation {
+            animation: bounce 0.6s ease-in-out;
+        }
+        @keyframes bounce {
+            0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
+            40% { transform: translateY(-10px); }
+            60% { transform: translateY(-5px); }
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen p-6">
+    <div class="max-w-4xl mx-auto">
+        <!-- 標題區域 -->
+        <div class="text-center mb-8">
+            <h1 class="text-4xl font-bold text-gray-800 mb-2">⚗️ 化學方程式平衡練習</h1>
+            <p class="text-lg text-gray-600">從簡單到進階，掌握化學反應式平衡技巧</p>
+        </div>
+
+        <!-- 難度選擇 -->
+        <div class="bg-white rounded-xl shadow-lg p-6 mb-6">
+            <h2 class="text-xl font-semibold text-gray-800 mb-4">選擇難度等級</h2>
+            <div class="flex flex-wrap gap-3">
+                <button onclick="setDifficulty('easy')" class="difficulty-btn bg-green-500 hover:bg-green-600 text-white px-6 py-3 rounded-lg font-medium transition-colors">
+                    🟢 簡單 (單一元素)
+                </button>
+                <button onclick="setDifficulty('medium')" class="difficulty-btn bg-yellow-500 hover:bg-yellow-600 text-white px-6 py-3 rounded-lg font-medium transition-colors">
+                    🟡 中等 (化合物)
+                </button>
+                <button onclick="setDifficulty('hard')" class="difficulty-btn bg-red-500 hover:bg-red-600 text-white px-6 py-3 rounded-lg font-medium transition-colors">
+                    🔴 困難 (複雜反應)
+                </button>
+            </div>
+        </div>
+
+        <!-- 題目區域 -->
+        <div class="bg-white rounded-xl shadow-lg p-8 mb-6">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-2xl font-semibold text-gray-800">第 <span id="questionNumber">1</span> 題</h3>
+                <div class="text-right">
+                    <div class="text-sm text-gray-600">答對題數</div>
+                    <div class="text-2xl font-bold text-green-600"><span id="score">0</span> / <span id="total">0</span></div>
+                </div>
+            </div>
+
+            <!-- 化學方程式 -->
+            <div id="equationContainer" class="flex items-center justify-center flex-wrap gap-4 mb-8 p-6 bg-gray-50 rounded-lg">
+                <!-- 方程式將在這裡動態生成 -->
+            </div>
+
+            <!-- 控制按鈕 -->
+            <div class="flex flex-wrap gap-4 justify-center mb-6">
+                <button onclick="checkAnswer()" class="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-lg font-medium transition-colors">
+                    ✅ 檢查答案
+                </button>
+                <button onclick="showHint()" class="bg-purple-600 hover:bg-purple-700 text-white px-8 py-3 rounded-lg font-medium transition-colors">
+                    💡 提示
+                </button>
+                <button onclick="nextQuestion()" class="bg-green-600 hover:bg-green-700 text-white px-8 py-3 rounded-lg font-medium transition-colors">
+                    ➡️ 下一題
+                </button>
+                <button onclick="resetInputs()" class="bg-gray-600 hover:bg-gray-700 text-white px-8 py-3 rounded-lg font-medium transition-colors">
+                    🔄 重設
+                </button>
+            </div>
+
+            <!-- 結果顯示 -->
+            <div id="resultContainer" class="hidden mb-6"></div>
+
+            <!-- 提示區域 -->
+            <div id="hintContainer" class="hidden hint-box rounded-lg p-4 mb-6">
+                <h4 class="font-semibold text-amber-800 mb-2">💡 平衡提示：</h4>
+                <div id="hintContent" class="text-amber-700"></div>
+            </div>
+        </div>
+
+        <!-- 學習指南 -->
+        <div class="bg-white rounded-xl shadow-lg p-6">
+            <h3 class="text-xl font-semibold text-gray-800 mb-4">📚 平衡步驟指南</h3>
+            <div class="grid md:grid-cols-2 gap-6">
+                <div>
+                    <h4 class="font-semibold text-blue-600 mb-2">基本步驟：</h4>
+                    <ol class="list-decimal list-inside space-y-2 text-gray-700">
+                        <li>列出反應物和生成物中的所有元素</li>
+                        <li>計算每個元素在左右兩邊的原子數</li>
+                        <li>從最複雜的分子開始平衡</li>
+                        <li>逐一調整係數使兩邊原子數相等</li>
+                        <li>檢查所有元素是否平衡</li>
+                    </ol>
+                </div>
+                <div>
+                    <h4 class="font-semibold text-green-600 mb-2">平衡技巧：</h4>
+                    <ul class="list-disc list-inside space-y-2 text-gray-700">
+                        <li>先平衡金屬元素</li>
+                        <li>再平衡非金屬元素</li>
+                        <li>最後平衡氫和氧</li>
+                        <li>使用最小整數係數</li>
+                        <li>檢查質量守恆定律</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentDifficulty = 'easy';
+        let currentQuestion = 0;
+        let score = 0;
+        let totalQuestions = 0;
+        let currentEquation = null;
+
+        // 題庫
+        const equations = {
+            easy: [
+                { reactants: ['H₂', 'O₂'], products: ['H₂O'], answer: [2, 1, 2], hint: '氫原子：左邊2個，右邊2個；氧原子：左邊2個，右邊1個。需要調整水的係數。' },
+                { reactants: ['Na', 'Cl₂'], products: ['NaCl'], answer: [2, 1, 2], hint: '鈉原子：左邊1個；氯原子：左邊2個，右邊1個。需要平衡氯原子數量。' },
+                { reactants: ['Mg', 'O₂'], products: ['MgO'], answer: [2, 1, 2], hint: '鎂原子：左邊1個；氧原子：左邊2個，右邊1個。需要調整鎂和氧化鎂的係數。' },
+                { reactants: ['Al', 'O₂'], products: ['Al₂O₃'], answer: [4, 3, 2], hint: '鋁原子：左邊1個，右邊2個；氧原子：左邊2個，右邊3個。這是較複雜的平衡。' },
+                { reactants: ['Ca', 'H₂O'], products: ['Ca(OH)₂', 'H₂'], answer: [1, 2, 1, 1], hint: '鈣原子：左右各1個；氫原子：左邊2個，右邊4個；氧原子：左右各2個。' }
+            ],
+            medium: [
+                { reactants: ['CH₄', 'O₂'], products: ['CO₂', 'H₂O'], answer: [1, 2, 1, 2], hint: '碳原子：左右各1個；氫原子：左邊4個；氧原子：右邊4個。先平衡碳，再平衡氫，最後平衡氧。' },
+                { reactants: ['C₂H₆', 'O₂'], products: ['CO₂', 'H₂O'], answer: [2, 7, 4, 6], hint: '碳原子：左邊2個；氫原子：左邊6個。先確定CO₂和H₂O的係數，再計算O₂的需要量。' },
+                { reactants: ['Fe', 'HCl'], products: ['FeCl₂', 'H₂'], answer: [1, 2, 1, 1], hint: '鐵原子：左右各1個；氯原子：右邊2個；氫原子：左邊需要偶數個。' },
+                { reactants: ['CaCO₃'], products: ['CaO', 'CO₂'], answer: [1, 1, 1], hint: '這是分解反應。鈣、碳、氧原子數都要平衡。' },
+                { reactants: ['NH₃', 'O₂'], products: ['NO', 'H₂O'], answer: [4, 5, 4, 6], hint: '氮原子：左邊1個，右邊1個；氫原子：左邊3個；氧原子分布在NO和H₂O中。' }
+            ],
+            hard: [
+                { reactants: ['C₃H₈', 'O₂'], products: ['CO₂', 'H₂O'], answer: [1, 5, 3, 4], hint: '丙烷燃燒。碳原子：3個；氫原子：8個。計算完全燃燒所需的氧氣量。' },
+                { reactants: ['Al', 'H₂SO₄'], products: ['Al₂(SO₄)₃', 'H₂'], answer: [2, 3, 1, 3], hint: '鋁原子：右邊2個；硫酸根：右邊3個。注意Al₂(SO₄)₃的化學式。' },
+                { reactants: ['Fe₂O₃', 'CO'], products: ['Fe', 'CO₂'], answer: [1, 3, 2, 3], hint: '鐵的冶煉反應。鐵原子：左邊2個；碳原子和氧原子要仔細計算。' },
+                { reactants: ['KClO₃'], products: ['KCl', 'O₂'], answer: [2, 2, 3], hint: '氯酸鉀分解。鉀和氯原子：左右要相等；氧原子：左邊6個，右邊需要調整。' },
+                { reactants: ['C₂H₅OH', 'O₂'], products: ['CO₂', 'H₂O'], answer: [1, 3, 2, 3], hint: '乙醇燃燒。碳原子：2個；氫原子：6個；計算完全燃燒的氧氣需求。' }
+            ]
+        };
+
+        function setDifficulty(level) {
+            currentDifficulty = level;
+            currentQuestion = 0;
+            score = 0;
+            totalQuestions = 0;
+            
+            // 更新按鈕樣式
+            document.querySelectorAll('.difficulty-btn').forEach(btn => {
+                btn.classList.remove('ring-4', 'ring-blue-300');
+            });
+            event.target.classList.add('ring-4', 'ring-blue-300');
+            
+            loadQuestion();
+        }
+
+        function loadQuestion() {
+            const questionSet = equations[currentDifficulty];
+            if (currentQuestion >= questionSet.length) {
+                showFinalScore();
+                return;
+            }
+
+            currentEquation = questionSet[currentQuestion];
+            totalQuestions = Math.max(totalQuestions, currentQuestion + 1);
+            
+            document.getElementById('questionNumber').textContent = currentQuestion + 1;
+            document.getElementById('total').textContent = totalQuestions;
+            document.getElementById('score').textContent = score;
+            
+            generateEquationHTML();
+            hideResult();
+            hideHint();
+        }
+
+        function generateEquationHTML() {
+            const container = document.getElementById('equationContainer');
+            container.innerHTML = '';
+
+            // 反應物
+            currentEquation.reactants.forEach((reactant, index) => {
+                if (index > 0) {
+                    const plus = document.createElement('span');
+                    plus.textContent = '+';
+                    plus.className = 'text-2xl font-bold text-gray-600 mx-2';
+                    container.appendChild(plus);
+                }
+                
+                const input = document.createElement('input');
+                input.type = 'number';
+                input.min = '1';
+                input.className = 'equation-input';
+                input.id = `reactant-${index}`;
+                input.placeholder = '?';
+                container.appendChild(input);
+                
+                const molecule = document.createElement('span');
+                molecule.textContent = reactant;
+                molecule.className = 'molecule ml-2';
+                container.appendChild(molecule);
+            });
+
+            // 箭頭
+            const arrow = document.createElement('span');
+            arrow.innerHTML = '→';
+            arrow.className = 'arrow';
+            container.appendChild(arrow);
+
+            // 生成物
+            currentEquation.products.forEach((product, index) => {
+                if (index > 0) {
+                    const plus = document.createElement('span');
+                    plus.textContent = '+';
+                    plus.className = 'text-2xl font-bold text-gray-600 mx-2';
+                    container.appendChild(plus);
+                }
+                
+                const input = document.createElement('input');
+                input.type = 'number';
+                input.min = '1';
+                input.className = 'equation-input';
+                input.id = `product-${index}`;
+                input.placeholder = '?';
+                container.appendChild(input);
+                
+                const molecule = document.createElement('span');
+                molecule.textContent = product;
+                molecule.className = 'molecule ml-2';
+                container.appendChild(molecule);
+            });
+        }
+
+        function checkAnswer() {
+            const userAnswer = [];
+            let allFilled = true;
+
+            // 收集反應物係數
+            for (let i = 0; i < currentEquation.reactants.length; i++) {
+                const input = document.getElementById(`reactant-${i}`);
+                const value = parseInt(input.value);
+                if (isNaN(value) || value < 1) {
+                    allFilled = false;
+                    break;
+                }
+                userAnswer.push(value);
+            }
+
+            // 收集生成物係數
+            for (let i = 0; i < currentEquation.products.length; i++) {
+                const input = document.getElementById(`product-${i}`);
+                const value = parseInt(input.value);
+                if (isNaN(value) || value < 1) {
+                    allFilled = false;
+                    break;
+                }
+                userAnswer.push(value);
+            }
+
+            if (!allFilled) {
+                showResult('請填入所有係數！', 'error');
+                return;
+            }
+
+            // 檢查答案
+            const isCorrect = JSON.stringify(userAnswer) === JSON.stringify(currentEquation.answer);
+            
+            // 更新輸入框樣式
+            const allInputs = document.querySelectorAll('.equation-input');
+            allInputs.forEach((input, index) => {
+                input.classList.remove('correct', 'incorrect');
+                if (userAnswer[index] === currentEquation.answer[index]) {
+                    input.classList.add('correct');
+                } else {
+                    input.classList.add('incorrect');
+                }
+            });
+
+            if (isCorrect) {
+                score++;
+                document.getElementById('score').textContent = score;
+                showResult('🎉 答對了！平衡正確！', 'success');
+                document.getElementById('equationContainer').classList.add('success-animation');
+                setTimeout(() => {
+                    document.getElementById('equationContainer').classList.remove('success-animation');
+                }, 600);
+            } else {
+                showResult('❌ 答案不正確，請再試一次或查看提示。', 'error');
+            }
+        }
+
+        function showHint() {
+            document.getElementById('hintContent').textContent = currentEquation.hint;
+            document.getElementById('hintContainer').classList.remove('hidden');
+        }
+
+        function hideHint() {
+            document.getElementById('hintContainer').classList.add('hidden');
+        }
+
+        function showResult(message, type) {
+            const container = document.getElementById('resultContainer');
+            container.className = `p-4 rounded-lg font-medium ${type === 'success' ? 'bg-green-100 text-green-800 border border-green-300' : 'bg-red-100 text-red-800 border border-red-300'}`;
+            container.textContent = message;
+            container.classList.remove('hidden');
+        }
+
+        function hideResult() {
+            document.getElementById('resultContainer').classList.add('hidden');
+        }
+
+        function nextQuestion() {
+            currentQuestion++;
+            loadQuestion();
+        }
+
+        function resetInputs() {
+            const allInputs = document.querySelectorAll('.equation-input');
+            allInputs.forEach(input => {
+                input.value = '';
+                input.classList.remove('correct', 'incorrect');
+            });
+            hideResult();
+            hideHint();
+        }
+
+        function showFinalScore() {
+            const container = document.getElementById('equationContainer');
+            const percentage = Math.round((score / totalQuestions) * 100);
+            let message = '';
+            let emoji = '';
+            
+            if (percentage >= 90) {
+                message = '優秀！你已經完全掌握了化學方程式平衡！';
+                emoji = '🏆';
+            } else if (percentage >= 70) {
+                message = '很好！繼續練習就能更加熟練！';
+                emoji = '🎯';
+            } else if (percentage >= 50) {
+                message = '不錯的開始！多練習基本概念會更進步！';
+                emoji = '📚';
+            } else {
+                message = '需要多加練習！建議複習平衡的基本步驟。';
+                emoji = '💪';
+            }
+
+            container.innerHTML = `
+                <div class="text-center">
+                    <div class="text-6xl mb-4">${emoji}</div>
+                    <h3 class="text-2xl font-bold text-gray-800 mb-2">練習完成！</h3>
+                    <p class="text-lg text-gray-600 mb-4">${message}</p>
+                    <div class="text-3xl font-bold text-blue-600 mb-4">
+                        最終得分：${score} / ${totalQuestions} (${percentage}%)
+                    </div>
+                    <button onclick="location.reload()" class="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-lg font-medium transition-colors">
+                        🔄 重新開始
+                    </button>
+                </div>
+            `;
+        }
+
+        // 初始化
+        setDifficulty('easy');
+    </script>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'98783cbc75488276',t:'MTc1OTI4MjY3Mi4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>

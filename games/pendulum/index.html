@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>單擺模擬器</title>
+    <style>
+        body {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 20px;
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: white;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 1fr 350px;
+            gap: 30px;
+            align-items: start;
+        }
+        
+        .simulation-area {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            padding: 30px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .controls {
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 20px;
+            padding: 25px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        h1 {
+            text-align: center;
+            margin-bottom: 10px;
+            font-size: 2.5rem;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .subtitle {
+            text-align: center;
+            margin-bottom: 30px;
+            opacity: 0.9;
+            font-size: 1.1rem;
+        }
+        
+        #pendulumCanvas {
+            width: 100%;
+            height: 500px;
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            cursor: pointer;
+        }
+        
+        .control-group {
+            margin-bottom: 25px;
+        }
+        
+        .control-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+            font-size: 1.1rem;
+        }
+        
+        .slider-container {
+            position: relative;
+            margin-bottom: 10px;
+        }
+        
+        input[type="range"] {
+            width: 100%;
+            height: 8px;
+            border-radius: 5px;
+            background: rgba(255, 255, 255, 0.3);
+            outline: none;
+            -webkit-appearance: none;
+        }
+        
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #4CAF50;
+            cursor: pointer;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+        }
+        
+        input[type="range"]::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #4CAF50;
+            cursor: pointer;
+            border: none;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+        }
+        
+        .value-display {
+            text-align: center;
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: #FFD700;
+            margin-bottom: 5px;
+        }
+        
+        .buttons {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 25px;
+        }
+        
+        button {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 10px;
+            font-size: 1rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        }
+        
+        .start-btn {
+            background: linear-gradient(45deg, #4CAF50, #45a049);
+            color: white;
+        }
+        
+        .start-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(76, 175, 80, 0.4);
+        }
+        
+        .stop-btn {
+            background: linear-gradient(45deg, #f44336, #da190b);
+            color: white;
+        }
+        
+        .stop-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(244, 67, 54, 0.4);
+        }
+        
+        .reset-btn {
+            background: linear-gradient(45deg, #2196F3, #0b7dda);
+            color: white;
+        }
+        
+        .reset-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(33, 150, 243, 0.4);
+        }
+        
+        .formula {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 20px;
+            border-radius: 15px;
+            text-align: center;
+            margin-bottom: 20px;
+            border: 2px solid rgba(255, 215, 0, 0.5);
+        }
+        
+        .formula-title {
+            font-size: 1.2rem;
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #FFD700;
+        }
+        
+        .formula-text {
+            font-size: 1.5rem;
+            font-weight: bold;
+            font-family: 'Times New Roman', serif;
+        }
+        
+        .results {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 20px;
+            border-radius: 15px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+        
+        .result-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            font-size: 1.1rem;
+        }
+        
+        .result-value {
+            font-weight: bold;
+            color: #FFD700;
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                grid-template-columns: 1fr;
+                gap: 20px;
+            }
+            
+            h1 {
+                font-size: 2rem;
+            }
+            
+            #pendulumCanvas {
+                height: 400px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="simulation-area">
+            <h1>🎯 單擺模擬器</h1>
+            <p class="subtitle">拖拽擺球設定初始角度，觀察週期變化</p>
+            <canvas id="pendulumCanvas" width="600" height="500"></canvas>
+        </div>
+        
+        <div class="controls">
+            <div class="formula">
+                <div class="formula-title">📐 單擺週期公式</div>
+                <div class="formula-text">T = 2π√(L/g)</div>
+            </div>
+            
+            <div class="control-group">
+                <label>🔗 線長 (L)</label>
+                <div class="value-display" id="lengthValue">2.0 m</div>
+                <div class="slider-container">
+                    <input type="range" id="lengthSlider" min="0.5" max="5" step="0.1" value="2">
+                </div>
+            </div>
+            
+            <div class="control-group">
+                <label>🌍 重力加速度 (g)</label>
+                <div class="value-display" id="gravityValue">9.8 m/s²</div>
+                <div class="slider-container">
+                    <input type="range" id="gravitySlider" min="1" max="20" step="0.1" value="9.8">
+                </div>
+            </div>
+            
+            <div class="buttons">
+                <button class="start-btn" onclick="startPendulum()">▶️ 開始</button>
+                <button class="stop-btn" onclick="stopPendulum()">⏸️ 暫停</button>
+                <button class="reset-btn" onclick="resetPendulum()">🔄 重置</button>
+            </div>
+            
+            <div class="results">
+                <h3 style="margin-top: 0; color: #FFD700;">📊 計算結果</h3>
+                <div class="result-item">
+                    <span>理論週期:</span>
+                    <span class="result-value" id="theoreticalPeriod">2.84 秒</span>
+                </div>
+                <div class="result-item">
+                    <span>實測週期:</span>
+                    <span class="result-value" id="measuredPeriod">-- 秒</span>
+                </div>
+                <div class="result-item">
+                    <span>擺動次數:</span>
+                    <span class="result-value" id="oscillationCount">0</span>
+                </div>
+                <div class="result-item">
+                    <span>當前角度:</span>
+                    <span class="result-value" id="currentAngle">0°</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('pendulumCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        // 單擺參數
+        let length = 2.0; // 線長 (m)
+        let gravity = 9.8; // 重力加速度 (m/s²)
+        let angle = Math.PI / 6; // 初始角度 (弧度)
+        let angleVelocity = 0; // 角速度
+        let isRunning = false;
+        let animationId = null;
+        
+        // 畫布參數
+        const canvasWidth = canvas.width;
+        const canvasHeight = canvas.height;
+        const pivotX = canvasWidth / 2;
+        const pivotY = 50;
+        const scale = 80; // 像素/米的比例
+        
+        // 週期測量
+        let lastCrossTime = 0;
+        let crossCount = 0;
+        let periods = [];
+        let oscillationCount = 0;
+        
+        // 拖拽相關
+        let isDragging = false;
+        let mouseX = 0;
+        let mouseY = 0;
+        
+        // 初始化
+        updateControls();
+        drawPendulum();
+        
+        // 控制項事件監聽
+        document.getElementById('lengthSlider').addEventListener('input', function() {
+            length = parseFloat(this.value);
+            updateControls();
+            if (!isRunning) drawPendulum();
+        });
+        
+        document.getElementById('gravitySlider').addEventListener('input', function() {
+            gravity = parseFloat(this.value);
+            updateControls();
+        });
+        
+        // 滑鼠事件
+        canvas.addEventListener('mousedown', startDrag);
+        canvas.addEventListener('mousemove', drag);
+        canvas.addEventListener('mouseup', endDrag);
+        canvas.addEventListener('mouseleave', endDrag);
+        
+        // 觸控事件
+        canvas.addEventListener('touchstart', function(e) {
+            e.preventDefault();
+            const touch = e.touches[0];
+            const rect = canvas.getBoundingClientRect();
+            mouseX = touch.clientX - rect.left;
+            mouseY = touch.clientY - rect.top;
+            startDrag();
+        });
+        
+        canvas.addEventListener('touchmove', function(e) {
+            e.preventDefault();
+            const touch = e.touches[0];
+            const rect = canvas.getBoundingClientRect();
+            mouseX = touch.clientX - rect.left;
+            mouseY = touch.clientY - rect.top;
+            drag();
+        });
+        
+        canvas.addEventListener('touchend', function(e) {
+            e.preventDefault();
+            endDrag();
+        });
+        
+        function startDrag(e) {
+            if (e) {
+                const rect = canvas.getBoundingClientRect();
+                mouseX = e.clientX - rect.left;
+                mouseY = e.clientY - rect.top;
+            }
+            
+            const bobX = pivotX + length * scale * Math.sin(angle);
+            const bobY = pivotY + length * scale * Math.cos(angle);
+            const distance = Math.sqrt((mouseX - bobX) ** 2 + (mouseY - bobY) ** 2);
+            
+            if (distance < 30) {
+                isDragging = true;
+                stopPendulum();
+            }
+        }
+        
+        function drag(e) {
+            if (!isDragging) return;
+            
+            if (e) {
+                const rect = canvas.getBoundingClientRect();
+                mouseX = e.clientX - rect.left;
+                mouseY = e.clientY - rect.top;
+            }
+            
+            const dx = mouseX - pivotX;
+            const dy = mouseY - pivotY;
+            angle = Math.atan2(dx, dy);
+            
+            // 限制角度範圍
+            angle = Math.max(-Math.PI/2, Math.min(Math.PI/2, angle));
+            
+            angleVelocity = 0;
+            drawPendulum();
+            updateCurrentAngle();
+        }
+        
+        function endDrag() {
+            isDragging = false;
+        }
+        
+        function updateControls() {
+            document.getElementById('lengthValue').textContent = length.toFixed(1) + ' m';
+            document.getElementById('gravityValue').textContent = gravity.toFixed(1) + ' m/s²';
+            
+            const theoreticalPeriod = 2 * Math.PI * Math.sqrt(length / gravity);
+            document.getElementById('theoreticalPeriod').textContent = theoreticalPeriod.toFixed(2) + ' 秒';
+        }
+        
+        function updateCurrentAngle() {
+            const degrees = (angle * 180 / Math.PI).toFixed(1);
+            document.getElementById('currentAngle').textContent = degrees + '°';
+        }
+        
+        function startPendulum() {
+            if (isRunning) return;
+            isRunning = true;
+            lastCrossTime = Date.now();
+            crossCount = 0;
+            periods = [];
+            animate();
+        }
+        
+        function stopPendulum() {
+            isRunning = false;
+            if (animationId) {
+                cancelAnimationFrame(animationId);
+                animationId = null;
+            }
+        }
+        
+        function resetPendulum() {
+            stopPendulum();
+            angle = Math.PI / 6;
+            angleVelocity = 0;
+            oscillationCount = 0;
+            periods = [];
+            document.getElementById('measuredPeriod').textContent = '-- 秒';
+            document.getElementById('oscillationCount').textContent = '0';
+            drawPendulum();
+            updateCurrentAngle();
+        }
+        
+        function animate() {
+            if (!isRunning) return;
+            
+            // 單擺運動方程式 (小角度近似)
+            const dt = 0.016; // 約60fps
+            const angleAcceleration = -(gravity / length) * Math.sin(angle);
+            
+            angleVelocity += angleAcceleration * dt;
+            angle += angleVelocity * dt;
+            
+            // 阻尼效果
+            angleVelocity *= 0.999;
+            
+            // 檢測過零點（測量週期）
+            const currentTime = Date.now();
+            if (Math.abs(angle) < 0.01 && Math.abs(angleVelocity) > 0.1) {
+                if (lastCrossTime > 0) {
+                    const period = (currentTime - lastCrossTime) / 500; // 半週期轉全週期
+                    if (period > 0.5 && period < 10) { // 合理範圍
+                        periods.push(period);
+                        if (periods.length > 5) periods.shift();
+                        
+                        const avgPeriod = periods.reduce((a, b) => a + b) / periods.length;
+                        document.getElementById('measuredPeriod').textContent = avgPeriod.toFixed(2) + ' 秒';
+                        
+                        oscillationCount++;
+                        document.getElementById('oscillationCount').textContent = oscillationCount;
+                    }
+                }
+                lastCrossTime = currentTime;
+            }
+            
+            drawPendulum();
+            updateCurrentAngle();
+            
+            animationId = requestAnimationFrame(animate);
+        }
+        
+        function drawPendulum() {
+            // 清除畫布
+            ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+            
+            // 計算擺球位置
+            const bobX = pivotX + length * scale * Math.sin(angle);
+            const bobY = pivotY + length * scale * Math.cos(angle);
+            
+            // 繪製背景網格
+            ctx.strokeStyle = '#f0f0f0';
+            ctx.lineWidth = 1;
+            for (let i = 0; i < canvasWidth; i += 40) {
+                ctx.beginPath();
+                ctx.moveTo(i, 0);
+                ctx.lineTo(i, canvasHeight);
+                ctx.stroke();
+            }
+            for (let i = 0; i < canvasHeight; i += 40) {
+                ctx.beginPath();
+                ctx.moveTo(0, i);
+                ctx.lineTo(canvasWidth, i);
+                ctx.stroke();
+            }
+            
+            // 繪製支點
+            ctx.fillStyle = '#333';
+            ctx.beginPath();
+            ctx.arc(pivotX, pivotY, 8, 0, 2 * Math.PI);
+            ctx.fill();
+            
+            // 繪製線
+            ctx.strokeStyle = '#666';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(pivotX, pivotY);
+            ctx.lineTo(bobX, bobY);
+            ctx.stroke();
+            
+            // 繪製擺球
+            const gradient = ctx.createRadialGradient(bobX - 5, bobY - 5, 0, bobX, bobY, 20);
+            gradient.addColorStop(0, '#FFD700');
+            gradient.addColorStop(1, '#FFA500');
+            
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.arc(bobX, bobY, 20, 0, 2 * Math.PI);
+            ctx.fill();
+            
+            ctx.strokeStyle = '#FF8C00';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            
+            // 繪製角度弧線
+            if (Math.abs(angle) > 0.05) {
+                ctx.strokeStyle = '#FF6B6B';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.arc(pivotX, pivotY, 60, 0, angle);
+                ctx.stroke();
+            }
+            
+            // 繪製軌跡
+            if (isRunning) {
+                ctx.strokeStyle = 'rgba(255, 107, 107, 0.3)';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                const leftX = pivotX - length * scale * Math.sin(Math.PI/3);
+                const rightX = pivotX + length * scale * Math.sin(Math.PI/3);
+                const arcY = pivotY + length * scale * Math.cos(Math.PI/3);
+                
+                for (let a = -Math.PI/3; a <= Math.PI/3; a += 0.01) {
+                    const x = pivotX + length * scale * Math.sin(a);
+                    const y = pivotY + length * scale * Math.cos(a);
+                    if (a === -Math.PI/3) {
+                        ctx.moveTo(x, y);
+                    } else {
+                        ctx.lineTo(x, y);
+                    }
+                }
+                ctx.stroke();
+            }
+        }
+    </script>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9878370af06d8276',t:'MTc1OTI4MjQzOS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>

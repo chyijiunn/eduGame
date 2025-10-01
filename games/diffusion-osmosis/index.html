@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>擴散與滲透模擬器</title>
+    <style>
+        body {
+            box-sizing: border-box;
+            font-family: 'Arial', sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+        }
+        
+        .title {
+            text-align: center;
+            color: #2d3748;
+            font-size: 2.5rem;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        
+        .subtitle {
+            text-align: center;
+            color: #718096;
+            font-size: 1.1rem;
+            margin-bottom: 30px;
+        }
+        
+        .concentration-controls {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-bottom: 20px;
+            padding: 20px;
+            background: #f7fafc;
+            border-radius: 15px;
+        }
+        
+        .concentration-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .bottom-controls {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: #f7fafc;
+            border-radius: 15px;
+        }
+        
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .control-label {
+            font-weight: 600;
+            color: #2d3748;
+            font-size: 0.9rem;
+        }
+        
+        .slider {
+            width: 100%;
+            height: 8px;
+            border-radius: 5px;
+            background: #e2e8f0;
+            outline: none;
+            -webkit-appearance: none;
+        }
+        
+        .slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #4299e1;
+            cursor: pointer;
+        }
+        
+        .button {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 10px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 1rem;
+        }
+        
+        .button-primary {
+            background: #4299e1;
+            color: white;
+        }
+        
+        .button-primary:hover {
+            background: #3182ce;
+            transform: translateY(-2px);
+        }
+        
+        .button-secondary {
+            background: #e2e8f0;
+            color: #2d3748;
+        }
+        
+        .button-secondary:hover {
+            background: #cbd5e0;
+        }
+        
+        .simulation-area {
+            display: grid;
+            grid-template-columns: 1fr 1fr 300px;
+            gap: 20px;
+            margin-bottom: 30px;
+            align-items: start;
+        }
+        
+        .membrane-container {
+            grid-column: 1 / 3;
+            background: #f7fafc;
+            border-radius: 15px;
+            padding: 20px;
+            position: relative;
+            height: 400px;
+        }
+        
+        .membrane {
+            position: absolute;
+            left: 50%;
+            top: 10%;
+            bottom: 10%;
+            width: 4px;
+            background: repeating-linear-gradient(
+                to bottom,
+                #8b5cf6 0px,
+                #8b5cf6 10px,
+                transparent 10px,
+                transparent 15px
+            );
+            transform: translateX(-50%);
+            z-index: 10;
+        }
+        
+        .side {
+            position: absolute;
+            top: 10%;
+            bottom: 10%;
+            width: 45%;
+            border: 2px solid #cbd5e0;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        
+        .left-side {
+            left: 2%;
+        }
+        
+        .right-side {
+            right: 2%;
+        }
+        
+        .particle {
+            position: absolute;
+            border-radius: 50%;
+            transition: all 0.5s ease;
+        }
+        
+        .solute {
+            background: #f56565;
+            width: 8px;
+            height: 8px;
+        }
+        
+        .water {
+            background: #4299e1;
+            width: 6px;
+            height: 6px;
+            opacity: 0.7;
+        }
+        
+        .cell-container {
+            background: #f7fafc;
+            border-radius: 15px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 400px;
+        }
+        
+        .cell {
+            width: 150px;
+            height: 150px;
+            border: 3px solid #38a169;
+            border-radius: 50%;
+            background: rgba(56, 161, 105, 0.1);
+            position: relative;
+            transition: all 1s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .cell-label {
+            font-weight: 600;
+            color: #38a169;
+            text-align: center;
+        }
+        
+        .info-panel {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            padding: 20px;
+            background: #f7fafc;
+            border-radius: 15px;
+        }
+        
+        .info-card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        }
+        
+        .info-title {
+            font-weight: 600;
+            color: #2d3748;
+            margin-bottom: 10px;
+        }
+        
+        .info-value {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #4299e1;
+        }
+        
+        .legend {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin-top: 20px;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .legend-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="title">擴散與滲透模擬器</h1>
+        <p class="subtitle">觀察粒子移動與細胞體積變化</p>
+        
+        <div class="concentration-controls">
+            <div class="concentration-group">
+                <label class="control-label">細胞內溶質濃度: <span id="leftConcentration">50</span>%</label>
+                <input type="range" class="slider" id="leftSlider" min="0" max="100" value="50">
+            </div>
+            
+            <div class="concentration-group">
+                <label class="control-label">細胞外溶質濃度: <span id="rightConcentration">20</span>%</label>
+                <input type="range" class="slider" id="rightSlider" min="0" max="100" value="20">
+            </div>
+        </div>
+        
+        <div class="simulation-area">
+            <div class="membrane-container">
+                <div class="membrane"></div>
+                <div class="side left-side" id="leftSide"></div>
+                <div class="side right-side" id="rightSide"></div>
+            </div>
+            
+            <div class="cell-container">
+                <div class="cell" id="cell">
+                    <div class="cell-label">細胞</div>
+                </div>
+                <div style="margin-top: 15px; text-align: center;">
+                    <div class="info-title">細胞狀態</div>
+                    <div class="info-value" id="cellState">正常</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="bottom-controls">
+            <div class="control-group">
+                <label class="control-label">膜透性</label>
+                <select id="permeability" class="slider" style="height: 40px; border-radius: 8px; border: 1px solid #e2e8f0; padding: 8px;">
+                    <option value="water">僅水分子可通過</option>
+                    <option value="both">水分子和溶質都可通過</option>
+                    <option value="none">不透膜</option>
+                </select>
+            </div>
+            
+            <div class="control-group">
+                <label class="control-label">溫度: <span id="temperatureValue">25</span>°C</label>
+                <input type="range" class="slider" id="temperatureSlider" min="0" max="50" value="25">
+            </div>
+            
+            <div class="control-group">
+                <button class="button button-primary" onclick="startSimulation()">開始模擬</button>
+                <button class="button button-secondary" onclick="resetSimulation()">重置</button>
+            </div>
+        </div>
+        
+        <div class="info-panel">
+            <div class="info-card">
+                <div class="info-title">細胞內溶質粒子</div>
+                <div class="info-value" id="leftSoluteCount">0</div>
+            </div>
+            
+            <div class="info-card">
+                <div class="info-title">細胞外溶質粒子</div>
+                <div class="info-value" id="rightSoluteCount">0</div>
+            </div>
+            
+            <div class="info-card">
+                <div class="info-title">水分子移動方向</div>
+                <div class="info-value" id="waterDirection">→</div>
+            </div>
+            
+            <div class="info-card">
+                <div class="info-title">滲透壓差</div>
+                <div class="info-value" id="osmoticPressure">0</div>
+            </div>
+        </div>
+        
+        <div class="legend">
+            <div class="legend-item">
+                <div class="legend-dot" style="background: #f56565;"></div>
+                <span>溶質分子</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-dot" style="background: #4299e1;"></div>
+                <span>水分子</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-dot" style="background: #8b5cf6;"></div>
+                <span>半透膜</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let animationId;
+        let particles = [];
+        let isRunning = false;
+        
+        const leftSide = document.getElementById('leftSide');
+        const rightSide = document.getElementById('rightSide');
+        const cell = document.getElementById('cell');
+        
+        function updateConcentrationDisplay() {
+            const leftValue = document.getElementById('leftSlider').value;
+            const rightValue = document.getElementById('rightSlider').value;
+            document.getElementById('leftConcentration').textContent = leftValue;
+            document.getElementById('rightConcentration').textContent = rightValue;
+            
+            // 即時更新粒子分布，無論是否在模擬中
+            generateParticles();
+            updateInfo();
+            updateCellState();
+        }
+        
+        function updateTemperatureDisplay() {
+            const tempValue = document.getElementById('temperatureSlider').value;
+            document.getElementById('temperatureValue').textContent = tempValue;
+        }
+        
+        function generateParticles() {
+            // 保存當前動畫狀態
+            const wasRunning = isRunning;
+            
+            // 清除現有粒子
+            particles = [];
+            leftSide.innerHTML = '';
+            rightSide.innerHTML = '';
+            
+            const leftConc = parseInt(document.getElementById('leftSlider').value);
+            const rightConc = parseInt(document.getElementById('rightSlider').value);
+            
+            // 生成細胞內粒子
+            generateSideParticles(leftSide, leftConc, 'left');
+            // 生成細胞外粒子
+            generateSideParticles(rightSide, rightConc, 'right');
+            
+            updateParticleCounts();
+            
+            // 如果之前在運行，繼續動畫
+            if (wasRunning && !isRunning) {
+                isRunning = true;
+                animate();
+            }
+        }
+        
+        function generateSideParticles(container, concentration, side) {
+            const soluteCount = Math.floor(concentration * 0.3);
+            const waterCount = Math.floor((100 - concentration) * 0.2);
+            
+            // 生成溶質粒子
+            for (let i = 0; i < soluteCount; i++) {
+                createParticle(container, 'solute', side);
+            }
+            
+            // 生成水分子
+            for (let i = 0; i < waterCount; i++) {
+                createParticle(container, 'water', side);
+            }
+        }
+        
+        function createParticle(container, type, side) {
+            const particle = document.createElement('div');
+            particle.className = `particle ${type}`;
+            
+            const containerRect = container.getBoundingClientRect();
+            const x = Math.random() * (containerRect.width - 20) + 10;
+            const y = Math.random() * (containerRect.height - 20) + 10;
+            
+            particle.style.left = x + 'px';
+            particle.style.top = y + 'px';
+            
+            container.appendChild(particle);
+            
+            // 根據溫度調整初始速度
+            const temperature = parseInt(document.getElementById('temperatureSlider').value);
+            const speedMultiplier = 0.5 + (temperature / 50) * 2; // 溫度0°C時速度0.5倍，50°C時速度2.5倍
+            
+            particles.push({
+                element: particle,
+                type: type,
+                side: side,
+                x: x,
+                y: y,
+                vx: (Math.random() - 0.5) * 2 * speedMultiplier,
+                vy: (Math.random() - 0.5) * 2 * speedMultiplier,
+                baseVx: (Math.random() - 0.5) * 2,
+                baseVy: (Math.random() - 0.5) * 2
+            });
+        }
+        
+        function startSimulation() {
+            if (isRunning) return;
+            
+            isRunning = true;
+            document.querySelector('.button-primary').textContent = '模擬中...';
+            animate();
+        }
+        
+        function animate() {
+            if (!isRunning) return;
+            
+            const permeability = document.getElementById('permeability').value;
+            const temperature = parseInt(document.getElementById('temperatureSlider').value);
+            const speedMultiplier = 0.5 + (temperature / 50) * 2; // 根據溫度調整速度倍數
+            
+            particles.forEach(particle => {
+                // 根據當前溫度即時調整速度
+                particle.vx = particle.baseVx * speedMultiplier;
+                particle.vy = particle.baseVy * speedMultiplier;
+                
+                // 更新位置
+                particle.x += particle.vx;
+                particle.y += particle.vy;
+                
+                // 邊界碰撞
+                const container = particle.side === 'left' ? leftSide : rightSide;
+                const containerRect = container.getBoundingClientRect();
+                
+                if (particle.x <= 0 || particle.x >= containerRect.width - 20) {
+                    particle.baseVx *= -1;
+                    particle.vx = particle.baseVx * speedMultiplier;
+                    particle.x = Math.max(0, Math.min(particle.x, containerRect.width - 20));
+                }
+                
+                if (particle.y <= 0 || particle.y >= containerRect.height - 20) {
+                    particle.baseVy *= -1;
+                    particle.vy = particle.baseVy * speedMultiplier;
+                    particle.y = Math.max(0, Math.min(particle.y, containerRect.height - 20));
+                }
+                
+                // 膜穿透邏輯
+                if (particle.side === 'left' && particle.x >= containerRect.width - 10) {
+                    if (canPassMembrane(particle.type, permeability)) {
+                        moveToOtherSide(particle, 'right');
+                    } else {
+                        particle.baseVx *= -1;
+                        particle.vx = particle.baseVx * speedMultiplier;
+                    }
+                } else if (particle.side === 'right' && particle.x <= 10) {
+                    if (canPassMembrane(particle.type, permeability)) {
+                        moveToOtherSide(particle, 'left');
+                    } else {
+                        particle.baseVx *= -1;
+                        particle.vx = particle.baseVx * speedMultiplier;
+                    }
+                }
+                
+                // 更新DOM位置
+                particle.element.style.left = particle.x + 'px';
+                particle.element.style.top = particle.y + 'px';
+            });
+            
+            updateInfo();
+            updateCellState();
+            
+            animationId = requestAnimationFrame(animate);
+        }
+        
+        function canPassMembrane(particleType, permeability) {
+            if (permeability === 'none') return false;
+            if (permeability === 'both') return true;
+            if (permeability === 'water') return particleType === 'water';
+            return false;
+        }
+        
+        function moveToOtherSide(particle, newSide) {
+            // 移除舊容器中的元素
+            particle.element.remove();
+            
+            // 更新粒子屬性
+            particle.side = newSide;
+            particle.x = newSide === 'left' ? 10 : 10;
+            
+            // 添加到新容器
+            const newContainer = newSide === 'left' ? leftSide : rightSide;
+            newContainer.appendChild(particle.element);
+        }
+        
+        function updateParticleCounts() {
+            const leftSolute = particles.filter(p => p.side === 'left' && p.type === 'solute').length;
+            const rightSolute = particles.filter(p => p.side === 'right' && p.type === 'solute').length;
+            
+            document.getElementById('leftSoluteCount').textContent = leftSolute;
+            document.getElementById('rightSoluteCount').textContent = rightSolute;
+        }
+        
+        function updateInfo() {
+            updateParticleCounts();
+            
+            const intracellularConc = parseInt(document.getElementById('leftSlider').value);
+            const extracellularConc = parseInt(document.getElementById('rightSlider').value);
+            const pressureDiff = Math.abs(intracellularConc - extracellularConc);
+            
+            document.getElementById('osmoticPressure').textContent = pressureDiff;
+            
+            // 水分子移動方向 (從低濃度往高濃度移動)
+            if (intracellularConc > extracellularConc) {
+                document.getElementById('waterDirection').textContent = '→'; // 從細胞外進入細胞內
+            } else if (intracellularConc < extracellularConc) {
+                document.getElementById('waterDirection').textContent = '←'; // 從細胞內流出到細胞外
+            } else {
+                document.getElementById('waterDirection').textContent = '⇌';
+            }
+        }
+        
+        function updateCellState() {
+            const intracellularConc = parseInt(document.getElementById('leftSlider').value);
+            const extracellularConc = parseInt(document.getElementById('rightSlider').value);
+            const cellElement = document.getElementById('cell');
+            const cellStateElement = document.getElementById('cellState');
+            
+            if (extracellularConc > intracellularConc + 10) {
+                // 細胞外高滲 - 細胞失水收縮
+                cellElement.style.transform = 'scale(0.8)';
+                cellElement.style.borderColor = '#e53e3e';
+                cellStateElement.textContent = '收縮';
+                cellStateElement.style.color = '#e53e3e';
+            } else if (extracellularConc < intracellularConc - 10) {
+                // 細胞外低滲 - 細胞吸水膨脹
+                cellElement.style.transform = 'scale(1.2)';
+                cellElement.style.borderColor = '#3182ce';
+                cellStateElement.textContent = '膨脹';
+                cellStateElement.style.color = '#3182ce';
+            } else {
+                // 等滲環境 - 細胞正常
+                cellElement.style.transform = 'scale(1)';
+                cellElement.style.borderColor = '#38a169';
+                cellStateElement.textContent = '正常';
+                cellStateElement.style.color = '#38a169';
+            }
+        }
+        
+        function resetSimulation() {
+            isRunning = false;
+            if (animationId) {
+                cancelAnimationFrame(animationId);
+            }
+            
+            document.querySelector('.button-primary').textContent = '開始模擬';
+            
+            // 重置滑桿
+            document.getElementById('leftSlider').value = 50;
+            document.getElementById('rightSlider').value = 20;
+            document.getElementById('permeability').value = 'water';
+            document.getElementById('temperatureSlider').value = 25;
+            
+            updateConcentrationDisplay();
+            updateTemperatureDisplay();
+            updateCellState();
+        }
+        
+        // 事件監聽器
+        document.getElementById('leftSlider').addEventListener('input', updateConcentrationDisplay);
+        document.getElementById('rightSlider').addEventListener('input', updateConcentrationDisplay);
+        document.getElementById('temperatureSlider').addEventListener('input', updateTemperatureDisplay);
+        
+        // 初始化
+        updateConcentrationDisplay();
+        updateTemperatureDisplay();
+        updateCellState();
+    </script>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'987850f382df8276',t:'MTc1OTI4MzUwMC4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>
