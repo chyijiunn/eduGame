@@ -18,7 +18,7 @@
     .btn { cursor:pointer; user-select:none; padding:6px 10px; border-radius:10px; font-size:12px; border:1px solid #2a3752; background:#141b28; color:#cfe1ff; }
 
     /* 盡量把高度留給場景 */
-    #canvas { flex:1; display:block; width:100%; height:auto; background: radial-gradient(1200px 180px at 50% 0%, #0b0f16, #0c1018); }
+    #canvas { flex:1; display:block; width:100%; height:auto; background: radial-gradient(1200px 180px at 50% 0%, #0b0f16, #0c1018); touch-action: none; }
 
     /* 通關面板 */
     #win { position:fixed; inset:0; background:rgba(0,0,0,0.6); display:none; align-items:center; justify-content:center; z-index:5; }
@@ -36,6 +36,9 @@
     #help h2 { margin:0 0 8px; font-size:18px; }
     #help ol { margin:8px 0 0 18px; line-height:1.6; font-size:13px; color:#d7e4ff; }
     #help .actions { display:flex; gap:8px; justify-content:flex-end; margin-top:10px; }
+
+    /* 測試結果小角標 */
+    #testBadge { position:fixed; right:8px; bottom:8px; background:#142034; color:#cde3ff; border:1px solid #2a3e63; border-radius:10px; padding:6px 10px; font-size:12px; display:none; z-index:10; }
   </style>
 </head>
 <body>
@@ -69,17 +72,21 @@
     <h2>📘 遊戲說明</h2>
     <ol>
       <li>拖動放大鏡（滑鼠或手指），並用上方滑桿調整焦距 f。</li>
+      <li><b>操作差異：</b>電腦版：滑鼠移動→移動放大鏡，<u>滑鼠左鍵點擊</u>→複製。行動裝置（手機/平板）：<u>手指按住並移動</u>→移動放大鏡，<u>手指放開</u>→複製，不需雙點。</li>
       <li>三條主光線：平行→過焦、過鏡心、過同側焦→出射平行；出射交點為像點。</li>
-      <li>幽靈像清晰度由誤差 Δ（像點到天花板/地板距離）決定；在 <b>±2 cm</b> 內完全清晰，這時點擊（或雙點）可<b>複製</b>。</li>
+      <li>幽靈像清晰度由誤差 Δ（像點到天花板/地板距離）決定；在 <b>±2 cm</b> 內完全清晰，這時點擊（或放開手指）可<b>複製</b>。</li>
       <li>複製體：|m|≥1 → 粉紅母；|m|&lt;1 → 抹茶綠公（半透明、深淺依焦段）。實像落地倒立、虛像落頂正立；左右遵守 m。</li>
       <li><b>新生規則：</b>同一焦段（f 取整 cm）的公母相遇會冒愛心，兩隻走到兩側，並在邊緣<b>生 6 隻</b>小蟑螂（黃色、頭頂標該焦段 f）。</li>
-      <li><b>過關條件：</b>累積三個不同焦段的配對（= 三個家庭），共 18 隻小蟑螂 → 過關；會跳出摘要表。</li>
+      <li><b>過關條件：</b>累積三個不同焦段的配對（= 三個家庭），共 18 隻小蟑螂 → 過關；
+      過關後的摘要只列出「三個家庭的父母親」（共 6 隻）的資料：焦距與像距（單位一致）、物距、像的性質（放大／縮小實像或放大虛像）。不顯示放大率數值。</li>
     </ol>
     <div class="actions">
       <button id="btnCloseHelp" class="btn-outline">關閉</button>
     </div>
   </div>
 </div>
+
+<div id="testBadge">✅ Tests passed</div>
 
 <script>
 (function(){
@@ -90,12 +97,14 @@
   function resize(){
     const dpr = Math.max(1, window.devicePixelRatio || 1);
     const cssW = canvas.clientWidth || window.innerWidth;
-    const cssH = canvas.clientHeight || (window.innerHeight - document.querySelector('header').offsetHeight);
+    const headerH = document.querySelector('header') ? document.querySelector('header').offsetHeight : 0;
+    const cssH = canvas.clientHeight || (window.innerHeight - headerH);
     canvas.width  = Math.max(1, Math.floor(cssW * dpr));
     canvas.height = Math.max(1, Math.floor(cssH * dpr));
     ctx.setTransform(dpr,0,0,dpr,0,0);
   }
   window.addEventListener('resize', resize);
+  window.addEventListener('load', resize);
   requestAnimationFrame(resize);
 
   // ---------- World / State ----------
@@ -107,10 +116,10 @@
   const roach = { x:1.5, y:0, dir:1, speed:0.35, phase:0 };
   let lens = { x:2.0, y:1.5, f:0.50 };
 
-  const clones = []; // see previous schema
+  const clones = []; // clone schema
   const hearts = [];
 
-  // families: key=f_cm, value={f_cm, s, sp, m, type, babies}
+  // families: key=f_cm → { f_cm, parents:[parentA,parentB], babies }
   const families = new Map();
 
   // ---------- UI ----------
@@ -133,23 +142,47 @@
   btnCloseWin.addEventListener('click', ()=> winEl.style.display='none');
   btnRestart.addEventListener('click', ()=> location.reload());
 
-  // Pointer → move lens; click/double-tap → clone
-  let lastTapTime = 0;
-  canvas.addEventListener('pointerdown', (e)=>{
-    if (e.pointerType === 'touch'){
-      const now = Date.now();
-      if (now - lastTapTime < 300) attemptClone();
-      lastTapTime = now;
-    }
-  });
-  canvas.addEventListener('pointermove', (e)=>{
+  // ---------- Pointer handling ----------
+  // Desktop: mouse move moves lens; click clones
+  // Mobile/Tablet: touch down/move moves lens; touch up clones
+  let touching = false;
+  function updateLensFromPointer(e){
     const rect = canvas.getBoundingClientRect();
     lens.x = (e.clientX - rect.left) / pxPerM();
     lens.y = (e.clientY - rect.top - marginTop) / pxPerM();
     lens.y = Math.max(0.1, Math.min(H-0.1, lens.y));
     const maxX = (canvas.clientWidth-0.3*pxPerM())/pxPerM();
     lens.x = Math.max(0.3, Math.min(maxX, lens.x));
-  });
+  }
+
+  canvas.addEventListener('pointerdown', (e)=>{
+    if (e.pointerType === 'touch'){
+      touching = true;
+      updateLensFromPointer(e);
+      e.preventDefault();
+    }
+  }, {passive:false});
+
+  canvas.addEventListener('pointermove', (e)=>{
+    if (e.pointerType === 'touch'){
+      if (!touching) return;
+      updateLensFromPointer(e);
+      e.preventDefault();
+    } else {
+      // mouse moves always update
+      updateLensFromPointer(e);
+    }
+  }, {passive:false});
+
+  canvas.addEventListener('pointerup', (e)=>{
+    if (e.pointerType === 'touch'){
+      touching = false;
+      attemptClone();
+      e.preventDefault();
+    }
+  }, {passive:false});
+
+  canvas.addEventListener('pointercancel', ()=>{ touching=false; });
   canvas.addEventListener('click', (e)=>{ if (e.pointerType !== 'touch') attemptClone(); });
 
   // ---------- Physics ----------
@@ -175,7 +208,7 @@
 
   function attemptClone(){
     const calc = computeImaging();
-    const tol = 0.02;
+    const tol = 0.02; // 2 cm
     let onTarget = false;
     if (calc.sp_geom > 0 && Math.abs(calc.y_img - H) < tol) onTarget = true;
     if (calc.sp_geom < 0 && Math.abs(calc.y_img - 0) < tol) onTarget = true;
@@ -358,6 +391,7 @@
         if (Math.abs(a.x - b.x) < maxDist && Math.abs(a.y - b.y) < 0.05){
           const xm = (a.x+b.x)/2, ym=(a.y+b.y)/2; hearts.push({x:xm, y:ym, t:0});
           a.status='toSide'; a.targetX=minX; b.status='toSide'; b.targetX=maxX; a.hasBirthed=true; b.hasBirthed=true;
+          registerFamily(a.focusBin, a, b);
           spawnBabies(xm, ym, a.focusBin, a);
           checkWin();
         }
@@ -366,9 +400,7 @@
   }
 
   function spawnBabies(xm, ym, fbin, ref){
-    if (!families.has(fbin)){
-      families.set(fbin, { f_cm:fbin, s: ref.s_signed, sp: ref.sp_signed, m: ref.m, type: ref.type, babies: 0 });
-    }
+    if (!families.has(fbin)) registerFamily(fbin, ref, ref);
     const fam = families.get(fbin);
     for (let k=0;k<6;k++){
       const jitter = (Math.random()-0.5)*0.3; const dir = Math.random()<0.5?-1:1; const speed = 0.15 + Math.random()*0.2;
@@ -377,20 +409,52 @@
     }
   }
 
+  function registerFamily(fbin, a, b){
+    if (!families.has(fbin)){
+      const makeParent = (p)=>({
+        sex: p.sex,
+        f_cm: fbin,
+        s_m: p.s_signed,
+        sp_m: p.sp_signed,
+        type: p.type,
+        classText: classifyImage(p)
+      });
+      families.set(fbin, { f_cm:fbin, parents:[ makeParent(a), makeParent(b) ], babies:0 });
+    }
+  }
+
+  function classifyImage(p){
+    if (p.sp_signed < 0){ // 實像（定義上呈負號）
+      const mag = Math.abs(p.m);
+      if (mag > 1) return '放大實像';
+      if (mag < 1) return '縮小實像';
+      return '等大實像';
+    } else {
+      return '放大虛像'; // 凸透鏡虛像一定放大
+    }
+  }
+
   function checkWin(){
-    const finished = [...families.values()].filter(f=>f.babies>=6);
-    if (finished.length >= 3){ showWin(finished.slice(0,3)); }
+    const finishedKeys = [...families.keys()].filter(k=>families.get(k).babies>=6);
+    if (finishedKeys.length >= 3){
+      const arr = finishedKeys.slice(0,3).map(k=>families.get(k));
+      showWin(arr);
+    }
   }
 
   function showWin(familiesArr){
-    let html = '<table><thead><tr><th>#</th><th>焦距 f (cm)</th><th>物距 s (m)</th><th>像距 s\' (m)</th><th>放大率 m</th><th>像的性質</th></tr></thead><tbody>';
-    familiesArr.forEach((f, idx)=>{
-      for(let k=1;k<=6;k++){
-        html += `<tr><td>${(idx*6)+k}</td><td>${f.f_cm}</td><td>${f.s.toFixed(2)}</td><td>${f.sp.toFixed(2)}</td><td>${f.m.toFixed(2)}</td><td>${f.type}</td></tr>`;
-      }
+    // 只列出三個家庭的父母（共 6 隻）；單位一致（焦距與像距都用 cm）
+    let html = '<table><thead><tr><th>#</th><th>家庭(焦段 f, cm)</th><th>性別</th><th>物距 s (cm)</th><th>像距 s\' (cm)</th><th>像的性質</th></tr></thead><tbody>';
+    let idx = 1;
+    familiesArr.forEach((fam)=>{
+      fam.parents.forEach((p)=>{
+        const s_cm = (p.s_m*100).toFixed(1);
+        const sp_cm = (p.sp_m*100).toFixed(1);
+        html += `<tr><td>${idx++}</td><td>${fam.f_cm}</td><td>${p.sex==='F'?'母(粉紅)':'公(綠)'}</td><td>${s_cm}</td><td>${sp_cm}</td><td>${p.classText}</td></tr>`;
+      });
     });
     html += '</tbody></table>';
-    winSummary.innerHTML = html;
+    winSummary.innerHTML = html + '<p style="margin-top:8px;color:#cfdaf2;font-size:12px;">說明：此表為三個焦段的父母像資料（共六隻）。焦距與像距皆以 <b>cm</b> 呈現以便比較；不顯示放大率數值。</p>';
     winEl.style.display = 'flex';
   }
 
@@ -437,6 +501,42 @@
   }
 
   requestAnimationFrame(tick);
+
+  // ---------- Tests ----------
+  function approx(a,b,eps=1e-6){ return Math.abs(a-b) <= eps; }
+  function runTests(){
+    const badge = document.getElementById('testBadge');
+    const saved = { lens: { ...lens }, roach: { ...roach } };
+
+    // Case 1: s=1.5m, f=0.5m → s' = 0.75m (實像), m=-0.5
+    lens.y = 1.5; roach.y = 0; lens.f = 0.5;
+    let c = computeImaging();
+    let expected_sp = 1/(1/lens.f - 1/(lens.y - roach.y));
+    console.assert(approx(c.sp_geom, expected_sp, 1e-9), 'Test1 sp_geom');
+    console.assert(approx(c.m, -c.sp_geom/(lens.y - roach.y)), 'Test1 magnification');
+
+    // Case 2: s=0.3m, f=0.5m → s' < 0 (虛像)
+    lens.y = 0.3; roach.y = 0; lens.f = 0.5;
+    c = computeImaging();
+    console.assert(c.sp_geom < 0, 'Test2 virtual image');
+
+    // classifyImage
+    const mockRealBig = { sp_signed:-0.3, m:-2 };
+    const mockRealSmall = { sp_signed:-0.3, m:-0.5 };
+    const mockVirtual = { sp_signed:0.2, m:2.5 };
+    console.assert(classifyImage(mockRealBig)==='放大實像', 'Test3 classify big real');
+    console.assert(classifyImage(mockRealSmall)==='縮小實像', 'Test4 classify small real');
+    console.assert(classifyImage(mockVirtual)==='放大虛像', 'Test5 classify virtual');
+
+    // Restore
+    lens = saved.lens; roach.x = saved.roach.x; roach.y = saved.roach.y; roach.dir = saved.roach.dir; roach.speed = saved.roach.speed; roach.phase = saved.roach.phase;
+
+    // If all assertions passed, show badge briefly
+    badge.style.display = 'block';
+    setTimeout(()=>{ badge.style.display='none'; }, 1800);
+  }
+  // Run tests after first layout
+  setTimeout(runTests, 100);
 })();
 </script>
 </body>
