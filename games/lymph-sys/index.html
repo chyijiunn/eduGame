@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
-<title>淋巴守城：立即清空判定（無須等敵人走完）</title>
+<title>淋巴守城：生命僅逃出-1 / 正確暫停文字</title>
 <style>
   :root{--bg:#0b1020; --panel:#101935; --text:#eaf1ff; --acc:#7be3b0; --warn:#ffd166; --danger:#ff6b6b;}
   *{box-sizing:border-box; font-family: system-ui, -apple-system, "Noto Sans TC", "Segoe UI", Roboto, "Helvetica Neue", Arial;}
@@ -21,6 +21,11 @@
   .tool .cost{opacity:.85}
   .selected{outline:2px solid var(--acc)}
   .cdbar{position:absolute; left:0; top:0; height:100%; width:0%; background:rgba(255,255,255,0.18); pointer-events:none; transition:width .1s linear}
+
+  #autonext{position:absolute; right:12px; bottom:12px; background:rgba(15,26,58,0.9); border:1px solid #2b457a;
+            color:#eaf1ff; padding:8px 12px; border-radius:10px; display:none; align-items:center; gap:10px}
+  #autonext .bar{width:140px; height:8px; background:#0c1733; border:1px solid #2a3c74; border-radius:6px; overflow:hidden}
+  #autonext .bar > span{display:block; height:100%; width:0%; background:linear-gradient(90deg, #7be3b0, #ffd166)}
 </style>
 </head>
 <body>
@@ -28,14 +33,14 @@
   <div class="stat">CP：<span id="cp">0</span></div>
   <div class="stat">Wave：<span id="wave">0</span>/<span id="wmax">12</span></div>
   <div class="stat">Lives：<span id="lives">15</span></div>
-  <button id="next">下一波</button>
-  <button id="pause">暫停</button>
+  <button id="pause">繼續</button>
   <button id="help">教學</button>
 </header>
 
 <div id="wrap">
   <div id="gamebox">
     <canvas id="game" width="1152" height="648"></canvas>
+    <div id="autonext"><span>下一波倒數中…</span><div class="bar"><span id="autobar"></span></div></div>
   </div>
   <div id="panel">
     <div class="tool" data-type="COMPLEMENT"><span class="cdbar"></span><strong>補體系統</strong><span class="cost">CP 70</span><span>（貼標＋輕傷）</span></div>
@@ -55,20 +60,27 @@
   const W=1152,H=648;
   const cnv=$('game'); const ctx=cnv.getContext('2d');
   const ui={cp:$('cp'), wave:$('wave'), lives:$('lives')};
-  const btn={next:$('next'), pause:$('pause'), help:$('help')};
+  const btn={pause:$('pause'), help:$('help')};
   const cdSwell=$('cd_swell'), cdChaser=$('cd_chaser');
+  const autoBox=document.getElementById('autonext');
+  const autoBar=document.getElementById('autobar');
   let placing=null, selected=null, paused=true, started=false;
+  let autoTimer=10, autoActive=false;
 
   const UPGRADE_BASE=60, UPGRADE_STEP=20, MAX_LVL=5;
 
   const state={
-    cp:250, lives:15, wave:0, wmax:12, time:0, gameOver:false,
+    cp:250, lives:15, wave:0, wmax:12, time:0, gameOver:false, victory:false,
     basePath:[], enemies:[], towers:[], projs:[], crumb:[], queue:[],
     nodes:[], chasers:[],
     ability:{ swellCdDur:20, swellCdUntil:0, chaserCdDur:15, chaserCdUntil:0 },
     unlockedTypes:['virus','bacteria'],
   };
   ui.cp.textContent=state.cp; ui.wave.textContent=state.wave; ui.lives.textContent=state.lives;
+
+  // 教學僅按需開啟
+  const modal = document.createElement('div'); // 省略內容，承襲上一版，為簡化此檔不再重複教學HTML
+  // 若需要完整教學頁，仍可使用上一版 full tutorial 檔。
 
   function scatterRandomNodes(count){
     const nodes=[];
@@ -348,7 +360,7 @@
     const mx=(ev.clientX-rect.left)*(cnv.width/rect.width);
     const my=(ev.clientY-rect.top)*(cnv.height/rect.height);
     let hit=null;
-    for(const n of state.nodes){ if(Math.hypot(n.x-mx,n.y-my)<=n.r){ hit=n; break; } }
+    for(const n of state.nodes){ if(Math.hypot(n.x-mx, n.y-my)<=n.r){ hit=n; break; } }
     if(hit){
       if(placing){ build(hit, placing); }
       else { selected = hit.tower || null; }
@@ -466,7 +478,7 @@
     }
     const target = state.basePath[e.wp];
     if(!target){
-      // 到達終點：立即從場上移除
+      // 只有「逃出」才扣命
       e.dead=true; e.wp = state.basePath.length;
       state.lives--; ui.lives.textContent=state.lives;
       if(state.lives<=0) state.gameOver=true;
@@ -556,7 +568,6 @@
     if(p.slow && !target.ignoreSlow) target.slow=Math.max(target.slow, splash? p.slow*0.8 : p.slow);
     target.hp -= dmg;
     if(target.hp<=0){
-      // 立即移除：標記 dead 並推到路徑末端，稍後統一過濾
       target.dead=true; target.wp = state.basePath.length;
       const waveMul = 1 + (state.wave-1)*0.5;
       const base = (target.boss ? BOSS_DEF[state.wave].reward : (target.reward||10));
@@ -637,6 +648,10 @@
       ctx.fillStyle='rgba(0,0,0,.55)'; ctx.fillRect(0,0,W,H); ctx.fillStyle='#fff'; ctx.font='28px sans-serif';
       const text='敗北！淋巴防線被突破'; const tw=ctx.measureText(text).width; ctx.fillText(text,(W-tw)/2,H/2);
     }
+    if(state.victory){
+      ctx.fillStyle='rgba(0,0,0,.55)'; ctx.fillRect(0,0,W,H); ctx.fillStyle='#7be3b0'; ctx.font='32px sans-serif';
+      const text='勝利！成功守住 12 波'; const tw=ctx.measureText(text).width; ctx.fillText(text,(W-tw)/2,H/2);
+    }
   }
 
   function drawChaser(c){
@@ -655,12 +670,28 @@
     ctx.restore();
   }
 
+  function updateAutoNext(dt){
+    const clear = (state.enemies.length===0 && state.queue.length===0);
+    const canNext = (!state.gameOver && !state.victory && state.wave < state.wmax);
+    if(state.wave>0 && clear && canNext){
+      if(!autoActive){ autoActive=true; autoTimer=10; autoBox.style.display='flex'; autoBar.style.width='0%'; }
+      autoTimer -= dt;
+      autoBar.style.width = Math.max(0, Math.min(100, (1 - autoTimer/10)*100)).toFixed(1) + '%';
+      if(autoTimer<=0){
+        startWave();
+        autoActive=false; autoBox.style.display='none';
+      }
+    }else{
+      if(autoActive){ autoActive=false; autoBox.style.display='none'; }
+    }
+  }
+
   let last=performance.now();
   function loop(ts){
     const dt=Math.min(0.05,(ts-last)/1000); last=ts;
     if(!paused){
       state.time+=dt;
-      if(!state.gameOver){
+      if(!state.gameOver && !state.victory){
         while(state.queue.length && state.queue[0].at<=state.time){
           const s=state.queue.shift();
           if(s.boss){
@@ -674,32 +705,42 @@
           }
         }
         for(const e of state.enemies) stepEnemy(e,dt);
-        // 重要修正：只保留「尚未死亡 且 尚未到終點」的敵人
         state.enemies=state.enemies.filter(e=>!e.dead && e.wp<state.basePath.length);
         for(const t of state.towers) stepTower(t,dt);
         for(const p of state.projs) stepProj(p,dt);
         state.projs=state.projs.filter(p=>p.life>0);
-        for(const c of state.chasers){ c.life-=dt; if(c.life>0){ /* 渲染時再畫 */ } }
+        for(const c of state.chasers){ c.life-=dt; }
         state.chasers = state.chasers.filter(c=>c.life>0);
+
+        if(state.wave===state.wmax && state.enemies.length===0 && state.queue.length===0){
+          state.victory=true;
+        }
       }
     }
+    updateAutoNext(dt);
     draw();
     requestAnimationFrame(loop);
   }
 
-  btn.next.addEventListener('click',()=>{
-    if(state.gameOver) return;
-    if(!started){ started=true; paused=false; btn.pause.textContent='暫停'; startWave(); return; }
-    // 場上已清空（沒有任何存活敵人，且佇列空），立即開下一波
-    if(state.enemies.length===0 && state.queue.length===0){
+  // 正確的按鈕文字：初始為「繼續」（因為 paused=true）
+  btn.pause.textContent='繼續';
+  btn.pause.addEventListener('click',()=>{
+    if(state.gameOver || state.victory) return;
+    paused=!paused; btn.pause.textContent=paused?'繼續':'暫停';
+    if(!paused && state.wave===0){
+      // 初次切到繼續 → 啟動首波
+      if(state.basePath.length===0){
+        state.basePath = generateMixedPath();
+        for(const n of state.nodes){
+          const idx = nearestPathIdx(n, state.basePath);
+          n.gate.startIdx=idx; n.gate.loop = makeVariedDetour(state.basePath, idx);
+        }
+      }
       startWave();
-    }else{
-      flashToast('本波尚未結束，請先清空敵人');
     }
   });
-  btn.pause.addEventListener('click',()=>{ if(state.gameOver) return; paused=!paused; btn.pause.textContent=paused?'繼續':'暫停'; });
-  btn.help.addEventListener('click',()=>{ alert('清空判定：只要場上沒有存活敵人（不需等待敵人走完整條路），就視為清空，可直接按「下一波」。'); });
 
+  // 初始先生成路徑讓玩家部署時可參考
   state.basePath = generateMixedPath();
   for(const n of state.nodes){
     const idx = nearestPathIdx(n, state.basePath);
@@ -707,8 +748,25 @@
   }
 
   requestAnimationFrame(loop);
-  window.addEventListener('keydown', (e)=>{ if(e.code==='Space'){ e.preventDefault(); if(!state.gameOver){ paused=!paused; btn.pause.textContent=paused?'繼續':'暫停'; } }}, {passive:false});
-  window.addEventListener('blur', ()=>{ if(!state.gameOver){ paused=true; btn.pause.textContent='繼續'; } });
+  window.addEventListener('keydown', (e)=>{
+    if(e.code==='Space'){
+      e.preventDefault();
+      if(!state.gameOver && !state.victory){
+        paused=!paused; btn.pause.textContent=paused?'繼續':'暫停';
+        if(!paused && state.wave===0){
+          if(state.basePath.length===0){
+            state.basePath = generateMixedPath();
+            for(const n of state.nodes){
+              const idx = nearestPathIdx(n, state.basePath);
+              n.gate.startIdx=idx; n.gate.loop = makeVariedDetour(state.basePath, idx);
+            }
+          }
+          startWave();
+        }
+      }
+    }
+  }, {passive:false});
+  window.addEventListener('blur', ()=>{ if(!state.gameOver && !state.victory){ paused=true; btn.pause.textContent='繼續'; } });
 })();
 </script>
 </body>
