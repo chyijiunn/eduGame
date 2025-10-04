@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
-<title>淋巴守城：隨機站點＋路線繞近（CP 250）</title>
+<title>淋巴守城：立即清空判定（無須等敵人走完）</title>
 <style>
   :root{--bg:#0b1020; --panel:#101935; --text:#eaf1ff; --acc:#7be3b0; --warn:#ffd166; --danger:#ff6b6b;}
   *{box-sizing:border-box; font-family: system-ui, -apple-system, "Noto Sans TC", "Segoe UI", Roboto, "Helvetica Neue", Arial;}
@@ -28,7 +28,6 @@
   <div class="stat">CP：<span id="cp">0</span></div>
   <div class="stat">Wave：<span id="wave">0</span>/<span id="wmax">12</span></div>
   <div class="stat">Lives：<span id="lives">15</span></div>
-  <!-- 移除開始按鈕 -->
   <button id="next">下一波</button>
   <button id="pause">暫停</button>
   <button id="help">教學</button>
@@ -57,11 +56,9 @@
   const cnv=$('game'); const ctx=cnv.getContext('2d');
   const ui={cp:$('cp'), wave:$('wave'), lives:$('lives')};
   const btn={next:$('next'), pause:$('pause'), help:$('help')};
-  const swellEl=$('swell'), chaserEl=$('chaser');
   const cdSwell=$('cd_swell'), cdChaser=$('cd_chaser');
-  let placing=null, selected=null, paused=true, started=false, nextReady=false; // 預設暫停
+  let placing=null, selected=null, paused=true, started=false;
 
-  // Upgrade AP config
   const UPGRADE_BASE=60, UPGRADE_STEP=20, MAX_LVL=5;
 
   const state={
@@ -73,7 +70,6 @@
   };
   ui.cp.textContent=state.cp; ui.wave.textContent=state.wave; ui.lives.textContent=state.lives;
 
-  // ---------- RANDOM STATIONS ----------
   function scatterRandomNodes(count){
     const nodes=[];
     const margin=50, minDist=110;
@@ -92,7 +88,6 @@
   }
   state.nodes = scatterRandomNodes(6);
 
-  // ---------- PATH (mixed straight+curved) ----------
   function dist(a,b){return Math.hypot(a.x-b.x, a.y-b.y);}
   function segDist(p,a,b){
     const A={x:a.x,y:a.y}, B={x:b.x,y:b.y};
@@ -126,13 +121,11 @@
     pts.push({x:margin, y:H*0.5});
     for(let i=0;i<sorted.length;i++){
       const n=sorted[i];
-      // straight approach
       let ax = Math.max(margin, Math.min(W-margin, n.x - (50+Math.random()*40)));
       let ay = Math.max(margin, Math.min(H-margin, (pts[pts.length-1].y*0.65 + n.y*0.35) + (Math.random()*30-15)));
       let ptA={x:ax,y:ay};
       let guard=0; while(tooCloseToExisting(ptA, pts, minSegGap) && guard<8){ ay += (Math.random()<0.5?-1:1)*10; ptA={x:ax,y:Math.max(margin,Math.min(H-margin,ay))}; guard++; }
       pts.push(ptA);
-      // arc near node
       const arcSteps= 5 + Math.floor(Math.random()*3);
       const rad = visitR + 4 + Math.random()*8;
       const cw = Math.random()<0.5? -1: 1;
@@ -146,13 +139,11 @@
         p.y=Math.max(margin,Math.min(H-margin,p.y));
         pts.push(p);
       }
-      // straight exit
       let bx = Math.max(margin, Math.min(W-margin, n.x + (55+Math.random()*45)));
       let by = Math.max(margin, Math.min(H-margin, n.y + (Math.random()*34-17)));
       let ptB={x:bx,y:by};
       guard=0; while(tooCloseToExisting(ptB, pts, minSegGap) && guard<8){ by += (Math.random()<0.5?-1:1)*10; ptB={x:bx,y:Math.max(margin,Math.min(H-margin,by))}; guard++; }
       pts.push(ptB);
-      // connectors
       if(i<sorted.length-1){
         if(Math.random()<0.6){
           const nxt=sorted[i+1];
@@ -173,7 +164,6 @@
       }
     }
     pts.push({x:W-margin, y:H*0.5});
-    // length control
     function pathLength(ps){ let L=0; for(let i=1;i<ps.length;i++) L+=Math.hypot(ps[i].x-ps[i-1].x, ps[i].y-ps[i-1].y); return L; }
     let L=pathLength(pts);
     const targetMin=W*1.45, targetMax=W*1.6;
@@ -237,7 +227,6 @@
     return {points:pts, rejoinIdx};
   }
 
-  // ---------- Enemies / Towers / Waves ----------
   const ENEMY={
     virus:{hp:30, spd:110, reward:9, r:9, color:'#6ec1ff'},
     bacteria:{hp:60, spd:55, reward:10, r:11, color:'#86e3a6'},
@@ -253,6 +242,15 @@
     ANTIBODY:{cost:90, range:230, rof:0.55, dmg:9, color:'#ffd166', bonusVsMarked:0.6}
   };
 
+  const BOSS_DEF={
+    4:{name:'莢膜巨怪', color:'#ff9e3d', shape:'hex', hp:1200, spd:60, r:22, reward:200,
+       onTick:(b,dt)=>{ b.spawnCd=(b.spawnCd||0)-dt; if(b.spawnCd<=0){ b.spawnCd=2.2; spawnMinions(3); }}},
+    8:{name:'變異風暴', color:'#3ce8ff', shape:'star', hp:1800, spd:80, r:24, reward:320,
+       onTick:(b,dt)=>{ b.dashCd=(b.dashCd||0)-dt; if(b.dashCd<=0){ b.dashCd=3.2; b.dashTime=1.0; } if(b.dashTime>0){ b.dashTime-=dt; b.ignoreSlow=true; } else { b.ignoreSlow=false; }}},
+    12:{name:'蠕蟲女王', color:'#ff4ddb', shape:'worm', hp:2600, spd:42, r:26, reward:500,
+        onTick:(b,dt)=>{ b.shieldCd=(b.shieldCd||0)-dt; if(b.shieldCd<=0){ b.shieldCd=4.0; b.shieldTime=1.2; } if(b.shieldTime>0){ b.shieldTime-=dt; b.shielded=true; } else { b.shielded=false; }}}
+  };
+
   const typeUnlockSchedule = [
     {wave:1, add:[]},
     {wave:3, add:['fungus']},
@@ -266,15 +264,6 @@
       if(s.wave===w){ for(const t of s.add){ if(!state.unlockedTypes.includes(t)) state.unlockedTypes.push(t);} }
     }
   }
-
-  const BOSS_DEF={
-    4:{name:'莢膜巨怪', color:'#ff9e3d', shape:'hex', hp:1200, spd:60, r:22, reward:200,
-       onTick:(b,dt)=>{ b.spawnCd=(b.spawnCd||0)-dt; if(b.spawnCd<=0){ b.spawnCd=2.2; spawnMinions(3); }}},
-    8:{name:'變異風暴', color:'#3ce8ff', shape:'star', hp:1800, spd:80, r:24, reward:320,
-       onTick:(b,dt)=>{ b.dashCd=(b.dashCd||0)-dt; if(b.dashCd<=0){ b.dashCd=3.2; b.dashTime=1.0; } if(b.dashTime>0){ b.dashTime-=dt; b.ignoreSlow=true; } else { b.ignoreSlow=false; }}},
-    12:{name:'蠕蟲女王', color:'#ff4ddb', shape:'worm', hp:2600, spd:42, r:26, reward:500,
-        onTick:(b,dt)=>{ b.shieldCd=(b.shieldCd||0)-dt; if(b.shieldCd<=0){ b.shieldCd=4.0; b.shieldTime=1.2; } if(b.shieldTime>0){ b.shieldTime-=dt; b.shielded=true; } else { b.shielded=false; }}}
-  };
 
   const waves=[];
   for(let w=1; w<=12; w++){
@@ -299,14 +288,12 @@
 
   function addCP(v){state.cp=Math.max(0,state.cp+v); ui.cp.textContent = Math.round(state.cp);}
 
-  // Tools
   const buildTools=[...document.querySelectorAll('.tool[data-type]')];
   buildTools.forEach(el=>el.addEventListener('click',()=>{
     buildTools.forEach(x=>x.classList.remove('selected')); el.classList.add('selected');
     placing=el.dataset.type; selected=null;
   }));
 
-  // Upgrade / sell
   function upgradeCost(t){ return UPGRADE_BASE + UPGRADE_STEP*(t.lvl-1); }
   $('up').addEventListener('click',()=>{
     if(!selected || state.gameOver) return;
@@ -326,8 +313,7 @@
     if(node) node.tower=null; selected=null;
   });
 
-  // Skills
-  swellEl.addEventListener('click',()=>{
+  $('swell').addEventListener('click',()=>{
     const now=performance.now()/1000;
     if(state.cp<50 || state.gameOver) return;
     if(now < state.ability.swellCdUntil) return;
@@ -341,7 +327,7 @@
     addCP(-50);
   });
 
-  chaserEl.addEventListener('click',()=>{
+  $('chaser').addEventListener('click',()=>{
     const now=performance.now()/1000;
     if(state.cp<60 || state.gameOver) return;
     if(now < state.ability.chaserCdUntil) return;
@@ -351,13 +337,11 @@
       if(node) startPos={x:node.x, y:node.y};
     }
     if(!startPos){ const n=state.nodes[Math.floor(state.nodes.length/2)] || {x:W*0.5,y:H*0.5}; startPos={x:n.x, y:n.y}; }
-    // 壽命固定 10 秒
     state.chasers.push({x:startPos.x,y:startPos.y, vx:0, vy:0, spd:240, dmg:22, r:9, life:10.0, atkCd:0, turn:7.5, glow:0});
     state.ability.chaserCdUntil = now + state.ability.chaserCdDur;
     addCP(-60);
   });
 
-  // Build/select
   cnv.addEventListener('click',(ev)=>{
     if(state.gameOver) return;
     const rect=cnv.getBoundingClientRect();
@@ -386,10 +370,8 @@
     node.tower=t; state.towers.push(t); selected=t;
   }
 
-  // ---------- Wave control ----------
   function startWave(){
     if(state.wave>=state.wmax || state.gameOver) return;
-    // 每波前重繪路線（僅在沒有活躍敵人時才重繪，避免中途改道）
     if(state.enemies.length===0 && state.queue.length===0){
       state.basePath = generateMixedPath();
       for(const n of state.nodes){
@@ -430,7 +412,6 @@
     }
   }
 
-  // ---------- Combat ----------
   function flashToast(msg){
     const d=document.createElement('div');
     d.textContent=msg;
@@ -485,7 +466,9 @@
     }
     const target = state.basePath[e.wp];
     if(!target){
-      e.dead=true; state.lives--; ui.lives.textContent=state.lives;
+      // 到達終點：立即從場上移除
+      e.dead=true; e.wp = state.basePath.length;
+      state.lives--; ui.lives.textContent=state.lives;
       if(state.lives<=0) state.gameOver=true;
       return;
     }
@@ -573,7 +556,8 @@
     if(p.slow && !target.ignoreSlow) target.slow=Math.max(target.slow, splash? p.slow*0.8 : p.slow);
     target.hp -= dmg;
     if(target.hp<=0){
-      target.dead=true;
+      // 立即移除：標記 dead 並推到路徑末端，稍後統一過濾
+      target.dead=true; target.wp = state.basePath.length;
       const waveMul = 1 + (state.wave-1)*0.5;
       const base = (target.boss ? BOSS_DEF[state.wave].reward : (target.reward||10));
       addCP(Math.round(base * waveMul));
@@ -589,54 +573,9 @@
     }
   }
 
-  // Chaser (10s life ensured)
-  function stepChaser(c, dt){
-    c.life -= dt; c.atkCd = Math.max(0, (c.atkCd||0) - dt); c.glow = Math.max(0, (c.glow||0) - dt);
-    if(c.life<=0) return;
-    let target=null, best=1e9;
-    for(const e of state.enemies){
-      if(e.dead) continue;
-      const d=Math.hypot(c.x-e.x, c.y-e.y);
-      if(d<best){ best=d; target=e; }
-    }
-    if(target){
-      const desiredAng=Math.atan2(target.y-c.y, target.x-c.x);
-      const curAng=Math.atan2(c.vy||0, c.vx||0);
-      let diff = desiredAng - curAng;
-      while(diff>Math.PI) diff-=2*Math.PI;
-      while(diff<-Math.PI) diff+=2*Math.PI;
-      const maxTurn=(c.turn||7.5)*dt;
-      const newAng = isFinite(curAng) ? curAng + Math.max(-maxTurn, Math.min(maxTurn, diff)) : desiredAng;
-      const speed = c.spd;
-      c.vx=Math.cos(newAng)*speed; c.vy=Math.sin(newAng)*speed;
-      c.x += c.vx*dt; c.y += c.vy*dt;
-      const dnow = Math.hypot(c.x-target.x, c.y-target.y);
-      if(dnow < (target.r + c.r)){
-        if(c.atkCd<=0){
-          let dmg=(c.dmg||22);
-          if(target.marked) dmg*=1.2;
-          target.hp -= dmg;
-          c.atkCd = 0.25;
-          c.glow = 0.2;
-          state.crumb.push({x:target.x,y:target.y,life:0.2});
-          if(target.hp<=0){ target.dead=true;
-            const waveMul = 1 + (state.wave-1)*0.5;
-            const base = (target.boss ? BOSS_DEF[state.wave].reward : (target.reward||10));
-            addCP(Math.round(base * waveMul));
-          }
-        }
-      }
-    }else{
-      c.x += (Math.random()-0.5)*40*dt;
-      c.y += (Math.random()-0.5)*40*dt;
-    }
-  }
-
-  // ---------- Main loop ----------
   function draw(){
     ctx.fillStyle='#081224'; ctx.fillRect(0,0,W,H);
     if(state.basePath.length>1) drawPath(state.basePath);
-    // stations & detours
     for(const n of state.nodes){
       const loop=n.gate.loop? n.gate.loop.points : null;
       if(loop){
@@ -658,7 +597,6 @@
         }
       }
     }
-    // enemies
     for(const e of state.enemies){
       if(e.dead) continue;
       const ratio=e.hp/e.maxhp;
@@ -673,21 +611,18 @@
       ctx.strokeStyle='rgba(255,255,255,0.25)'; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(e.x,e.y,(e.boss? e.r+10: e.r+3),-Math.PI/2,-Math.PI/2+Math.PI*2*ratio); ctx.stroke();
       if(e.marked){ ctx.strokeStyle='rgba(255,230,140,.9)'; ctx.lineWidth=1.5; ctx.beginPath(); ctx.arc(e.x,e.y,(e.boss? e.r+14: e.r+6),0,Math.PI*2); ctx.stroke(); }
     }
-    // projectiles
     for(const p of state.projs){
       const isAB = (p.kind==='ANTIBODY');
       ctx.fillStyle = isAB ? '#ffe08a' : (p.kind==='INFLAM' ? '#ffa8a8' : (p.kind==='COMPLEMENT' ? '#9ad8ff' : '#7be3b0'));
       ctx.beginPath(); ctx.arc(p.x,p.y, isAB?5:4,0,Math.PI*2); ctx.fill();
       if(p.kind==='INFLAM' && p.splash){ ctx.globalAlpha=0.15; ctx.beginPath(); ctx.arc(p.x,p.y,p.splash,0,Math.PI*2); ctx.fill(); ctx.globalAlpha=1; }
     }
-    // chasers
     for(const c of state.chasers){ if(c.life>0) drawChaser(c); }
     for(const c of state.crumb){
       ctx.globalAlpha=Math.max(0,c.life/0.18);
       ctx.fillStyle='#fff'; ctx.fillRect(c.x-1,c.y-1,2,2);
       ctx.globalAlpha=1;
     }
-
     const now=performance.now()/1000;
     if(state.ability.swellCdUntil > now){
       const remain = state.ability.swellCdUntil - now;
@@ -720,7 +655,6 @@
     ctx.restore();
   }
 
-  // Main loop
   let last=performance.now();
   function loop(ts){
     const dt=Math.min(0.05,(ts-last)/1000); last=ts;
@@ -740,13 +674,12 @@
           }
         }
         for(const e of state.enemies) stepEnemy(e,dt);
-        state.enemies=state.enemies.filter(e=>!e.dead || e.wp<state.basePath.length);
+        // 重要修正：只保留「尚未死亡 且 尚未到終點」的敵人
+        state.enemies=state.enemies.filter(e=>!e.dead && e.wp<state.basePath.length);
         for(const t of state.towers) stepTower(t,dt);
         for(const p of state.projs) stepProj(p,dt);
         state.projs=state.projs.filter(p=>p.life>0);
-
-        // Chasers: 10s life enforcement
-        for(const c of state.chasers) stepChaser(c, dt);
+        for(const c of state.chasers){ c.life-=dt; if(c.life>0){ /* 渲染時再畫 */ } }
         state.chasers = state.chasers.filter(c=>c.life>0);
       }
     }
@@ -754,28 +687,19 @@
     requestAnimationFrame(loop);
   }
 
-  // Controls
   btn.next.addEventListener('click',()=>{
     if(state.gameOver) return;
-    // 若還沒開始，按「下一波」就直接開第一波，並解除暫停
-    if(!started){
-      started=true; paused=false; btn.pause.textContent='暫停';
-      startWave();
-      return;
-    }
-    // 已開始時：若場上清空才立刻開；否則排隊（保持路線重繪在波與波之間）
+    if(!started){ started=true; paused=false; btn.pause.textContent='暫停'; startWave(); return; }
+    // 場上已清空（沒有任何存活敵人，且佇列空），立即開下一波
     if(state.enemies.length===0 && state.queue.length===0){
       startWave();
     }else{
-      flashToast('本波尚未結束，將於清空後立即開始下一波');
-      nextReady=true;
+      flashToast('本波尚未結束，請先清空敵人');
     }
   });
-
   btn.pause.addEventListener('click',()=>{ if(state.gameOver) return; paused=!paused; btn.pause.textContent=paused?'繼續':'暫停'; });
-  btn.help.addEventListener('click',()=>{ alert('提示：遊戲開場為暫停狀態。按「下一波」即可開第一波；之後每波仍在清空敵人後自動重繪路線再開。追擊淋巴球壽命固定 10 秒。'); });
+  btn.help.addEventListener('click',()=>{ alert('清空判定：只要場上沒有存活敵人（不需等待敵人走完整條路），就視為清空，可直接按「下一波」。'); });
 
-  // Boot: build preview path & detours（可在暫停下先擺塔）
   state.basePath = generateMixedPath();
   for(const n of state.nodes){
     const idx = nearestPathIdx(n, state.basePath);
