@@ -1,46 +1,62 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
-<title>淋巴守城：生命僅逃出-1 / 正確暫停文字</title>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>淋巴守城：完整整合最終版</title>
 <style>
   :root{--bg:#0b1020; --panel:#101935; --text:#eaf1ff; --acc:#7be3b0; --warn:#ffd166; --danger:#ff6b6b;}
-  *{box-sizing:border-box; font-family: system-ui, -apple-system, "Noto Sans TC", "Segoe UI", Roboto, "Helvetica Neue", Arial;}
+  *{box-sizing:border-box; font-family: system-ui, -apple-system, "Noto Sans TC", "Segoe UI", Roboto, Arial;}
   body{margin:0; background:linear-gradient(180deg,#0b1020 0%, #0f1a3a 100%); color:var(--text);}
   header{display:flex;align-items:center;gap:.6rem; padding:.7rem 1rem; background:#0d1633; position:sticky; top:0; z-index:5; box-shadow:0 2px 8px rgba(0,0,0,.4)}
   .stat{padding:.35rem .6rem; border:1px solid #1f2b55; border-radius:10px; background:#0f1a3a; font-weight:700}
-  header button{appearance:none;border:none;border-radius:10px; padding:.55rem .8rem; background:#1a3568; color:#d8e8ff; cursor:pointer; position:relative; overflow:hidden}
+  header button{appearance:none;border:none;border-radius:10px; padding:.55rem .8rem; background:#1a3568; color:#d8e8ff; cursor:pointer}
   header button:hover{background:#23457f}
   #wrap{display:grid; grid-template-columns:1fr; justify-items:center; padding:10px}
   #gamebox{position:relative; width:min(1100px,96vw); aspect-ratio:16/9; background:#081224; border:1px solid #1a2a54; border-radius:16px; overflow:hidden; box-shadow:0 6px 24px rgba(0,0,0,.5)}
   canvas{width:100%; height:100%; display:block}
-  #panel{display:flex;gap:.6rem;flex-wrap:wrap; padding:8px 0}
-  .tool{display:flex;align-items:center;gap:.4rem; padding:.5rem .7rem; border:1px solid #2a3c74; border-radius:10px; background:#0f1c3d; cursor:pointer; position:relative; overflow:hidden}
+  #panel{display:flex;gap:.6rem;flex-wrap:wrap; padding:8px 0; justify-content:center}
+  .tool{display:flex;align-items:center;gap:.4rem; padding:.5rem .7rem; border:1px solid #2a3c74; border-radius:10px; background:#0f1c3d; cursor:pointer; position:relative}
   .tool strong{letter-spacing:.5px}
   .tool .cost{opacity:.85}
   .selected{outline:2px solid var(--acc)}
   .cdbar{position:absolute; left:0; top:0; height:100%; width:0%; background:rgba(255,255,255,0.18); pointer-events:none; transition:width .1s linear}
-
-  #autonext{position:absolute; right:12px; bottom:12px; background:rgba(15,26,58,0.9); border:1px solid #2b457a;
-            color:#eaf1ff; padding:8px 12px; border-radius:10px; display:none; align-items:center; gap:10px}
-  #autonext .bar{width:140px; height:8px; background:#0c1733; border:1px solid #2a3c74; border-radius:6px; overflow:hidden}
-  #autonext .bar > span{display:block; height:100%; width:0%; background:linear-gradient(90deg, #7be3b0, #ffd166)}
+  /* circular 5s countdown */
+  #autocircle{position:absolute; right:80px; bottom:80px; width:88px; height:88px; display:none;}
+  #autocircle svg{width:100%; height:100%; transform:rotate(-90deg)}
+  #autocircle .bg{fill:none; stroke:rgba(255,255,255,0.25); stroke-width:8}
+  #autocircle .prog{fill:none; stroke:rgba(255,255,255,0.85); stroke-width:8; stroke-linecap:round; stroke-dasharray:283; stroke-dashoffset:283}
+  #autocircle .num{position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:26px; font-weight:800; color:#fff; text-shadow:0 0 8px rgba(255,255,255,.6)}
+  /* modal */
+  #modal{position:fixed; inset:0; background:rgba(0,0,0,.6); display:none; align-items:center; justify-content:center; z-index:20}
+  #modal .card{width:min(900px,94vw); max-height:min(90vh, 780px); background:#0f1a3a; border:1px solid #27407a; border-radius:14px; overflow:hidden; display:flex; flex-direction:column}
+  #modal .card header{position:unset; box-shadow:none; background:#0f1a3a; display:flex; align-items:center; padding:10px}
+  #modal .content{padding:12px 16px 18px; overflow:auto}
+  #modal h2{margin:.2rem 0 .6rem 0}
+  #modal h3{margin:1.1rem 0 .4rem 0; color:#cde7ff}
+  #modal ul{margin:.2rem 0 .8rem 1.2rem}
+  #modal li{margin:.2rem 0; line-height:1.5}
+  #modal .close{margin-left:auto; appearance:none; border:none; border-radius:10px; padding:.4rem .7rem; background:#1a3568; color:#d8e8ff; cursor:pointer}
 </style>
 </head>
 <body>
 <header>
-  <div class="stat">CP：<span id="cp">0</span></div>
+  <div class="stat">CP：<span id="cp">250</span></div>
   <div class="stat">Wave：<span id="wave">0</span>/<span id="wmax">12</span></div>
   <div class="stat">Lives：<span id="lives">15</span></div>
   <button id="pause">繼續</button>
   <button id="help">教學</button>
 </header>
-
 <div id="wrap">
   <div id="gamebox">
     <canvas id="game" width="1152" height="648"></canvas>
-    <div id="autonext"><span>下一波倒數中…</span><div class="bar"><span id="autobar"></span></div></div>
+    <div id="autocircle">
+      <svg viewBox="0 0 100 100">
+        <circle class="bg" cx="50" cy="50" r="45"></circle>
+        <circle class="prog" cx="50" cy="50" r="45"></circle>
+      </svg>
+      <div class="num" id="autonum">5</div>
+    </div>
   </div>
   <div id="panel">
     <div class="tool" data-type="COMPLEMENT"><span class="cdbar"></span><strong>補體系統</strong><span class="cost">CP 70</span><span>（貼標＋輕傷）</span></div>
@@ -49,8 +65,57 @@
     <div class="tool" data-type="ANTIBODY"><span class="cdbar"></span><strong>抗體</strong><span class="cost">CP 90</span><span>（追蹤強擊）</span></div>
     <div class="tool" id="up"><span class="cdbar"></span><strong>升級（等差成本）</strong><span class="cost">基礎 60，每級 +20（Lv≤5）</span></div>
     <div class="tool" id="sell"><span class="cdbar"></span><strong>出售</strong><span class="cost">返還60%</span></div>
-    <div class="tool" id="swell"><span class="cdbar" id="cd_swell"></span><strong>淋巴結腫大</strong><span class="cost">CP 50</span><span>（變異繞路12s / 冷卻20s）</span></div>
-    <div class="tool" id="chaser"><span class="cdbar" id="cd_chaser"></span><strong>追擊淋巴球（IL‑2）</strong><span class="cost">CP 60</span><span>（壽命 10s / 冷卻15s）</span></div>
+    <div class="tool" id="swell"><span class="cdbar" id="cd_swell"></span><strong>淋巴結腫大</strong><span class="cost">CP 50</span><span>（繞路12s / 冷卻20s）</span></div>
+    <div class="tool" id="chaser"><span class="cdbar" id="cd_chaser"></span><strong>追擊淋巴球（IL‑2）</strong><span class="cost">CP 60</span><span>（壽命10s / 冷卻15s）</span></div>
+  </div>
+</div>
+
+<!-- Tutorial Modal -->
+<div id="modal">
+  <div class="card">
+    <header>
+      <div class="stat">📘 教學 / 規則總覽</div>
+      <button class="close">關閉</button>
+    </header>
+    <div class="content" id="tutorial">
+      <h2>目標與流程</h2>
+      <ul>
+        <li>守住 12 波攻擊（第 4 / 8 / 12 波為 Boss）。</li>
+        <li>開場<b>暫停</b>；先佈署 → 按<b>繼續</b>開第 1 波。</li>
+        <li>清場（場上無敵人且隊列為空）時，右下出現 <b>5 秒</b> 圓形倒數 → 自動進下一波。</li>
+      </ul>
+      <h3>生命與失敗</h3>
+      <ul>
+        <li><b>只有病原體逃出終點才 -1</b>；擊殺不會扣命。</li>
+        <li>Lives ≤ 0 立刻失敗；清除第 12 波即勝利。</li>
+      </ul>
+      <h3>CP（免疫資源）</h3>
+      <ul>
+        <li>初始 250；擊敗敵人獲得 CP（波數越高倍率越大）。</li>
+        <li>出售返還 60% 成本；Boss 掉較多 CP。</li>
+      </ul>
+      <h3>站點與路線</h3>
+      <ul>
+        <li>初始 6 站點隨機散落。</li>
+        <li>每波前重繪路線（直＋彎），總長約 1.45～1.6× 畫面寬，且一定<b>繞過每個站點附近</b>。</li>
+        <li>第 4 / 8 / 12 波各新增 2 站點。</li>
+      </ul>
+      <h3>塔與技能</h3>
+      <ul>
+        <li><b>補體</b>（CP 70）：貼標＋輕傷；已貼標目標會被其他塔加成。</li>
+        <li><b>巨噬</b>（CP 80）：單體高傷；對貼標目標傷害加成。</li>
+        <li><b>發炎介質</b>（CP 70）：範圍緩速＋小傷。</li>
+        <li><b>抗體</b>（CP 90）：追蹤彈；命中高但射速較慢，對貼標加成。</li>
+        <li><b>升級（等差）</b>：基礎 60，每級 +20，至 Lv.5。</li>
+        <li><b>淋巴結腫大</b>（CP 50）：附近 12s 生成迴繞路段；冷卻 20s（按鈕半透明條顯示）。</li>
+        <li><b>追擊淋巴球（IL‑2）</b>（CP 60）：自動追蹤攻擊，壽命 10s；冷卻 15s（同樣以條顯示）。</li>
+      </ul>
+      <h3>操作</h3>
+      <ul>
+        <li>點站點放塔；再點選塔可升級 / 出售。</li>
+        <li><b>Space</b>：暫停 / 繼續；<b>Esc</b> 關閉教學。</li>
+      </ul>
+    </div>
   </div>
 </div>
 
@@ -59,13 +124,13 @@
   function $(id){return document.getElementById(id);}
   const W=1152,H=648;
   const cnv=$('game'); const ctx=cnv.getContext('2d');
-  const ui={cp:$('cp'), wave:$('wave'), lives:$('lives')};
+  const ui={cp:$('cp'), wave:$('wave'), wmax:$('wmax'), lives:$('lives')};
   const btn={pause:$('pause'), help:$('help')};
+  const modal=$('modal'); const modalClose=modal.querySelector('.close');
+  const autoBox=$('autocircle'); const autoNum=$('autonum'); const autoProg=autoBox.querySelector('.prog');
   const cdSwell=$('cd_swell'), cdChaser=$('cd_chaser');
-  const autoBox=document.getElementById('autonext');
-  const autoBar=document.getElementById('autobar');
-  let placing=null, selected=null, paused=true, started=false;
-  let autoTimer=10, autoActive=false;
+  let placing=null, selected=null, paused=true;
+  let autoTimer=5, autoActive=false;
 
   const UPGRADE_BASE=60, UPGRADE_STEP=20, MAX_LVL=5;
 
@@ -76,38 +141,22 @@
     ability:{ swellCdDur:20, swellCdUntil:0, chaserCdDur:15, chaserCdUntil:0 },
     unlockedTypes:['virus','bacteria'],
   };
-  ui.cp.textContent=state.cp; ui.wave.textContent=state.wave; ui.lives.textContent=state.lives;
+  ui.cp.textContent=state.cp; ui.wave.textContent=state.wave; ui.lives.textContent=state.lives; ui.wmax.textContent=state.wmax;
 
-  // 教學僅按需開啟
-  const modal = document.createElement('div'); // 省略內容，承襲上一版，為簡化此檔不再重複教學HTML
-  // 若需要完整教學頁，仍可使用上一版 full tutorial 檔。
+  // 教學開關
+  btn.help.addEventListener('click', ()=>{ modal.style.display='flex'; });
+  modalClose.addEventListener('click', ()=>{ modal.style.display='none'; });
+  modal.addEventListener('click', (e)=>{ if(e.target===modal) modal.style.display='none'; });
+  window.addEventListener('keydown', (e)=>{ if(e.key==='Escape') modal.style.display='none'; });
 
-  function scatterRandomNodes(count){
-    const nodes=[];
-    const margin=50, minDist=110;
-    let guard=0;
-    while(nodes.length<count && guard<2000){
-      guard++;
-      const x = margin + Math.random()*(W-2*margin);
-      const y = margin + Math.random()*(H-2*margin);
-      let ok=true;
-      for(const n of nodes){
-        if(Math.hypot(n.x-x, n.y-y) < minDist){ ok=false; break; }
-      }
-      if(ok) nodes.push({id:nodes.length, x, y, r:24, tower:null, gate:{startIdx:0, loop:null, activeUntil:0, cdUntil:0}});
-    }
-    return nodes;
-  }
-  state.nodes = scatterRandomNodes(6);
-
+  // 幾何工具
   function dist(a,b){return Math.hypot(a.x-b.x, a.y-b.y);}
   function segDist(p,a,b){
-    const A={x:a.x,y:a.y}, B={x:b.x,y:b.y};
-    const AP={x:p.x-A.x, y:p.y-A.y}, AB={x:B.x-A.x, y:B.y-A.y};
-    const ab2=AB.x*AB.x+AB.y*AB.y; if(ab2===0) return dist(p,A);
-    let t=(AP.x*AB.x + AP.y*AB.y)/ab2; t=Math.max(0,Math.min(1,t));
-    const C={x:A.x+AB.x*t, y:A.y+AB.y*t};
-    return dist(p,C);
+    const AP={x:p.x-a.x,y:p.y-a.y}, AB={x:b.x-a.x,y:b.y-a.y};
+    const ab2=AB.x*AB.x+AB.y*AB.y; if(!ab2) return Math.hypot(p.x-a.x,p.y-a.y);
+    let t=(AP.x*AB.x+AP.y*AB.y)/ab2; t=Math.max(0,Math.min(1,t));
+    const C={x:a.x+AB.x*t,y:a.y+AB.y*t};
+    return Math.hypot(p.x-C.x,p.y-C.y);
   }
   function tooCloseToExisting(p, pts, minD, ignoreLastN=8){
     const L=pts.length;
@@ -126,6 +175,27 @@
     }
     return Math.max(1, Math.min(path.length-2, best));
   }
+
+  // 站點
+  function scatterRandomNodes(count){
+    const nodes=[];
+    const margin=50, minDist=110;
+    let guard=0;
+    while(nodes.length<count && guard<2000){
+      guard++;
+      const x = margin + Math.random()*(W-2*margin);
+      const y = margin + Math.random()*(H-2*margin);
+      let ok=true;
+      for(const n of nodes){
+        if(Math.hypot(n.x-x, n.y-y) < minDist){ ok=false; break; }
+      }
+      if(ok) nodes.push({id:nodes.length, x, y, r:24, tower:null, gate:{startIdx:0, loop:null, activeUntil:0, cdUntil:0}});
+    }
+    return nodes;
+  }
+  state.nodes = scatterRandomNodes(6);
+
+  // 路線（1.45～1.6 W）
   function generateMixedPath(){
     const margin=30, visitR=24, minSegGap=22;
     const pts=[];
@@ -199,7 +269,6 @@
     }
     return pts;
   }
-
   function makeVariedDetour(path, startIdx){
     const style = Math.random();
     const anchor = path[startIdx];
@@ -239,6 +308,7 @@
     return {points:pts, rejoinIdx};
   }
 
+  // 敵人與塔
   const ENEMY={
     virus:{hp:30, spd:110, reward:9, r:9, color:'#6ec1ff'},
     bacteria:{hp:60, spd:55, reward:10, r:11, color:'#86e3a6'},
@@ -253,7 +323,6 @@
     INFLAM:{cost:70, range:180, rof:0.7, dmg:2, color:'#ffa8a8', slow:0.5, splash:28},
     ANTIBODY:{cost:90, range:230, rof:0.55, dmg:9, color:'#ffd166', bonusVsMarked:0.6}
   };
-
   const BOSS_DEF={
     4:{name:'莢膜巨怪', color:'#ff9e3d', shape:'hex', hp:1200, spd:60, r:22, reward:200,
        onTick:(b,dt)=>{ b.spawnCd=(b.spawnCd||0)-dt; if(b.spawnCd<=0){ b.spawnCd=2.2; spawnMinions(3); }}},
@@ -263,6 +332,7 @@
         onTick:(b,dt)=>{ b.shieldCd=(b.shieldCd||0)-dt; if(b.shieldCd<=0){ b.shieldCd=4.0; b.shieldTime=1.2; } if(b.shieldTime>0){ b.shieldTime-=dt; b.shielded=true; } else { b.shielded=false; }}}
   };
 
+  // 解鎖表與波次
   const typeUnlockSchedule = [
     {wave:1, add:[]},
     {wave:3, add:['fungus']},
@@ -276,7 +346,6 @@
       if(s.wave===w){ for(const t of s.add){ if(!state.unlockedTypes.includes(t)) state.unlockedTypes.push(t);} }
     }
   }
-
   const waves=[];
   for(let w=1; w<=12; w++){
     unlockByWave(w);
@@ -300,6 +369,7 @@
 
   function addCP(v){state.cp=Math.max(0,state.cp+v); ui.cp.textContent = Math.round(state.cp);}
 
+  // 工具列選擇
   const buildTools=[...document.querySelectorAll('.tool[data-type]')];
   buildTools.forEach(el=>el.addEventListener('click',()=>{
     buildTools.forEach(x=>x.classList.remove('selected')); el.classList.add('selected');
@@ -318,7 +388,7 @@
   });
   $('sell').addEventListener('click',()=>{
     if(!selected || state.gameOver) return;
-    const node=state.nodes.find(n=>n.id===selected.nodeId);
+    const node=state.nodes.find(n=>n.tower===selected);
     const base=TOWER[selected.kind].cost;
     addCP(Math.floor(base*0.6 + (selected.lvl-1)*18));
     state.towers=state.towers.filter(t=>t!==selected);
@@ -330,7 +400,7 @@
     if(state.cp<50 || state.gameOver) return;
     if(now < state.ability.swellCdUntil) return;
     let node=null;
-    if(selected){ node=state.nodes.find(n=>n.id===selected.nodeId) || state.nodes.find(n=>n.tower===selected); }
+    if(selected){ node=state.nodes.find(n=>n.tower===selected); }
     if(!node) node=state.nodes[Math.floor(state.nodes.length/2)];
     if(node.gate.cdUntil>now) return;
     node.gate.activeUntil = now + 12;
@@ -345,15 +415,16 @@
     if(now < state.ability.chaserCdUntil) return;
     let startPos=null;
     if(selected){
-      const node=state.nodes.find(n=>n.id===selected.nodeId) || state.nodes.find(n=>n.tower===selected);
+      const node=state.nodes.find(n=>n.tower===selected);
       if(node) startPos={x:node.x, y:node.y};
     }
     if(!startPos){ const n=state.nodes[Math.floor(state.nodes.length/2)] || {x:W*0.5,y:H*0.5}; startPos={x:n.x, y:n.y}; }
-    state.chasers.push({x:startPos.x,y:startPos.y, vx:0, vy:0, spd:240, dmg:22, r:9, life:10.0, atkCd:0, turn:7.5, glow:0});
+    state.chasers.push({x:startPos.x,y:startPos.y, vx:0, vy:0, spd:240, dmg:22, r:9, life:10.0, atkCd:0});
     state.ability.chaserCdUntil = now + state.ability.chaserCdDur;
     addCP(-60);
   });
 
+  // 點擊站點放塔 / 選塔
   cnv.addEventListener('click',(ev)=>{
     if(state.gameOver) return;
     const rect=cnv.getBoundingClientRect();
@@ -382,8 +453,20 @@
     node.tower=t; state.towers.push(t); selected=t;
   }
 
+  // 初始生成路徑供部署參考
+  function initPath(){
+    state.basePath = generateMixedPath();
+    for(const n of state.nodes){
+      const idx = nearestPathIdx(n, state.basePath);
+      n.gate.startIdx=idx; n.gate.loop = makeVariedDetour(state.basePath, idx);
+    }
+  }
+  initPath();
+
+  // 開波
   function startWave(){
     if(state.wave>=state.wmax || state.gameOver) return;
+    // 每波前重繪路線
     if(state.enemies.length===0 && state.queue.length===0){
       state.basePath = generateMixedPath();
       for(const n of state.nodes){
@@ -402,7 +485,8 @@
 
     state.queue.length=0;
     const pack=waves[state.wave-1];
-    for(const s of pack) state.queue.push({t:s.t, boss:!!s.boss, at:state.time+s.at});
+    const baseAt = state.time + 0.2;
+    for(const s of pack) state.queue.push({t:s.t, boss:!!s.boss, at:baseAt+s.at});
   }
 
   function addNewStations(k){
@@ -434,27 +518,10 @@
     setTimeout(()=>{ d.style.transition='opacity .6s'; d.style.opacity='0'; setTimeout(()=>d.remove(),600); }, 1200);
   }
 
-  function drawPath(points){
-    if(points.length<3) return;
-    const penult=points[points.length-2], lastp=points[points.length-1];
-    ctx.strokeStyle='#134f7a'; ctx.lineWidth=26; ctx.lineCap='round'; ctx.lineJoin='round';
-    ctx.beginPath(); ctx.moveTo(points[0].x, points[0].y);
-    for(let i=1;i<points.length-2;i++){
-      const xc=(points[i].x + points[i+1].x)/2, yc=(points[i].y + points[i+1].y)/2;
-      ctx.quadraticCurveTo(points[i].x, points[i].y, xc, yc);
-    }
-    ctx.quadraticCurveTo(penult.x, penult.y, lastp.x, lastp.y); ctx.stroke();
-    ctx.strokeStyle='rgba(123,227,176,0.35)'; ctx.lineWidth=6;
-    ctx.beginPath(); ctx.moveTo(points[0].x, points[0].y);
-    for(let i=1;i<points.length-2;i++){
-      const xc=(points[i].x + points[i+1].x)/2, yc=(points[i].y + points[i+1].y)/2;
-      ctx.quadraticCurveTo(points[i].x, points[i].y, xc, yc);
-    }
-    ctx.quadraticCurveTo(penult.x, penult.y, lastp.x, lastp.y); ctx.stroke();
-  }
-
+  // 移動與戰鬥
   function stepEnemy(e,dt){
     if(state.gameOver) return;
+    if(e.dead) return;
     const now=performance.now()/1000;
     if(e.boss && e.onTick) e.onTick(e,dt);
     const upcomingIdx = e.subpath ? -1 : e.wp;
@@ -467,9 +534,7 @@
     if(e.subpath){
       const target=e.subpath[e.subWp];
       if(!target){
-        const nd=state.nodes.find(n=>n.gate.loop && n.gate.loop.points===e.subpath);
-        const rejoinIdx = nd? nd.gate.rejoinIdx : (e.wp+1);
-        e.subpath=null; e.subWp=0; e.wp = Math.max(e.wp, rejoinIdx);
+        e.subpath=null; e.subWp=0; e.wp = Math.max(e.wp, e.wp+1);
       }else{
         moveTowards(e, target, dt);
         if(Math.hypot(target.x-e.x, target.y-e.y)<2){ e.subWp++; }
@@ -478,7 +543,7 @@
     }
     const target = state.basePath[e.wp];
     if(!target){
-      // 只有「逃出」才扣命
+      // 只有逃出才扣生命
       e.dead=true; e.wp = state.basePath.length;
       state.lives--; ui.lives.textContent=state.lives;
       if(state.lives<=0) state.gameOver=true;
@@ -568,7 +633,7 @@
     if(p.slow && !target.ignoreSlow) target.slow=Math.max(target.slow, splash? p.slow*0.8 : p.slow);
     target.hp -= dmg;
     if(target.hp<=0){
-      target.dead=true; target.wp = state.basePath.length;
+      target.dead=true;
       const waveMul = 1 + (state.wave-1)*0.5;
       const base = (target.boss ? BOSS_DEF[state.wave].reward : (target.reward||10));
       addCP(Math.round(base * waveMul));
@@ -582,6 +647,57 @@
       const base = state.basePath[0] || {x:10,y:H*0.5};
       state.enemies.push({type:t, x:base.x, y:base.y, wp:1, hp:ENEMY[t].hp, maxhp:ENEMY[t].hp, spd:ENEMY[t].spd, r:ENEMY[t].r, color:ENEMY[t].color, reward:ENEMY[t].reward, marked:false, slow:0, dead:false, subpath:null, subWp:0});
     }
+  }
+
+  // 追擊淋巴球（IL-2）
+  function stepChaser(c,dt){
+    c.life -= dt; if(c.life<=0) return;
+    // 找最近敵人
+    let tgt=null, best=1e9;
+    for(const e of state.enemies){
+      if(e.dead) continue;
+      const d=Math.hypot(e.x-c.x, e.y-c.y);
+      if(d<best){ best=d; tgt=e; }
+    }
+    if(tgt){
+      // 轉向追蹤
+      const desired=Math.atan2(tgt.y-c.y, tgt.x-c.x);
+      const cur=Math.atan2(c.vy||0.0001, c.vx||1);
+      let diff=desired-cur;
+      while(diff>Math.PI) diff-=2*Math.PI;
+      while(diff<-Math.PI) diff+=2*Math.PI;
+      const turn=6.5*dt;
+      const ang=cur + Math.max(-turn, Math.min(turn, diff));
+      c.vx=Math.cos(ang)*c.spd; c.vy=Math.sin(ang)*c.spd;
+      c.x += c.vx*dt; c.y += c.vy*dt;
+      // 近距攻擊（0.25s 節奏）
+      c.atkCd = (c.atkCd||0) - dt;
+      if(best < (tgt.r+10) && c.atkCd<=0){
+        tgt.hp -= 22;
+        c.atkCd = 0.25;
+        if(tgt.hp<=0) tgt.dead=true;
+      }
+    }
+  }
+
+  // 繪製
+  function drawPath(points){
+    if(points.length<3) return;
+    const penult=points[points.length-2], lastp=points[points.length-1];
+    ctx.strokeStyle='#134f7a'; ctx.lineWidth=26; ctx.lineCap='round'; ctx.lineJoin='round';
+    ctx.beginPath(); ctx.moveTo(points[0].x, points[0].y);
+    for(let i=1;i<points.length-2;i++){
+      const xc=(points[i].x + points[i+1].x)/2, yc=(points[i].y + points[i+1].y)/2;
+      ctx.quadraticCurveTo(points[i].x, points[i].y, xc, yc);
+    }
+    ctx.quadraticCurveTo(penult.x, penult.y, lastp.x, lastp.y); ctx.stroke();
+    ctx.strokeStyle='rgba(123,227,176,0.35)'; ctx.lineWidth=6;
+    ctx.beginPath(); ctx.moveTo(points[0].x, points[0].y);
+    for(let i=1;i<points.length-2;i++){
+      const xc=(points[i].x + points[i+1].x)/2, yc=(points[i].y + points[i+1].y)/2;
+      ctx.quadraticCurveTo(points[i].x, points[i].y, xc, yc);
+    }
+    ctx.quadraticCurveTo(penult.x, penult.y, lastp.x, lastp.y); ctx.stroke();
   }
 
   function draw(){
@@ -614,6 +730,7 @@
       if(e.boss){
         ctx.save(); ctx.translate(e.x, e.y);
         ctx.fillStyle=e.color; ctx.strokeStyle='rgba(255,255,255,0.25)'; ctx.lineWidth=2;
+        // boss 形狀簡化顯示
         ctx.beginPath(); for(let i=0;i<6;i++){ const a=i*Math.PI/3; const r=e.r+6; const x=Math.cos(a)*r, y=Math.sin(a)*r; if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y); }
         ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.restore();
       }else{
@@ -628,12 +745,20 @@
       ctx.beginPath(); ctx.arc(p.x,p.y, isAB?5:4,0,Math.PI*2); ctx.fill();
       if(p.kind==='INFLAM' && p.splash){ ctx.globalAlpha=0.15; ctx.beginPath(); ctx.arc(p.x,p.y,p.splash,0,Math.PI*2); ctx.fill(); ctx.globalAlpha=1; }
     }
-    for(const c of state.chasers){ if(c.life>0) drawChaser(c); }
+    for(const c of state.chasers){
+      if(c.life<=0) continue;
+      ctx.save();
+      ctx.globalAlpha = 0.9;
+      ctx.fillStyle='#ffffff'; ctx.beginPath(); ctx.arc(c.x, c.y, c.r, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle='rgba(135,206,250,0.9)'; ctx.beginPath(); ctx.arc(c.x+1.5, c.y+1.5, c.r*0.5, 0, Math.PI*2); ctx.fill();
+      ctx.restore();
+    }
     for(const c of state.crumb){
       ctx.globalAlpha=Math.max(0,c.life/0.18);
       ctx.fillStyle='#fff'; ctx.fillRect(c.x-1,c.y-1,2,2);
       ctx.globalAlpha=1;
     }
+    // 冷卻條
     const now=performance.now()/1000;
     if(state.ability.swellCdUntil > now){
       const remain = state.ability.swellCdUntil - now;
@@ -641,7 +766,7 @@
     }else{ cdSwell.style.width = '0%'; }
     if(state.ability.chaserCdUntil > now){
       const remain = state.ability.chaserCdUntil - now;
-      cdChaser.style.width = (Math.max(0,Math.min(1, remain / state.ability.chaserCdDur))*100).toFixed(1)+'%';
+      cdChaser.style.width = (Math.max(0,Math.min(1, remain / state.ability.chaserCdDur))*100).toFixed(1) + '%';
     }else{ cdChaser.style.width = '0%'; }
 
     if(state.gameOver){
@@ -654,119 +779,86 @@
     }
   }
 
-  function drawChaser(c){
-    const ctx=cnv.getContext('2d');
-    ctx.save();
-    ctx.globalAlpha = 0.85;
-    if(c.glow>0){
-      ctx.fillStyle='rgba(255,255,255,0.25)';
-      ctx.beginPath(); ctx.arc(c.x, c.y, c.r+8, 0, Math.PI*2); ctx.fill();
-    }
-    ctx.fillStyle='#ffffff';
-    ctx.beginPath(); ctx.arc(c.x, c.y, c.r, 0, Math.PI*2); ctx.fill();
-    ctx.fillStyle='rgba(135,206,250,0.9)';
-    ctx.beginPath(); ctx.arc(c.x+1.5, c.y+1.5, c.r*0.5, 0, Math.PI*2); ctx.fill();
-    ctx.globalAlpha = 1;
-    ctx.restore();
-  }
-
+  // 自動下一波 5 秒圓形倒數
   function updateAutoNext(dt){
     const clear = (state.enemies.length===0 && state.queue.length===0);
     const canNext = (!state.gameOver && !state.victory && state.wave < state.wmax);
     if(state.wave>0 && clear && canNext){
-      if(!autoActive){ autoActive=true; autoTimer=10; autoBox.style.display='flex'; autoBar.style.width='0%'; }
+      if(!autoActive){ autoActive=true; autoTimer=5; autoBox.style.display='block'; autoProg.style.strokeDashoffset=283; }
       autoTimer -= dt;
-      autoBar.style.width = Math.max(0, Math.min(100, (1 - autoTimer/10)*100)).toFixed(1) + '%';
+      autoNum.textContent = Math.ceil(Math.max(0,autoTimer));
+      const p = Math.min(1, Math.max(0, (5-autoTimer)/5 ));
+      autoProg.style.strokeDashoffset = (283*(1-p));
       if(autoTimer<=0){
-        startWave();
         autoActive=false; autoBox.style.display='none';
+        startWave();
       }
     }else{
       if(autoActive){ autoActive=false; autoBox.style.display='none'; }
     }
   }
 
+  // 主迴圈
   let last=performance.now();
   function loop(ts){
     const dt=Math.min(0.05,(ts-last)/1000); last=ts;
     if(!paused){
       state.time+=dt;
-      if(!state.gameOver && !state.victory){
-        while(state.queue.length && state.queue[0].at<=state.time){
-          const s=state.queue.shift();
-          if(s.boss){
-            const def=BOSS_DEF[state.wave];
-            const base = state.basePath[0] || {x:10,y:H*0.5};
-            state.enemies.push({boss:true, name:def.name, x:base.x, y:base.y, wp:1, hp:def.hp, maxhp:def.hp, spd:def.spd, r:def.r, color:def.color,
-               reward:def.reward, marked:false, slow:0, dead:false, subpath:null, subWp:0, onTick:def.onTick, ignoreSlow:false, shielded:false, shape:def.shape});
-          } else {
-            const t=s.t; const base = state.basePath[0] || {x:10,y:H*0.5};
-            state.enemies.push({type:t, x:base.x, y:base.y, wp:1, hp:ENEMY[t].hp, maxhp:ENEMY[t].hp, spd:ENEMY[t].spd, r:ENEMY[t].r, color:ENEMY[t].color, reward:ENEMY[t].reward, marked:false, slow:0, dead:false, subpath:null, subWp:0});
-          }
-        }
-        for(const e of state.enemies) stepEnemy(e,dt);
-        state.enemies=state.enemies.filter(e=>!e.dead && e.wp<state.basePath.length);
-        for(const t of state.towers) stepTower(t,dt);
-        for(const p of state.projs) stepProj(p,dt);
-        state.projs=state.projs.filter(p=>p.life>0);
-        for(const c of state.chasers){ c.life-=dt; }
-        state.chasers = state.chasers.filter(c=>c.life>0);
-
-        if(state.wave===state.wmax && state.enemies.length===0 && state.queue.length===0){
-          state.victory=true;
+      // 生成敵人
+      while(state.queue.length && state.queue[0].at<=state.time){
+        const s=state.queue.shift();
+        if(s.boss){
+          const def=BOSS_DEF[state.wave];
+          const base = state.basePath[0] || {x:10,y:H*0.5};
+          state.enemies.push({boss:true, name:def.name, x:base.x, y:base.y, wp:1, hp:def.hp, maxhp:def.hp, spd:def.spd, r:def.r, color:def.color,
+             reward:def.reward, marked:false, slow:0, dead:false, subpath:null, subWp:0, onTick:def.onTick, ignoreSlow:false, shielded:false, shape:def.shape});
+        } else {
+          const t=s.t || 'virus';
+          const base = state.basePath[0] || {x:10,y:H*0.5};
+          const eDef=ENEMY[t];
+          state.enemies.push({type:t, x:base.x, y:base.y, wp:1, hp:eDef.hp, maxhp:eDef.hp, spd:eDef.spd, r:eDef.r, color:eDef.color, reward:eDef.reward, marked:false, slow:0, dead:false, subpath:null, subWp:0});
         }
       }
+      // 移動與戰鬥
+      for(const e of state.enemies) stepEnemy(e,dt);
+      state.enemies=state.enemies.filter(e=>!e.dead);
+      for(const t of state.towers) stepTower(t,dt);
+      for(const p of state.projs) stepProj(p,dt);
+      state.projs=state.projs.filter(p=>p.life>0);
+      for(const c of state.chasers) stepChaser(c,dt);
+      state.chasers=state.chasers.filter(c=>c.life>0);
+      if(state.wave===state.wmax && state.enemies.length===0 && state.queue.length===0) state.victory=true;
     }
     updateAutoNext(dt);
     draw();
     requestAnimationFrame(loop);
   }
 
-  // 正確的按鈕文字：初始為「繼續」（因為 paused=true）
+  // 暫停/繼續
   btn.pause.textContent='繼續';
   btn.pause.addEventListener('click',()=>{
     if(state.gameOver || state.victory) return;
     paused=!paused; btn.pause.textContent=paused?'繼續':'暫停';
     if(!paused && state.wave===0){
-      // 初次切到繼續 → 啟動首波
-      if(state.basePath.length===0){
-        state.basePath = generateMixedPath();
-        for(const n of state.nodes){
-          const idx = nearestPathIdx(n, state.basePath);
-          n.gate.startIdx=idx; n.gate.loop = makeVariedDetour(state.basePath, idx);
-        }
-      }
-      startWave();
+      startWave(); // 按「繼續」就開第 1 波
     }
   });
-
-  // 初始先生成路徑讓玩家部署時可參考
-  state.basePath = generateMixedPath();
-  for(const n of state.nodes){
-    const idx = nearestPathIdx(n, state.basePath);
-    n.gate.startIdx=idx; n.gate.loop = makeVariedDetour(state.basePath, idx);
-  }
-
-  requestAnimationFrame(loop);
   window.addEventListener('keydown', (e)=>{
     if(e.code==='Space'){
       e.preventDefault();
       if(!state.gameOver && !state.victory){
         paused=!paused; btn.pause.textContent=paused?'繼續':'暫停';
         if(!paused && state.wave===0){
-          if(state.basePath.length===0){
-            state.basePath = generateMixedPath();
-            for(const n of state.nodes){
-              const idx = nearestPathIdx(n, state.basePath);
-              n.gate.startIdx=idx; n.gate.loop = makeVariedDetour(state.basePath, idx);
-            }
-          }
           startWave();
         }
       }
+    } else if(e.key==='Escape'){
+      modal.style.display='none';
     }
   }, {passive:false});
   window.addEventListener('blur', ()=>{ if(!state.gameOver && !state.victory){ paused=true; btn.pause.textContent='繼續'; } });
+
+  requestAnimationFrame(loop);
 })();
 </script>
 </body>
