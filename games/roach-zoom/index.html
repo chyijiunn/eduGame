@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>透鏡成像 × 放大鏡 × 馬達加斯加蟑螂</title>
+  <style>
+    html, body { height: 100%; margin: 0; background:#0e1116; color:#eaeef5; font-family: system-ui, -apple-system, Segoe UI, Roboto, Noto Sans, Arial, "Microsoft JhengHei", sans-serif; }
+    .wrap { display:flex; flex-direction:column; height:100%; }
+    header { padding:8px 12px; background:linear-gradient(180deg,#121722,#0e1116); border-bottom:1px solid #1b2130; }
+    header h1 { font-size:16px; margin:0 0 4px; letter-spacing:0.5px }
+    header .row { display:flex; gap:16px; align-items:center; flex-wrap:wrap; }
+    label { font-size:12px; opacity:0.9 }
+    input[type=range] { width:200px; }
+    .pill { background:#151b26; border:1px solid #1f2838; padding:6px 10px; border-radius:12px; font-size:12px }
+    .hint { font-size:12px; opacity:0.8; }
+    #canvas { flex:1; display:block; width:100%; background: conic-gradient(from 180deg at 50% 0%, #0b0f16, #0c1018); }
+    footer { padding:8px 12px; font-size:12px; color:#aeb8cc; border-top:1px solid #1b2130; display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+    .badge { padding:2px 8px; border-radius:999px; border:1px solid #2a3752; background:#141b28; color:#cfe1ff; }
+    .row { display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+    .btn { cursor:pointer; user-select:none; }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>透鏡成像遊戲｜放大鏡焦距、位置、成像清晰度</h1>
+    <div class="row">
+      <label>焦距 f（cm）：<input id="fSlider" type="range" min="10" max="100" step="1" value="50"></label>
+      <span class="pill">f = <span id="fVal">50</span> cm</span>
+      <span class="pill">天花板 ↕ 地板 = 3.00 m</span>
+      <span class="pill">提示：滑鼠移動 = 放大鏡位置；點擊 = 複製；手機/平板：拖曳移動，雙擊/雙點 = 複製</span>
+      <button id="flipBtn" class="btn pill">顛倒天花板/地板</button>
+    </div>
+    <div class="row hint">
+      尺規：以透鏡所在水平面為 0，<b>物距 s 為正</b>、<b>像距 s' 為負</b>（實像在下方時）。
+    </div>
+    <div class="row hint">
+      s：<span id="sRead">—</span> m　|　s'：<span id="spRead">—</span> m　|　放大率 m：<span id="mRead">—</span>　|　成像類型：<span id="typeRead">—</span>　|　對焦誤差 Δ：<span id="errRead">—</span> m
+    </div>
+  </header>
+
+  <canvas id="canvas"></canvas>
+
+  <footer>
+    <div class="row">
+      <span class="badge">規則：滿足 1/f = 1/s + 1/s'，且焦平面落在「下邊界（實像）」或「上邊界（虛像）」時最清晰。按規則可複製刷淡蟑螂，大小與上下顛倒遵循 m = -s'/s。顛倒按鈕可交換上/下邊界的「天花板 / 地板」語意，並可在頂部像上繼續複製。</span>
+    </div>
+    <div class="row">
+      <span class="badge">旋轉鍵（僅視覺）：</span>
+      <button id="rotLeft" class="btn pill">↺</button>
+      <button id="rotRight" class="btn pill">↻</button>
+      <span class="hint">（薄透鏡理想模型中，旋轉不影響成像，只改變鏡片外觀）</span>
+    </div>
+  </footer>
+</div>
+
+<script>
+(function(){
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d');
+
+  function resize(){
+    const dpr = Math.max(1, window.devicePixelRatio || 1);
+    canvas.width = canvas.clientWidth * dpr;
+    canvas.height = canvas.clientHeight * dpr;
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  // World units (meters)
+  const H = 3.0; // top (0) to bottom (H)
+  let pxPerM = () => (canvas.clientHeight-40) / H; // dynamic scale
+  const marginTop = 20; // top padding for drawing area
+
+  // Roach (object) on top boundary (initially ceiling)
+  const roach = {
+    x: 1.5,
+    y: 0.0,
+    dir: 1,
+    speed: 0.35, // m/s along top (橫向爬更明顯)
+    phase: 0 // limb animation phase
+  };
+
+  // Lens state
+  let lens = {
+    x: 2.0,
+    y: 1.5,
+    f: 0.50, // meters
+    rot: 0 // radians (visual only)
+  };
+
+  // Top label state: true=天花板在上，false=地板在上
+  let topIsCeiling = true;
+
+  // Copies of roaches (images) created by player
+  const clones = []; // {x, y, scale, inverted, alpha, dir, speed, phase}
+
+  // UI elements
+  const fSlider = document.getElementById('fSlider');
+  const fVal = document.getElementById('fVal');
+  const sRead = document.getElementById('sRead');
+  const spRead = document.getElementById('spRead');
+  const mRead = document.getElementById('mRead');
+  const typeRead = document.getElementById('typeRead');
+  const errRead = document.getElementById('errRead');
+  const rotLeft = document.getElementById('rotLeft');
+  const rotRight = document.getElementById('rotRight');
+  const flipBtn = document.getElementById('flipBtn');
+
+  fSlider.addEventListener('input', () => {
+    lens.f = parseFloat(fSlider.value)/100; // convert cm -> m
+    fVal.textContent = fSlider.value;
+  });
+
+  rotLeft.addEventListener('click', ()=> lens.rot -= Math.PI/12);
+  rotRight.addEventListener('click', ()=> lens.rot += Math.PI/12);
+  flipBtn.addEventListener('click', ()=> topIsCeiling = !topIsCeiling);
+
+  // Pointer handling (mouse/touch)
+  let lastTapTime = 0;
+
+  canvas.addEventListener('pointerdown', (e)=>{
+    if (e.pointerType === 'touch') {
+      const now = Date.now();
+      if (now - lastTapTime < 300) attemptClone();
+      lastTapTime = now;
+    }
+  });
+  canvas.addEventListener('pointermove', (e)=>{
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    // map to world meters
+    lens.x = x / pxPerM();
+    lens.y = (y - marginTop) / pxPerM();
+    lens.y = Math.max(0.1, Math.min(H-0.1, lens.y));
+    lens.x = Math.max(0.3, Math.min((canvas.clientWidth-0.3*pxPerM())/pxPerM(), lens.x));
+  });
+  canvas.addEventListener('click', (e)=>{
+    if (e.pointerType !== 'touch') attemptClone();
+  });
+
+  function attemptClone(){
+    const calc = computeImaging();
+    const tol = 0.02; // meters tolerance (2 cm)
+    // real image onto bottom boundary
+    if (calc.sp_geom > 0 && Math.abs(calc.y_img - H) < tol) {
+      clones.push({ x: calc.x_img, y: H, scale: Math.abs(calc.m), inverted: true, alpha: 0.55, dir: Math.random()<0.5?-1:1, speed: 0.20 + Math.random()*0.15, phase: Math.random()*Math.PI*2 });
+    }
+    // virtual image onto top boundary
+    if (calc.sp_geom < 0 && Math.abs(calc.y_img - 0) < tol) {
+      clones.push({ x: calc.x_img, y: 0, scale: Math.abs(calc.m), inverted: false, alpha: 0.55, dir: Math.random()<0.5?-1:1, speed: 0.20 + Math.random()*0.15, phase: Math.random()*Math.PI*2 });
+    }
+  }
+
+  function computeImaging(){
+    // Object point (roach) at (x_o, y=0). Lens at (x_l, y_l)
+    const s_geom = Math.max(0.001, lens.y - roach.y); // geometric distance downward positive
+    const f = lens.f;
+    let sp_geom = 1/(1/f - 1/s_geom); // >0 real (below lens), <0 virtual (above lens)
+    const m = -sp_geom/s_geom;
+    const y_img = lens.y + sp_geom;
+    const x_img = lens.x + m * (roach.x - lens.x);
+
+    // sign-convention readouts: lens plane as 0, upward為正、向下為負 → s>0（物在上方），實像在下方 s'<0
+    const s_signed = s_geom; // 物距為正
+    const sp_signed = -sp_geom; // 下方實像為負，上方虛像為正
+
+    // Focus error vs boundaries
+    let err;
+    if (sp_geom > 0) err = Math.abs(y_img - H); else err = Math.abs(y_img - 0);
+
+    return { s_signed, sp_signed, m, y_img, x_img, err, sp_geom };
+  }
+
+  // Animated roach drawing (橫向爬)
+  function drawRoach(xm, ym, scale=1, inverted=false, alpha=1, phase=0, t=0){
+    const p = pxPerM();
+    const x = xm * p;
+    const y = marginTop + ym * p;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(1, inverted ? -1 : 1);
+    ctx.scale(scale, scale);
+    ctx.globalAlpha = alpha;
+
+    // leg/antenna animation
+    const wig = Math.sin(t*6 + phase);
+
+    // body
+    ctx.fillStyle = '#9aa3b0';
+    ctx.strokeStyle = '#0a0e14';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 18, 28, 0, 0, Math.PI*2);
+    ctx.fill();
+    ctx.stroke();
+
+    // head（朝移動方向稍微擺動）
+    ctx.save();
+    ctx.translate(0, -26);
+    ctx.rotate(wig*0.05);
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 10, 8, 0, 0, Math.PI*2);
+    ctx.fillStyle = '#8a93a0';
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+
+    // stripes
+    ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+    for(let i=-18;i<=18;i+=6){ ctx.beginPath(); ctx.moveTo(-10, i); ctx.lineTo(10, i); ctx.stroke(); }
+
+    // legs (animated, 左右擺)
+    ctx.strokeStyle = '#cfd7e6';
+    ctx.lineWidth = 1.1;
+    for(let side of [-1,1]){
+      for(let i=0;i<3;i++){
+        const sway = (i%2===0?wig:-wig) * (3+i*0.7);
+        ctx.beginPath();
+        ctx.moveTo(side*10, -8 + i*10);
+        ctx.lineTo(side*(20+sway), -12 + i*10);
+        ctx.lineTo(side*(26+sway*0.6), -6 + i*10);
+        ctx.stroke();
+      }
+    }
+
+    // antenna (animated)
+    ctx.beginPath();
+    ctx.moveTo(-4, -33);
+    ctx.quadraticCurveTo(-14 - wig*6, -46 - wig*5, -26 - wig*10, -50);
+    ctx.moveTo(4, -33);
+    ctx.quadraticCurveTo(14 + wig*6, -46 - wig*5, 26 + wig*10, -50);
+    ctx.strokeStyle = '#cfd7e6';
+    ctx.stroke();
+
+    ctx.restore();
+  }
+
+  function drawLens(){
+    const p = pxPerM();
+    const x = lens.x * p;
+    const y = marginTop + lens.y * p;
+    ctx.save();
+    ctx.translate(x,y);
+    ctx.rotate(lens.rot);
+
+    // --- 可視化：焦距錐形光束（隨 f 即時更新） ---
+    const fpx = lens.f * p; // focal distance in pixels
+    const beamW = 80; // 視覺寬度（在鏡片處的口徑）
+    ctx.globalAlpha = 0.23;
+    // 上方錐形（匯聚至上焦點）
+    ctx.fillStyle = '#6fbaff';
+    ctx.beginPath();
+    ctx.moveTo(-beamW*0.35, 0);
+    ctx.lineTo(beamW*0.35, 0);
+    ctx.lineTo(0, -fpx);
+    ctx.closePath();
+    ctx.fill();
+    // 下方錐形（匯聚至下焦點）
+    ctx.fillStyle = '#9df7c7';
+    ctx.beginPath();
+    ctx.moveTo(-beamW*0.35, 0);
+    ctx.lineTo(beamW*0.35, 0);
+    ctx.lineTo(0, fpx);
+    ctx.closePath();
+    ctx.fill();
+    ctx.globalAlpha = 1;
+
+    // 標示焦點 F（±f）
+    ctx.strokeStyle = 'rgba(200,240,255,0.9)';
+    ctx.setLineDash([3,3]);
+    ctx.beginPath(); ctx.moveTo(-14, -fpx); ctx.lineTo(14, -fpx); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-14,  fpx); ctx.lineTo(14,  fpx); ctx.stroke();
+    ctx.setLineDash([]);
+
+    // lens body
+    const w=20, h=60;
+    const grd = ctx.createLinearGradient(-w, -h, w, h);
+    grd.addColorStop(0, 'rgba(160,210,255,0.18)');
+    grd.addColorStop(0.5, 'rgba(220,245,255,0.35)');
+    grd.addColorStop(1, 'rgba(160,210,255,0.18)');
+    ctx.fillStyle = grd;
+    ctx.strokeStyle = 'rgba(120,170,230,0.9)';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(0,-h);
+    ctx.quadraticCurveTo(w,-h*0.2, 0,0);
+    ctx.quadraticCurveTo(-w,h*0.2, 0,h);
+    ctx.quadraticCurveTo(w,h*0.2, 0,0);
+    ctx.quadraticCurveTo(-w,-h*0.2, 0,-h);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // lens plane = 0（參考線）
+    ctx.strokeStyle = 'rgba(180,220,255,0.8)';
+    ctx.beginPath();
+    ctx.moveTo(-26,0); ctx.lineTo(26,0);
+    ctx.stroke();
+
+    ctx.restore();
+  }
+
+  function drawWorldGrid(){
+    const p = pxPerM();
+    // area
+    ctx.fillStyle = '#0b1018';
+    ctx.fillRect(0, marginTop, canvas.clientWidth, H*p);
+
+    // top line (y=0)
+    ctx.strokeStyle = '#243149';
+    ctx.beginPath();
+    ctx.moveTo(0, marginTop);
+    ctx.lineTo(canvas.clientWidth, marginTop);
+    ctx.stroke();
+
+    // bottom line (y=H)
+    ctx.beginPath();
+    ctx.moveTo(0, marginTop + H*p);
+    ctx.lineTo(canvas.clientWidth, marginTop + H*p);
+    ctx.stroke();
+
+    // labels
+    ctx.fillStyle = '#8ea4c8';
+    ctx.font = '12px system-ui';
+    ctx.fillText(topIsCeiling? '天花板' : '地板', 8, marginTop+12);
+    ctx.fillText(topIsCeiling? '地板' : '天花板', 8, marginTop + H*p - 6);
+
+    // meter ticks
+    ctx.fillStyle = '#3a4a6a';
+    ctx.font = '12px system-ui';
+    for(let y=0; y<=H; y+=0.5){
+      const yy = marginTop + y*p;
+      ctx.globalAlpha = y % 1 === 0 ? 0.35 : 0.12;
+      ctx.beginPath();
+      ctx.moveTo(0, yy);
+      ctx.lineTo(canvas.clientWidth, yy);
+      ctx.stroke();
+      if (y % 1 === 0){
+        ctx.globalAlpha = 0.9;
+        ctx.fillText(`${y.toFixed(0)} m`, canvas.clientWidth-50, yy-4);
+      }
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  // 右側「尺規」：零點=透鏡平面，向上 s 為正，向下 s' 為負（實像）
+  function drawRuler(calc){
+    const p = pxPerM();
+    const baseX = canvas.clientWidth - 80;
+    const zeroY = marginTop + lens.y * p;
+
+    // 直尺
+    ctx.save();
+    ctx.strokeStyle = '#2c3b57';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(baseX, marginTop);
+    ctx.lineTo(baseX, marginTop + H*p);
+    ctx.stroke();
+
+    // 零點
+    ctx.strokeStyle = '#7fb8ff';
+    ctx.beginPath(); ctx.moveTo(baseX-8, zeroY); ctx.lineTo(baseX+8, zeroY); ctx.stroke();
+    ctx.fillStyle = '#9fc8ff';
+    ctx.font = '12px system-ui';
+    ctx.fillText('0', baseX+12, zeroY-4);
+
+    // s（物距，正）
+    const sY = zeroY - calc.s_signed * p;
+    ctx.strokeStyle = '#7bdcff';
+    ctx.beginPath(); ctx.moveTo(baseX-5, sY); ctx.lineTo(baseX+5, sY); ctx.stroke();
+    ctx.fillStyle = '#7bdcff';
+    ctx.fillText(`s=${calc.s_signed.toFixed(2)}m`, baseX+12, sY-4);
+
+    // s'（像距，負為下方實像）
+    const spY = zeroY + (-calc.sp_signed) * p; // 轉回幾何方向
+    ctx.strokeStyle = '#ffd48a';
+    ctx.beginPath(); ctx.moveTo(baseX-5, spY); ctx.lineTo(baseX+5, spY); ctx.stroke();
+    ctx.fillStyle = '#ffd48a';
+    ctx.fillText(`s'=${calc.sp_signed.toFixed(2)}m`, baseX+12, spY-4);
+
+    ctx.restore();
+  }
+
+  function drawFocusCue(calc){
+    const p = pxPerM();
+    ctx.save();
+    ctx.setLineDash([6,6]);
+    ctx.lineWidth = 1.2;
+
+    if (calc.sp_geom > 0) {
+      // target = bottom (real)
+      ctx.strokeStyle = calc.err < 0.02 ? '#74ff9b' : '#ffaa74';
+      ctx.beginPath();
+      ctx.moveTo(0, marginTop + H*p);
+      ctx.lineTo(canvas.clientWidth, marginTop + H*p);
+      ctx.stroke();
+      const blur = Math.min(18, calc.err * 900);
+      drawGhostRoach(calc.x_img, H, Math.abs(calc.m), true, blur);
+    } else {
+      // target = top (virtual)
+      ctx.strokeStyle = calc.err < 0.02 ? '#74ff9b' : '#ffaa74';
+      ctx.beginPath();
+      ctx.moveTo(0, marginTop);
+      ctx.lineTo(canvas.clientWidth, marginTop);
+      ctx.stroke();
+      const blur = Math.min(18, calc.err * 900);
+      drawGhostRoach(calc.x_img, 0, Math.abs(calc.m), false, blur);
+    }
+    ctx.restore();
+  }
+
+  function drawGhostRoach(xm, ym, scale, inverted, blurPx){
+    const off = document.createElement('canvas');
+    off.width = 200; off.height = 200;
+    const octx = off.getContext('2d');
+    octx.translate(100,100);
+    octx.globalAlpha = 0.9;
+    drawRoachOffscreen(octx, scale, inverted);
+
+    ctx.save();
+    ctx.filter = `blur(${blurPx.toFixed(1)}px)`;
+    ctx.globalAlpha = 0.6;
+    const p = pxPerM();
+    ctx.drawImage(off, xm*p-100, marginTop + ym*p-100);
+    ctx.filter = 'none';
+    ctx.restore();
+  }
+
+  function drawRoachOffscreen(g, scale=1, inverted=false){
+    const t = performance.now()/1000;
+    const phase = 0;
+    g.save();
+    g.scale(1, inverted ? -1 : 1);
+    g.scale(scale, scale);
+
+    const wig = Math.sin(t*6 + phase);
+
+    g.fillStyle = '#cfd6e4';
+    g.strokeStyle = '#0a0e14';
+    g.lineWidth = 1.1;
+    g.beginPath(); g.ellipse(0, 0, 18, 28, 0, 0, Math.PI*2); g.fill(); g.stroke();
+    g.beginPath(); g.ellipse(0, -26, 10, 8, 0, 0, Math.PI*2); g.fill(); g.stroke();
+    g.strokeStyle = 'rgba(0,0,0,0.35)';
+    for(let i=-18;i<=18;i+=6){ g.beginPath(); g.moveTo(-10,i); g.lineTo(10,i); g.stroke(); }
+
+    g.strokeStyle = '#cfd7e6'; g.lineWidth=1.1;
+    for(let side of [-1,1]){
+      for(let i=0;i<3;i++){
+        const sway = (i%2===0?wig:-wig) * (3+i*0.7);
+        g.beginPath(); g.moveTo(side*10, -8 + i*10); g.lineTo(side*(20+sway), -12 + i*10); g.lineTo(side*(26+sway*0.6), -6 + i*10); g.stroke();
+      }
+    }
+    g.beginPath(); g.moveTo(-4,-33); g.quadraticCurveTo(-14 - wig*6, -46 - wig*5, -26 - wig*10, -50); g.moveTo(4,-33); g.quadraticCurveTo(14 + wig*6, -46 - wig*5, 26 + wig*10, -50); g.stroke();
+
+    g.restore();
+  }
+
+  // Main loop
+  let last = performance.now();
+  function tick(t){
+    const dt = Math.min(0.033, (t-last)/1000); last = t;
+
+    // animate original roach crawling on top (橫向)
+    roach.phase += dt*6;
+    roach.x += roach.dir * roach.speed * dt;
+    const minX = 0.4, maxX = Math.max(0.4, canvas.clientWidth/pxPerM()-0.4);
+    if (roach.x < minX) { roach.x = minX; roach.dir = 1; }
+    if (roach.x > maxX) { roach.x = maxX; roach.dir = -1; }
+
+    // animate clones crawling along their boundary（全部會爬）
+    for (const c of clones){
+      c.phase += dt*6;
+      c.x += c.dir * c.speed * dt;
+      if (c.x < minX) { c.x = minX; c.dir = 1; }
+      if (c.x > maxX) { c.x = maxX; c.dir = -1; }
+    }
+
+    // draw
+    ctx.clearRect(0,0,canvas.clientWidth,canvas.clientHeight);
+    drawWorldGrid();
+
+    // compute imaging
+    const calc = computeImaging();
+
+    // rays (guides)
+    drawRays(calc);
+
+    // draw original roach on top boundary (always y=0)
+    drawRoach(roach.x, 0, 0.7, false, 1, roach.phase, t/1000);
+
+    // draw clones
+    for (const c of clones){
+      drawRoach(c.x, c.y, 0.7 * c.scale, c.inverted, c.alpha, c.phase, t/1000);
+    }
+
+    // focus cue and ghost
+    drawFocusCue(calc);
+
+    // lens with dynamic focal cones
+    drawLens();
+
+    // right-side ruler reflecting sign convention
+    drawRuler(calc);
+
+    // HUD reads with requested convention（數字會即時更新）
+    sRead.textContent = calc.s_signed.toFixed(2);
+    spRead.textContent = calc.sp_signed.toFixed(2);
+    mRead.textContent = calc.m.toFixed(2);
+    const type = (calc.sp_geom>0? '實像（倒立）' : '虛像（正立）');
+    const mag = (Math.abs(calc.m)>1? '／放大' : (Math.abs(calc.m)<1? '／縮小' : '／等大'));
+    typeRead.textContent = type + mag;
+    errRead.textContent = calc.err.toFixed(3);
+
+    requestAnimationFrame(tick);
+  }
+
+  function drawRays(calc){
+    const p = pxPerM();
+
+    // World coords
+    const O = {x: roach.x, y: 0};
+    const L = {x: lens.x, y: lens.y};
+    const F1 = {x: lens.x, y: lens.y - lens.f}; // 上焦點
+    const F2 = {x: lens.x, y: lens.y + lens.f}; // 下焦點
+
+    // ---------- Ray A：平行主軸入射 → 通過另一側焦點 ----------
+    // 入射：垂直（與主軸平行）從 O 到 (x=O.x, y=L.y)
+    const A_hit = {x: O.x, y: L.y};
+    // 出射：經 (A_hit) 與 F2
+    const A_dir = {x: F2.x - A_hit.x, y: F2.y - A_hit.y};
+
+    // ---------- Ray B：通過鏡心（不偏折） ----------
+    const B_dir = {x: L.x - O.x, y: L.y - O.y}; // 經鏡心方向
+
+    // ---------- Ray C：通過同側焦點入射 → 出射與主軸平行 ----------
+    // 入射：從 O 指向 F1，求與 y=L.y 的交點（鏡面）
+    function intersectY(P, Q, y){
+      const t = (y - P.y) / (Q.y - P.y);
+      return {x: P.x + t*(Q.x - P.x), y: y};
+    }
+    const C_hit = intersectY(O, F1, L.y);
+    const C_dir = {x: 0, y: 1}; // 出射平行主軸（向下）
+
+    // ---------- 幾何：兩條出射光線交點作為準焦估計 ----------
+    // 取 Ray A（過 A_hit，方向 A_dir） 與 Ray B（過 L，方向 B_dir） 的交點
+    function lineIntersect(P, v, Q, w){
+      // P + t v = Q + u w → 解 t,u
+      const det = v.x * w.y - v.y * w.x;
+      if (Math.abs(det) < 1e-6) return null;
+      const t = ((Q.x - P.x) * w.y - (Q.y - P.y) * w.x) / det;
+      return {x: P.x + t * v.x, y: P.y + t * v.y};
+    }
+    const focusPoint = lineIntersect(A_hit, A_dir, L, B_dir);
+
+    // ---------- 畫圖助手 ----------
+    function toPX(pt){ return {x: pt.x * p, y: marginTop + pt.y * p}; }
+    function strokeLine(P, Q, color, dash=null, width=1.6){
+      ctx.save();
+      if (dash) ctx.setLineDash(dash);
+      ctx.strokeStyle = color; ctx.lineWidth = width;
+      ctx.beginPath();
+      ctx.moveTo(P.x, P.y); ctx.lineTo(Q.x, Q.y);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // 主軸（視覺）
+    ctx.save();
+    ctx.setLineDash([4,4]);
+    ctx.strokeStyle = 'rgba(130,160,220,0.35)';
+    strokeLine(toPX({x:L.x,y:0}), toPX({x:L.x,y:H}), 'rgba(130,160,220,0.35)', [4,4], 1);
+    ctx.restore();
+
+    // --- 畫 Ray A ---
+    // 入射段：O → A_hit
+    strokeLine(toPX(O), toPX(A_hit), 'rgba(255,255,180,0.95)', null, 1.8);
+    // 出射段：從 A_hit 往下穿過 F2，延伸到邊界
+    const A_far = {x: A_hit.x + A_dir.x * 6, y: A_hit.y + A_dir.y * 6};
+    strokeLine(toPX(A_hit), toPX(A_far), 'rgba(255,255,180,0.95)', null, 1.8);
+
+    // --- 畫 Ray B（經鏡心） ---
+    // 物端：O → L
+    strokeLine(toPX(O), toPX(L), 'rgba(140,220,255,0.95)', null, 1.8);
+    // 出射：L 之後沿同方向
+    const B_far = {x: L.x + B_dir.x * 6, y: L.y + B_dir.y * 6};
+    strokeLine(toPX(L), toPX(B_far), 'rgba(140,220,255,0.95)', null, 1.8);
+
+    // --- 畫 Ray C ---
+    // 入射：O → C_hit（穿過同側焦點）
+    strokeLine(toPX(O), toPX(C_hit), 'rgba(170,255,210,0.95)', null, 1.8);
+    // 出射：自 C_hit 垂直向下（與主軸平行）
+    const C_far = {x: C_hit.x, y: C_hit.y + 6};
+    strokeLine(toPX(C_hit), toPX(C_far), 'rgba(170,255,210,0.95)', null, 1.8);
+
+    // --- 虛像情況：以虛線反推交點（在鏡上方） ---
+    if (calc.sp_geom < 0 && focusPoint){
+      // 反向延伸兩條出射光線至上方（虛線）
+      const A_back = {x: A_hit.x - A_dir.x * 6, y: A_hit.y - A_dir.y * 6};
+      strokeLine(toPX(A_hit), toPX(A_back), 'rgba(255,255,180,0.6)', [6,6], 1.4);
+      const B_back = {x: L.x - B_dir.x * 6, y: L.y - B_dir.y * 6};
+      strokeLine(toPX(L), toPX(B_back), 'rgba(140,220,255,0.6)', [6,6], 1.4);
+    }
+
+    // --- 準焦交點標記 ---
+    if (focusPoint){
+      const PF = toPX(focusPoint);
+      ctx.save();
+      ctx.fillStyle = '#74ff9b';
+      ctx.strokeStyle = '#16351f';
+      ctx.beginPath(); ctx.arc(PF.x, PF.y, 5, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  requestAnimationFrame(tick);
+})();
+</script>
+</body>
+</html>
