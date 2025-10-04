@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
-<title>淋巴守城：柔和路線＋等差升級成本</title>
+<title>淋巴守城：直彎交錯、避免重疊、變異繞路</title>
 <style>
   :root{--bg:#0b1020; --panel:#101935; --text:#eaf1ff; --acc:#7be3b0; --warn:#ffd166; --danger:#ff6b6b;}
   *{box-sizing:border-box; font-family: system-ui, -apple-system, "Noto Sans TC", "Segoe UI", Roboto, "Helvetica Neue", Arial;}
@@ -53,34 +53,10 @@
     <div class="tool" data-type="MACRO"><span class="cdbar"></span><strong>巨噬細胞</strong><span class="cost">CP 80</span><span>（單體高傷）</span></div>
     <div class="tool" data-type="INFLAM"><span class="cdbar"></span><strong>發炎介質</strong><span class="cost">CP 70</span><span>（範圍減速）</span></div>
     <div class="tool" data-type="ANTIBODY"><span class="cdbar"></span><strong>抗體</strong><span class="cost">CP 90</span><span>（追蹤強擊）</span></div>
-    <div class="tool" id="up"><span class="cdbar"></span><strong>升級（等差成本）</strong><span class="cost">基礎 60，每級 +20</span></div>
+    <div class="tool" id="up"><span class="cdbar"></span><strong>升級（等差成本）</strong><span class="cost">基礎 60，每級 +20（Lv≤5）</span></div>
     <div class="tool" id="sell"><span class="cdbar"></span><strong>出售</strong><span class="cost">返還60%</span></div>
-    <div class="tool" id="swell"><span class="cdbar" id="cd_swell"></span><strong>淋巴結腫大</strong><span class="cost">CP 50</span><span>（繞路12s / 冷卻20s）</span></div>
+    <div class="tool" id="swell"><span class="cdbar" id="cd_swell"></span><strong>淋巴結腫大</strong><span class="cost">CP 50</span><span>（變異繞路12s / 冷卻20s）</span></div>
     <div class="tool" id="chaser"><span class="cdbar" id="cd_chaser"></span><strong>追擊淋巴球（IL‑2）</strong><span class="cost">CP 60</span><span>（10s / 冷卻15s）</span></div>
-  </div>
-</div>
-
-<!-- Tutorial Modal -->
-<div id="modal">
-  <div class="card">
-    <h2>遊戲教學</h2>
-    <h3>基本規則</h3>
-    <ul>
-      <li><b>站點固定</b>；Boss（第 4、8、12 波）各新增 2 個站點。</li>
-      <li><b>每一波開始前</b>重新生成<b>柔和彎曲</b>的淋巴路線，且<b>一定繞過每個站點附近</b>；總長度約<b>1.5×畫面寬</b>。</li>
-      <li><b>CP</b>：擊殺病原體獲得；初始 CP = <b>180</b>，越後面波數獎勵越高。</li>
-      <li><b>勝負</b>：病原體到達終點會扣生命值，<b>生命值 ≤ 0 立即失敗</b>；清完 12 波即勝利。</li>
-    </ul>
-    <h3>塔（免疫機制）</h3>
-    <ul>
-      <li><b>補體系統</b>（CP 70）：貼標＋輕傷。</li>
-      <li><b>巨噬細胞</b>（CP 80）：單體高傷；對已貼標目標加成。</li>
-      <li><b>發炎介質</b>（CP 70）：範圍減速＋小傷。</li>
-      <li><b>抗體</b>（CP 90）：高射程追蹤彈；對已貼標加成，但射速較慢。</li>
-      <li><b>升級</b>：採<b>等差級數</b>成本：基礎 60，<b>每升 1 級 +20</b>；最高 Lv.5。</li>
-      <li><b>出售</b>：返還 60% 成本＋少量等級補償。</li>
-    </ul>
-    <div class="actions"><button id="closeModal">關閉</button></div>
   </div>
 </div>
 
@@ -93,7 +69,6 @@
   const btn={start:$('start'), next:$('next'), pause:$('pause'), help:$('help')};
   const swellEl=$('swell'), chaserEl=$('chaser');
   const cdSwell=$('cd_swell'), cdChaser=$('cd_chaser');
-  const modal=$('modal'); const closeModal=$('closeModal');
   let placing=null, selected=null, paused=false, started=false, nextReady=false;
 
   // Upgrade AP config
@@ -108,106 +83,7 @@
   };
   ui.cp.textContent=state.cp; ui.wave.textContent=state.wave; ui.lives.textContent=state.lives;
 
-  // ---------- PATH visiting nodes, *gentle* ----------
-  function pathLength(pts){ let L=0; for(let i=1;i<pts.length;i++){ L+=Math.hypot(pts[i].x-pts[i-1].x, pts[i].y-pts[i-1].y);} return L; }
-  function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
-
-  function generateSmoothPathVisitingNodes(){
-    const pts=[];
-    const margin=30;
-    const visitRadius=24; // path passes within ~24px of each node
-    const sorted=[...state.nodes].sort((a,b)=>a.x-b.x);
-    pts.push({x:margin, y:H*0.5});
-
-    // soft cubic-like arcs around each node
-    for(let i=0;i<sorted.length;i++){
-      const n=sorted[i];
-      const ax = clamp(n.x - 60, margin, W-margin);
-      const ay = clamp(n.y - 10, margin, H-margin);
-      const steps = 6;
-      const rad = visitRadius + 4;      // smaller orbit
-      const startA = Math.PI*0.2;       // fixed orientation for stability
-      const span = Math.PI*0.8;         // gentle sweep
-      pts.push({x:ax, y:ay});
-      for(let s=0;s<=steps;s++){
-        const a = startA + (s/steps)*span;
-        pts.push({x:n.x + Math.cos(a)*rad, y:n.y + Math.sin(a)*rad});
-      }
-      const bx = clamp(n.x + 60, margin, W-margin);
-      const by = clamp(n.y + 10, margin, H-margin);
-      pts.push({x:bx, y:by});
-
-      if(i<sorted.length-1){
-        // gentle midpoint guide
-        const nxt=sorted[i+1];
-        const mx=(n.x+nxt.x)/2;
-        const my=clamp((n.y+nxt.y)/2 + (Math.random()*20-10), margin, H-margin);
-        pts.push({x:mx, y:my});
-      }
-    }
-
-    pts.push({x:W-margin, y:H*0.5});
-
-    // Optional: insert at most one small loop only if length too short
-    let L=pathLength(pts);
-    const targetMin=W*1.45, targetMax=W*1.6;
-    if(L<targetMin){
-      const idx = 2 + Math.floor(Math.random()*(pts.length-4));
-      const anchor = pts[idx];
-      const rad = 40 + Math.random()*12; // smaller loop
-      const span = Math.PI*1.1;          // shorter arc
-      const steps=10;
-      const startA = Math.random()*Math.PI*2;
-      const cx = anchor.x + (Math.random()*40-20);
-      const cy = anchor.y + (Math.random()*40-20);
-      const loop=[{x:anchor.x,y:anchor.y}];
-      for(let s=1;s<=steps;s++){
-        const a=startA + span*(s/steps);
-        loop.push({x:cx+Math.cos(a)*rad, y:cy+Math.sin(a)*rad});
-      }
-      pts.splice(idx+1,0,...loop);
-      L=pathLength(pts);
-    }
-    // If slightly above max, we accept (still gentle). Otherwise clamp a bit by dropping a random interior point.
-    let guard=0;
-    while(L>targetMax && pts.length>30 && guard<3){
-      guard++;
-      const drop = 3 + Math.floor(Math.random()*(pts.length-6));
-      pts.splice(drop,1);
-      L=pathLength(pts);
-    }
-    return pts;
-  }
-
-  function nearestPathIdx(node, path){
-    let best=0, bestD=1e9;
-    for(let i=0;i<path.length;i++){
-      const d=Math.hypot(node.x-path[i].x, node.y-path[i].y);
-      if(d<bestD){ bestD=d; best=i; }
-    }
-    return Math.max(1, Math.min(path.length-2, best));
-  }
-
-  function makeArcDetour(path, startIdx){
-    // keep detour arc but also gentler
-    const anchor = path[startIdx];
-    const radius = 60 + Math.random()*14;
-    const span = Math.PI*(1.2 + Math.random()*0.25);
-    const steps = 14;
-    const cx = anchor.x - 6 + (Math.random()*12-6);
-    const cy = anchor.y - 28 + (Math.random()*12-6);
-    const startAngle = Math.PI*(0.2 + Math.random()*0.1);
-    const points = [{x:anchor.x, y:anchor.y}];
-    for(let i=1;i<=steps;i++){
-      const a = startAngle + (span*i/steps);
-      points.push({x: cx + Math.cos(a)*radius, y: cy + Math.sin(a)*radius});
-    }
-    const rejoinIdx = Math.min(path.length-1, startIdx+4);
-    points.push(path[rejoinIdx]);
-    return {points, rejoinIdx};
-  }
-
-  // ---------- INITIAL NODES (fixed positions) ----------
+  // ---------- STATIONS (fixed) ----------
   function scatterInitialNodes(count){
     const nodes=[];
     const margin=40;
@@ -220,7 +96,176 @@
   }
   state.nodes = scatterInitialNodes(6);
 
-  // ---------- ENTITIES & TOWERS ----------
+  // ---------- PATH with mixed straight+curved, avoids overlap ----------
+  function dist(a,b){return Math.hypot(a.x-b.x, a.y-b.y);}
+  function segDist(p,a,b){
+    const A={x:a.x,y:a.y}, B={x:b.x,y:b.y};
+    const AP={x:p.x-A.x, y:p.y-A.y}, AB={x:B.x-A.x, y:B.y-A.y};
+    const ab2=AB.x*AB.x+AB.y*AB.y; if(ab2===0) return dist(p,A);
+    let t=(AP.x*AB.x + AP.y*AB.y)/ab2; t=Math.max(0,Math.min(1,t));
+    const C={x:A.x+AB.x*t, y:A.y+AB.y*t};
+    return dist(p,C);
+  }
+  function tooCloseToExisting(p, pts, minD, ignoreLastN=8){
+    const L=pts.length;
+    for(let i=1;i<L;i++){
+      if(L-i <= ignoreLastN) continue;
+      if(segDist(p, pts[i-1], pts[i]) < minD) return true;
+    }
+    return false;
+  }
+
+  // Build path that must visit near each node, mixing straight hops & arcs, rejecting overlaps
+  function generateMixedPath(){
+    const margin=30;
+    const visitR=24;
+    const minSegGap=22; // ~ line width to avoid visible overlap
+    const pts=[];
+    const sorted=[...state.nodes].sort((a,b)=>a.x-b.x);
+
+    // Start
+    pts.push({x:margin, y:H*0.5});
+
+    for(let i=0;i<sorted.length;i++){
+      const n=sorted[i];
+      // 1) straight approach
+      let ax = Math.max(margin, Math.min(W-margin, n.x - (50+Math.random()*40)));
+      let ay = Math.max(margin, Math.min(H-margin, (pts[pts.length-1].y*0.65 + n.y*0.35) + (Math.random()*30-15)));
+      let ptA={x:ax,y:ay};
+      // adjust to avoid overlap
+      let guard=0; while(tooCloseToExisting(ptA, pts, minSegGap) && guard<8){ ay += (Math.random()<0.5?-1:1)*10; ptA={x:ax,y:Math.max(margin,Math.min(H-margin,ay))}; guard++; }
+      pts.push(ptA);
+
+      // 2) orbit arc around node (random dir/shape)
+      const arcSteps= 5 + Math.floor(Math.random()*3); // 5~7
+      const rad = visitR + 4 + Math.random()*8;
+      const cw = Math.random()<0.5? -1: 1;
+      const baseA = Math.random()*Math.PI*2;
+      const span = Math.PI*(0.6 + Math.random()*0.9); // variable sweep 0.6π~1.5π
+      for(let s=0;s<=arcSteps;s++){
+        const a = baseA + cw * span * (s/arcSteps);
+        const p={x:n.x + Math.cos(a)*rad, y:n.y + Math.sin(a)*rad};
+        if(tooCloseToExisting(p, pts, minSegGap)) { p.y += (Math.random()<0.5?-1:1)*12; }
+        p.x=Math.max(margin,Math.min(W-margin,p.x));
+        p.y=Math.max(margin,Math.min(H-margin,p.y));
+        pts.push(p);
+      }
+
+      // 3) straight exit
+      let bx = Math.max(margin, Math.min(W-margin, n.x + (55+Math.random()*45)));
+      let by = Math.max(margin, Math.min(H-margin, n.y + (Math.random()*34-17)));
+      let ptB={x:bx,y:by};
+      guard=0; while(tooCloseToExisting(ptB, pts, minSegGap) && guard<8){ by += (Math.random()<0.5?-1:1)*10; ptB={x:bx,y:Math.max(margin,Math.min(H-margin,by))}; guard++; }
+      pts.push(ptB);
+
+      // 4) between nodes add optional gentle control point (straight vs curve)
+      if(i<sorted.length-1){
+        if(Math.random()<0.6){
+          // mostly straight: add a midpoint slightly nudged
+          const nxt=sorted[i+1];
+          const mx=(n.x+nxt.x)/2;
+          const my=((n.y+nxt.y)/2) + (Math.random()*20-10);
+          const q={x:mx, y:Math.max(margin,Math.min(H-margin,my))};
+          if(!tooCloseToExisting(q, pts, minSegGap)) pts.push(q);
+        }else{
+          // soft bend: 2 nudged points
+          const nxt=sorted[i+1];
+          const mx=(n.x*0.7+nxt.x*0.3);
+          const my=(n.y*0.7+nxt.y*0.3) + (Math.random()*24-12);
+          const q1={x:mx, y:Math.max(margin,Math.min(H-margin,my))};
+          if(!tooCloseToExisting(q1, pts, minSegGap)) pts.push(q1);
+          const mx2=(n.x*0.3+nxt.x*0.7);
+          const my2=(n.y*0.3+nxt.y*0.7) + (Math.random()*24-12);
+          const q2={x:mx2, y:Math.max(margin,Math.min(H-margin,my2))};
+          if(!tooCloseToExisting(q2, pts, minSegGap)) pts.push(q2);
+        }
+      }
+    }
+
+    // End
+    pts.push({x:W-margin, y:H*0.5});
+
+    // Length control near 1.45~1.6×W
+    function pathLength(ps){ let L=0; for(let i=1;i<ps.length;i++) L+=Math.hypot(ps[i].x-ps[i-1].x, ps[i].y-ps[i-1].y); return L; }
+    let L=pathLength(pts);
+    const targetMin=W*1.45, targetMax=W*1.6;
+    // If too short: insert straight extenders far from others
+    let guard=0;
+    while(L<targetMin && guard<6){
+      guard++;
+      const idx=2+Math.floor(Math.random()*(pts.length-4));
+      let p={x:(pts[idx-1].x+pts[idx].x)/2 + (Math.random()*40-20),
+             y:(pts[idx-1].y+pts[idx].y)/2 + (Math.random()*40-20)};
+      if(!tooCloseToExisting(p, pts, minSegGap)){
+        pts.splice(idx,0,p);
+        L=pathLength(pts);
+      }
+    }
+    // If too long: remove a few redundant midpoints
+    guard=0;
+    while(L>targetMax && pts.length>30 && guard<6){
+      guard++;
+      const drop=3+Math.floor(Math.random()*(pts.length-6));
+      pts.splice(drop,1);
+      L=pathLength(pts);
+    }
+    return pts;
+  }
+
+  function nearestPathIdx(node, path){
+    let best=0, bestD=1e9;
+    for(let i=0;i<path.length;i++){
+      const dx=node.x-path[i].x, dy=node.y-path[i].y;
+      const d=dx*dx+dy*dy;
+      if(d<bestD){ bestD=d; best=i; }
+    }
+    return Math.max(1, Math.min(path.length-2, best));
+  }
+
+  // Varied detour generator (3 styles): ARC / S-ARC / CLOVER-ish
+  function makeVariedDetour(path, startIdx){
+    const style = Math.random();
+    const anchor = path[startIdx];
+    const pts=[{x:anchor.x,y:anchor.y}];
+    if(style<0.4){
+      // ARC
+      const radius = 60 + Math.random()*16;
+      const span = Math.PI*(1.0 + Math.random()*0.5);
+      const steps = 14;
+      const cx = anchor.x + (Math.random()*30-15);
+      const cy = anchor.y + (Math.random()*30-15);
+      const startA = Math.random()*Math.PI*2;
+      for(let i=1;i<=steps;i++){
+        const a = startA + span*(i/steps);
+        pts.push({x: cx + Math.cos(a)*radius, y: cy + Math.sin(a)*radius});
+      }
+    }else if(style<0.75){
+      // S-ARC
+      const radius = 46 + Math.random()*14;
+      const steps = 10;
+      const dx = (Math.random()<0.5?-1:1)*(30+Math.random()*20);
+      const dy = (Math.random()<0.5?-1:1)*(20+Math.random()*20);
+      for(let i=1;i<=steps;i++){
+        const t=i/steps;
+        const a = Math.sin(t*Math.PI)*Math.PI*0.9;
+        pts.push({x: anchor.x + dx*t + Math.cos(a)*radius*0.5, y: anchor.y + dy*t + Math.sin(a)*radius});
+      }
+    }else{
+      // CLOVER-ish (two bumps)
+      const bump = 32 + Math.random()*18;
+      const steps = 12;
+      for(let i=1;i<=steps;i++){
+        const t=i/steps;
+        const a=t*Math.PI*2;
+        pts.push({x: anchor.x + Math.cos(a)*bump*0.7, y: anchor.y + Math.sin(a)*bump});
+      }
+    }
+    const rejoinIdx = Math.min(path.length-1, startIdx+4);
+    pts.push(path[rejoinIdx]);
+    return {points:pts, rejoinIdx};
+  }
+
+  // ---------- ENEMIES / TOWERS (same as前版) ----------
   const ENEMY={
     virus:{hp:30, spd:110, reward:9, r:9, color:'#6ec1ff'},
     bacteria:{hp:60, spd:55, reward:10, r:11, color:'#86e3a6'},
@@ -305,14 +350,13 @@
     if(!selected || state.gameOver) return;
     const node=state.nodes.find(n=>n.id===selected.nodeId);
     const base=TOWER[selected.kind].cost;
-    // refund includes a small bonus per level
     addCP(Math.floor(base*0.6 + (selected.lvl-1)*18));
     state.towers=state.towers.filter(t=>t!==selected);
     if(node) node.tower=null; selected=null;
   });
 
   // Skills
-  swellEl.addEventListener('click',()=>{
+  $('swell').addEventListener('click',()=>{
     const now=performance.now()/1000;
     if(state.cp<50 || state.gameOver) return;
     if(now < state.ability.swellCdUntil) return;
@@ -370,22 +414,22 @@
     node.tower=t; state.towers.push(t); selected=t;
   }
 
-  // ---------- Waves ----------
+  // ---------- WAVE logic: rebuild path every wave ----------
   function startWave(){
-    if(state.wave>=12 || state.gameOver) return;
-    // Rebuild gentle path that visits fixed nodes
-    state.basePath = generateSmoothPathVisitingNodes();
-    // Re-anchor each node's detour gate
+    if(state.wave>=state.wmax || state.gameOver) return;
+    // Rebuild mixed path that visits all nodes and avoids overlap
+    state.basePath = generateMixedPath();
+    // Re-anchor each node's detour gate with varied styles
     for(const n of state.nodes){
       const idx = nearestPathIdx(n, state.basePath);
       n.gate.startIdx = idx;
-      n.gate.loop = makeArcDetour(state.basePath, idx);
+      n.gate.loop = makeVariedDetour(state.basePath, idx);
       n.gate.activeUntil = 0;
     }
 
     state.wave++; ui.wave.textContent=state.wave;
 
-    // Boss adds two new fixed stations
+    // Boss adds two fixed stations
     if(state.wave===4 || state.wave===8 || state.wave===12){
       addNewStations(2);
       flashToast('新增 2 個站點！');
@@ -417,7 +461,7 @@
     }
   }
 
-  // ---------- Combat ----------
+  // ---------- Combat & Drawing (same as前版) ----------
   function flashToast(msg){
     const d=document.createElement('div');
     d.textContent=msg;
@@ -428,8 +472,9 @@
     setTimeout(()=>{ d.style.transition='opacity .6s'; d.style.opacity='0'; setTimeout(()=>d.remove(),600); }, 1200);
   }
 
+  const ENEMY_DEF={...ENEMY};
   function makeEnemy(t, start){
-    const base=ENEMY[t];
+    const base=ENEMY_DEF[t];
     return {type:t, x:start.x, y:start.y, wp:1, hp:base.hp, maxhp:base.hp, spd:base.spd, r:base.r, color:base.color, reward:base.reward, marked:false, slow:0, dead:false, subpath:null, subWp:0};
   }
   function spawnEnemy(t, isBoss){
@@ -634,7 +679,7 @@
   }
 
   // ---------- Drawing ----------
-  function drawSmoothPath(points){
+  function drawPath(points){
     if(points.length<3) return;
     const penult=points[points.length-2], lastp=points[points.length-1];
     ctx.strokeStyle='#134f7a'; ctx.lineWidth=26; ctx.lineCap='round'; ctx.lineJoin='round';
@@ -655,11 +700,11 @@
 
   function draw(){
     ctx.fillStyle='#081224'; ctx.fillRect(0,0,W,H);
-    drawSmoothPath(state.basePath);
+    drawPath(state.basePath);
 
     const now=performance.now()/1000;
 
-    // Node gates
+    // Node gate previews
     for(const n of state.nodes){
       const loop=n.gate.loop? n.gate.loop.points : null;
       if(loop){
@@ -780,18 +825,16 @@
     requestAnimationFrame(loop);
   }
 
-  // Controls
+  // Controls & boot
   btn.start.addEventListener('click',()=>{ if(!started && !state.gameOver){ started=true; startWave(); } });
   btn.next.addEventListener('click',()=>{ if(started && !state.gameOver) nextReady=true; });
   btn.pause.addEventListener('click',()=>{ if(state.gameOver) return; paused=!paused; btn.pause.textContent=paused?'繼續':'暫停'; });
-  btn.help.addEventListener('click',()=>{ modal.style.display='flex'; });
-  closeModal.addEventListener('click',()=>{ modal.style.display='none'; });
-
-  // Kick off: preview path
-  state.basePath = generateSmoothPathVisitingNodes();
+  btn.help.addEventListener('click',()=>{ alert('基本：每波路線不同，會經過所有站點；路徑直彎交錯且避免重疊。Boss 波新增 2 站點。升級成本等差遞增。'); });
+  // Preview path before start
+  state.basePath = generateMixedPath();
   for(const n of state.nodes){
     const idx = nearestPathIdx(n, state.basePath);
-    n.gate.startIdx=idx; n.gate.loop = makeArcDetour(state.basePath, idx);
+    n.gate.startIdx=idx; n.gate.loop = makeVariedDetour(state.basePath, idx);
   }
 
   requestAnimationFrame(loop);
