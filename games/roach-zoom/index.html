@@ -5,54 +5,80 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>透鏡成像 × 放大鏡 × 馬達加斯加蟑螂</title>
   <style>
+    * { box-sizing: border-box; }
     html, body { height: 100%; margin: 0; background:#0e1116; color:#eaeef5; font-family: system-ui, -apple-system, Segoe UI, Roboto, Noto Sans, Arial, "Microsoft JhengHei", sans-serif; }
-    .wrap { display:flex; flex-direction:column; height:100%; }
-    header { padding:8px 12px; background:linear-gradient(180deg,#121722,#0e1116); border-bottom:1px solid #1b2130; }
-    header h1 { font-size:16px; margin:0 0 4px; letter-spacing:0.5px }
-    header .row { display:flex; gap:16px; align-items:center; flex-wrap:wrap; }
-    label { font-size:12px; opacity:0.9 }
-    input[type=range] { width:200px; }
-    .pill { background:#151b26; border:1px solid #1f2838; padding:6px 10px; border-radius:12px; font-size:12px }
-    .hint { font-size:12px; opacity:0.8; }
-    #canvas { flex:1; display:block; width:100%; background: conic-gradient(from 180deg at 50% 0%, #0b0f16, #0c1018); }
-    footer { padding:8px 12px; font-size:12px; color:#aeb8cc; border-top:1px solid #1b2130; display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; }
-    .badge { padding:2px 8px; border-radius:999px; border:1px solid #2a3752; background:#141b28; color:#cfe1ff; }
-    .row { display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
-    .btn { cursor:pointer; user-select:none; }
+    .wrap { display:flex; flex-direction:column; min-height:100vh; }
+
+    /* 極簡抬頭列，只保留焦距滑桿與「說明」按鈕 */
+    header { padding:8px 12px; background:linear-gradient(180deg,#121722,#0e1116); border-bottom:1px solid #1b2130; position:sticky; top:0; z-index:2; }
+    .topbar { display:flex; align-items:center; gap:12px; }
+    .spacer { flex:1; }
+    label { font-size:12px; opacity:0.95; }
+    input[type=range] { width:min(360px, 60vw); }
+    .btn { cursor:pointer; user-select:none; padding:6px 10px; border-radius:10px; font-size:12px; border:1px solid #2a3752; background:#141b28; color:#cfe1ff; }
+
+    /* 盡量把高度留給場景 */
+    #canvas { flex:1; display:block; width:100%; height:auto; background: radial-gradient(1200px 180px at 50% 0%, #0b0f16, #0c1018); }
+
+    /* 通關面板 */
+    #win { position:fixed; inset:0; background:rgba(0,0,0,0.6); display:none; align-items:center; justify-content:center; z-index:5; }
+    #win .panel { width:min(920px, 92vw); max-height:90vh; overflow:auto; background:#121826; border:1px solid #2b3a57; border-radius:16px; box-shadow:0 12px 40px rgba(0,0,0,0.4); padding:16px; }
+    #win h2 { margin:0 0 8px; font-size:18px; }
+    #win table { width:100%; border-collapse: collapse; font-size:12px; }
+    #win th, #win td { border-bottom:1px solid #2b3a57; padding:6px 8px; text-align:left; }
+    #win .actions { display:flex; gap:8px; justify-content:flex-end; margin-top:10px; }
+    .btn-outline { background:#141b28; border:1px solid #2a3752; color:#cfe1ff; padding:6px 10px; border-radius:10px; }
+    .btn-primary { background:#2a6fff; border:0; color:white; padding:6px 12px; border-radius:10px; }
+
+    /* 說明面板（預設隱藏） */
+    #help { position:fixed; inset:0; background:rgba(0,0,0,0.55); display:none; align-items:center; justify-content:center; z-index:6; }
+    #help .panel { width:min(700px, 92vw); max-height:88vh; overflow:auto; background:#121826; border:1px solid #2b3a57; border-radius:16px; box-shadow:0 12px 40px rgba(0,0,0,0.4); padding:16px; }
+    #help h2 { margin:0 0 8px; font-size:18px; }
+    #help ol { margin:8px 0 0 18px; line-height:1.6; font-size:13px; color:#d7e4ff; }
+    #help .actions { display:flex; gap:8px; justify-content:flex-end; margin-top:10px; }
   </style>
 </head>
 <body>
 <div class="wrap">
   <header>
-    <h1>透鏡成像遊戲｜放大鏡焦距、位置、成像清晰度</h1>
-    <div class="row">
-      <label>焦距 f（cm）：<input id="fSlider" type="range" min="10" max="100" step="1" value="50"></label>
-      <span class="pill">f = <span id="fVal">50</span> cm</span>
-      <span class="pill">天花板 ↕ 地板 = 3.00 m</span>
-      <span class="pill">提示：滑鼠移動 = 放大鏡位置；點擊 = 複製；手機/平板：拖曳移動，雙擊/雙點 = 複製</span>
-      <button id="flipBtn" class="btn pill">顛倒天花板/地板</button>
-    </div>
-    <div class="row hint">
-      尺規：以透鏡所在水平面為 0，<b>物距 s 為正</b>、<b>像距 s' 為負</b>（實像在下方時）。
-    </div>
-    <div class="row hint">
-      s：<span id="sRead">—</span> m　|　s'：<span id="spRead">—</span> m　|　放大率 m：<span id="mRead">—</span>　|　成像類型：<span id="typeRead">—</span>　|　對焦誤差 Δ：<span id="errRead">—</span> m
+    <div class="topbar">
+      <label>焦距 f（cm）：<input id="fSlider" type="range" min="10" max="100" step="1" value="50"> <span id="fVal">50</span> cm</label>
+      <div class="spacer"></div>
+      <button id="btnHelp" class="btn">說明</button>
     </div>
   </header>
 
   <canvas id="canvas"></canvas>
+</div>
 
-  <footer>
-    <div class="row">
-      <span class="badge">規則：滿足 1/f = 1/s + 1/s'，且焦平面落在「下邊界（實像）」或「上邊界（虛像）」時最清晰。按規則可複製刷淡蟑螂，大小與上下顛倒遵循 m = -s'/s。顛倒按鈕可交換上/下邊界的「天花板 / 地板」語意，並可在頂部像上繼續複製。</span>
+<!-- Win overlay -->
+<div id="win">
+  <div class="panel">
+    <h2>🎉 通關成功！三種焦段已完成配對並生出 18 隻小蟑螂</h2>
+    <div id="winSummary"></div>
+    <div class="actions">
+      <button id="btnCloseWin" class="btn-outline">關閉</button>
+      <button id="btnRestart" class="btn-primary">再玩一次</button>
     </div>
-    <div class="row">
-      <span class="badge">旋轉鍵（僅視覺）：</span>
-      <button id="rotLeft" class="btn pill">↺</button>
-      <button id="rotRight" class="btn pill">↻</button>
-      <span class="hint">（薄透鏡理想模型中，旋轉不影響成像，只改變鏡片外觀）</span>
+  </div>
+</div>
+
+<!-- Help overlay (rules) -->
+<div id="help">
+  <div class="panel">
+    <h2>📘 遊戲說明</h2>
+    <ol>
+      <li>拖動放大鏡（滑鼠或手指），並用上方滑桿調整焦距 f。</li>
+      <li>三條主光線：平行→過焦、過鏡心、過同側焦→出射平行；出射交點為像點。</li>
+      <li>幽靈像清晰度由誤差 Δ（像點到天花板/地板距離）決定；在 <b>±2 cm</b> 內完全清晰，這時點擊（或雙點）可<b>複製</b>。</li>
+      <li>複製體：|m|≥1 → 粉紅母；|m|&lt;1 → 抹茶綠公（半透明、深淺依焦段）。實像落地倒立、虛像落頂正立；左右遵守 m。</li>
+      <li><b>新生規則：</b>同一焦段（f 取整 cm）的公母相遇會冒愛心，兩隻走到兩側，並在邊緣<b>生 6 隻</b>小蟑螂（黃色、頭頂標該焦段 f）。</li>
+      <li><b>過關條件：</b>累積三個不同焦段的配對（= 三個家庭），共 18 隻小蟑螂 → 過關；會跳出摘要表。</li>
+    </ol>
+    <div class="actions">
+      <button id="btnCloseHelp" class="btn-outline">關閉</button>
     </div>
-  </footer>
+  </div>
 </div>
 
 <script>
@@ -60,69 +86,57 @@
   const canvas = document.getElementById('canvas');
   const ctx = canvas.getContext('2d');
 
+  // ---------- Sizing ----------
   function resize(){
     const dpr = Math.max(1, window.devicePixelRatio || 1);
-    canvas.width = canvas.clientWidth * dpr;
-    canvas.height = canvas.clientHeight * dpr;
+    const cssW = canvas.clientWidth || window.innerWidth;
+    const cssH = canvas.clientHeight || (window.innerHeight - document.querySelector('header').offsetHeight);
+    canvas.width  = Math.max(1, Math.floor(cssW * dpr));
+    canvas.height = Math.max(1, Math.floor(cssH * dpr));
     ctx.setTransform(dpr,0,0,dpr,0,0);
   }
   window.addEventListener('resize', resize);
-  resize();
+  requestAnimationFrame(resize);
 
-  // World units (meters)
-  const H = 3.0; // top (0) to bottom (H)
-  let pxPerM = () => (canvas.clientHeight-40) / H; // dynamic scale
-  const marginTop = 20; // top padding for drawing area
+  // ---------- World / State ----------
+  const H = 3.0; // meters (top 0 → bottom H)
+  const marginTop = 20;
+  const getDPR = () => Math.max(1, window.devicePixelRatio || 1);
+  const pxPerM = () => (canvas.height/getDPR() - 40) / H;
 
-  // Roach (object) on top boundary (initially ceiling)
-  const roach = {
-    x: 1.5,
-    y: 0.0,
-    dir: 1,
-    speed: 0.35, // m/s along top (橫向爬更明顯)
-    phase: 0 // limb animation phase
-  };
+  const roach = { x:1.5, y:0, dir:1, speed:0.35, phase:0 };
+  let lens = { x:2.0, y:1.5, f:0.50 };
 
-  // Lens state
-  let lens = {
-    x: 2.0,
-    y: 1.5,
-    f: 0.50, // meters
-    rot: 0 // radians (visual only)
-  };
+  const clones = []; // see previous schema
+  const hearts = [];
 
-  // Top label state: true=天花板在上，false=地板在上
-  let topIsCeiling = true;
+  // families: key=f_cm, value={f_cm, s, sp, m, type, babies}
+  const families = new Map();
 
-  // Copies of roaches (images) created by player
-  const clones = []; // {x, y, scale, inverted, alpha, dir, speed, phase}
-
-  // UI elements
+  // ---------- UI ----------
   const fSlider = document.getElementById('fSlider');
   const fVal = document.getElementById('fVal');
-  const sRead = document.getElementById('sRead');
-  const spRead = document.getElementById('spRead');
-  const mRead = document.getElementById('mRead');
-  const typeRead = document.getElementById('typeRead');
-  const errRead = document.getElementById('errRead');
-  const rotLeft = document.getElementById('rotLeft');
-  const rotRight = document.getElementById('rotRight');
-  const flipBtn = document.getElementById('flipBtn');
+  const btnHelp = document.getElementById('btnHelp');
+  const helpEl = document.getElementById('help');
+  const btnCloseHelp = document.getElementById('btnCloseHelp');
+  const winEl = document.getElementById('win');
+  const winSummary = document.getElementById('winSummary');
+  const btnCloseWin = document.getElementById('btnCloseWin');
+  const btnRestart = document.getElementById('btnRestart');
 
   fSlider.addEventListener('input', () => {
-    lens.f = parseFloat(fSlider.value)/100; // convert cm -> m
+    lens.f = parseFloat(fSlider.value)/100;
     fVal.textContent = fSlider.value;
   });
+  btnHelp.addEventListener('click', ()=> helpEl.style.display='flex');
+  btnCloseHelp.addEventListener('click', ()=> helpEl.style.display='none');
+  btnCloseWin.addEventListener('click', ()=> winEl.style.display='none');
+  btnRestart.addEventListener('click', ()=> location.reload());
 
-  rotLeft.addEventListener('click', ()=> lens.rot -= Math.PI/12);
-  rotRight.addEventListener('click', ()=> lens.rot += Math.PI/12);
-  flipBtn.addEventListener('click', ()=> topIsCeiling = !topIsCeiling);
-
-  // Pointer handling (mouse/touch)
+  // Pointer → move lens; click/double-tap → clone
   let lastTapTime = 0;
-
   canvas.addEventListener('pointerdown', (e)=>{
-    if (e.pointerType === 'touch') {
+    if (e.pointerType === 'touch'){
       const now = Date.now();
       if (now - lastTapTime < 300) attemptClone();
       lastTapTime = now;
@@ -130,491 +144,296 @@
   });
   canvas.addEventListener('pointermove', (e)=>{
     const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    // map to world meters
-    lens.x = x / pxPerM();
-    lens.y = (y - marginTop) / pxPerM();
+    lens.x = (e.clientX - rect.left) / pxPerM();
+    lens.y = (e.clientY - rect.top - marginTop) / pxPerM();
     lens.y = Math.max(0.1, Math.min(H-0.1, lens.y));
-    lens.x = Math.max(0.3, Math.min((canvas.clientWidth-0.3*pxPerM())/pxPerM(), lens.x));
+    const maxX = (canvas.clientWidth-0.3*pxPerM())/pxPerM();
+    lens.x = Math.max(0.3, Math.min(maxX, lens.x));
   });
-  canvas.addEventListener('click', (e)=>{
-    if (e.pointerType !== 'touch') attemptClone();
-  });
+  canvas.addEventListener('click', (e)=>{ if (e.pointerType !== 'touch') attemptClone(); });
 
-  function attemptClone(){
-    const calc = computeImaging();
-    const tol = 0.02; // meters tolerance (2 cm)
-    // real image onto bottom boundary
-    if (calc.sp_geom > 0 && Math.abs(calc.y_img - H) < tol) {
-      clones.push({ x: calc.x_img, y: H, scale: Math.abs(calc.m), inverted: true, alpha: 0.55, dir: Math.random()<0.5?-1:1, speed: 0.20 + Math.random()*0.15, phase: Math.random()*Math.PI*2 });
-    }
-    // virtual image onto top boundary
-    if (calc.sp_geom < 0 && Math.abs(calc.y_img - 0) < tol) {
-      clones.push({ x: calc.x_img, y: 0, scale: Math.abs(calc.m), inverted: false, alpha: 0.55, dir: Math.random()<0.5?-1:1, speed: 0.20 + Math.random()*0.15, phase: Math.random()*Math.PI*2 });
-    }
-  }
-
+  // ---------- Physics ----------
   function computeImaging(){
-    // Object point (roach) at (x_o, y=0). Lens at (x_l, y_l)
-    const s_geom = Math.max(0.001, lens.y - roach.y); // geometric distance downward positive
+    const s_geom = Math.max(0.001, lens.y - roach.y); // downward +
     const f = lens.f;
-    let sp_geom = 1/(1/f - 1/s_geom); // >0 real (below lens), <0 virtual (above lens)
+    const sp_geom = 1/(1/f - 1/s_geom); // >0 real, <0 virtual
     const m = -sp_geom/s_geom;
     const y_img = lens.y + sp_geom;
     const x_img = lens.x + m * (roach.x - lens.x);
-
-    // sign-convention readouts: lens plane as 0, upward為正、向下為負 → s>0（物在上方），實像在下方 s'<0
-    const s_signed = s_geom; // 物距為正
-    const sp_signed = -sp_geom; // 下方實像為負，上方虛像為正
-
-    // Focus error vs boundaries
-    let err;
-    if (sp_geom > 0) err = Math.abs(y_img - H); else err = Math.abs(y_img - 0);
-
-    return { s_signed, sp_signed, m, y_img, x_img, err, sp_geom };
+    const s_signed = s_geom;      // s 正
+    const sp_signed = -sp_geom;   // 實像在下方→負
+    const type = (sp_geom>0? '實像（倒立）' : '虛像（正立）');
+    const err = sp_geom>0 ? Math.abs(y_img - H) : Math.abs(y_img - 0);
+    return { s_signed, sp_signed, m, y_img, x_img, err, sp_geom, type };
   }
 
-  // Animated roach drawing (橫向爬)
-  function drawRoach(xm, ym, scale=1, inverted=false, alpha=1, phase=0, t=0){
+  function shadeByF(fcm, sex){
+    const t = Math.max(0, Math.min(1, (fcm-10)/90));
+    if (sex==='F'){ const S = 70 - t*15; const L = 78 - t*16; return `hsl(340 ${S}% ${L}%)`; }
+    else { const S = 60 - t*15; const L = 76 - t*16; return `hsl(110 ${S}% ${L}%)`; }
+  }
+
+  function attemptClone(){
+    const calc = computeImaging();
+    const tol = 0.02;
+    let onTarget = false;
+    if (calc.sp_geom > 0 && Math.abs(calc.y_img - H) < tol) onTarget = true;
+    if (calc.sp_geom < 0 && Math.abs(calc.y_img - 0) < tol) onTarget = true;
+    if (!onTarget) return;
+
+    const mAbs = Math.abs(calc.m);
+    const f_cm = Math.round(lens.f * 100);
+    const focusBin = f_cm;
+    const sex = (mAbs>=1.0) ? 'F' : 'M';
+    const color = shadeByF(f_cm, sex);
+    const alpha = 0.55;
+    const dir = Math.random()<0.5?-1:1;
+    const speed = 0.18 + Math.random()*0.22;
+    const isReal = (calc.sp_geom>0);
+
+    clones.push({
+      x: calc.x_img,
+      y: isReal ? H : 0,
+      scale: mAbs,
+      dir, speed,
+      phase: Math.random()*Math.PI*2,
+      sex, color, alpha,
+      f_cm, focusBin,
+      status:'free', targetX:null, hasBirthed:false,
+      isBaby:false,
+      inverted: isReal, // 實像倒立、虛像正立
+      s_signed: calc.s_signed,
+      sp_signed: calc.sp_signed,
+      type: calc.type,
+      m: calc.m
+    });
+  }
+
+  // ---------- Drawing ----------
+  function drawWorldGrid(){
     const p = pxPerM();
-    const x = xm * p;
-    const y = marginTop + ym * p;
+    ctx.fillStyle = '#0b1018';
+    ctx.fillRect(0, marginTop, canvas.width/getDPR(), H*p);
+    ctx.strokeStyle = '#243149';
+    ctx.beginPath(); ctx.moveTo(0, marginTop); ctx.lineTo(canvas.width/getDPR(), marginTop); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, marginTop + H*p); ctx.lineTo(canvas.width/getDPR(), marginTop + H*p); ctx.stroke();
+    ctx.fillStyle = '#8ea4c8'; ctx.font = '12px system-ui';
+    ctx.fillText('天花板', 8, marginTop+12);
+    ctx.fillText('地板', 8, marginTop + H*p - 6);
+  }
+
+  function drawRuler(calc){
+    const p = pxPerM();
+    const baseX = canvas.width/getDPR() - 80;
+    const zeroY = marginTop + lens.y * p;
     ctx.save();
-    ctx.translate(x, y);
-    ctx.scale(1, inverted ? -1 : 1);
-    ctx.scale(scale, scale);
-    ctx.globalAlpha = alpha;
-
-    // leg/antenna animation
-    const wig = Math.sin(t*6 + phase);
-
-    // body
-    ctx.fillStyle = '#9aa3b0';
-    ctx.strokeStyle = '#0a0e14';
-    ctx.lineWidth = 1.2;
-    ctx.beginPath();
-    ctx.ellipse(0, 0, 18, 28, 0, 0, Math.PI*2);
-    ctx.fill();
-    ctx.stroke();
-
-    // head（朝移動方向稍微擺動）
-    ctx.save();
-    ctx.translate(0, -26);
-    ctx.rotate(wig*0.05);
-    ctx.beginPath();
-    ctx.ellipse(0, 0, 10, 8, 0, 0, Math.PI*2);
-    ctx.fillStyle = '#8a93a0';
-    ctx.fill();
-    ctx.stroke();
-    ctx.restore();
-
-    // stripes
-    ctx.strokeStyle = 'rgba(0,0,0,0.35)';
-    for(let i=-18;i<=18;i+=6){ ctx.beginPath(); ctx.moveTo(-10, i); ctx.lineTo(10, i); ctx.stroke(); }
-
-    // legs (animated, 左右擺)
-    ctx.strokeStyle = '#cfd7e6';
-    ctx.lineWidth = 1.1;
-    for(let side of [-1,1]){
-      for(let i=0;i<3;i++){
-        const sway = (i%2===0?wig:-wig) * (3+i*0.7);
-        ctx.beginPath();
-        ctx.moveTo(side*10, -8 + i*10);
-        ctx.lineTo(side*(20+sway), -12 + i*10);
-        ctx.lineTo(side*(26+sway*0.6), -6 + i*10);
-        ctx.stroke();
-      }
-    }
-
-    // antenna (animated)
-    ctx.beginPath();
-    ctx.moveTo(-4, -33);
-    ctx.quadraticCurveTo(-14 - wig*6, -46 - wig*5, -26 - wig*10, -50);
-    ctx.moveTo(4, -33);
-    ctx.quadraticCurveTo(14 + wig*6, -46 - wig*5, 26 + wig*10, -50);
-    ctx.strokeStyle = '#cfd7e6';
-    ctx.stroke();
-
+    ctx.strokeStyle = '#2c3b57'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(baseX, marginTop); ctx.lineTo(baseX, marginTop + H*p); ctx.stroke();
+    ctx.strokeStyle = '#7fb8ff'; ctx.beginPath(); ctx.moveTo(baseX-8, zeroY); ctx.lineTo(baseX+8, zeroY); ctx.stroke();
+    ctx.fillStyle = '#9fc8ff'; ctx.font = '12px system-ui'; ctx.fillText('0', baseX+12, zeroY-4);
+    const sY = zeroY - calc.s_signed * p;
+    ctx.strokeStyle = '#7bdcff'; ctx.beginPath(); ctx.moveTo(baseX-5, sY); ctx.lineTo(baseX+5, sY); ctx.stroke();
+    ctx.fillStyle = '#7bdcff'; ctx.fillText(`s=${calc.s_signed.toFixed(2)}m`, baseX+12, sY-4);
+    const spY = zeroY + (-calc.sp_signed) * p;
+    ctx.strokeStyle = '#ffd48a'; ctx.beginPath(); ctx.moveTo(baseX-5, spY); ctx.lineTo(baseX+5, spY); ctx.stroke();
+    ctx.fillStyle = '#ffd48a'; ctx.fillText(`s'=${calc.sp_signed.toFixed(2)}m`, baseX+12, spY-4);
     ctx.restore();
   }
 
   function drawLens(){
-    const p = pxPerM();
-    const x = lens.x * p;
-    const y = marginTop + lens.y * p;
-    ctx.save();
-    ctx.translate(x,y);
-    ctx.rotate(lens.rot);
-
-    // --- 可視化：焦距錐形光束（隨 f 即時更新） ---
-    const fpx = lens.f * p; // focal distance in pixels
-    const beamW = 80; // 視覺寬度（在鏡片處的口徑）
-    ctx.globalAlpha = 0.23;
-    // 上方錐形（匯聚至上焦點）
-    ctx.fillStyle = '#6fbaff';
-    ctx.beginPath();
-    ctx.moveTo(-beamW*0.35, 0);
-    ctx.lineTo(beamW*0.35, 0);
-    ctx.lineTo(0, -fpx);
-    ctx.closePath();
-    ctx.fill();
-    // 下方錐形（匯聚至下焦點）
-    ctx.fillStyle = '#9df7c7';
-    ctx.beginPath();
-    ctx.moveTo(-beamW*0.35, 0);
-    ctx.lineTo(beamW*0.35, 0);
-    ctx.lineTo(0, fpx);
-    ctx.closePath();
-    ctx.fill();
-    ctx.globalAlpha = 1;
-
-    // 標示焦點 F（±f）
-    ctx.strokeStyle = 'rgba(200,240,255,0.9)';
-    ctx.setLineDash([3,3]);
+    const p = pxPerM(); const x = lens.x * p; const y = marginTop + lens.y * p;
+    ctx.save(); ctx.translate(x,y);
+    const fpx = lens.f * p; const beamW = 80;
+    ctx.save(); ctx.globalCompositeOperation = 'destination-over'; ctx.globalAlpha = 0.23;
+    ctx.fillStyle = '#6fbaff'; ctx.beginPath(); ctx.moveTo(-beamW*0.35, 0); ctx.lineTo(beamW*0.35, 0); ctx.lineTo(0, -fpx); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#9df7c7'; ctx.beginPath(); ctx.moveTo(-beamW*0.35, 0); ctx.lineTo(beamW*0.35, 0); ctx.lineTo(0,  fpx); ctx.closePath(); ctx.fill();
+    ctx.restore();
+    ctx.strokeStyle = 'rgba(200,240,255,0.9)'; ctx.setLineDash([3,3]);
     ctx.beginPath(); ctx.moveTo(-14, -fpx); ctx.lineTo(14, -fpx); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(-14,  fpx); ctx.lineTo(14,  fpx); ctx.stroke();
-    ctx.setLineDash([]);
-
-    // lens body
-    const w=20, h=60;
-    const grd = ctx.createLinearGradient(-w, -h, w, h);
-    grd.addColorStop(0, 'rgba(160,210,255,0.18)');
-    grd.addColorStop(0.5, 'rgba(220,245,255,0.35)');
-    grd.addColorStop(1, 'rgba(160,210,255,0.18)');
-    ctx.fillStyle = grd;
-    ctx.strokeStyle = 'rgba(120,170,230,0.9)';
-    ctx.lineWidth = 1.2;
-    ctx.beginPath();
-    ctx.moveTo(0,-h);
-    ctx.quadraticCurveTo(w,-h*0.2, 0,0);
-    ctx.quadraticCurveTo(-w,h*0.2, 0,h);
-    ctx.quadraticCurveTo(w,h*0.2, 0,0);
-    ctx.quadraticCurveTo(-w,-h*0.2, 0,-h);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-
-    // lens plane = 0（參考線）
-    ctx.strokeStyle = 'rgba(180,220,255,0.8)';
-    ctx.beginPath();
-    ctx.moveTo(-26,0); ctx.lineTo(26,0);
-    ctx.stroke();
-
+    ctx.beginPath(); ctx.moveTo(-14,  fpx); ctx.lineTo(14,  fpx); ctx.stroke(); ctx.setLineDash([]);
+    const w=20, h=60; const grd = ctx.createLinearGradient(-w, -h, w, h);
+    grd.addColorStop(0, 'rgba(160,210,255,0.18)'); grd.addColorStop(0.5, 'rgba(220,245,255,0.35)'); grd.addColorStop(1, 'rgba(160,210,255,0.18)');
+    ctx.fillStyle = grd; ctx.strokeStyle = 'rgba(120,170,230,0.9)'; ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.moveTo(0,-h); ctx.quadraticCurveTo(w,-h*0.2, 0,0); ctx.quadraticCurveTo(-w,h*0.2, 0,h); ctx.quadraticCurveTo(w,h*0.2, 0,0); ctx.quadraticCurveTo(-w,-h*0.2, 0,-h); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.strokeStyle = 'rgba(180,220,255,0.8)'; ctx.beginPath(); ctx.moveTo(-26,0); ctx.lineTo(26,0); ctx.stroke();
     ctx.restore();
   }
 
-  function drawWorldGrid(){
-    const p = pxPerM();
-    // area
-    ctx.fillStyle = '#0b1018';
-    ctx.fillRect(0, marginTop, canvas.clientWidth, H*p);
-
-    // top line (y=0)
-    ctx.strokeStyle = '#243149';
-    ctx.beginPath();
-    ctx.moveTo(0, marginTop);
-    ctx.lineTo(canvas.clientWidth, marginTop);
-    ctx.stroke();
-
-    // bottom line (y=H)
-    ctx.beginPath();
-    ctx.moveTo(0, marginTop + H*p);
-    ctx.lineTo(canvas.clientWidth, marginTop + H*p);
-    ctx.stroke();
-
-    // labels
-    ctx.fillStyle = '#8ea4c8';
-    ctx.font = '12px system-ui';
-    ctx.fillText(topIsCeiling? '天花板' : '地板', 8, marginTop+12);
-    ctx.fillText(topIsCeiling? '地板' : '天花板', 8, marginTop + H*p - 6);
-
-    // meter ticks
-    ctx.fillStyle = '#3a4a6a';
-    ctx.font = '12px system-ui';
-    for(let y=0; y<=H; y+=0.5){
-      const yy = marginTop + y*p;
-      ctx.globalAlpha = y % 1 === 0 ? 0.35 : 0.12;
-      ctx.beginPath();
-      ctx.moveTo(0, yy);
-      ctx.lineTo(canvas.clientWidth, yy);
-      ctx.stroke();
-      if (y % 1 === 0){
-        ctx.globalAlpha = 0.9;
-        ctx.fillText(`${y.toFixed(0)} m`, canvas.clientWidth-50, yy-4);
-      }
-      ctx.globalAlpha = 1;
-    }
+  function drawRoach(xm, ym, scale=1, inverted=false, alpha=1, phase=0, t=0, tintColor=null, labelText=null){
+    const p = pxPerM(); const x = xm * p; const y = marginTop + ym * p;
+    ctx.save(); ctx.translate(x, y); ctx.scale(1, inverted ? -1 : 1); ctx.scale(scale*0.7, scale*0.7); ctx.globalAlpha = alpha;
+    const wig = Math.sin(t*6 + phase); const bodyFill = tintColor || '#9aa3b0';
+    ctx.fillStyle = bodyFill; ctx.strokeStyle = '#0a0e14'; ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.ellipse(0, 0, 18, 28, 0, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+    ctx.save(); ctx.translate(0, -26); ctx.rotate(wig*0.05);
+    ctx.beginPath(); ctx.ellipse(0, 0, 10, 8, 0, 0, Math.PI*2); ctx.fillStyle = tintColor ? bodyFill : '#8a93a0'; ctx.fill(); ctx.stroke(); ctx.restore();
+    ctx.strokeStyle = 'rgba(0,0,0,0.35)'; for(let i=-18;i<=18;i+=6){ ctx.beginPath(); ctx.moveTo(-10, i); ctx.lineTo(10, i); ctx.stroke(); }
+    ctx.strokeStyle = '#cfd7e6'; ctx.lineWidth = 1.1;
+    for(let side of [-1,1]){ for(let i=0;i<3;i++){ const sway = (i%2===0?wig:-wig) * (3+i*0.7); ctx.beginPath(); ctx.moveTo(side*10, -8 + i*10); ctx.lineTo(side*(20+sway), -12 + i*10); ctx.lineTo(side*(26+sway*0.6), -6 + i*10); ctx.stroke(); } }
+    ctx.beginPath(); ctx.moveTo(-4, -33); ctx.quadraticCurveTo(-14 - wig*6, -46 - wig*5, -26 - wig*10, -50); ctx.moveTo(4, -33); ctx.quadraticCurveTo(14 + wig*6, -46 - wig*5, 26 + wig*10, -50); ctx.strokeStyle = '#cfd7e6'; ctx.stroke();
+    if (labelText){ ctx.save(); ctx.scale(1, inverted ? -1 : 1); ctx.globalAlpha = 0.95; ctx.fillStyle = '#ffd84d'; ctx.font = '10px system-ui'; ctx.fillText(labelText, -8, -38); ctx.restore(); }
+    ctx.restore();
   }
 
-  // 右側「尺規」：零點=透鏡平面，向上 s 為正，向下 s' 為負（實像）
-  function drawRuler(calc){
-    const p = pxPerM();
-    const baseX = canvas.clientWidth - 80;
-    const zeroY = marginTop + lens.y * p;
-
-    // 直尺
-    ctx.save();
-    ctx.strokeStyle = '#2c3b57';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(baseX, marginTop);
-    ctx.lineTo(baseX, marginTop + H*p);
-    ctx.stroke();
-
-    // 零點
-    ctx.strokeStyle = '#7fb8ff';
-    ctx.beginPath(); ctx.moveTo(baseX-8, zeroY); ctx.lineTo(baseX+8, zeroY); ctx.stroke();
-    ctx.fillStyle = '#9fc8ff';
-    ctx.font = '12px system-ui';
-    ctx.fillText('0', baseX+12, zeroY-4);
-
-    // s（物距，正）
-    const sY = zeroY - calc.s_signed * p;
-    ctx.strokeStyle = '#7bdcff';
-    ctx.beginPath(); ctx.moveTo(baseX-5, sY); ctx.lineTo(baseX+5, sY); ctx.stroke();
-    ctx.fillStyle = '#7bdcff';
-    ctx.fillText(`s=${calc.s_signed.toFixed(2)}m`, baseX+12, sY-4);
-
-    // s'（像距，負為下方實像）
-    const spY = zeroY + (-calc.sp_signed) * p; // 轉回幾何方向
-    ctx.strokeStyle = '#ffd48a';
-    ctx.beginPath(); ctx.moveTo(baseX-5, spY); ctx.lineTo(baseX+5, spY); ctx.stroke();
-    ctx.fillStyle = '#ffd48a';
-    ctx.fillText(`s'=${calc.sp_signed.toFixed(2)}m`, baseX+12, spY-4);
-
-    ctx.restore();
+  function drawGhostRoach(xm, ym, scale, inverted, blurPx, alpha=0.9){
+    const off = document.createElement('canvas'); off.width = 200; off.height = 200; const octx = off.getContext('2d');
+    octx.imageSmoothingEnabled = true; octx.translate(100,100); octx.globalAlpha = 1; drawRoachOffscreen(octx, scale, inverted);
+    const p = pxPerM(); ctx.save();
+    if (blurPx <= 0.0001){ ctx.filter = 'none'; ctx.globalAlpha = 1.0; }
+    else { ctx.filter = `blur(${blurPx.toFixed(2)}px)`; ctx.globalAlpha = alpha; }
+    ctx.drawImage(off, xm*p-100, marginTop + ym*p-100); ctx.filter = 'none'; ctx.restore();
+  }
+  function drawRoachOffscreen(g, scale=1, inverted=false){
+    const t = performance.now()/1000; const phase=0; g.save(); g.scale(1, inverted ? -1 : 1); g.scale(scale*0.7, scale*0.7);
+    const wig = Math.sin(t*6 + phase); g.fillStyle = '#cfd6e4'; g.strokeStyle = '#0a0e14'; g.lineWidth = 1.1;
+    g.beginPath(); g.ellipse(0, 0, 18, 28, 0, 0, Math.PI*2); g.fill(); g.stroke();
+    g.beginPath(); g.ellipse(0, -26, 10, 8, 0, 0, Math.PI*2); g.fill(); g.stroke();
+    g.strokeStyle = 'rgba(0,0,0,0.35)'; for(let i=-18;i<=18;i+=6){ g.beginPath(); g.moveTo(-10,i); g.lineTo(10,i); g.stroke(); }
+    g.strokeStyle = '#cfd7e6'; g.lineWidth=1.1; for(let side of [-1,1]){ for(let i=0;i<3;i++){ const sway = (i%2===0?wig:-wig) * (3+i*0.7); g.beginPath(); g.moveTo(side*10, -8 + i*10); g.lineTo(side*(20+sway), -12 + i*10); g.lineTo(side*(26+sway*0.6), -6 + i*10); g.stroke(); } }
+    g.beginPath(); g.moveTo(-4,-33); g.quadraticCurveTo(-14 - wig*6, -46 - wig*5, -26 - wig*10, -50); g.moveTo(4,-33); g.quadraticCurveTo(14 + wig*6, -46 - wig*5, 26 + wig*10, -50); g.stroke(); g.restore();
   }
 
   function drawFocusCue(calc){
-    const p = pxPerM();
-    ctx.save();
-    ctx.setLineDash([6,6]);
-    ctx.lineWidth = 1.2;
-
-    if (calc.sp_geom > 0) {
-      // target = bottom (real)
-      ctx.strokeStyle = calc.err < 0.02 ? '#74ff9b' : '#ffaa74';
-      ctx.beginPath();
-      ctx.moveTo(0, marginTop + H*p);
-      ctx.lineTo(canvas.clientWidth, marginTop + H*p);
-      ctx.stroke();
-      const blur = Math.min(18, calc.err * 900);
-      drawGhostRoach(calc.x_img, H, Math.abs(calc.m), true, blur);
+    const p = pxPerM(); ctx.save(); ctx.setLineDash([6,6]); ctx.lineWidth = 1.2;
+    const tol = 0.02; // 2 cm 容差
+    const err = calc.err;
+    const blur = (err <= tol) ? 0 : Math.min(28, (err - tol) * 1400);
+    const alpha = (err <= tol) ? 1.0 : 0.75;
+    if (calc.sp_geom > 0){
+      ctx.strokeStyle = (err <= tol) ? '#74ff9b' : '#ffaa74';
+      ctx.beginPath(); ctx.moveTo(0, marginTop + H*p); ctx.lineTo(canvas.width/getDPR(), marginTop + H*p); ctx.stroke();
+      drawGhostRoach(calc.x_img, H, Math.abs(calc.m), true, blur, alpha);
     } else {
-      // target = top (virtual)
-      ctx.strokeStyle = calc.err < 0.02 ? '#74ff9b' : '#ffaa74';
-      ctx.beginPath();
-      ctx.moveTo(0, marginTop);
-      ctx.lineTo(canvas.clientWidth, marginTop);
-      ctx.stroke();
-      const blur = Math.min(18, calc.err * 900);
-      drawGhostRoach(calc.x_img, 0, Math.abs(calc.m), false, blur);
+      ctx.strokeStyle = (err <= tol) ? '#74ff9b' : '#ffaa74';
+      ctx.beginPath(); ctx.moveTo(0, marginTop); ctx.lineTo(canvas.width/getDPR(), marginTop); ctx.stroke();
+      drawGhostRoach(calc.x_img, 0, Math.abs(calc.m), false, blur, alpha);
     }
     ctx.restore();
-  }
-
-  function drawGhostRoach(xm, ym, scale, inverted, blurPx){
-    const off = document.createElement('canvas');
-    off.width = 200; off.height = 200;
-    const octx = off.getContext('2d');
-    octx.translate(100,100);
-    octx.globalAlpha = 0.9;
-    drawRoachOffscreen(octx, scale, inverted);
-
-    ctx.save();
-    ctx.filter = `blur(${blurPx.toFixed(1)}px)`;
-    ctx.globalAlpha = 0.6;
-    const p = pxPerM();
-    ctx.drawImage(off, xm*p-100, marginTop + ym*p-100);
-    ctx.filter = 'none';
-    ctx.restore();
-  }
-
-  function drawRoachOffscreen(g, scale=1, inverted=false){
-    const t = performance.now()/1000;
-    const phase = 0;
-    g.save();
-    g.scale(1, inverted ? -1 : 1);
-    g.scale(scale, scale);
-
-    const wig = Math.sin(t*6 + phase);
-
-    g.fillStyle = '#cfd6e4';
-    g.strokeStyle = '#0a0e14';
-    g.lineWidth = 1.1;
-    g.beginPath(); g.ellipse(0, 0, 18, 28, 0, 0, Math.PI*2); g.fill(); g.stroke();
-    g.beginPath(); g.ellipse(0, -26, 10, 8, 0, 0, Math.PI*2); g.fill(); g.stroke();
-    g.strokeStyle = 'rgba(0,0,0,0.35)';
-    for(let i=-18;i<=18;i+=6){ g.beginPath(); g.moveTo(-10,i); g.lineTo(10,i); g.stroke(); }
-
-    g.strokeStyle = '#cfd7e6'; g.lineWidth=1.1;
-    for(let side of [-1,1]){
-      for(let i=0;i<3;i++){
-        const sway = (i%2===0?wig:-wig) * (3+i*0.7);
-        g.beginPath(); g.moveTo(side*10, -8 + i*10); g.lineTo(side*(20+sway), -12 + i*10); g.lineTo(side*(26+sway*0.6), -6 + i*10); g.stroke();
-      }
-    }
-    g.beginPath(); g.moveTo(-4,-33); g.quadraticCurveTo(-14 - wig*6, -46 - wig*5, -26 - wig*10, -50); g.moveTo(4,-33); g.quadraticCurveTo(14 + wig*6, -46 - wig*5, 26 + wig*10, -50); g.stroke();
-
-    g.restore();
-  }
-
-  // Main loop
-  let last = performance.now();
-  function tick(t){
-    const dt = Math.min(0.033, (t-last)/1000); last = t;
-
-    // animate original roach crawling on top (橫向)
-    roach.phase += dt*6;
-    roach.x += roach.dir * roach.speed * dt;
-    const minX = 0.4, maxX = Math.max(0.4, canvas.clientWidth/pxPerM()-0.4);
-    if (roach.x < minX) { roach.x = minX; roach.dir = 1; }
-    if (roach.x > maxX) { roach.x = maxX; roach.dir = -1; }
-
-    // animate clones crawling along their boundary（全部會爬）
-    for (const c of clones){
-      c.phase += dt*6;
-      c.x += c.dir * c.speed * dt;
-      if (c.x < minX) { c.x = minX; c.dir = 1; }
-      if (c.x > maxX) { c.x = maxX; c.dir = -1; }
-    }
-
-    // draw
-    ctx.clearRect(0,0,canvas.clientWidth,canvas.clientHeight);
-    drawWorldGrid();
-
-    // compute imaging
-    const calc = computeImaging();
-
-    // rays (guides)
-    drawRays(calc);
-
-    // draw original roach on top boundary (always y=0)
-    drawRoach(roach.x, 0, 0.7, false, 1, roach.phase, t/1000);
-
-    // draw clones
-    for (const c of clones){
-      drawRoach(c.x, c.y, 0.7 * c.scale, c.inverted, c.alpha, c.phase, t/1000);
-    }
-
-    // focus cue and ghost
-    drawFocusCue(calc);
-
-    // lens with dynamic focal cones
-    drawLens();
-
-    // right-side ruler reflecting sign convention
-    drawRuler(calc);
-
-    // HUD reads with requested convention（數字會即時更新）
-    sRead.textContent = calc.s_signed.toFixed(2);
-    spRead.textContent = calc.sp_signed.toFixed(2);
-    mRead.textContent = calc.m.toFixed(2);
-    const type = (calc.sp_geom>0? '實像（倒立）' : '虛像（正立）');
-    const mag = (Math.abs(calc.m)>1? '／放大' : (Math.abs(calc.m)<1? '／縮小' : '／等大'));
-    typeRead.textContent = type + mag;
-    errRead.textContent = calc.err.toFixed(3);
-
-    requestAnimationFrame(tick);
   }
 
   function drawRays(calc){
     const p = pxPerM();
-
-    // World coords
     const O = {x: roach.x, y: 0};
     const L = {x: lens.x, y: lens.y};
-    const F1 = {x: lens.x, y: lens.y - lens.f}; // 上焦點
-    const F2 = {x: lens.x, y: lens.y + lens.f}; // 下焦點
+    const F1 = {x: lens.x, y: lens.y - lens.f};
+    const F2 = {x: lens.x, y: lens.y + lens.f};
 
-    // ---------- Ray A：平行主軸入射 → 通過另一側焦點 ----------
-    // 入射：垂直（與主軸平行）從 O 到 (x=O.x, y=L.y)
     const A_hit = {x: O.x, y: L.y};
-    // 出射：經 (A_hit) 與 F2
     const A_dir = {x: F2.x - A_hit.x, y: F2.y - A_hit.y};
-
-    // ---------- Ray B：通過鏡心（不偏折） ----------
-    const B_dir = {x: L.x - O.x, y: L.y - O.y}; // 經鏡心方向
-
-    // ---------- Ray C：通過同側焦點入射 → 出射與主軸平行 ----------
-    // 入射：從 O 指向 F1，求與 y=L.y 的交點（鏡面）
-    function intersectY(P, Q, y){
-      const t = (y - P.y) / (Q.y - P.y);
-      return {x: P.x + t*(Q.x - P.x), y: y};
-    }
+    const B_dir = {x: L.x - O.x, y: L.y - O.y};
+    function intersectY(P, Q, y){ const t = (y - P.y) / (Q.y - P.y); return {x: P.x + t*(Q.x - P.x), y: y}; }
     const C_hit = intersectY(O, F1, L.y);
-    const C_dir = {x: 0, y: 1}; // 出射平行主軸（向下）
 
-    // ---------- 幾何：兩條出射光線交點作為準焦估計 ----------
-    // 取 Ray A（過 A_hit，方向 A_dir） 與 Ray B（過 L，方向 B_dir） 的交點
-    function lineIntersect(P, v, Q, w){
-      // P + t v = Q + u w → 解 t,u
-      const det = v.x * w.y - v.y * w.x;
-      if (Math.abs(det) < 1e-6) return null;
-      const t = ((Q.x - P.x) * w.y - (Q.y - P.y) * w.x) / det;
-      return {x: P.x + t * v.x, y: P.y + t * v.y};
-    }
+    function lineIntersect(P, v, Q, w){ const det = v.x * w.y - v.y * w.x; if (Math.abs(det) < 1e-6) return null; const t = ((Q.x - P.x) * w.y - (Q.y - P.y) * w.x) / det; return {x: P.x + t * v.x, y: P.y + t * v.y}; }
     const focusPoint = lineIntersect(A_hit, A_dir, L, B_dir);
 
-    // ---------- 畫圖助手 ----------
     function toPX(pt){ return {x: pt.x * p, y: marginTop + pt.y * p}; }
-    function strokeLine(P, Q, color, dash=null, width=1.6){
-      ctx.save();
-      if (dash) ctx.setLineDash(dash);
-      ctx.strokeStyle = color; ctx.lineWidth = width;
-      ctx.beginPath();
-      ctx.moveTo(P.x, P.y); ctx.lineTo(Q.x, Q.y);
-      ctx.stroke();
-      ctx.restore();
-    }
+    function strokeLine(P, Q, color, dash=null, width=1.6){ ctx.save(); if (dash) ctx.setLineDash(dash); ctx.strokeStyle = color; ctx.lineWidth = width; ctx.beginPath(); ctx.moveTo(P.x, P.y); ctx.lineTo(Q.x, Q.y); ctx.stroke(); ctx.restore(); }
 
-    // 主軸（視覺）
-    ctx.save();
-    ctx.setLineDash([4,4]);
-    ctx.strokeStyle = 'rgba(130,160,220,0.35)';
     strokeLine(toPX({x:L.x,y:0}), toPX({x:L.x,y:H}), 'rgba(130,160,220,0.35)', [4,4], 1);
-    ctx.restore();
-
-    // --- 畫 Ray A ---
-    // 入射段：O → A_hit
     strokeLine(toPX(O), toPX(A_hit), 'rgba(255,255,180,0.95)', null, 1.8);
-    // 出射段：從 A_hit 往下穿過 F2，延伸到邊界
-    const A_far = {x: A_hit.x + A_dir.x * 6, y: A_hit.y + A_dir.y * 6};
-    strokeLine(toPX(A_hit), toPX(A_far), 'rgba(255,255,180,0.95)', null, 1.8);
-
-    // --- 畫 Ray B（經鏡心） ---
-    // 物端：O → L
+    const A_far = {x: A_hit.x + A_dir.x * 6, y: A_hit.y + A_dir.y * 6}; strokeLine(toPX(A_hit), toPX(A_far), 'rgba(255,255,180,0.95)', null, 1.8);
     strokeLine(toPX(O), toPX(L), 'rgba(140,220,255,0.95)', null, 1.8);
-    // 出射：L 之後沿同方向
-    const B_far = {x: L.x + B_dir.x * 6, y: L.y + B_dir.y * 6};
-    strokeLine(toPX(L), toPX(B_far), 'rgba(140,220,255,0.95)', null, 1.8);
-
-    // --- 畫 Ray C ---
-    // 入射：O → C_hit（穿過同側焦點）
+    const B_far = {x: L.x + B_dir.x * 6, y: L.y + B_dir.y * 6}; strokeLine(toPX(L), toPX(B_far), 'rgba(140,220,255,0.95)', null, 1.8);
     strokeLine(toPX(O), toPX(C_hit), 'rgba(170,255,210,0.95)', null, 1.8);
-    // 出射：自 C_hit 垂直向下（與主軸平行）
-    const C_far = {x: C_hit.x, y: C_hit.y + 6};
-    strokeLine(toPX(C_hit), toPX(C_far), 'rgba(170,255,210,0.95)', null, 1.8);
+    const C_far = {x: C_hit.x, y: C_hit.y + 6}; strokeLine(toPX(C_hit), toPX(C_far), 'rgba(170,255,210,0.95)', null, 1.8);
 
-    // --- 虛像情況：以虛線反推交點（在鏡上方） ---
     if (calc.sp_geom < 0 && focusPoint){
-      // 反向延伸兩條出射光線至上方（虛線）
-      const A_back = {x: A_hit.x - A_dir.x * 6, y: A_hit.y - A_dir.y * 6};
-      strokeLine(toPX(A_hit), toPX(A_back), 'rgba(255,255,180,0.6)', [6,6], 1.4);
-      const B_back = {x: L.x - B_dir.x * 6, y: L.y - B_dir.y * 6};
-      strokeLine(toPX(L), toPX(B_back), 'rgba(140,220,255,0.6)', [6,6], 1.4);
+      const A_back = {x: A_hit.x - A_dir.x * 6, y: A_hit.y - A_dir.y * 6}; strokeLine(toPX(A_hit), toPX(A_back), 'rgba(255,255,180,0.6)', [6,6], 1.4);
+      const B_back = {x: L.x - B_dir.x * 6, y: L.y - B_dir.y * 6}; strokeLine(toPX(L), toPX(B_back), 'rgba(140,220,255,0.6)', [6,6], 1.4);
     }
 
-    // --- 準焦交點標記 ---
-    if (focusPoint){
-      const PF = toPX(focusPoint);
-      ctx.save();
-      ctx.fillStyle = '#74ff9b';
-      ctx.strokeStyle = '#16351f';
-      ctx.beginPath(); ctx.arc(PF.x, PF.y, 5, 0, Math.PI*2); ctx.fill(); ctx.stroke();
-      ctx.restore();
+    if (focusPoint){ const PF = toPX(focusPoint); ctx.save(); ctx.fillStyle = '#74ff9b'; ctx.strokeStyle = '#16351f'; ctx.beginPath(); ctx.arc(PF.x, PF.y, 5, 0, Math.PI*2); ctx.fill(); ctx.stroke(); ctx.restore(); }
+  }
+
+  function handlePairingAndBreeding(){
+    const maxDist = 0.08;
+    const minX = 0.4, maxX = Math.max(0.4, canvas.width/getDPR()/pxPerM()-0.4);
+    for (let i=0;i<clones.length;i++){
+      const a = clones[i]; if (a.isBaby || a.hasBirthed) continue;
+      for (let j=i+1;j<clones.length;j++){
+        const b = clones[j]; if (b.isBaby || b.hasBirthed) continue;
+        if (a.focusBin!==b.focusBin) continue;
+        if (!((a.sex==='F' && b.sex==='M') || (a.sex==='M' && b.sex==='F'))) continue;
+        if (Math.abs(a.x - b.x) < maxDist && Math.abs(a.y - b.y) < 0.05){
+          const xm = (a.x+b.x)/2, ym=(a.y+b.y)/2; hearts.push({x:xm, y:ym, t:0});
+          a.status='toSide'; a.targetX=minX; b.status='toSide'; b.targetX=maxX; a.hasBirthed=true; b.hasBirthed=true;
+          spawnBabies(xm, ym, a.focusBin, a);
+          checkWin();
+        }
+      }
     }
+  }
+
+  function spawnBabies(xm, ym, fbin, ref){
+    if (!families.has(fbin)){
+      families.set(fbin, { f_cm:fbin, s: ref.s_signed, sp: ref.sp_signed, m: ref.m, type: ref.type, babies: 0 });
+    }
+    const fam = families.get(fbin);
+    for (let k=0;k<6;k++){
+      const jitter = (Math.random()-0.5)*0.3; const dir = Math.random()<0.5?-1:1; const speed = 0.15 + Math.random()*0.2;
+      clones.push({ x: xm + jitter, y: H, scale: 0.45 * (0.85 + Math.random()*0.3), dir, speed, phase: Math.random()*Math.PI*2, sex:'B', color:'#ffe766', alpha:0.6, f_cm:fbin, focusBin:fbin, status:'free', targetX:null, hasBirthed:true, isBaby:true, inverted:false, s_signed: ref.s_signed, sp_signed: ref.sp_signed, type: '小蟑螂' });
+      fam.babies++;
+    }
+  }
+
+  function checkWin(){
+    const finished = [...families.values()].filter(f=>f.babies>=6);
+    if (finished.length >= 3){ showWin(finished.slice(0,3)); }
+  }
+
+  function showWin(familiesArr){
+    let html = '<table><thead><tr><th>#</th><th>焦距 f (cm)</th><th>物距 s (m)</th><th>像距 s\' (m)</th><th>放大率 m</th><th>像的性質</th></tr></thead><tbody>';
+    familiesArr.forEach((f, idx)=>{
+      for(let k=1;k<=6;k++){
+        html += `<tr><td>${(idx*6)+k}</td><td>${f.f_cm}</td><td>${f.s.toFixed(2)}</td><td>${f.sp.toFixed(2)}</td><td>${f.m.toFixed(2)}</td><td>${f.type}</td></tr>`;
+      }
+    });
+    html += '</tbody></table>';
+    winSummary.innerHTML = html;
+    winEl.style.display = 'flex';
+  }
+
+  function drawHeart(xm, ym, t){ const p = pxPerM(); const x = xm*p, y = marginTop + ym*p - t*10; const s = 10 + t*6; ctx.save(); ctx.translate(x,y); ctx.globalAlpha = 0.8*(1-t); ctx.fillStyle = '#ff6fa0'; ctx.beginPath(); ctx.moveTo(0, -s*0.2); ctx.bezierCurveTo(-s, -s, -s, s*0.3, 0, s); ctx.bezierCurveTo(s, s*0.3, s, -s, 0, -s*0.2); ctx.fill(); ctx.restore(); }
+
+  // ---------- Main loop ----------
+  let last = performance.now();
+  function tick(t){
+    const dt = Math.min(0.033, (t-last)/1000); last = t;
+    const p = pxPerM();
+
+    // original roach motion
+    roach.phase += dt*6; roach.x += roach.dir * roach.speed * dt;
+    const minX = 0.4, maxX = Math.max(0.4, canvas.width/getDPR()/p - 0.4);
+    if (roach.x < minX) { roach.x = minX; roach.dir = 1; }
+    if (roach.x > maxX) { roach.x = maxX; roach.dir = -1; }
+
+    // clone motion
+    for (const c of clones){
+      c.phase += dt*6; c.x += c.dir * c.speed * dt;
+      if (c.status==='free'){
+        if (c.x < minX) { c.x = minX; c.dir = 1; }
+        if (c.x > maxX) { c.x = maxX; c.dir = -1; }
+      } else if (c.status==='toSide' && c.targetX!==null){
+        const sgn = Math.sign(c.targetX - c.x) || 1; c.x += sgn * c.speed * dt * 1.5; if (Math.abs(c.x - c.targetX) < 0.02) c.status='atSide';
+      }
+    }
+
+    handlePairingAndBreeding();
+
+    // draw
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    const calc = computeImaging();
+    drawWorldGrid();
+    drawRays(calc);
+    drawRoach(roach.x, 0, 1.0, false, 1, roach.phase, t/1000, null, null);
+    for (const c of clones){ const label = c.isBaby ? `${c.f_cm}` : null; drawRoach(c.x, c.y, c.scale, c.inverted||false, c.alpha, c.phase, t/1000, c.color, label); }
+    for (let i=hearts.length-1;i>=0;i--){ const h = hearts[i]; h.t += dt; drawHeart(h.x, h.y, h.t); if (h.t>0.8) hearts.splice(i,1); }
+    drawLens();
+    drawRuler(calc);
+    drawFocusCue(calc); // 最後畫，避免遮蔽虛像
+
+    requestAnimationFrame(tick);
   }
 
   requestAnimationFrame(tick);
