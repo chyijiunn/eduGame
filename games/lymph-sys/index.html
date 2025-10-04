@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
+<title>淋巴守城：每波隨機彎道＋必經塔點</title>
+<style>
+  :root{--bg:#0b1020; --panel:#101935; --text:#eaf1ff; --acc:#7be3b0; --warn:#ffd166; --danger:#ff6b6b;}
+  *{box-sizing:border-box; font-family: system-ui, -apple-system, "Noto Sans TC", "Segoe UI", Roboto, "Helvetica Neue", Arial;}
+  body{margin:0; background:linear-gradient(180deg,#0b1020 0%, #0f1a3a 100%); color:var(--text);}
+  header{display:flex;align-items:center;gap:.6rem; padding:.7rem 1rem; background:#0d1633; position:sticky; top:0; z-index:5; box-shadow:0 2px 8px rgba(0,0,0,.4)}
+  .stat{padding:.35rem .6rem; border:1px solid #1f2b55; border-radius:10px; background:#0f1a3a; font-weight:700}
+  header button{appearance:none;border:none;border-radius:10px; padding:.55rem .8rem; background:#1a3568; color:#d8e8ff; cursor:pointer; position:relative; overflow:hidden}
+  header button:hover{background:#23457f}
+  #wrap{display:grid; grid-template-columns:1fr; justify-items:center; padding:10px}
+  #gamebox{position:relative; width:min(1100px,96vw); aspect-ratio:16/9; background:#081224; border:1px solid #1a2a54; border-radius:16px; overflow:hidden; box-shadow:0 6px 24px rgba(0,0,0,.5)}
+  canvas{width:100%; height:100%; display:block}
+  #panel{display:flex;gap:.6rem;flex-wrap:wrap; padding:8px 0}
+  .tool{display:flex;align-items:center;gap:.4rem; padding:.5rem .7rem; border:1px solid #2a3c74; border-radius:10px; background:#0f1c3d; cursor:pointer; position:relative; overflow:hidden}
+  .tool strong{letter-spacing:.5px}
+  .tool .cost{opacity:.85}
+  .selected{outline:2px solid var(--acc)}
+  footer{padding:.6rem 1rem; font-size:.9rem; color:#a9b8e8; opacity:.95}
+  #hint{position:absolute; left:10px; bottom:10px; font-size:.95rem; background:rgba(8,12,24,.7); padding:.45rem .6rem; border:1px solid #1a2747; border-radius:8px}
+  .cdbar{position:absolute; left:0; top:0; height:100%; width:0%; background:rgba(255,255,255,0.18); pointer-events:none; transition:width .1s linear}
+</style>
+</head>
+<body>
+<header>
+  <div class="stat">CP（Cytokine Points）：<span id="cp">0</span></div>
+  <div class="stat">Wave：<span id="wave">0</span>/<span id="wmax">0</span></div>
+  <div class="stat">Lives：<span id="lives">15</span></div>
+  <button id="start">開始</button>
+  <button id="next">下一波</button>
+  <button id="pause">暫停</button>
+  <button id="help">教學</button>
+</header>
+
+<div id="wrap">
+  <div id="gamebox">
+    <canvas id="game" width="1152" height="648"></canvas>
+    <div id="hint">每一波主路線都會隨機變化，但一定會經過塔的設置點附近。技能有半透明冷卻條；抗體塔為追蹤彈。</div>
+  </div>
+  <div id="panel">
+    <div class="tool" data-type="INNATE"><span class="cdbar"></span><strong>先天塔</strong><span class="cost">CP 60</span><span>（貼標＋減速）</span></div>
+    <div class="tool" data-type="ANTIBODY"><span class="cdbar"></span><strong>抗體塔</strong><span class="cost">CP 80</span><span>（追蹤強擊）</span></div>
+    <div class="tool" data-type="ANTIH"><span class="cdbar"></span><strong>抗組織胺塔</strong><span class="cost">CP 70</span><span>（範圍減速）</span></div>
+    <div class="tool" id="up"><span class="cdbar"></span><strong>升級</strong><span class="cost">CP 60</span></div>
+    <div class="tool" id="sell"><span class="cdbar"></span><strong>出售</strong><span class="cost">返還60%</span></div>
+    <div class="tool" id="swell"><span class="cdbar" id="cd_swell"></span><strong>淋巴結腫大</strong><span class="cost">CP 50</span><span>（繞路12s / 冷卻20s）</span></div>
+    <div class="tool" id="chaser"><span class="cdbar" id="cd_chaser"></span><strong>追擊淋巴球（IL‑2 促活）</strong><span class="cost">CP 60</span><span>（10s / 冷卻15s）</span></div>
+  </div>
+</div>
+
+<footer>
+  新功能：每波開始時，重新生成一條彎彎曲曲的淋巴路線；路線會在 4 個節點附近通過，確保建塔位置始終有效。保留冷卻條與抗體追蹤彈。
+</footer>
+
+<script>
+(()=>{
+  function $(id){return document.getElementById(id);}
+  const W=1152,H=648;
+  const cnv=$('game'); const ctx=cnv.getContext('2d');
+  const ui={cp:$('cp'), wave:$('wave'), wmax:$('wmax'), lives:$('lives')};
+  const btn={start:$('start'), next:$('next'), pause:$('pause'), help:$('help')};
+  const toolEls=[...document.querySelectorAll('.tool[data-type]')];
+  const swellEl=$('swell'), chaserEl=$('chaser');
+  const cdSwell=$('cd_swell'), cdChaser=$('cd_chaser');
+  let placing=null, selected=null, paused=false, started=false, nextReady=false;
+
+  const state={
+    cp:120, lives:15, wave:0, wmax:8, time:0,
+    basePath:[], enemies:[], towers:[], projs:[], crumb:[], queue:[],
+    nodes:[], chasers:[],
+    ability:{ swellCdDur:20, swellCdUntil:0, chaserCdDur:15, chaserCdUntil:0 },
+    nodeIndices:[3,7,12,17] // anchor indices the path will pass through
+  };
+  ui.wmax.textContent=state.wmax;
+
+  // -------- Random winding path that passes near anchor indices --------
+  function makeRandomWinding(){
+    const pts=[];
+    const count=22;
+    const ampBase=70 + Math.random()*30; // 70~100
+    const amp2 = ampBase* (0.3 + Math.random()*0.3);
+    const ph1 = Math.random()*Math.PI*2;
+    const ph2 = Math.random()*Math.PI*2;
+    const bias = (H*0.45) + (Math.random()*H*0.12); // vertical bias
+    for(let i=0;i<count;i++){
+      const t=i/(count-1);
+      const x=30 + t*(W-60);
+      const y = bias
+              + Math.sin(i*0.7 + ph1)*ampBase
+              + Math.sin(i*1.35 + ph2)*amp2
+              + ((i%2)?-14:12);
+      pts.push({x,y});
+    }
+    // Ensure the path passes close to anchors by nudging those points toward chosen y
+    for(const idx of state.nodeIndices){
+      if(idx>=0 && idx<pts.length){
+        // force a small bend so enemies naturally pass nearby
+        pts[idx].y += (Math.random()<0.5 ? -1:1) * (18 + Math.random()*24);
+      }
+    }
+    return pts;
+  }
+
+  // Create/refresh nodes positioned near the anchor points; keep towers bound to node id
+  function rebuildNodesAndLoops(){
+    const newNodes = state.nodeIndices.map((idx,i)=>{
+      const p=state.basePath[idx];
+      const nx=p.x + (Math.random()*10-5); // slight jitter keeps it organic
+      const ny=p.y - (70 + Math.random()*20);
+      const old = state.nodes.find(n=>n.id===i);
+      const node={id:i, x:nx, y:ny, r:26, tower: old? old.tower : null,
+                  gate:{startIdx:idx, loop:makeArcDetour(idx), activeUntil:0, cdUntil:0}};
+      // keep tower (if any) glued to node position
+      if(node.tower){ node.tower.x=nx; node.tower.y=ny; node.tower.nodeId=i; }
+      return node;
+    });
+    state.nodes = newNodes;
+  }
+
+  function makeArcDetour(startIdx){
+    const anchor = state.basePath[startIdx];
+    const radius = 70 + Math.random()*15;
+    const span = Math.PI * (1.5 + Math.random()*0.3);
+    const steps = 16;
+    const cx = anchor.x - 8 + (Math.random()*16-8);
+    const cy = anchor.y - 35 + (Math.random()*14-7);
+    const startAngle = Math.PI*(0.15 + Math.random()*0.2);
+    const points = [{x:anchor.x, y:anchor.y}];
+    for(let i=1;i<=steps;i++){
+      const a = startAngle + (span*i/steps);
+      points.push({x: cx + Math.cos(a)*radius, y: cy + Math.sin(a)*radius});
+    }
+    const rejoinIdx = Math.min(state.basePath.length-1, startIdx+3);
+    points.push(state.basePath[rejoinIdx]);
+    return {points, rejoinIdx};
+  }
+
+  // Initial path + nodes
+  state.basePath = makeRandomWinding();
+  rebuildNodesAndLoops();
+
+  // Entities
+  const ENEMY={
+    bacteria:{hp:60, spd:50, reward:10, r:11, color:'#86e3a6'},
+    virus:{hp:30, spd:100, reward:9, r:9, color:'#6ec1ff'}
+  };
+  const TOWER={
+    INNATE:{cost:60, range:120, rof:0.9, dmg:6, color:'#7be3b0', mark:true, slow:0.22},
+    ANTIBODY:{cost:80, range:230, rof:0.55, dmg:9, color:'#ffd166', bonusVsMarked:0.6},
+    ANTIH:{cost:70, range:170, rof:0.75, dmg:2, color:'#c2a8ff', slow:0.5, splash:26}
+  };
+
+  // Waves
+  const waves=[];
+  for(let w=1; w<=state.wmax; w++){
+    const pack=[]; const n=6+Math.floor(w*1.3);
+    for(let i=0;i<n;i++){
+      const t=(Math.random()<0.45 ? 'virus':'bacteria');
+      pack.push({t, at:0.25 + i*0.85});
+    }
+    waves.push(pack);
+  }
+
+  function addCP(v){state.cp=Math.max(0,state.cp+v); ui.cp.textContent = Math.round(state.cp);}
+  ui.cp.textContent=state.cp; ui.wave.textContent=state.wave; ui.lives.textContent=state.lives;
+
+  // Tool select
+  toolEls.forEach(el=>el.addEventListener('click',()=>{
+    toolEls.forEach(x=>x.classList.remove('selected')); el.classList.add('selected');
+    placing=el.dataset.type; selected=null;
+  }));
+
+  // Upgrade / sell
+  document.getElementById('up').addEventListener('click',()=>{
+    if(!selected || state.cp<60) return;
+    addCP(-60); selected.lvl++; selected.dmg*=1.2; selected.rof*=1.15; selected.range*=1.1;
+  });
+  document.getElementById('sell').addEventListener('click',()=>{
+    if(!selected) return;
+    const node=state.nodes.find(n=>n.id===selected.nodeId);
+    const base=TOWER[selected.kind].cost;
+    addCP(Math.floor(base*0.6 + (selected.lvl-1)*15));
+    state.towers=state.towers.filter(t=>t!==selected);
+    if(node) node.tower=null; selected=null;
+  });
+
+  // Skills + cooldown bars
+  swellEl.addEventListener('click',()=>{
+    const now=performance.now()/1000;
+    if(state.cp<50) return;
+    if(now < state.ability.swellCdUntil) return;
+    let node=null;
+    if(selected){ node=state.nodes.find(n=>n.id===selected.nodeId) || state.nodes.find(n=>n.tower===selected); }
+    if(!node) node=state.nodes[0];
+    if(node.gate.cdUntil>now) return;
+    node.gate.activeUntil = now + 12;
+    node.gate.cdUntil = now + state.ability.swellCdDur;
+    state.ability.swellCdUntil = now + state.ability.swellCdDur;
+    addCP(-50);
+  });
+
+  chaserEl.addEventListener('click',()=>{
+    const now=performance.now()/1000;
+    if(state.cp<60) return;
+    if(now < state.ability.chaserCdUntil) return;
+    let startPos=null;
+    if(selected){
+      const node=state.nodes.find(n=>n.id===selected.nodeId) || state.nodes.find(n=>n.tower===selected);
+      if(node) startPos={x:node.x, y:node.y};
+    }
+    if(!startPos) startPos={x:state.basePath[0].x, y:state.basePath[0].y-40};
+    spawnChaser(startPos.x, startPos.y);
+    state.ability.chaserCdUntil = now + state.ability.chaserCdDur;
+    addCP(-60);
+  });
+
+  function spawnChaser(x,y){ state.chasers.push({x,y, spd:200, dmg:18, r:8, color:'#a6c8ff', life:10, cd:0}); }
+
+  // Build/select
+  cnv.addEventListener('click',(ev)=>{
+    const rect=cnv.getBoundingClientRect();
+    const mx=(ev.clientX-rect.left)*(cnv.width/rect.width);
+    const my=(ev.clientY-rect.top)*(cnv.height/rect.height);
+    let hit=null;
+    for(const n of state.nodes){ if(Math.hypot(n.x-mx,n.y-my)<=n.r){ hit=n; break; } }
+    if(hit){
+      if(placing){ build(hit, placing); }
+      else { selected = hit.tower || null; }
+      return;
+    }
+    selected=null;
+  });
+
+  function build(node, kind){
+    if(node.tower) { selected=node.tower; return; }
+    const data=TOWER[kind];
+    if(state.cp<data.cost) return;
+    addCP(-data.cost);
+    const t={kind, x:node.x, y:node.y, range:data.range, rof:data.rof, dmg:data.dmg, cd:0, lvl:1, color:data.color, nodeId:node.id};
+    if(kind==='INNATE'){ t.mark=true; t.slow=data.slow; }
+    if(kind==='ANTIBODY'){ t.bonusVsMarked=data.bonusVsMarked; }
+    if(kind==='ANTIH'){ t.slow=data.slow; t.splash=data.splash; }
+    node.tower=t; state.towers.push(t); selected=t;
+  }
+
+  // Spawning controls
+  function startWave(){
+    if(state.wave>=state.wmax) return;
+    // Regenerate path and reposition nodes (and towers) at the beginning of EACH wave
+    state.basePath = makeRandomWinding();
+    rebuildNodesAndLoops();
+
+    state.wave++; ui.wave.textContent=state.wave;
+    state.queue.length=0;
+    const pack=waves[state.wave-1];
+    for(const s of pack) state.queue.push({t:s.t, at:state.time+s.at});
+    nextReady=false;
+  }
+  btn.start.addEventListener('click',()=>{ if(!started){ started=true; startWave(); } });
+  btn.next.addEventListener('click',()=>{ if(started) nextReady=true; });
+  btn.pause.addEventListener('click',()=>{ paused=!paused; btn.pause.textContent=paused?'繼續':'暫停'; });
+  btn.help.addEventListener('click',()=>{
+    alert('每波開場：主路線隨機重排，但仍會經過 4 個節點附近，確保建塔能射擊到。\n冷卻條：技能用後按鈕上方淡白條代表剩餘冷卻比例。\n抗體塔：追蹤彈，射程更遠、發射較慢。');
+  });
+
+  // Movement helpers
+  function moveTowards(e, target, dt){
+    const dx=target.x-e.x, dy=target.y-e.y; const d=Math.hypot(dx,dy)||1;
+    const sp=e.spd*(1 - Math.min(0.6, e.slow));
+    e.x += (dx/d)*sp*dt; e.y += (dy/d)*sp*dt;
+    e.slow=Math.max(0, e.slow - dt*0.8);
+  }
+
+  function stepEnemy(e,dt){
+    const now=performance.now()/1000;
+    const upcomingIdx = e.subpath ? -1 : e.wp;
+    if(upcomingIdx>=0){
+      const nd = state.nodes.find(n=>n.gate.startIdx===upcomingIdx);
+      if(nd && nd.gate.activeUntil>now){
+        e.subpath = nd.gate.loop.points.slice();
+        e.subWp = 1;
+      }
+    }
+    if(e.subpath){
+      const target=e.subpath[e.subWp];
+      if(!target){
+        const node=state.nodes.find(n=>n.gate.loop.points===e.subpath);
+        const rejoinIdx=node? node.gate.rejoinIdx : (e.wp+1);
+        e.subpath=null; e.subWp=0; e.wp = Math.max(e.wp, rejoinIdx);
+      }else{
+        moveTowards(e, target, dt);
+        if(Math.hypot(target.x-e.x, target.y-e.y)<2){ e.subWp++; }
+      }
+      return;
+    }
+    const target = state.basePath[e.wp];
+    if(!target){
+      e.dead=true; state.lives--; ui.lives.textContent=state.lives; return;
+    }
+    moveTowards(e, target, dt);
+    if(Math.hypot(target.x-e.x, target.y-e.y)<2){ e.wp++; }
+  }
+
+  // Towers & projectiles
+  function stepTower(t,dt){
+    t.cd=Math.max(0,t.cd-dt);
+    let target=null, best=1e9;
+    for(const e of state.enemies){
+      if(e.dead) continue;
+      const d=Math.hypot(t.x-e.x, t.y-e.y);
+      if(d<=t.range && d<best){ best=d; target=e; }
+    }
+    if(target && t.cd<=0){
+      fire(t,target);
+      t.cd=1/t.rof;
+    }
+  }
+
+  function fire(t,e){
+    const baseSp = (t.kind==='ANTIBODY')? 180 : (t.kind==='ANTIH'?240:230);
+    const ang=Math.atan2(e.y-t.y, e.x-t.x);
+    const p={x:t.x,y:t.y, vx:Math.cos(ang)*baseSp, vy:Math.sin(ang)*baseSp,
+             dmg:t.dmg, kind:t.kind, life:3.0, bonus:t.bonusVsMarked||0,
+             mark:!!t.mark, slow:t.slow||0, splash:t.splash||0};
+    if(t.kind==='ANTIBODY'){ p.homing=true; p.target=e; p.turn=6.0; }
+    state.projs.push(p);
+  }
+
+  function stepProj(p,dt){
+    if(p.homing){
+      if(!p.target || p.target.dead){
+        let nearest=null, best=1e9;
+        for(const e of state.enemies){
+          if(e.dead) continue;
+          const d=Math.hypot(p.x-e.x, p.y-e.y);
+          if(d<best){ best=d; nearest=e; }
+        }
+        p.target=nearest;
+      }
+      if(p.target){
+        const desiredAng=Math.atan2(p.target.y-p.y, p.target.x-p.x);
+        const curAng=Math.atan2(p.vy, p.vx);
+        let diff = desiredAng - curAng;
+        while(diff>Math.PI) diff-=2*Math.PI;
+        while(diff<-Math.PI) diff+=2*Math.PI;
+        const maxTurn=(p.turn||6)*dt;
+        const newAng = curAng + Math.max(-maxTurn, Math.min(maxTurn, diff));
+        const speed = Math.hypot(p.vx,p.vy);
+        p.vx=Math.cos(newAng)*speed; p.vy=Math.sin(newAng)*speed;
+      }
+    }
+    p.x+=p.vx*dt; p.y+=p.vy*dt; p.life-=dt;
+
+    for(const e of state.enemies){
+      if(e.dead) continue;
+      const hitR = (p.kind==='ANTIBODY')? (e.r+6) : (e.r+4);
+      if(Math.hypot(p.x-e.x, p.y-e.y) < hitR){
+        applyHit(e, p);
+        if(p.kind==='ANTIH' && p.splash){
+          for(const e2 of state.enemies){
+            if(e2===e || e2.dead) continue;
+            if(Math.hypot(p.x-e2.x, p.y-e2.y) <= p.splash){ applyHit(e2, p, true); }
+          }
+        }
+        state.crumb.push({x:e.x,y:e.y,life:0.18});
+        p.life=0;
+        break;
+      }
+    }
+  }
+
+  function applyHit(target, p, splash=false){
+    let dmg=p.dmg*(1 - (target.type==='bacteria'?0.1:0));
+    if(p.kind==='ANTIBODY' && target.marked) dmg*= (1+p.bonus);
+    target.hp -= dmg;
+    if(p.mark) target.marked=true;
+    if(p.slow) target.slow=Math.max(target.slow, splash? p.slow*0.8 : p.slow);
+    if(target.hp<=0){ target.dead=true; addCP(target.reward); }
+  }
+
+  // Chaser
+  function stepChaser(c,dt){
+    c.life-=dt; c.cd=Math.max(0,c.cd-dt);
+    if(c.life<=0) { c.dead=true; return; }
+    let target=null, best=1e9;
+    for(const e of state.enemies){
+      if(e.dead) continue;
+      const d=Math.hypot(c.x-e.x, c.y-e.y);
+      if(d<best){ best=d; target=e; }
+    }
+    if(target){
+      const dx=target.x-c.x, dy=target.y-c.y; const d=best||1;
+      c.x += (dx/d)*c.spd*dt; c.y += (dy/d)*c.spd*dt;
+      if(d< (target.r+6) && c.cd<=0){
+        target.hp -= c.dmg; target.marked = true; c.cd=0.25;
+        state.crumb.push({x:target.x,y:target.y,life:0.18});
+        if(target.hp<=0){ target.dead=true; addCP(target.reward); }
+      }
+    }
+  }
+
+  // Loop + draw + cooldown bars
+  function drawSmoothPath(points){
+    ctx.strokeStyle='#134f7a'; ctx.lineWidth=26; ctx.lineCap='round'; ctx.lineJoin='round';
+    ctx.beginPath(); ctx.moveTo(points[0].x, points[0].y);
+    for(let i=1;i<points.length-2;i++){
+      const xc=(points[i].x + points[i+1].x)/2, yc=(points[i].y + points[i+1].y)/2;
+      ctx.quadraticCurveTo(points[i].x, points[i].y, xc, yc);
+    }
+    const penult=points[points.length-2], lastp=points[points.length-1];
+    ctx.quadraticCurveTo(penult.x, penult.y, lastp.x, lastp.y); ctx.stroke();
+    ctx.strokeStyle='rgba(123,227,176,0.35)'; ctx.lineWidth=6;
+    ctx.beginPath(); ctx.moveTo(points[0].x, points[0].y);
+    for(let i=1;i<points.length-2;i++){
+      const xc=(points[i].x + points[i+1].x)/2, yc=(points[i].y + points[i+1].y)/2;
+      ctx.quadraticCurveTo(points[i].x, points[i].y, xc, yc);
+    }
+    ctx.quadraticCurveTo(penult.x, penult.y, lastp.x, lastp.y); ctx.stroke();
+  }
+
+  function draw(){
+    ctx.fillStyle='#081224'; ctx.fillRect(0,0,W,H);
+    drawSmoothPath(state.basePath);
+
+    const now=performance.now()/1000;
+    for(const n of state.nodes){
+      const loop=n.gate.loop.points;
+      ctx.strokeStyle='rgba(255,209,102,0.25)'; ctx.lineWidth=8;
+      ctx.beginPath(); ctx.moveTo(loop[0].x, loop[0].y);
+      for(let i=1;i<loop.length;i++){
+        const prev=loop[i-1], cur=loop[i];
+        const midx=(prev.x+cur.x)/2, midy=(prev.y+cur.y)/2;
+        ctx.quadraticCurveTo(prev.x, prev.y, midx, midy);
+      } ctx.stroke();
+
+      ctx.fillStyle='#0d2c54'; ctx.beginPath(); ctx.arc(n.x,n.y,n.r,0,Math.PI*2); ctx.fill();
+      ctx.strokeStyle='#2a5d9a'; ctx.lineWidth=2; ctx.stroke();
+
+      if(n.tower){
+        const t=n.tower;
+        ctx.fillStyle=t.color; ctx.beginPath(); ctx.arc(n.x,n.y,13,0,Math.PI*2); ctx.fill();
+        if(selected===t){
+          ctx.strokeStyle='rgba(255,255,255,0.3)'; ctx.lineWidth=1.5; ctx.beginPath(); ctx.arc(t.x,t.y,t.range,0,Math.PI*2); ctx.stroke();
+          ctx.fillStyle='#cfe5ff'; ctx.font='12px sans-serif';
+          const name = t.kind==='INNATE'?'先天塔': (t.kind==='ANTIBODY'?'抗體塔':'抗組織胺塔');
+          ctx.fillText(name+' Lv.'+t.lvl, t.x-26, t.y-18);
+        }
+      }
+
+      if(n.gate.activeUntil>now){
+        ctx.strokeStyle='rgba(255,209,102,0.95)'; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(n.x,n.y,n.r+8,0,Math.PI*2); ctx.stroke();
+      }
+    }
+
+    for(const e of state.enemies){
+      if(e.dead) continue;
+      const ratio=e.hp/e.maxhp;
+      ctx.fillStyle=e.color; ctx.beginPath(); ctx.arc(e.x,e.y,e.r,0,Math.PI*2); ctx.fill();
+      ctx.strokeStyle='rgba(255,255,255,0.25)'; ctx.lineWidth=3; ctx.beginPath(); ctx.arc(e.x,e.y,e.r+3,-Math.PI/2,-Math.PI/2+Math.PI*2*ratio); ctx.stroke();
+      if(e.marked){ ctx.strokeStyle='rgba(255,230,140,.9)'; ctx.lineWidth=1.5; ctx.beginPath(); ctx.arc(e.x,e.y,e.r+6,0,Math.PI*2); ctx.stroke(); }
+    }
+
+    for(const p of state.projs){
+      const isAB = (p.kind==='ANTIBODY');
+      ctx.fillStyle = isAB ? '#ffe08a' : (p.kind==='ANTIH' ? '#c2a8ff' : '#7be3b0');
+      ctx.beginPath(); ctx.arc(p.x,p.y, isAB?5:4,0,Math.PI*2); ctx.fill();
+      if(p.kind==='ANTIH' && p.splash){ ctx.globalAlpha=0.15; ctx.beginPath(); ctx.arc(p.x,p.y,p.splash,0,Math.PI*2); ctx.fill(); ctx.globalAlpha=1; }
+    }
+
+    for(const c of state.chasers){
+      ctx.fillStyle='#a6c8ff';
+      ctx.beginPath(); ctx.moveTo(c.x, c.y-8); ctx.lineTo(c.x-6, c.y+6); ctx.lineTo(c.x+6, c.y+6);
+      ctx.closePath(); ctx.fill();
+    }
+
+    for(const c of state.crumb){
+      ctx.globalAlpha=Math.max(0,c.life/0.18);
+      ctx.fillStyle='#fff'; ctx.fillRect(c.x-1,c.y-1,2,2);
+      ctx.globalAlpha=1;
+    }
+
+    updateCooldownBars(now);
+  }
+
+  function updateCooldownBars(now){
+    if(state.ability.swellCdUntil > now){
+      const remain = state.ability.swellCdUntil - now;
+      const pct = Math.max(0, Math.min(1, remain / state.ability.swellCdDur));
+      cdSwell.style.width = (pct*100).toFixed(1)+'%';
+    }else{ cdSwell.style.width = '0%'; }
+    if(state.ability.chaserCdUntil > now){
+      const remain = state.ability.chaserCdUntil - now;
+      const pct = Math.max(0, Math.min(1, remain / state.ability.chaserCdDur));
+      cdChaser.style.width = (pct*100).toFixed(1)+'%';
+    }else{ cdChaser.style.width = '0%'; }
+  }
+
+  function drawBanner(text){
+    ctx.fillStyle='rgba(0,0,0,.55)'; ctx.fillRect(0,0,W,H);
+    ctx.fillStyle='#fff'; ctx.font='28px sans-serif';
+    const tw=ctx.measureText(text).width; ctx.fillText(text, (W-tw)/2, H/2);
+  }
+
+  let last=performance.now();
+  function loop(ts){
+    const dt=Math.min(0.05,(ts-last)/1000); last=ts;
+    if(!paused){
+      state.time+=dt;
+      while(state.queue.length && state.queue[0].at<=state.time){ const s=state.queue.shift(); spawnEnemy(s.t); }
+      for(const e of state.enemies) stepEnemy(e,dt);
+      state.enemies=state.enemies.filter(e=>!e.dead || e.wp<state.basePath.length);
+
+      for(const t of state.towers) stepTower(t,dt);
+
+      for(const p of state.projs) stepProj(p,dt);
+      state.projs=state.projs.filter(p=>p.life>0);
+
+      for(const c of state.chasers) stepChaser(c,dt);
+      state.chasers=state.chasers.filter(c=>!c.dead);
+
+      for(const c of state.crumb){ c.life-=dt; } state.crumb=state.crumb.filter(c=>c.life>0);
+
+      addCP(dt*2);
+
+      if(started && state.enemies.length===0 && state.queue.length===0){
+        if(state.wave<state.wmax){ if(nextReady){ startWave(); } }
+        else if(state.lives>0){ draw(); drawBanner('勝利！免疫系統全面壓制'); return; }
+      }
+    }
+    draw();
+    requestAnimationFrame(loop);
+  }
+
+  function spawnEnemy(t){
+    const base=ENEMY[t];
+    const e={type:t, x:state.basePath[0].x, y:state.basePath[0].y, wp:1, hp:base.hp, maxhp:base.hp, spd:base.spd, r:base.r, color:base.color, reward:base.reward, marked:false, slow:0, dead:false, subpath:null, subWp:0};
+    state.enemies.push(e);
+  }
+
+  // Kick off
+  draw();
+  requestAnimationFrame(loop);
+
+  // Controls
+  window.addEventListener('keydown', (e)=>{ if(e.code==='Space'){ e.preventDefault(); paused=!paused; btn.pause.textContent=paused?'繼續':'暫停'; }}, {passive:false});
+  window.addEventListener('blur', ()=>{ paused=true; btn.pause.textContent='繼續'; });
+})();
+</script>
+</body>
+</html>
