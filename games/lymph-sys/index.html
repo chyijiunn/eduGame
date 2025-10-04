@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
-<title>淋巴守城：教學完善＋路徑約1.5×</title>
+<title>淋巴守城：立即敗北＆每波重繪路徑</title>
 <style>
   :root{--bg:#0b1020; --panel:#101935; --text:#eaf1ff; --acc:#7be3b0; --warn:#ffd166; --danger:#ff6b6b;}
   *{box-sizing:border-box; font-family: system-ui, -apple-system, "Noto Sans TC", "Segoe UI", Roboto, "Helvetica Neue", Arial;}
@@ -66,11 +66,11 @@
     <h2>遊戲教學</h2>
     <h3>基本規則</h3>
     <ul>
-      <li><b>第一波</b>：按「開始」才會出怪，<b>首波路線固定</b>。</li>
-      <li><b>第二波起</b>：每波開始前會<b>重新生成淋巴管路線</b>，並<b>必經畫面中央</b>，總長度約為<b>畫面寬度的 1.5 倍</b>（含彎曲/回環）。</li>
+      <li><b>每一波開始前</b>會<b>重新生成淋巴管路線</b>（包含第一波），並<b>必經畫面中央</b>；總長度約為<b>畫面寬度的 1.5 倍</b>（含彎曲/回環）。</li>
       <li><b>站點</b>：首波前有 <b>6 個</b>建塔站點，<b>每遇到 Boss（第 4、8、12 波）自動新增 2 個</b>站點。</li>
       <li><b>CP</b>：僅在<b>擊殺病原體</b>時獲得；越後面波數擊殺獎勵越高。初始 CP = <b>180</b>。</li>
-      <li><b>勝負</b>：病原體到達終點會扣生命值，生命值歸零則失敗；清完 12 波即勝利。</li>
+      <li><b>勝負</b>：病原體到達終點會扣生命值，<b>生命值 ≤ 0 立即失敗</b>；清完 12 波即勝利。</li>
+      <li>按「開始」出怪；清空一波後按「下一波」才會進入下一回合。</li>
     </ul>
 
     <h3>塔（免疫機制）</h3>
@@ -86,28 +86,7 @@
     <h3>技能</h3>
     <ul>
       <li><b>淋巴結腫大</b>（CP 50）：在某站點觸發<b>12 秒繞路</b>，使路線更像迷宮；<b>冷卻 20 秒</b>。按鈕上會出現<b>半透明冷卻條</b>。</li>
-      <li><b>追擊淋巴球（IL‑2）</b>（CP 60）：召喚追擊單位<b>10 秒</b>；<b>冷卻 15 秒</b>，按鈕有<b>冷卻條</b>。</li>
-    </ul>
-
-    <h3>敵人種類與特性</h3>
-    <ul>
-      <li><b>一般波</b>：
-        <ul>
-          <li><b>病毒</b>：移速快、血量低。</li>
-          <li><b>細菌</b>：中速、血量中等。</li>
-          <li><b>真菌</b>（第 3 波起）：血較厚、偏慢。</li>
-          <li><b>原蟲</b>（第 5 波起）：偏快、靈活。</li>
-          <li><b>蠕蟲</b>（第 7 波起）：<b>高血量</b>、很慢。</li>
-          <li><b>細胞內型</b>（第 9 波起）：<b>很快</b>、血量中。</li>
-        </ul>
-      </li>
-      <li><b>Boss 波</b>（第 4／8／12 波，外觀與技能各不同）
-        <ul>
-          <li><b>第 4 波：莢膜巨怪</b>（六角形，橙色）—<b>週期召喚</b>小兵。</li>
-          <li><b>第 8 波：變異風暴</b>（星形，亮青）—<b>衝刺</b>短暫無視減速。</li>
-          <li><b>第 12 波：蠕蟲女王</b>（分節，洋紅）—<b>護盾</b>週期減傷，死亡時<b>噴出幼體</b>。</li>
-        </ul>
-      </li>
+      <li><b>追擊淋巴球（IL‑2）</b>（CP 60）：召喚<b>追擊單位 10 秒</b>，會<b>自動尋找並追上</b>最近的病原體造成傷害；<b>冷卻 15 秒</b>。</li>
     </ul>
 
     <div class="actions">
@@ -130,31 +109,26 @@
   let placing=null, selected=null, paused=false, started=false, nextReady=false;
 
   const state={
-    cp:250, lives:15, wave:0, wmax:12, time:0,
+    cp:180, lives:15, wave:0, wmax:12, time:0, gameOver:false,
     basePath:[], enemies:[], towers:[], projs:[], crumb:[], queue:[],
     nodes:[], chasers:[],
     ability:{ swellCdDur:20, swellCdUntil:0, chaserCdDur:15, chaserCdUntil:0 },
-    nodeIndices:[], // dynamic
+    nodeIndices:[], // indices along path
     unlockedTypes:['virus','bacteria'],
   };
   ui.cp.textContent=state.cp; ui.wave.textContent=state.wave; ui.lives.textContent=state.lives;
 
-  // ---- geometry helpers ----
-  function pathLength(pts){
-    let L=0;
-    for(let i=1;i<pts.length;i++){ const dx=pts[i].x-pts[i-1].x, dy=pts[i].y-pts[i-1].y; L+=Math.hypot(dx,dy); }
-    return L;
-  }
+  // ---- helpers ----
+  function pathLength(pts){ let L=0; for(let i=1;i<pts.length;i++){ const dx=pts[i].x-pts[i-1].x, dy=pts[i].y-pts[i-1].y; L+=Math.hypot(dx,dy);} return L; }
   function pointAt(pts, idx){ return pts[Math.max(0, Math.min(pts.length-1, idx))]; }
 
-  // ---- PATH (~1.5× width, center pass, allow small loops) ----
+  // ---- PATH ~1.5× ----
   function makeRandomWinding(){
     const targetLenMin = W*1.45, targetLenMax = W*1.6;
     for(let attempt=0; attempt<50; attempt++){
       const pts=[];
       const baseCount=28;
-      const ph1 = Math.random()*Math.PI*2;
-      const ph2 = Math.random()*Math.PI*2;
+      const ph1 = Math.random()*Math.PI*2, ph2 = Math.random()*Math.PI*2;
       const amp1=75+Math.random()*35, amp2=35+Math.random()*25;
       const centerY = H*0.5 + (Math.random()*20-10);
       for(let i=0;i<baseCount;i++){
@@ -164,10 +138,8 @@
         y=Math.max(70, Math.min(H-70, y));
         pts.push({x,y});
       }
-      // must-pass middle anchors
       const force=[{i:7,y:centerY+(Math.random()*40-20)},{i:14,y:centerY+(Math.random()*20-10)},{i:21,y:centerY+(Math.random()*40-20)}];
       for(const f of force){ if(pts[f.i]) pts[f.i].y=f.y; }
-      // 1~2 mild loopbacks
       const loops = 1 + Math.floor(Math.random()*2);
       for(let k=0;k<loops;k++){
         const idx = 5 + Math.floor(Math.random()*16);
@@ -188,41 +160,24 @@
       const L=pathLength(pts);
       if(L>=targetLenMin && L<=targetLenMax) return pts;
     }
-    // fallback close to 1.5×
     return basicSinePath();
   }
-
-  function basicSinePath(){
-    const pts=[]; const count=26; const centerY=H*0.5;
-    for(let i=0;i<count;i++){
-      const t=i/(count-1);
-      const x=30+t*(W-60);
-      const y=centerY+Math.sin(i*0.7)*90+Math.sin(i*1.2)*40;
-      pts.push({x, y});
-    }
+  function basicSinePath(){ const pts=[]; const count=26; const centerY=H*0.5;
+    for(let i=0;i<count;i++){ const t=i/(count-1); const x=30+t*(W-60); const y=centerY+Math.sin(i*0.7)*90+Math.sin(i*1.2)*40; pts.push({x,y}); }
     return pts;
   }
 
   // ---- Nodes ----
   function computeInitialNodeIndices(k){
-    const n = state.basePath.length;
-    const idxs=[];
-    for(let i=1;i<=k;i++){
-      const idx = Math.floor(i*(n-2)/(k+1)); // spread along path (avoid endpoints)
-      idxs.push(Math.max(1, Math.min(n-3, idx)));
-    }
+    const n = state.basePath.length; const idxs=[];
+    for(let i=1;i<=k;i++){ const idx = Math.floor(i*(n-2)/(k+1)); idxs.push(Math.max(1, Math.min(n-3, idx))); }
     return idxs;
   }
   function addNewNodeIndices(k){
-    const n = state.basePath.length;
-    const newIdxs=[];
-    let tries=0;
-    while(newIdxs.length<k && tries<200){
-      tries++;
-      const idx = 2 + Math.floor(Math.random()*(n-4));
+    const n = state.basePath.length; const newIdxs=[]; let tries=0;
+    while(newIdxs.length<k && tries<200){ tries++; const idx = 2 + Math.floor(Math.random()*(n-4));
       const ok = state.nodeIndices.every(j=>Math.abs(j-idx)>2) && newIdxs.every(j=>Math.abs(j-idx)>2);
-      if(ok){ newIdxs.push(idx); }
-    }
+      if(ok){ newIdxs.push(idx); } }
     state.nodeIndices.push(...newIdxs.sort((a,b)=>a-b));
   }
   function rebuildNodesAndLoops(){
@@ -325,18 +280,19 @@
   function addCP(v){state.cp=Math.max(0,state.cp+v); ui.cp.textContent = Math.round(state.cp);}
 
   // Tool select
-  toolEls.forEach(el=>el.addEventListener('click',()=>{
-    toolEls.forEach(x=>x.classList.remove('selected')); el.classList.add('selected');
+  const buildTools=[...document.querySelectorAll('.tool[data-type]')];
+  buildTools.forEach(el=>el.addEventListener('click',()=>{
+    buildTools.forEach(x=>x.classList.remove('selected')); el.classList.add('selected');
     placing=el.dataset.type; selected=null;
   }));
 
   // Upgrade / sell
   $('up').addEventListener('click',()=>{
-    if(!selected || state.cp<60) return;
+    if(!selected || state.cp<60 || state.gameOver) return;
     addCP(-60); selected.lvl++; selected.dmg*=1.2; selected.rof*=1.12; selected.range*=1.08;
   });
   $('sell').addEventListener('click',()=>{
-    if(!selected) return;
+    if(!selected || state.gameOver) return;
     const node=state.nodes.find(n=>n.id===selected.nodeId);
     const base=TOWER[selected.kind].cost;
     addCP(Math.floor(base*0.6 + (selected.lvl-1)*18));
@@ -347,7 +303,7 @@
   // Skills
   swellEl.addEventListener('click',()=>{
     const now=performance.now()/1000;
-    if(state.cp<50) return;
+    if(state.cp<50 || state.gameOver) return;
     if(now < state.ability.swellCdUntil) return;
     let node=null;
     if(selected){ node=state.nodes.find(n=>n.id===selected.nodeId) || state.nodes.find(n=>n.tower===selected); }
@@ -361,21 +317,22 @@
 
   chaserEl.addEventListener('click',()=>{
     const now=performance.now()/1000;
-    if(state.cp<60) return;
+    if(state.cp<60 || state.gameOver) return;
     if(now < state.ability.chaserCdUntil) return;
     let startPos=null;
     if(selected){
       const node=state.nodes.find(n=>n.id===selected.nodeId) || state.nodes.find(n=>n.tower===selected);
       if(node) startPos={x:node.x, y:node.y};
     }
-    if(!startPos){ const n=state.nodes[Math.floor(state.nodes.length/2)]; startPos={x:n.x, y:n.y}; }
-    state.chasers.push({x:startPos.x,y:startPos.y, spd:200, dmg:18, r:8, life:10, cd:0});
+    if(!startPos){ const n=state.nodes[Math.floor(state.nodes.length/2)] || {x:W*0.5,y:H*0.5}; startPos={x:n.x, y:n.y}; }
+    state.chasers.push({x:startPos.x,y:startPos.y, vx:0, vy:0, spd:240, dmg:22, r:9, life:10, atkCd:0, turn:7.5, glow:0});
     state.ability.chaserCdUntil = now + state.ability.chaserCdDur;
     addCP(-60);
   });
 
   // Build/select
   cnv.addEventListener('click',(ev)=>{
+    if(state.gameOver) return;
     const rect=cnv.getBoundingClientRect();
     const mx=(ev.clientX-rect.left)*(cnv.width/rect.width);
     const my=(ev.clientY-rect.top)*(cnv.height/rect.height);
@@ -402,13 +359,13 @@
     node.tower=t; state.towers.push(t); selected=t;
   }
 
-  // Wave / Boss logic
+  // Wave / Boss logic — regenerate path every wave
   function startWave(){
-    if(state.wave>=state.wmax) return;
-    if(state.wave>=1){
-      state.basePath = makeRandomWinding();
-      rebuildNodesAndLoops();
-    }
+    if(state.wave>=state.wmax || state.gameOver) return;
+    // Rebuild path for EVERY wave, including the first
+    state.basePath = makeRandomWinding();
+    rebuildNodesAndLoops();
+
     state.wave++; ui.wave.textContent=state.wave;
     unlockByWave(state.wave);
     if(state.wave===4 || state.wave===8 || state.wave===12){
@@ -422,9 +379,9 @@
     nextReady=false;
   }
 
-  btn.start.addEventListener('click',()=>{ if(!started){ started=true; startWave(); } });
-  btn.next.addEventListener('click',()=>{ if(started) nextReady=true; });
-  btn.pause.addEventListener('click',()=>{ paused=!paused; btn.pause.textContent=paused?'繼續':'暫停'; });
+  btn.start.addEventListener('click',()=>{ if(!started && !state.gameOver){ started=true; startWave(); } });
+  btn.next.addEventListener('click',()=>{ if(started && !state.gameOver) nextReady=true; });
+  btn.pause.addEventListener('click',()=>{ if(state.gameOver) return; paused=!paused; btn.pause.textContent=paused?'繼續':'暫停'; });
   btn.help.addEventListener('click',()=>{ modal.style.display='flex'; });
   closeModal.addEventListener('click',()=>{ modal.style.display='none'; });
 
@@ -448,14 +405,14 @@
   }
 
   function stepEnemy(e,dt){
+    if(state.gameOver) return;
     const now=performance.now()/1000;
     if(e.boss && e.onTick) e.onTick(e,dt);
     const upcomingIdx = e.subpath ? -1 : e.wp;
     if(upcomingIdx>=0){
       const nd = state.nodes.find(n=>n.gate.startIdx===upcomingIdx);
       if(nd && nd.gate.activeUntil>now){
-        e.subpath = nd.gate.loop.points.slice();
-        e.subWp = 1;
+        e.subpath = nd.gate.loop.points.slice(); e.subWp = 1;
       }
     }
     if(e.subpath){
@@ -472,7 +429,9 @@
     }
     const target = state.basePath[e.wp];
     if(!target){
-      e.dead=true; state.lives--; ui.lives.textContent=state.lives; return;
+      e.dead=true; state.lives--; ui.lives.textContent=state.lives;
+      if(state.lives<=0){ triggerGameOver(); }
+      return;
     }
     moveTowards(e, target, dt);
     if(Math.hypot(target.x-e.x, target.y-e.y)<2){ e.wp++; }
@@ -480,6 +439,7 @@
 
   // Towers & projectiles
   function stepTower(t,dt){
+    if(state.gameOver) return;
     t.cd=Math.max(0,t.cd-dt);
     let target=null, best=1e9;
     for(const e of state.enemies){
@@ -504,6 +464,7 @@
   }
 
   function stepProj(p,dt){
+    if(state.gameOver) return;
     if(p.homing){
       if(!p.target || p.target.dead){
         let nearest=null, best=1e9;
@@ -562,6 +523,63 @@
     }
   }
 
+  // Chasers
+  function stepChaser(c, dt){
+    if(state.gameOver) return;
+    c.life -= dt; c.atkCd = Math.max(0, c.atkCd - dt); c.glow = Math.max(0, c.glow - dt);
+    let target=null, best=1e9;
+    for(const e of state.enemies){
+      if(e.dead) continue;
+      const d=Math.hypot(c.x-e.x, c.y-e.y);
+      if(d<best){ best=d; target=e; }
+    }
+    if(target){
+      const desiredAng=Math.atan2(target.y-c.y, target.x-c.x);
+      const curAng=Math.atan2(c.vy||0, c.vx||0);
+      let diff = desiredAng - curAng;
+      while(diff>Math.PI) diff-=2*Math.PI;
+      while(diff<-Math.PI) diff+=2*Math.PI;
+      const maxTurn=(c.turn||7.5)*dt;
+      const newAng = isFinite(curAng) ? curAng + Math.max(-maxTurn, Math.min(maxTurn, diff)) : desiredAng;
+      const speed = c.spd;
+      c.vx=Math.cos(newAng)*speed; c.vy=Math.sin(newAng)*speed;
+      c.x += c.vx*dt; c.y += c.vy*dt;
+
+      if(best < (target.r + c.r)){
+        if(c.atkCd<=0){
+          let dmg=c.dmg;
+          if(target.marked) dmg*=1.2;
+          target.hp -= dmg;
+          c.atkCd = 0.25;
+          c.glow = 0.2;
+          state.crumb.push({x:target.x,y:target.y,life:0.2});
+          if(target.hp<=0){ target.dead=true;
+            const waveMul = 1 + (state.wave-1)*0.5;
+            const base = (target.boss ? BOSS_DEF[state.wave].reward : (target.reward||10));
+            addCP(Math.round(base * waveMul));
+          }
+        }
+      }
+    }else{
+      c.x += (Math.random()-0.5)*40*dt;
+      c.y += (Math.random()-0.5)*40*dt;
+    }
+  }
+  function drawChaser(c){
+    ctx.save();
+    ctx.globalAlpha = 0.85;
+    if(c.glow>0){
+      ctx.fillStyle='rgba(255,255,255,0.25)';
+      ctx.beginPath(); ctx.arc(c.x, c.y, c.r+8, 0, Math.PI*2); ctx.fill();
+    }
+    ctx.fillStyle='#ffffff';
+    ctx.beginPath(); ctx.arc(c.x, c.y, c.r, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle='rgba(135,206,250,0.9)';
+    ctx.beginPath(); ctx.arc(c.x+1.5, c.y+1.5, c.r*0.5, 0, Math.PI*2); ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+
   function spawnMinions(n){
     for(let i=0;i<n;i++){
       const t = (Math.random()<0.5)?'virus':'bacteria';
@@ -584,7 +602,7 @@
     }
   }
 
-  // Render
+  // Render path
   function drawSmoothPath(points){
     const penult=points[points.length-2], lastp=points[points.length-1];
     ctx.strokeStyle='#134f7a'; ctx.lineWidth=26; ctx.lineCap='round'; ctx.lineJoin='round';
@@ -640,8 +658,7 @@
         ctx.save(); ctx.translate(e.x, e.y);
         ctx.fillStyle=e.color; ctx.strokeStyle='rgba(255,255,255,0.25)'; ctx.lineWidth=2;
         if(e.shape==='hex'){
-          ctx.beginPath();
-          for(let i=0;i<6;i++){ const a=i*Math.PI/3; const r=e.r+6; const x=Math.cos(a)*r, y=Math.sin(a)*r; if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y); }
+          ctx.beginPath(); for(let i=0;i<6;i++){ const a=i*Math.PI/3; const r=e.r+6; const x=Math.cos(a)*r, y=Math.sin(a)*r; if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y); }
           ctx.closePath(); ctx.fill(); ctx.stroke();
         }else if(e.shape==='star'){
           ctx.beginPath(); const R=e.r+8, r=e.r-2;
@@ -666,36 +683,32 @@
       if(p.kind==='INFLAM' && p.splash){ ctx.globalAlpha=0.15; ctx.beginPath(); ctx.arc(p.x,p.y,p.splash,0,Math.PI*2); ctx.fill(); ctx.globalAlpha=1; }
     }
 
+    for(const c of state.chasers){ drawChaser(c); }
+
     for(const c of state.crumb){
       ctx.globalAlpha=Math.max(0,c.life/0.18);
       ctx.fillStyle='#fff'; ctx.fillRect(c.x-1,c.y-1,2,2);
       ctx.globalAlpha=1;
     }
+
+    updateCooldownBars(now);
+
+    if(state.gameOver){
+      drawBanner('敗北！淋巴防線被突破');
+    }
   }
 
-  let last=performance.now();
-  function loop(ts){
-    const dt=Math.min(0.05,(ts-last)/1000); last=ts;
-    if(!paused){
-      state.time+=dt;
-      while(state.queue.length && state.queue[0].at<=state.time){
-        const s=state.queue.shift();
-        if(s.boss) spawnEnemy(null,true); else spawnEnemy(s.t,false);
-      }
-      for(const e of state.enemies) stepEnemy(e,dt);
-      state.enemies=state.enemies.filter(e=>!e.dead || e.wp<state.basePath.length);
-
-      for(const t of state.towers) stepTower(t,dt);
-      for(const p of state.projs) stepProj(p,dt);
-      state.projs=state.projs.filter(p=>p.life>0);
-
-      if(started && state.enemies.length===0 && state.queue.length===0){
-        if(state.wave<state.wmax){ if(nextReady){ startWave(); } }
-        else if(state.lives>0){ draw(); drawBanner('勝利！免疫系統全面壓制'); return; }
-      }
-    }
-    draw();
-    requestAnimationFrame(loop);
+  function updateCooldownBars(now){
+    if(state.ability.swellCdUntil > now){
+      const remain = state.ability.swellCdUntil - now;
+      const pct = Math.max(0, Math.min(1, remain / state.ability.swellCdDur));
+      cdSwell.style.width = (pct*100).toFixed(1)+'%';
+    }else{ cdSwell.style.width = '0%'; }
+    if(state.ability.chaserCdUntil > now){
+      const remain = state.ability.chaserCdUntil - now;
+      const pct = Math.max(0, Math.min(1, remain / state.ability.chaserCdDur));
+      cdChaser.style.width = (pct*100).toFixed(1)+'%';
+    }else{ cdChaser.style.width = '0%'; }
   }
 
   function drawBanner(text){
@@ -704,30 +717,45 @@
     const tw=ctx.measureText(text).width; ctx.fillText(text, (W-tw)/2, H/2);
   }
 
-  function startWave(){
-    if(state.wave>=state.wmax) return;
-    if(state.wave>=1){
-      state.basePath = makeRandomWinding();
-      rebuildNodesAndLoops();
+  function triggerGameOver(){
+    state.gameOver = true;
+  }
+
+  let last=performance.now();
+  function loop(ts){
+    const dt=Math.min(0.05,(ts-last)/1000); last=ts;
+    if(!paused){
+      state.time+=dt;
+      if(!state.gameOver){
+        while(state.queue.length && state.queue[0].at<=state.time){
+          const s=state.queue.shift();
+          if(s.boss) spawnEnemy(null,true); else spawnEnemy(s.t,false);
+        }
+        for(const e of state.enemies) stepEnemy(e,dt);
+        state.enemies=state.enemies.filter(e=>!e.dead || e.wp<state.basePath.length);
+
+        for(const t of state.towers) stepTower(t,dt);
+        for(const p of state.projs) stepProj(p,dt);
+        state.projs=state.projs.filter(p=>p.life>0);
+
+        for(const c of state.chasers) stepChaser(c, dt);
+        state.chasers = state.chasers.filter(c=>c.life>0);
+
+        if(started && state.enemies.length===0 && state.queue.length===0){
+          if(state.wave<state.wmax){ if(nextReady){ startWave(); } }
+          else if(state.lives>0){ draw(); drawBanner('勝利！免疫系統全面壓制'); return; }
+        }
+      }
     }
-    state.wave++; ui.wave.textContent=state.wave;
-    unlockByWave(state.wave);
-    if(state.wave===4 || state.wave===8 || state.wave===12){
-      addNewNodeIndices(2);
-      rebuildNodesAndLoops();
-      flashToast('新增 2 個站點！');
-    }
-    state.queue.length=0;
-    const pack=waves[state.wave-1];
-    for(const s of pack) state.queue.push({t:s.t, boss:!!s.boss, at:state.time+s.at});
-    nextReady=false;
+    draw();
+    requestAnimationFrame(loop);
   }
 
   // Kick off & controls
   draw();
   requestAnimationFrame(loop);
-  window.addEventListener('keydown', (e)=>{ if(e.code==='Space'){ e.preventDefault(); paused=!paused; btn.pause.textContent=paused?'繼續':'暫停'; }}, {passive:false});
-  window.addEventListener('blur', ()=>{ paused=true; btn.pause.textContent='繼續'; });
+  window.addEventListener('keydown', (e)=>{ if(e.code==='Space'){ e.preventDefault(); if(!state.gameOver){ paused=!paused; btn.pause.textContent=paused?'繼續':'暫停'; } }}, {passive:false});
+  window.addEventListener('blur', ()=>{ if(!state.gameOver){ paused=true; btn.pause.textContent='繼續'; } });
 })();
 </script>
 </body>
