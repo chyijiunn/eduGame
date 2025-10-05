@@ -34,8 +34,10 @@
     #help { position:fixed; inset:0; background:rgba(0,0,0,0.55); display:none; align-items:center; justify-content:center; z-index:6; }
     #help .panel { width:min(700px, 92vw); max-height:88vh; overflow:auto; background:#121826; border:1px solid #2b3a57; border-radius:16px; box-shadow:0 12px 40px rgba(0,0,0,0.4); padding:16px; }
     #help h2 { margin:0 0 8px; font-size:18px; }
-    #help ol { margin:8px 0 0 18px; line-height:1.6; font-size:13px; color:#d7e4ff; }
     #help .actions { display:flex; gap:8px; justify-content:flex-end; margin-top:10px; }
+    #helpContent { white-space:pre-wrap; line-height:1.6; font-size:13px; color:#d7e4ff; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Noto Sans, Arial, "Microsoft JhengHei", sans-serif; }
+    #helpContent code, #helpContent pre { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+    #helpContent pre { background:#0d1422; padding:10px; border-radius:10px; border:1px solid #25324a; overflow:auto; }
 
     /* 測試徽章 */
     #testBadge { position:fixed; right:8px; bottom:8px; background:#142034; color:#cde3ff; border:1px solid #2a3e63; border-radius:10px; padding:6px 10px; font-size:12px; display:none; z-index:10; }
@@ -69,13 +71,8 @@
 <!-- Help overlay (rules) -->
 <div id="help">
   <div class="panel">
-    <h2>📘 遊戲說明（基於 v1=1004，以下為新增功能）</h2>
-    <ol>
-      <li><b>雙凸透鏡：</b>外觀改為雙凸；移除舊版上下錐形光束的裝飾。</li>
-      <li><b>天花板正中央的燈泡：</b>預設開啟。當「透鏡距離地板 = 焦距」時，地板會出現<b>匯聚焦點</b>（x 為透鏡正下方），並繪出匯聚光線。</li>
-      <li><b>灼焦規則：</b>在匯聚條件下，經過焦點半徑 r 的蟑螂會被灼死：先翻肚朝上，稍後變成靈魂向上飛離（不影響通關的 3 家庭父母資料）。</li>
-      <li><b>操作差異：</b>電腦：滑鼠移動→移動放大鏡，點擊→複製；行動裝置：按住移動→移動放大鏡，<u>放開</u>→複製。</li>
-    </ol>
+    <h2>📘 遊戲說明</h2>
+    <div id="helpContent">（正在載入 readme.md…）</div>
     <div class="actions">
       <button id="btnCloseHelp" class="btn-outline">關閉</button>
     </div>
@@ -129,6 +126,7 @@
   const btnHelp = document.getElementById('btnHelp');
   const helpEl = document.getElementById('help');
   const btnCloseHelp = document.getElementById('btnCloseHelp');
+  const helpContent = document.getElementById('helpContent');
   const winEl = document.getElementById('win');
   const winSummary = document.getElementById('winSummary');
   const btnCloseWin = document.getElementById('btnCloseWin');
@@ -138,7 +136,7 @@
     lens.f = parseFloat(fSlider.value)/100;
     fVal.textContent = fSlider.value;
   });
-  btnHelp.addEventListener('click', ()=> helpEl.style.display='flex');
+  btnHelp.addEventListener('click', async ()=> { await loadReadme(); helpEl.style.display='flex'; });
   btnCloseHelp.addEventListener('click', ()=> helpEl.style.display='none');
   btnCloseWin.addEventListener('click', ()=> winEl.style.display='none');
   btnRestart.addEventListener('click', ()=> location.reload());
@@ -573,6 +571,22 @@
 
   requestAnimationFrame(tick);
 
+  // ---------- Readme loader ----------
+  async function loadReadme(){
+    try{
+      const res = await fetch('readme.md', {cache:'no-store'});
+      if (!res.ok) throw new Error('HTTP '+res.status);
+      const text = await res.text();
+      // 簡單呈現：直接放入，保留 Markdown 原貌；若包含 HTML，出於安全用 textContent
+      const safe = document.createElement('pre');
+      safe.textContent = text;
+      helpContent.innerHTML = '';
+      helpContent.appendChild(safe);
+    }catch(err){
+      helpContent.textContent = '無法載入 readme.md：' + err.message + '\n請確認檔案存在於相同資料夾。';
+    }
+  }
+
   // ---------- Tests ----------
   function approx(a,b,eps=1e-6){ return Math.abs(a-b) <= eps; }
   function runTests(){
@@ -595,12 +609,16 @@
     // New: ensure drawLens exists and is callable
     console.assert(typeof drawLens === 'function', 'Test4 drawLens present');
 
+    // New: ensure readme loader exists & help container present
+    console.assert(typeof loadReadme === 'function', 'Test5 loadReadme present');
+    console.assert(!!document.getElementById('helpContent'), 'Test6 helpContent exists');
+
     // Restore
     lens = saved.lens; Object.assign(roach, saved.roach);
 
     badge.style.display = 'block'; setTimeout(()=>{ badge.style.display='none'; }, 1800);
   }
-  setTimeout(runTests, 120);
+  setTimeout(()=>runTests(), 120); // ensure scheduled after potential readme load hook is defined
 })();
 </script>
 </body>
