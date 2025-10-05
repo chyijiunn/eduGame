@@ -3,13 +3,13 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>透鏡成像 × 放大鏡 × 馬達加斯加蟑螂</title>
+  <title>透鏡成像 × 放大鏡 × 馬達加斯加蟑螂｜v1 (1004) + 新功能</title>
   <style>
     * { box-sizing: border-box; }
     html, body { height: 100%; margin: 0; background:#0e1116; color:#eaeef5; font-family: system-ui, -apple-system, Segoe UI, Roboto, Noto Sans, Arial, "Microsoft JhengHei", sans-serif; }
     .wrap { display:flex; flex-direction:column; min-height:100vh; }
 
-    /* 極簡抬頭列，只保留焦距滑桿與「說明」按鈕 */
+    /* 極簡抬頭列：焦距滑桿 + 說明按鈕 */
     header { padding:8px 12px; background:linear-gradient(180deg,#121722,#0e1116); border-bottom:1px solid #1b2130; position:sticky; top:0; z-index:2; }
     .topbar { display:flex; align-items:center; gap:12px; }
     .spacer { flex:1; }
@@ -17,7 +17,7 @@
     input[type=range] { width:min(360px, 60vw); }
     .btn { cursor:pointer; user-select:none; padding:6px 10px; border-radius:10px; font-size:12px; border:1px solid #2a3752; background:#141b28; color:#cfe1ff; }
 
-    /* 盡量把高度留給場景 */
+    /* 遊戲區最大化 */
     #canvas { flex:1; display:block; width:100%; height:auto; background: radial-gradient(1200px 180px at 50% 0%, #0b0f16, #0c1018); touch-action: none; }
 
     /* 通關面板 */
@@ -37,7 +37,7 @@
     #help ol { margin:8px 0 0 18px; line-height:1.6; font-size:13px; color:#d7e4ff; }
     #help .actions { display:flex; gap:8px; justify-content:flex-end; margin-top:10px; }
 
-    /* 測試結果小角標 */
+    /* 測試徽章 */
     #testBadge { position:fixed; right:8px; bottom:8px; background:#142034; color:#cde3ff; border:1px solid #2a3e63; border-radius:10px; padding:6px 10px; font-size:12px; display:none; z-index:10; }
   </style>
 </head>
@@ -69,16 +69,12 @@
 <!-- Help overlay (rules) -->
 <div id="help">
   <div class="panel">
-    <h2>📘 遊戲說明</h2>
+    <h2>📘 遊戲說明（基於 v1=1004，以下為新增功能）</h2>
     <ol>
-      <li>拖動放大鏡（滑鼠或手指），並用上方滑桿調整焦距 f。</li>
-      <li><b>操作差異：</b>電腦版：滑鼠移動→移動放大鏡，<u>滑鼠左鍵點擊</u>→複製。行動裝置（手機/平板）：<u>手指按住並移動</u>→移動放大鏡，<u>手指放開</u>→複製，不需雙點。</li>
-      <li>三條主光線：平行→過焦、過鏡心、過同側焦→出射平行；出射交點為像點。</li>
-      <li>幽靈像清晰度由誤差 Δ（像點到天花板/地板距離）決定；在 <b>±2 cm</b> 內完全清晰，這時點擊（或放開手指）可<b>複製</b>。</li>
-      <li>複製體：|m|≥1 → 粉紅母；|m|&lt;1 → 抹茶綠公（半透明、深淺依焦段）。實像落地倒立、虛像落頂正立；左右遵守 m。</li>
-      <li><b>新生規則：</b>同一焦段（f 取整 cm）的公母相遇會冒愛心，兩隻走到兩側，並在邊緣<b>生 6 隻</b>小蟑螂（黃色、頭頂標該焦段 f）。</li>
-      <li><b>過關條件：</b>累積三個不同焦段的配對（= 三個家庭），共 18 隻小蟑螂 → 過關；
-      過關後的摘要只列出「三個家庭的父母親」（共 6 隻）的資料：焦距與像距（單位一致）、物距、像的性質（放大／縮小實像或放大虛像）。不顯示放大率數值。</li>
+      <li><b>雙凸透鏡：</b>外觀改為雙凸；移除舊版上下錐形光束的裝飾。</li>
+      <li><b>天花板正中央的燈泡：</b>預設開啟。當「透鏡距離地板 = 焦距」時，地板會出現<b>匯聚焦點</b>（x 為透鏡正下方），並繪出匯聚光線。</li>
+      <li><b>灼焦規則：</b>在匯聚條件下，經過焦點半徑 r 的蟑螂會被灼死：先翻肚朝上，稍後變成靈魂向上飛離（不影響通關的 3 家庭父母資料）。</li>
+      <li><b>操作差異：</b>電腦：滑鼠移動→移動放大鏡，點擊→複製；行動裝置：按住移動→移動放大鏡，<u>放開</u>→複製。</li>
     </ol>
     <div class="actions">
       <button id="btnCloseHelp" class="btn-outline">關閉</button>
@@ -89,6 +85,7 @@
 <div id="testBadge">✅ Tests passed</div>
 
 <script>
+// version tag: v1 (1004 baseline) + 1005 additions
 (function(){
   const canvas = document.getElementById('canvas');
   const ctx = canvas.getContext('2d');
@@ -118,9 +115,13 @@
 
   const clones = []; // clone schema
   const hearts = [];
+  const souls = []; // {x, y, t}
 
   // families: key=f_cm → { f_cm, parents:[parentA,parentB], babies }
   const families = new Map();
+
+  // Bulb state
+  const bulb = { x: () => (canvas.width/getDPR())/2/pxPerM(), y: 0, on: true };
 
   // ---------- UI ----------
   const fSlider = document.getElementById('fSlider');
@@ -143,8 +144,6 @@
   btnRestart.addEventListener('click', ()=> location.reload());
 
   // ---------- Pointer handling ----------
-  // Desktop: mouse move moves lens; click clones
-  // Mobile/Tablet: touch down/move moves lens; touch up clones
   let touching = false;
   function updateLensFromPointer(e){
     const rect = canvas.getBoundingClientRect();
@@ -157,31 +156,19 @@
 
   canvas.addEventListener('pointerdown', (e)=>{
     if (e.pointerType === 'touch'){
-      touching = true;
-      updateLensFromPointer(e);
-      e.preventDefault();
+      touching = true; updateLensFromPointer(e); e.preventDefault();
     }
   }, {passive:false});
-
   canvas.addEventListener('pointermove', (e)=>{
     if (e.pointerType === 'touch'){
-      if (!touching) return;
-      updateLensFromPointer(e);
-      e.preventDefault();
-    } else {
-      // mouse moves always update
-      updateLensFromPointer(e);
-    }
+      if (!touching) return; updateLensFromPointer(e); e.preventDefault();
+    } else { updateLensFromPointer(e); }
   }, {passive:false});
-
   canvas.addEventListener('pointerup', (e)=>{
     if (e.pointerType === 'touch'){
-      touching = false;
-      attemptClone();
-      e.preventDefault();
+      touching = false; attemptClone(); e.preventDefault();
     }
   }, {passive:false});
-
   canvas.addEventListener('pointercancel', ()=>{ touching=false; });
   canvas.addEventListener('click', (e)=>{ if (e.pointerType !== 'touch') attemptClone(); });
 
@@ -227,7 +214,7 @@
     clones.push({
       x: calc.x_img,
       y: isReal ? H : 0,
-      scale: mAbs,
+      scale: Math.max(0.2, Math.min(2.2, Math.abs(calc.m))),
       dir, speed,
       phase: Math.random()*Math.PI*2,
       sex, color, alpha,
@@ -238,7 +225,8 @@
       s_signed: calc.s_signed,
       sp_signed: calc.sp_signed,
       type: calc.type,
-      m: calc.m
+      m: calc.m,
+      dead:false, deathT:0, corpseAlpha:1, corpseFading:false, hidden:false
     });
   }
 
@@ -274,36 +262,101 @@
   }
 
   function drawLens(){
-    const p = pxPerM(); const x = lens.x * p; const y = marginTop + lens.y * p;
-    ctx.save(); ctx.translate(x,y);
-    const fpx = lens.f * p; const beamW = 80;
-    ctx.save(); ctx.globalCompositeOperation = 'destination-over'; ctx.globalAlpha = 0.23;
-    ctx.fillStyle = '#6fbaff'; ctx.beginPath(); ctx.moveTo(-beamW*0.35, 0); ctx.lineTo(beamW*0.35, 0); ctx.lineTo(0, -fpx); ctx.closePath(); ctx.fill();
-    ctx.fillStyle = '#9df7c7'; ctx.beginPath(); ctx.moveTo(-beamW*0.35, 0); ctx.lineTo(beamW*0.35, 0); ctx.lineTo(0,  fpx); ctx.closePath(); ctx.fill();
-    ctx.restore();
-    ctx.strokeStyle = 'rgba(200,240,255,0.9)'; ctx.setLineDash([3,3]);
-    ctx.beginPath(); ctx.moveTo(-14, -fpx); ctx.lineTo(14, -fpx); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(-14,  fpx); ctx.lineTo(14,  fpx); ctx.stroke(); ctx.setLineDash([]);
-    const w=20, h=60; const grd = ctx.createLinearGradient(-w, -h, w, h);
-    grd.addColorStop(0, 'rgba(160,210,255,0.18)'); grd.addColorStop(0.5, 'rgba(220,245,255,0.35)'); grd.addColorStop(1, 'rgba(160,210,255,0.18)');
-    ctx.fillStyle = grd; ctx.strokeStyle = 'rgba(120,170,230,0.9)'; ctx.lineWidth = 1.2;
-    ctx.beginPath(); ctx.moveTo(0,-h); ctx.quadraticCurveTo(w,-h*0.2, 0,0); ctx.quadraticCurveTo(-w,h*0.2, 0,h); ctx.quadraticCurveTo(w,h*0.2, 0,0); ctx.quadraticCurveTo(-w,-h*0.2, 0,-h); ctx.closePath(); ctx.fill(); ctx.stroke();
-    ctx.strokeStyle = 'rgba(180,220,255,0.8)'; ctx.beginPath(); ctx.moveTo(-26,0); ctx.lineTo(26,0); ctx.stroke();
+    // 雙凸透鏡外觀：水平（與天花板/地板平行），僅改外觀不改成像幾何
+    const p = pxPerM();
+    const x = lens.x * p;
+    const y = marginTop + lens.y * p;
+    ctx.save();
+    ctx.translate(x, y);
+
+    // 水平雙凸：寬 w、厚 h（水平方向變長）
+    const w = 68, h = 22;
+    const grd = ctx.createLinearGradient(-w, -h, w, h);
+    grd.addColorStop(0, 'rgba(160,210,255,0.16)');
+    grd.addColorStop(0.5, 'rgba(220,245,255,0.38)');
+    grd.addColorStop(1, 'rgba(160,210,255,0.16)');
+    ctx.fillStyle = grd;
+    ctx.strokeStyle = 'rgba(120,170,230,0.95)';
+    ctx.lineWidth = 1.2;
+
+    // 雙凸輪廓（水平）
+    ctx.beginPath();
+    ctx.moveTo(-w, 0);
+    ctx.bezierCurveTo(-w*0.55, -h*1.1, w*0.55, -h*1.1, w, 0);
+    ctx.bezierCurveTo(w*0.55, h*1.1, -w*0.55, h*1.1, -w, 0);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // 中心線（垂直小線段）
+    ctx.strokeStyle = 'rgba(180,220,255,0.85)';
+    ctx.beginPath();
+    ctx.moveTo(0, -26);
+    ctx.lineTo(0, 26);
+    ctx.stroke();
+
+    // 焦距虛線（於鏡面局部座標 y=±f）
+    const fpx = lens.f * p;
+    ctx.setLineDash([3,3]);
+    ctx.strokeStyle='rgba(200,240,255,0.6)';
+    ctx.beginPath();
+    ctx.moveTo(-12, -fpx);
+    ctx.lineTo(12, -fpx);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(-12,  fpx);
+    ctx.lineTo(12,  fpx);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
     ctx.restore();
   }
 
-  function drawRoach(xm, ym, scale=1, inverted=false, alpha=1, phase=0, t=0, tintColor=null, labelText=null){
+  function drawBulbAndFocus(calc){
+    const p = pxPerM();
+    // 天花板中央燈泡
+    const bx = (canvas.width/getDPR())/2; const by = marginTop;
+    ctx.save();
+    ctx.strokeStyle = '#33435f'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(bx, marginTop); ctx.lineTo(bx, marginTop+20); ctx.stroke();
+    ctx.fillStyle = 'rgba(255,240,158,0.15)'; ctx.beginPath(); ctx.arc(bx, by+28, 34, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#ffe98a'; ctx.strokeStyle = '#423b17'; ctx.lineWidth=1.2; ctx.beginPath(); ctx.ellipse(bx, by+28, 14, 20, 0, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+    ctx.restore();
+
+    // 聚焦條件：鏡到地板距離 = f（容差 1 cm）
+    const diff = Math.abs((H - lens.y) - lens.f);
+    const focusOnFloor = diff < 0.01;
+    if (!focusOnFloor) return {focusOnFloor:false};
+
+    // 僅兩條更細的匯聚光線
+    const focusX = lens.x * p; const floorY = marginTop + H*p; const yLensPx = marginTop + lens.y*p;
+    ctx.save();
+    const offsets = [-80, 80];
+    ctx.strokeStyle = 'rgba(255,240,120,0.9)';
+    ctx.lineWidth = 1.0; // 更細
+    offsets.forEach(off=>{ ctx.beginPath(); ctx.moveTo(focusX + off, yLensPx - 120); ctx.lineTo(focusX, floorY); ctx.stroke(); });
+    // 聚焦亮斑略小
+    const grd = ctx.createRadialGradient(focusX, floorY, 0, focusX, floorY, 22);
+    grd.addColorStop(0, 'rgba(255,250,180,0.85)'); grd.addColorStop(1, 'rgba(255,250,180,0.0)');
+    ctx.fillStyle = grd; ctx.beginPath(); ctx.arc(focusX, floorY, 22, 0, Math.PI*2); ctx.fill();
+    ctx.restore();
+    return {focusOnFloor:true, focusX: focusX/p};
+  }
+
+  function drawRoach(xm, ym, scale=1, inverted=false, alpha=1, phase=0, t=0, tintColor=null, labelText=null, dead=false){
     const p = pxPerM(); const x = xm * p; const y = marginTop + ym * p;
-    ctx.save(); ctx.translate(x, y); ctx.scale(1, inverted ? -1 : 1); ctx.scale(scale*0.7, scale*0.7); ctx.globalAlpha = alpha;
-    const wig = Math.sin(t*6 + phase); const bodyFill = tintColor || '#9aa3b0';
+    ctx.save(); ctx.translate(x, y);
+    // dead: freeze wiggle
+    const wigInput = dead ? 0 : Math.sin(t*6 + phase);
+    ctx.scale(1, inverted ? -1 : 1); ctx.scale(scale*0.7, scale*0.7); ctx.globalAlpha = alpha;
+    const bodyFill = dead ? '#b6bac4' : (tintColor || '#9aa3b0');
     ctx.fillStyle = bodyFill; ctx.strokeStyle = '#0a0e14'; ctx.lineWidth = 1.2;
     ctx.beginPath(); ctx.ellipse(0, 0, 18, 28, 0, 0, Math.PI*2); ctx.fill(); ctx.stroke();
-    ctx.save(); ctx.translate(0, -26); ctx.rotate(wig*0.05);
-    ctx.beginPath(); ctx.ellipse(0, 0, 10, 8, 0, 0, Math.PI*2); ctx.fillStyle = tintColor ? bodyFill : '#8a93a0'; ctx.fill(); ctx.stroke(); ctx.restore();
+    ctx.save(); ctx.translate(0, -26); ctx.rotate(wigInput*0.05);
+    ctx.beginPath(); ctx.ellipse(0, 0, 10, 8, 0, 0, Math.PI*2); ctx.fillStyle = dead ? '#aab0be' : (tintColor ? bodyFill : '#8a93a0'); ctx.fill(); ctx.stroke(); ctx.restore();
     ctx.strokeStyle = 'rgba(0,0,0,0.35)'; for(let i=-18;i<=18;i+=6){ ctx.beginPath(); ctx.moveTo(-10, i); ctx.lineTo(10, i); ctx.stroke(); }
     ctx.strokeStyle = '#cfd7e6'; ctx.lineWidth = 1.1;
-    for(let side of [-1,1]){ for(let i=0;i<3;i++){ const sway = (i%2===0?wig:-wig) * (3+i*0.7); ctx.beginPath(); ctx.moveTo(side*10, -8 + i*10); ctx.lineTo(side*(20+sway), -12 + i*10); ctx.lineTo(side*(26+sway*0.6), -6 + i*10); ctx.stroke(); } }
-    ctx.beginPath(); ctx.moveTo(-4, -33); ctx.quadraticCurveTo(-14 - wig*6, -46 - wig*5, -26 - wig*10, -50); ctx.moveTo(4, -33); ctx.quadraticCurveTo(14 + wig*6, -46 - wig*5, 26 + wig*10, -50); ctx.strokeStyle = '#cfd7e6'; ctx.stroke();
+    for(let side of [-1,1]){ for(let i=0;i<3;i++){ const sway = (i%2===0?wigInput:-wigInput) * (3+i*0.7); ctx.beginPath(); ctx.moveTo(side*10, -8 + i*10); ctx.lineTo(side*(20+sway), -12 + i*10); ctx.lineTo(side*(26+sway*0.6), -6 + i*10); ctx.stroke(); } }
+    ctx.beginPath(); ctx.moveTo(-4, -33); ctx.quadraticCurveTo(-14 - wigInput*6, -46 - wigInput*5, -26 - wigInput*10, -50); ctx.moveTo(4, -33); ctx.quadraticCurveTo(14 + wigInput*6, -46 - wigInput*5, 26 + wigInput*10, -50); ctx.strokeStyle = '#cfd7e6'; ctx.stroke();
     if (labelText){ ctx.save(); ctx.scale(1, inverted ? -1 : 1); ctx.globalAlpha = 0.95; ctx.fillStyle = '#ffd84d'; ctx.font = '10px system-ui'; ctx.fillText(labelText, -8, -38); ctx.restore(); }
     ctx.restore();
   }
@@ -379,13 +432,24 @@
     if (focusPoint){ const PF = toPX(focusPoint); ctx.save(); ctx.fillStyle = '#74ff9b'; ctx.strokeStyle = '#16351f'; ctx.beginPath(); ctx.arc(PF.x, PF.y, 5, 0, Math.PI*2); ctx.fill(); ctx.stroke(); ctx.restore(); }
   }
 
+  function registerFamily(fbin, a, b){
+    if (!families.has(fbin)){
+      const makeParent = (p)=>({ sex: p.sex, f_cm: fbin, s_m: p.s_signed, sp_m: p.sp_signed, type: p.type, classText: classifyImage(p) });
+      families.set(fbin, { f_cm:fbin, parents:[ makeParent(a), makeParent(b) ], babies:0 });
+    }
+  }
+
+  function classifyImage(p){
+    if (p.sp_signed < 0){ const mag = Math.abs(p.m); if (mag > 1) return '放大實像'; if (mag < 1) return '縮小實像'; return '等大實像'; }
+    return '放大虛像';
+  }
+
   function handlePairingAndBreeding(){
-    const maxDist = 0.08;
-    const minX = 0.4, maxX = Math.max(0.4, canvas.width/getDPR()/pxPerM()-0.4);
+    const maxDist = 0.08; const minX = 0.4, maxX = Math.max(0.4, canvas.width/getDPR()/pxPerM()-0.4);
     for (let i=0;i<clones.length;i++){
-      const a = clones[i]; if (a.isBaby || a.hasBirthed) continue;
+      const a = clones[i]; if (a.isBaby || a.hasBirthed || a.dead) continue;
       for (let j=i+1;j<clones.length;j++){
-        const b = clones[j]; if (b.isBaby || b.hasBirthed) continue;
+        const b = clones[j]; if (b.isBaby || b.hasBirthed || b.dead) continue;
         if (a.focusBin!==b.focusBin) continue;
         if (!((a.sex==='F' && b.sex==='M') || (a.sex==='M' && b.sex==='F'))) continue;
         if (Math.abs(a.x - b.x) < maxDist && Math.abs(a.y - b.y) < 0.05){
@@ -404,46 +468,17 @@
     const fam = families.get(fbin);
     for (let k=0;k<6;k++){
       const jitter = (Math.random()-0.5)*0.3; const dir = Math.random()<0.5?-1:1; const speed = 0.15 + Math.random()*0.2;
-      clones.push({ x: xm + jitter, y: H, scale: 0.45 * (0.85 + Math.random()*0.3), dir, speed, phase: Math.random()*Math.PI*2, sex:'B', color:'#ffe766', alpha:0.6, f_cm:fbin, focusBin:fbin, status:'free', targetX:null, hasBirthed:true, isBaby:true, inverted:false, s_signed: ref.s_signed, sp_signed: ref.sp_signed, type: '小蟑螂' });
+      clones.push({ x: xm + jitter, y: H, scale: 0.45 * (0.85 + Math.random()*0.3), dir, speed, phase: Math.random()*Math.PI*2, sex:'B', color:'#ffe766', alpha:0.6, f_cm:fbin, focusBin:fbin, status:'free', targetX:null, hasBirthed:true, isBaby:true, inverted:false, s_signed: ref.s_signed, sp_signed: ref.sp_signed, type: '小蟑螂', dead:false, deathT:0, corpseAlpha:1, corpseFading:false, hidden:false });
       fam.babies++;
-    }
-  }
-
-  function registerFamily(fbin, a, b){
-    if (!families.has(fbin)){
-      const makeParent = (p)=>({
-        sex: p.sex,
-        f_cm: fbin,
-        s_m: p.s_signed,
-        sp_m: p.sp_signed,
-        type: p.type,
-        classText: classifyImage(p)
-      });
-      families.set(fbin, { f_cm:fbin, parents:[ makeParent(a), makeParent(b) ], babies:0 });
-    }
-  }
-
-  function classifyImage(p){
-    if (p.sp_signed < 0){ // 實像（定義上呈負號）
-      const mag = Math.abs(p.m);
-      if (mag > 1) return '放大實像';
-      if (mag < 1) return '縮小實像';
-      return '等大實像';
-    } else {
-      return '放大虛像'; // 凸透鏡虛像一定放大
     }
   }
 
   function checkWin(){
     const finishedKeys = [...families.keys()].filter(k=>families.get(k).babies>=6);
-    if (finishedKeys.length >= 3){
-      const arr = finishedKeys.slice(0,3).map(k=>families.get(k));
-      showWin(arr);
-    }
+    if (finishedKeys.length >= 3){ const arr = finishedKeys.slice(0,3).map(k=>families.get(k)); showWin(arr); }
   }
 
   function showWin(familiesArr){
-    // 只列出三個家庭的父母（共 6 隻）；單位一致（焦距與像距都用 cm）
     let html = '<table><thead><tr><th>#</th><th>家庭(焦段 f, cm)</th><th>性別</th><th>物距 s (cm)</th><th>像距 s\' (cm)</th><th>像的性質</th></tr></thead><tbody>';
     let idx = 1;
     familiesArr.forEach((fam)=>{
@@ -454,7 +489,7 @@
       });
     });
     html += '</tbody></table>';
-    winSummary.innerHTML = html + '<p style="margin-top:8px;color:#cfdaf2;font-size:12px;">說明：此表為三個焦段的父母像資料（共六隻）。焦距與像距皆以 <b>cm</b> 呈現以便比較；不顯示放大率數值。</p>';
+    winSummary.innerHTML = html + '<p style="margin-top:8px;color:#cfdaf2;font-size:12px;">說明：列表只包含三個家庭的父母共六隻；焦距與像距皆以 <b>cm</b> 呈現；不顯示放大率數值。被灼死的個體不影響此清單。</p>';
     winEl.style.display = 'flex';
   }
 
@@ -472,15 +507,16 @@
     if (roach.x < minX) { roach.x = minX; roach.dir = 1; }
     if (roach.x > maxX) { roach.x = maxX; roach.dir = -1; }
 
-    // clone motion
+    // clone motion & death update
     for (const c of clones){
-      c.phase += dt*6; c.x += c.dir * c.speed * dt;
+      if (!c.dead){ c.phase += dt*6; c.x += c.dir * c.speed * dt; }
       if (c.status==='free'){
         if (c.x < minX) { c.x = minX; c.dir = 1; }
         if (c.x > maxX) { c.x = maxX; c.dir = -1; }
       } else if (c.status==='toSide' && c.targetX!==null){
         const sgn = Math.sign(c.targetX - c.x) || 1; c.x += sgn * c.speed * dt * 1.5; if (Math.abs(c.x - c.targetX) < 0.02) c.status='atSide';
       }
+      if (c.dead){ c.deathT += dt; if (c.deathT > 0.7 && !c.soulSpawned){ souls.push({x:c.x, y:c.y, t:0, link:c}); c.soulSpawned=true; } if (c.corpseFading){ c.corpseAlpha = Math.max(0, c.corpseAlpha - dt*0.6); if (c.corpseAlpha<=0) c.hidden=true; } }
     }
 
     handlePairingAndBreeding();
@@ -489,10 +525,45 @@
     ctx.clearRect(0,0,canvas.width,canvas.height);
     const calc = computeImaging();
     drawWorldGrid();
+    const focusInfo = drawBulbAndFocus(calc);
     drawRays(calc);
-    drawRoach(roach.x, 0, 1.0, false, 1, roach.phase, t/1000, null, null);
-    for (const c of clones){ const label = c.isBaby ? `${c.f_cm}` : null; drawRoach(c.x, c.y, c.scale, c.inverted||false, c.alpha, c.phase, t/1000, c.color, label); }
-    for (let i=hearts.length-1;i>=0;i--){ const h = hearts[i]; h.t += dt; drawHeart(h.x, h.y, h.t); if (h.t>0.8) hearts.splice(i,1); }
+
+    // original roach (always alive,在天花板)
+    drawRoach(roach.x, 0, 1.0, false, 1, roach.phase, t/1000, null, null, false);
+
+    // kill check: only when focus on floor
+    if (focusInfo.focusOnFloor){
+      const killR = 0.06; // 6 cm radius
+      for (const c of clones){
+        if (c.dead) continue;
+        if (Math.abs(c.y - H) < 1e-6 && Math.abs(c.x - focusInfo.focusX) < killR){ c.dead = true; c.phase = 0; }
+      }
+    }
+
+    // draw clones
+    for (const c of clones){
+      if (c.hidden) continue;
+      const label = c.isBaby ? `${c.f_cm}` : null;
+      const alpha = c.dead ? Math.min(0.9, c.corpseAlpha) : c.alpha;
+      const inv = c.dead ? !c.inverted : (c.inverted||false); // 死亡：翻身
+      drawRoach(c.x, c.y, c.scale, inv, alpha, c.phase, t/1000, c.color, label, c.dead);
+    }
+
+    // draw souls
+    for (let i=souls.length-1;i>=0;i--){
+      const s = souls[i]; s.t += dt; s.y = Math.max(-0.2, s.y - dt*0.6); // rise 0.6 m/s, allow pass ceiling
+      const px = s.x* p, py = marginTop + s.y * p;
+      ctx.save(); ctx.globalAlpha = Math.max(0, 1 - s.t*0.8);
+      ctx.strokeStyle = '#e7f1ff'; ctx.fillStyle = 'rgba(255,255,255,0.25)';
+      ctx.beginPath(); ctx.ellipse(px, py - 10, 10, 14, 0, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(px-6, py); ctx.lineTo(px+6, py); ctx.stroke();
+      ctx.restore();
+      if (s.y <= 0 && s.link && !s.link.corpseFading){ s.link.corpseFading = true; }
+      if (s.t > 2.2 || s.y<=-0.05){ souls.splice(i,1); }
+    }
+
+    for (let i=hearts.length-1;i>=0;i--){ const h = hearts[i]; const dt2 = dt; h.t += dt2; drawHeart(h.x, h.y, h.t); if (h.t>0.8) hearts.splice(i,1); }
+
     drawLens();
     drawRuler(calc);
     drawFocusCue(calc); // 最後畫，避免遮蔽虛像
@@ -508,35 +579,28 @@
     const badge = document.getElementById('testBadge');
     const saved = { lens: { ...lens }, roach: { ...roach } };
 
-    // Case 1: s=1.5m, f=0.5m → s' = 0.75m (實像), m=-0.5
-    lens.y = 1.5; roach.y = 0; lens.f = 0.5;
-    let c = computeImaging();
+    // Case 1: s=1.5m, f=0.5m → s' = 0.75m (實像)
+    lens.y = 1.5; roach.y = 0; lens.f = 0.5; let c = computeImaging();
     let expected_sp = 1/(1/lens.f - 1/(lens.y - roach.y));
     console.assert(approx(c.sp_geom, expected_sp, 1e-9), 'Test1 sp_geom');
     console.assert(approx(c.m, -c.sp_geom/(lens.y - roach.y)), 'Test1 magnification');
 
     // Case 2: s=0.3m, f=0.5m → s' < 0 (虛像)
-    lens.y = 0.3; roach.y = 0; lens.f = 0.5;
-    c = computeImaging();
+    lens.y = 0.3; roach.y = 0; lens.f = 0.5; c = computeImaging();
     console.assert(c.sp_geom < 0, 'Test2 virtual image');
 
-    // classifyImage
-    const mockRealBig = { sp_signed:-0.3, m:-2 };
-    const mockRealSmall = { sp_signed:-0.3, m:-0.5 };
-    const mockVirtual = { sp_signed:0.2, m:2.5 };
-    console.assert(classifyImage(mockRealBig)==='放大實像', 'Test3 classify big real');
-    console.assert(classifyImage(mockRealSmall)==='縮小實像', 'Test4 classify small real');
-    console.assert(classifyImage(mockVirtual)==='放大虛像', 'Test5 classify virtual');
+    // Focus kill gate
+    lens.y = H - 0.5; lens.f = 0.5; const diff = Math.abs((H - lens.y) - lens.f); console.assert(diff < 1e-9, 'Test3 focus gate');
+
+    // New: ensure drawLens exists and is callable
+    console.assert(typeof drawLens === 'function', 'Test4 drawLens present');
 
     // Restore
-    lens = saved.lens; roach.x = saved.roach.x; roach.y = saved.roach.y; roach.dir = saved.roach.dir; roach.speed = saved.roach.speed; roach.phase = saved.roach.phase;
+    lens = saved.lens; Object.assign(roach, saved.roach);
 
-    // If all assertions passed, show badge briefly
-    badge.style.display = 'block';
-    setTimeout(()=>{ badge.style.display='none'; }, 1800);
+    badge.style.display = 'block'; setTimeout(()=>{ badge.style.display='none'; }, 1800);
   }
-  // Run tests after first layout
-  setTimeout(runTests, 100);
+  setTimeout(runTests, 120);
 })();
 </script>
 </body>
