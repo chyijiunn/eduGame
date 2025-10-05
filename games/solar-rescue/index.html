@@ -3,15 +3,19 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>紅巨星救援計畫：Solar Rescue (v5 energy+slingshot)</title>
+<title>紅巨星救援計畫：Solar Rescue (v6 重力引擎+淡化航跡+能源耗盡結束)</title>
 <style>
-  html, body { margin:0; height:100%; background:#000; color:#fff; font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans TC","Helvetica Neue",Arial; -webkit-user-select:none; user-select:none; overscroll-behavior:none }
-  #ui{position:fixed;left:0;right:0;top:0;display:flex;gap:10px;padding:8px 12px;align-items:center;background:linear-gradient(180deg,rgba(0,0,0,.7),rgba(0,0,0,.25));backdrop-filter:blur(2px);z-index:3;font-size:14px}
+  html, body { margin:0; height:100%; background:#000; color:#fff;
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans TC","Helvetica Neue",Arial;
+    -webkit-user-select:none; user-select:none; overscroll-behavior:none }
+  #ui{position:fixed;left:0;right:0;top:0;display:flex;gap:10px;padding:8px 12px;align-items:center;
+      background:linear-gradient(180deg,rgba(0,0,0,.7),rgba(0,0,0,.25));backdrop-filter:blur(2px);z-index:3;font-size:14px}
   .pill{padding:4px 8px;border-radius:999px;background:rgba(255,255,255,.08)}
   #buttons{margin-left:auto;display:flex;gap:8px}
   button{background:rgba(255,255,255,.12);color:#fff;border:0;border-radius:8px;padding:6px 10px;font-size:14px}
   button:hover{background:rgba(255,255,255,.18);cursor:pointer}
-  #msg{position:fixed;left:50%;top:60px;transform:translateX(-50%);padding:8px 12px;border-radius:8px;background:rgba(0,0,0,.6);z-index:3;pointer-events:none;opacity:0;transition:opacity .2s ease;white-space:pre-line}
+  #msg{position:fixed;left:50%;top:60px;transform:translateX(-50%);padding:8px 12px;border-radius:8px;background:rgba(0,0,0,.6);
+       z-index:3;pointer-events:none;opacity:0;transition:opacity .2s ease;white-space:pre-line}
   #sunbar{position:fixed;left:0;right:0;bottom:0;height:8px;z-index:2;background:rgba(255,255,255,.08)}
   #sunfill{height:100%;width:0;background:linear-gradient(90deg,#ffcf33,#ff3b3b)}
   canvas{display:block;width:100vw;height:100vh;touch-action:none}
@@ -33,13 +37,15 @@
 <div id="msg"></div>
 <div id="sunbar"><div id="sunfill"></div></div>
 <canvas id="game"></canvas>
-<div id="hint">拉弓式發射：按下=發射點 → 往後拉=速度（方向取反）→ 放開=發射；可多重發射；每次-2能源，救援+10</div>
+<div id="hint">拉弓式發射：按下=發射點 → 往後拉=速度（方向取反）→ 放開=發射；可多重發射；每次-2能源，救援+10；能源=0即結束</div>
 
 <script>
+/* ====== Canvas & DPI：維持圓形 ====== */
 const canvas=document.getElementById('game'); const ctx=canvas.getContext('2d',{alpha:false});
 function resizeCanvas(){ const dpr=Math.max(1,window.devicePixelRatio||1); const vw=Math.max(document.documentElement.clientWidth,innerWidth||0); const vh=Math.max(document.documentElement.clientHeight,innerHeight||0); canvas.width=Math.round(vw*dpr); canvas.height=Math.round(vh*dpr); ctx.setTransform(1,0,0,1,0,0); ctx.scale(dpr,dpr) }
 addEventListener('resize',resizeCanvas); if(window.visualViewport) window.visualViewport.addEventListener('resize',resizeCanvas); addEventListener('orientationchange',()=>setTimeout(resizeCanvas,200)); resizeCanvas();
 
+/* ====== 遊戲資料 ====== */
 const PLANETS=[
 {name:"水星",g:3.7,r:90,color:"#7a8aa0",creatures:5},
 {name:"金星",g:8.87,r:120,color:"#d8b45b",creatures:6},
@@ -50,62 +56,102 @@ const PLANETS=[
 {name:"天王星",g:8.69,r:140,color:"#7fd0c4",creatures:8},
 {name:"海王星",g:11.15,r:145,color:"#355edb",creatures:8}
 ];
-const G_CONST=1000;
+/* 強化重力引擎：加大常數，距離平方反比；靠近時加速更明顯 */
+const G_CONST=4500; // v5=1000 -> v6=4500，讓曲線更明顯
+
+/* UI */
 const ui={lvl:document.getElementById('levelName'),left:document.getElementById('leftCount'),res:document.getElementById('rescued'),dead:document.getElementById('dead'),energy:document.getElementById('energy'),next:document.getElementById('nextBtn'),retry:document.getElementById('retryBtn'),sun:document.getElementById('sunfill'),msg:document.getElementById('msg')};
 function showMsg(t,ms=1200){ui.msg.textContent=t;ui.msg.style.opacity=1;clearTimeout(showMsg._t);showMsg._t=setTimeout(()=>ui.msg.style.opacity=0,ms)}
 
+/* 狀態 */
 let level=0,rescuedTotal=0,deadTotal=0,planet=null,creatures=[],ships=[],sunProgress=0;
-let dragging=false,anchor=null,pointer=null,activePointerId=null,creatureRing=100,energy=50;
+let dragging=false,anchor=null,pointer=null,activePointerId=null,creatureRing=100,energy=50,ended=false;
 
+/* 幾何 */
 function planetCenter(){ const dpr=window.devicePixelRatio||1; return {x:canvas.width/dpr*0.5,y:canvas.height/dpr*0.55} }
 
-function spawnCreatures(n){creatures=[];for(let i=0;i<n;i++){const ang=Math.random()*Math.PI*2;const speed=(Math.random()<0.5?-1:1)*(0.4+Math.random()*0.6);creatures.push({alive:true,angle:ang,speed})}}
+/* 生物：圓周上運動 */
+function spawnCreatures(n){creatures=[];for(let i=0;i<n;i++){const ang=Math.random()*Math.PI*2;const speed=(Math.random()<0.5?-1:1)*(0.35+Math.random()*0.55);creatures.push({alive:true,angle:ang,speed})}}
+
+/* 飛船 */
 function addShip(pos,release){
-  if(energy<2){showMsg('⚠️ 星艦能源不足（需要 2 點）');return}
-  const dx=release.x-pos.x, dy=release.y-pos.y; const s=0.35; // 10x
-  const vx=-dx*s, vy=-dy*s; // 拉弓反向
+  if(ended) return;
+  if(energy<2){showMsg('⚠️ 星艦能源不足（需要 2 點）'); return}
+  const dx=release.x-pos.x, dy=release.y-pos.y;
+  const s=0.35; // 10x 初速（拉弓反向）
+  const vx=-dx*s, vy=-dy*s;
   energy-=2; ui.energy.textContent=energy;
   ships.push({x:pos.x,y:pos.y,vx,vy,alive:true,carrying:false,t:0,trail:[],_orbitStable:false,_orbitTimer:0});
+  if(energy<=0){ endGame('🔋 能源耗盡，任務失敗'); }
 }
 
+/* 關卡流程 */
 function loadLevel(i){
   level=i; planet=structuredClone(PLANETS[i]);
   planet.drag=(planet.name==='金星')?0.0006:0.00015; if(['天王星','海王星'].includes(planet.name)) planet.drag*=.6;
   ui.lvl.textContent=`${i+1}/8 ${planet.name}`;
   creatureRing=planet.r*1.05; spawnCreatures(planet.creatures); ui.left.textContent=creatures.length;
   ui.next.disabled=true; ships=[]; sunProgress=i/PLANETS.length; ui.sun.style.width=`${Math.floor(100*sunProgress)}%`;
-  showMsg(`第 ${i+1} 關：${planet.name}`); loadLevel._rescuedAtStart=rescuedTotal;
+  showMsg(`第 ${i+1} 關：${planet.name}`); loadLevel._rescuedAtStart=rescuedTotal; ended=false;
 }
-function winLevel(){ui.next.disabled=false;showMsg('✅ 本關完成！')}
-function gameOver(){showMsg('❌ 生物全滅（重玩以繼續）',1600)}
+function winLevel(){ if(ended) return; ui.next.disabled=false; showMsg('✅ 本關完成！') }
+function gameOver(){ endGame('❌ 生物全滅，任務失敗') }
+function endGame(text){ ended=true; showMsg(text,1800); }
+
+/* 事件座標 */
 function getPoint(e){return e.touches&&e.touches.length?{x:e.touches[0].clientX,y:e.touches[0].clientY}:{x:e.clientX,y:e.clientY}}
 
-canvas.addEventListener('pointerdown',e=>{e.preventDefault();activePointerId=e.pointerId;canvas.setPointerCapture(activePointerId);dragging=true;anchor=getPoint(e);pointer=anchor});
-canvas.addEventListener('pointermove',e=>{if(!dragging||e.pointerId!==activePointerId)return;e.preventDefault();pointer=getPoint(e)});
-function endGesture(e){if(!dragging||e.pointerId!==activePointerId)return;e.preventDefault();const release=getPoint(e);addShip(anchor,release);dragging=false;activePointerId=null}
-canvas.addEventListener('pointerup',endGesture);canvas.addEventListener('pointercancel',endGesture);
+/* 手勢（拉弓式，滑鼠/觸控一致） */
+canvas.addEventListener('pointerdown',e=>{ if(ended) return; e.preventDefault(); activePointerId=e.pointerId; canvas.setPointerCapture(activePointerId); dragging=true; anchor=getPoint(e); pointer=anchor });
+canvas.addEventListener('pointermove',e=>{ if(!dragging||e.pointerId!==activePointerId) return; e.preventDefault(); pointer=getPoint(e) });
+function endGesture(e){ if(!dragging||e.pointerId!==activePointerId) return; e.preventDefault(); const release=getPoint(e); addShip(anchor,release); dragging=false; activePointerId=null }
+canvas.addEventListener('pointerup',endGesture); canvas.addEventListener('pointercancel',endGesture);
 
+/* 物理引擎 */
 function step(dt){
+  if(ended) return;
   const c=planetCenter();
-  for(const b of creatures){if(b.alive)b.angle+=b.speed*dt}
+  // 生物
+  for(const b of creatures){ if(b.alive) b.angle+=b.speed*dt }
+  // 飛船
   for(const ship of ships){
-    if(!ship.alive)continue;
-    ship.t+=dt; const rx=c.x-ship.x, ry=c.y-ship.y, r2=rx*rx+ry*ry, r=Math.sqrt(r2);
+    if(!ship.alive) continue;
+    ship.t+=dt;
+    const rx=c.x-ship.x, ry=c.y-ship.y, r2=rx*rx+ry*ry, r=Math.sqrt(r2);
+    // 撞星球
     if(r<planet.r*.95){
       const v=Math.hypot(ship.vx,ship.vy);
-      let kill=Math.min(creatures.filter(b=>b.alive).length,Math.max(1,Math.floor(v/120)+(planet.g>10?1:0)));
-      for(const b of creatures){if(kill>0&&b.alive){b.alive=false;kill--}}
-      deadTotal+=Math.max(1,Math.floor(v/120)+(planet.g>10?1:0)); ui.dead.textContent=deadTotal; ui.left.textContent=creatures.filter(b=>b.alive).length; showMsg('💥 墜毀！'); ship.alive=false; checkState(); continue;
+      let kill=Math.min(creatures.filter(b=>b.alive).length, Math.max(1,Math.floor(v/140)+(planet.g>10?1:0)));
+      for(const b of creatures){ if(kill>0 && b.alive){ b.alive=false; kill--; } }
+      deadTotal+=Math.max(1,Math.floor(v/140)+(planet.g>10?1:0)); ui.dead.textContent=deadTotal; ui.left.textContent=creatures.filter(b=>b.alive).length;
+      showMsg('💥 墜毀！'); ship.alive=false; checkState(); continue;
     }
-    const g=(G_CONST*planet.g)/(r2+2000), ax=g*(rx/r), ay=g*(ry/r);
-    ship.vx+=(ax-ship.vx*planet.drag)*dt; ship.vy+=(ay-ship.vy*planet.drag)*dt; ship.x+=ship.vx*dt; ship.y+=ship.vy*dt;
-    ship.trail.push({x:ship.x,y:ship.y}); if(ship.trail.length>180) ship.trail.shift();
-    const vmag=Math.hypot(ship.vx,ship.vy), dot=(ship.vx*rx+ship.vy*ry)/(vmag*r+1e-6), nearT=Math.abs(dot)<.17, nearR=r>planet.r*.98&&r<planet.r*1.6;
-    if(nearT&&nearR){ship._orbitTimer+=dt;if(ship._orbitTimer>1.0)ship._orbitStable=true}else{ship._orbitTimer=Math.max(0,ship._orbitTimer-dt*.8);if(ship._orbitTimer<.3)ship._orbitStable=false}
-    if(ship._orbitStable&&!ship.carrying){
+    // 重力加速度（平方反比）：a = K * gPlanet / (r^2) * r̂
+    const grav = (G_CONST * planet.g) / Math.max(r2, 1000); // 防爆
+    const ax = grav * (rx / (r||1)), ay = grav * (ry / (r||1));
+    // 簡單阻力
+    ship.vx += (ax - ship.vx*planet.drag) * dt;
+    ship.vy += (ay - ship.vy*planet.drag) * dt;
+    ship.x  += ship.vx * dt; ship.y += ship.vy * dt;
+    // 航跡（淡化效果：存位置與生命值 life）
+    ship.trail.push({x:ship.x,y:ship.y, life:1});
+    // 限制長度、並衰減生命值
+    for(let i=0;i<ship.trail.length;i++){ ship.trail[i].life -= dt*0.9 } // 1.1秒左右淡出
+    ship.trail = ship.trail.filter(p=>p.life>0);
+    if (ship.trail.length>220) ship.trail.shift();
+
+    // 繞行判定
+    const vmag=Math.hypot(ship.vx,ship.vy);
+    const dot=(ship.vx*rx+ship.vy*ry)/(vmag*r+1e-6);
+    const nearT=Math.abs(dot)<.2, nearR=r>planet.r*.98 && r<planet.r*1.8;
+    if(nearT&&nearR){ ship._orbitTimer+=dt; if(ship._orbitTimer>0.8) ship._orbitStable=true }
+    else { ship._orbitTimer=Math.max(0,ship._orbitTimer-dt*.8); if(ship._orbitTimer<.2) ship._orbitStable=false }
+
+    // 靠近圓周生物 → 救援 + 能源
+    if(ship._orbitStable && !ship.carrying){
       const cap=18;
       for(const b of creatures){
-        if(!b.alive)continue;
+        if(!b.alive) continue;
         const bx=c.x+Math.cos(b.angle)*creatureRing, by=c.y+Math.sin(b.angle)*creatureRing;
         if(Math.hypot(ship.x-bx,ship.y-by)<cap){
           b.alive=false; ship.carrying=true; rescuedTotal++; ui.res.textContent=rescuedTotal; ui.left.textContent=creatures.filter(x=>x.alive).length;
@@ -113,37 +159,100 @@ function step(dt){
         }
       }
     }
+    // 載到生物後，沿半徑外逃離畫面
     if(ship.carrying){
-      const nx=(ship.x-c.x)/(r+1e-6), ny=(ship.y-c.y)/(r+1e-6);
+      const nx=(ship.x-c.x)/(r||1), ny=(ship.y-c.y)/(r||1);
       ship.vx+=nx*8*planet.drag; ship.vy+=ny*8*planet.drag;
       const W=canvas.width/(window.devicePixelRatio||1), H=canvas.height/(window.devicePixelRatio||1);
-      if(ship.x<-80||ship.x>W+80||ship.y<-80||ship.y>H+80){ship.alive=false;checkState()}
+      if(ship.x<-80||ship.x>W+80||ship.y<-80||ship.y>H+80){ ship.alive=false; checkState(); }
     }else{
+      // 未救援飛太遠就回收
       const W=canvas.width/(window.devicePixelRatio||1), H=canvas.height/(window.devicePixelRatio||1);
-      if(ship.x<-200||ship.x>W+200||ship.y<-200||ship.y>H+200){ship.alive=false}
+      if(ship.x<-240||ship.x>W+240||ship.y<-240||ship.y>H+240){ ship.alive=false; }
     }
   }
   ships=ships.filter(s=>s.alive);
 }
-function checkState(){const alive=creatures.filter(b=>b.alive).length;if(alive===0){if(rescuedTotal-(loadLevel._rescuedAtStart??0)>0)winLevel();else gameOver()}}
-function hexRgb(hex){const n=parseInt(hex.replace('#',''),16);return{r:(n>>16)&255,g:(n>>8)&255,b:n&255}} function lighten(hex,k){const{r,g,b}=hexRgb(hex);const L=c=>Math.min(255,Math.round(c+(255-c)*k));return`rgb(${L(r)},${L(g)},${L(b)})`} function shade(hex,k){const{r,g,b}=hexRgb(hex);const S=c=>Math.max(0,Math.round(c*(1-k)));return`rgb(${S(r)},${S(g)},${S(b)})`}
+function checkState(){
+  const alive=creatures.filter(b=>b.alive).length;
+  if(alive===0){ if(rescuedTotal-(loadLevel._rescuedAtStart??0)>0){ winLevel() } else { gameOver() } }
+}
+
+/* 色彩工具 */
+function hexRgb(hex){ const n=parseInt(hex.replace('#',''),16); return {r:(n>>16)&255,g:(n>>8)&255,b:n&255} }
+function lighten(hex,k){ const {r,g,b}=hexRgb(hex); const L=c=>Math.min(255,Math.round(c+(255-c)*k)); return `rgb(${L(r)},${L(g)},${L(b)})` }
+function shade(hex,k){ const {r,g,b}=hexRgb(hex); const S=c=>Math.max(0,Math.round(c*(1-k))); return `rgb(${S(r)},${S(g)},${S(b)})` }
+
+/* 繪製 */
 function draw(){
   const dpr=window.devicePixelRatio||1, W=canvas.width/dpr, H=canvas.height/dpr, c=planetCenter();
-  const grd=ctx.createRadialGradient(W*.15,H*.2,30,W*.15,H*.2,Math.max(W,H)*.9); const sunColor=`rgba(${200+Math.floor(55*sunProgress)},${150-Math.floor(90*sunProgress)},40,.5)`; grd.addColorStop(0,sunColor); grd.addColorStop(1,'#000'); ctx.fillStyle=grd; ctx.fillRect(0,0,W,H);
-  if(!planet)return;
-  const pgr=ctx.createRadialGradient(c.x-planet.r*.4,c.y-planet.r*.4,planet.r*.2,c.x,c.y,planet.r*1.2); pgr.addColorStop(0,lighten(planet.color,.25)); pgr.addColorStop(.7,planet.color); pgr.addColorStop(1,shade(planet.color,.65)); ctx.fillStyle=pgr; ctx.beginPath(); ctx.arc(c.x,c.y,planet.r,0,Math.PI*2); ctx.fill();
-  if(planet.ring){ctx.save();ctx.translate(c.x,c.y);ctx.rotate(-.35);ctx.strokeStyle="rgba(230,210,160,.65)";ctx.lineWidth=12;ctx.beginPath();ctx.ellipse(0,0,planet.r*1.55,planet.r*.75,0,0,Math.PI*2);ctx.stroke();ctx.lineWidth=4;ctx.strokeStyle="rgba(230,210,160,.3)";ctx.beginPath();ctx.ellipse(0,0,planet.r*1.35,planet.r*.66,0,0,Math.PI*2);ctx.stroke();ctx.restore()}
-  for(const b of creatures){if(!b.alive)continue;const bx=c.x+Math.cos(b.angle)*creatureRing,by=c.y+Math.sin(b.angle)*creatureRing;drawCreature(bx,by,10)}
-  for(const ship of ships){if(!ship.alive||ship.trail.length<2)continue;ctx.strokeStyle=ship._orbitStable?"rgba(100,255,180,.9)":"rgba(255,255,255,.6)";ctx.lineWidth=2;ctx.beginPath();for(let i=0;i<ship.trail.length;i++){const p=ship.trail[i];if(i===0)ctx.moveTo(p.x,p.y);else ctx.lineTo(p.x,p.y)}ctx.stroke()}
-  for(const ship of ships){if(ship.alive)drawShip(ship.x,ship.y,ship.vx,ship.vy,ship.carrying)}
-  if(dragging&&anchor&&pointer){ctx.save();ctx.setLineDash([8,6]);ctx.strokeStyle="rgba(255,255,255,.9)";ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(anchor.x,anchor.y);ctx.lineTo(pointer.x,pointer.y);ctx.stroke();ctx.setLineDash([]);ctx.fillStyle="rgba(255,255,255,.15)";ctx.beginPath();ctx.arc(anchor.x,anchor.y,6,0,Math.PI*2);ctx.fill();ctx.restore()}
-  ctx.strokeStyle="rgba(255,255,255,.08)";ctx.lineWidth=1;ctx.beginPath();ctx.arc(c.x,c.y,planet.r*1.2,0,Math.PI*2);ctx.stroke();
-}
-function drawCreature(x,y,s){ctx.save();ctx.translate(x,y);ctx.fillStyle="#000";ctx.shadowColor="rgba(0,0,0,.25)";ctx.shadowBlur=6;ctx.beginPath();ctx.moveTo(0,-s*.9);ctx.quadraticCurveTo(s*.9,-s*.1,0,s);ctx.quadraticCurveTo(-s*.9,-s*.1,0,-s*.9);ctx.fill();ctx.strokeStyle="#000";ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(-s*.2,-s*.7);ctx.quadraticCurveTo(-s*.6,-s*1.1,-s*.4,-s*1.2);ctx.moveTo(s*.2,-s*.7);ctx.quadraticCurveTo(s*.6,-s*1.1,s*.4,-s*1.2);ctx.stroke();ctx.restore()}
-function drawShip(x,y,vx,vy,carrying){const ang=Math.atan2(vy,vx);ctx.save();ctx.translate(x,y);ctx.rotate(ang);ctx.fillStyle=carrying?"#7bffc9":"#fff";ctx.beginPath();ctx.moveTo(14,0);ctx.lineTo(-10,-6);ctx.lineTo(-6,0);ctx.lineTo(-10,6);ctx.closePath();ctx.fill();ctx.fillStyle=carrying?"rgba(100,255,200,.8)":"rgba(255,160,80,.9)";ctx.beginPath();ctx.moveTo(-10,0);ctx.lineTo(-18,-3);ctx.lineTo(-16,0);ctx.lineTo(-18,3);ctx.closePath();ctx.fill();ctx.restore()}
+  // 背景
+  const grd=ctx.createRadialGradient(W*.15,H*.2,30,W*.15,H*.2,Math.max(W,H)*.9);
+  grd.addColorStop(0,`rgba(${200+Math.floor(55*(level/8))},${150-Math.floor(90*(level/8))},40,.5)`);
+  grd.addColorStop(1,'#000'); ctx.fillStyle=grd; ctx.fillRect(0,0,W,H);
 
-let last=performance.now(); function loop(now){const dt=Math.min(.033,(now-last)/1000);last=now;step(dt);draw();requestAnimationFrame(loop)}
-ui.retry.onclick=()=>{loadLevel(level);loadLevel._rescuedAtStart=rescuedTotal}; ui.next.onclick=()=>{if(level<PLANETS.length-1){loadLevel(level+1);loadLevel._rescuedAtStart=rescuedTotal}else{showMsg('🎉 全部關卡完成！')}};
+  if(!planet) return;
+  // 行星（正圓）
+  const pgr=ctx.createRadialGradient(c.x-planet.r*.4,c.y-planet.r*.4,planet.r*.2,c.x,c.y,planet.r*1.2);
+  pgr.addColorStop(0,lighten(planet.color,.25)); pgr.addColorStop(.7,planet.color); pgr.addColorStop(1,shade(planet.color,.65));
+  ctx.fillStyle=pgr; ctx.beginPath(); ctx.arc(c.x,c.y,planet.r,0,Math.PI*2); ctx.fill();
+  if(planet.ring){ ctx.save(); ctx.translate(c.x,c.y); ctx.rotate(-.35);
+    ctx.strokeStyle="rgba(230,210,160,.65)"; ctx.lineWidth=12; ctx.beginPath(); ctx.ellipse(0,0,planet.r*1.55,planet.r*.75,0,0,Math.PI*2); ctx.stroke();
+    ctx.lineWidth=4; ctx.strokeStyle="rgba(230,210,160,.3)"; ctx.beginPath(); ctx.ellipse(0,0,planet.r*1.35,planet.r*.66,0,0,Math.PI*2); ctx.stroke(); ctx.restore(); }
+
+  // 生物（圓周剪影）
+  for(const b of creatures){ if(!b.alive) continue;
+    const bx=c.x+Math.cos(b.angle)*creatureRing, by=c.y+Math.sin(b.angle)*creatureRing; drawCreature(bx,by,10) }
+
+  // 航跡（淡化）：由老到新描繪，透明度遞增
+  for(const ship of ships){
+    if(!ship.alive || ship.trail.length<2) continue;
+    const n=ship.trail.length;
+    for(let i=1;i<n;i++){
+      const p0=ship.trail[i-1], p1=ship.trail[i];
+      const alpha=Math.max(0, Math.min(1, p1.life)); // 依 life 做透明
+      ctx.strokeStyle = ship._orbitStable ? `rgba(100,255,180,${alpha})` : `rgba(255,255,255,${alpha*.9})`;
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(p0.x,p0.y); ctx.lineTo(p1.x,p1.y); ctx.stroke();
+    }
+  }
+
+  // 飛船
+  for(const ship of ships){ if(ship.alive) drawShip(ship.x,ship.y,ship.vx,ship.vy,ship.carrying) }
+
+  // 拖曳預覽（虛線、拉弓反向箭頭）
+  if(dragging && anchor && pointer){
+    ctx.save(); ctx.setLineDash([8,6]); ctx.strokeStyle="rgba(255,255,255,.9)"; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.moveTo(anchor.x,anchor.y); ctx.lineTo(pointer.x,pointer.y); ctx.stroke();
+    ctx.setLineDash([]);
+    const dx=pointer.x-anchor.x, dy=pointer.y-anchor.y;
+    // 反向箭頭
+    const ax=anchor.x - dx*0.18, ay=anchor.y - dy*0.18;
+    ctx.beginPath(); ctx.moveTo(ax,ay); ctx.lineTo(ax - dx*0.12, ay - dy*0.12); ctx.strokeStyle="rgba(160,220,255,.9)"; ctx.stroke();
+    ctx.fillStyle="rgba(255,255,255,.15)"; ctx.beginPath(); ctx.arc(anchor.x,anchor.y,6,0,Math.PI*2); ctx.fill(); ctx.restore();
+  }
+
+  // 輔助：建議軌道帶
+  ctx.strokeStyle="rgba(255,255,255,.08)"; ctx.lineWidth=1; ctx.beginPath(); ctx.arc(c.x,c.y,planet.r*1.2,0,Math.PI*2); ctx.stroke();
+}
+
+function drawCreature(x,y,s){ ctx.save(); ctx.translate(x,y); ctx.fillStyle="#000"; ctx.shadowColor="rgba(0,0,0,.25)"; ctx.shadowBlur=6;
+  ctx.beginPath(); ctx.moveTo(0,-s*.9); ctx.quadraticCurveTo(s*.9,-s*.1,0,s); ctx.quadraticCurveTo(-s*.9,-s*.1,0,-s*.9); ctx.fill();
+  ctx.strokeStyle="#000"; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(-s*.2,-s*.7); ctx.quadraticCurveTo(-s*.6,-s*1.1,-s*.4,-s*1.2);
+  ctx.moveTo(s*.2,-s*.7); ctx.quadraticCurveTo(s*.6,-s*1.1,s*.4,-s*1.2); ctx.stroke(); ctx.restore(); }
+function drawShip(x,y,vx,vy,carrying){ const ang=Math.atan2(vy,vx); ctx.save(); ctx.translate(x,y); ctx.rotate(ang);
+  ctx.fillStyle=carrying?"#7bffc9":"#fff"; ctx.beginPath(); ctx.moveTo(14,0); ctx.lineTo(-10,-6); ctx.lineTo(-6,0); ctx.lineTo(-10,6); ctx.closePath(); ctx.fill();
+  ctx.fillStyle=carrying?"rgba(100,255,200,.8)":"rgba(255,160,80,.9)"; ctx.beginPath(); ctx.moveTo(-10,0); ctx.lineTo(-18,-3); ctx.lineTo(-16,0); ctx.lineTo(-18,3); ctx.closePath(); ctx.fill(); ctx.restore(); }
+
+/* 主迴圈（限制 dt，避免高帧差導致物理爆炸） */
+let last=performance.now();
+function loop(now){ const dt=Math.min(.033,(now-last)/1000); last=now; step(dt); draw(); requestAnimationFrame(loop) }
+
+/* 控制按鈕 */
+ui.retry.onclick=()=>{ energy=50; ui.energy.textContent=energy; loadLevel(level); loadLevel._rescuedAtStart=rescuedTotal };
+ui.next.onclick=()=>{ if(level<PLANETS.length-1){ loadLevel(level+1); loadLevel._rescuedAtStart=rescuedTotal } else { showMsg('🎉 全部關卡完成！') } };
+
+/* 啟動 */
 loadLevel(0); requestAnimationFrame(loop);
 </script>
 </body>
