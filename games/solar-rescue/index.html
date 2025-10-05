@@ -3,159 +3,113 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>紅巨星救援計畫：Solar Rescue (Multi-shot v4)</title>
+<title>紅巨星救援計畫：Solar Rescue (v5 energy+slingshot)</title>
 <style>
-  html, body {
-    margin: 0; height: 100%; background: #000; color: #fff;
-    font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans TC", "Helvetica Neue", Arial;
-    -webkit-user-select: none; user-select: none;
-    overscroll-beavior: none;
-  }
-  #ui { position: fixed; left: 0; right: 0; top: 0; display: flex; gap: 10px; padding: 8px 12px; align-items: center;
-        background: linear-gradient(180deg, rgba(0,0,0,.7), rgba(0,0,0,.25)); backdrop-filter: blur(2px); z-index: 3; font-size: 14px }
-  .pill { padding: 4px 8px; border-radius: 999px; background: rgba(255,255,255,.08); }
-  #buttons { margin-left: auto; display: flex; gap: 8px }
-  button { background: rgba(255,255,255,.12); color:#fff; border:0; border-radius: 8px; padding: 6px 10px; font-size: 14px }
-  button:hover { background: rgba(255,255,255,.18); cursor: pointer }
-  #msg { position: fixed; left: 50%; top: 60px; transform: translateX(-50%); padding: 8px 12px; border-radius: 8px; background: rgba(0,0,0,.6);
-         z-index: 3; pointer-events: none; opacity: 0; transition: opacity .2s ease; white-space: pre-line }
-  #sunbar { position: fixed; left: 0; right: 0; bottom: 0; height: 8px; z-index: 2; background: rgba(255,255,255,.08) }
-  #sunfill { height: 100%; width: 0; background: linear-gradient(90deg,#ffcf33,#ff3b3b) }
-  canvas { display: block; width: 100vw; height: 100vh; touch-action: none }
-  #hint { position: fixed; right: 12px; bottom: 16px; z-index: 3; background: rgba(0,0,0,.45); padding: 6px 10px; border-radius: 8px; font-size: 12px; opacity: .9 }
+  html, body { margin:0; height:100%; background:#000; color:#fff; font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans TC","Helvetica Neue",Arial; -webkit-user-select:none; user-select:none; overscroll-behavior:none }
+  #ui{position:fixed;left:0;right:0;top:0;display:flex;gap:10px;padding:8px 12px;align-items:center;background:linear-gradient(180deg,rgba(0,0,0,.7),rgba(0,0,0,.25));backdrop-filter:blur(2px);z-index:3;font-size:14px}
+  .pill{padding:4px 8px;border-radius:999px;background:rgba(255,255,255,.08)}
+  #buttons{margin-left:auto;display:flex;gap:8px}
+  button{background:rgba(255,255,255,.12);color:#fff;border:0;border-radius:8px;padding:6px 10px;font-size:14px}
+  button:hover{background:rgba(255,255,255,.18);cursor:pointer}
+  #msg{position:fixed;left:50%;top:60px;transform:translateX(-50%);padding:8px 12px;border-radius:8px;background:rgba(0,0,0,.6);z-index:3;pointer-events:none;opacity:0;transition:opacity .2s ease;white-space:pre-line}
+  #sunbar{position:fixed;left:0;right:0;bottom:0;height:8px;z-index:2;background:rgba(255,255,255,.08)}
+  #sunfill{height:100%;width:0;background:linear-gradient(90deg,#ffcf33,#ff3b3b)}
+  canvas{display:block;width:100vw;height:100vh;touch-action:none}
+  #hint{position:fixed;right:12px;bottom:16px;z-index:3;background:rgba(0,0,0,.45);padding:6px 10px;border-radius:8px;font-size:12px;opacity:.9}
 </style>
 </head>
 <body>
-  <div id="ui">
-    <div class="pill">關卡：<span id="levelName">—</span></div>
-    <div class="pill">剩餘生物：<span id="leftCount">—</span></div>
-    <div class="pill">已救援 🧍：<span id="rescued">0</span></div>
-    <div class="pill">死亡 💀：<span id="dead">0</span></div>
-    <div id="buttons">
-      <button id="retryBtn">重玩關卡</button>
-      <button id="nextBtn" disabled>下一關 ▶</button>
-    </div>
+<div id="ui">
+  <div class="pill">關卡：<span id="levelName">—</span></div>
+  <div class="pill">剩餘生物：<span id="leftCount">—</span></div>
+  <div class="pill">已救援 🧍：<span id="rescued">0</span></div>
+  <div class="pill">死亡 💀：<span id="dead">0</span></div>
+  <div class="pill">星艦能源 🔋：<span id="energy">50</span></div>
+  <div id="buttons">
+    <button id="retryBtn">重玩關卡</button>
+    <button id="nextBtn" disabled>下一關 ▶</button>
   </div>
-  <div id="msg"></div>
-  <div id="sunbar"><div id="sunfill"></div></div>
-  <canvas id="game"></canvas>
-  <div id="hint">滑鼠/手指：按下=發射點 → 往後拉=速度 → 放開=發射（可多重發射）</div>
+</div>
+<div id="msg"></div>
+<div id="sunbar"><div id="sunfill"></div></div>
+<canvas id="game"></canvas>
+<div id="hint">拉弓式發射：按下=發射點 → 往後拉=速度（方向取反）→ 放開=發射；可多重發射；每次-2能源，救援+10</div>
 
 <script>
-const canvas = document.getElementById('game');
-const ctx = canvas.getContext('2d', { alpha: false });
-function resizeCanvas(){
-  const dpr = Math.max(1, window.devicePixelRatio || 1);
-  const vw = Math.max(document.documentElement.clientWidth, window.innerWidth || 0);
-  const vh = Math.max(document.documentElement.clientHeight, window.innerHeight || 0);
-  canvas.width  = Math.round(vw * dpr);
-  canvas.height = Math.round(vh * dpr);
-  ctx.setTransform(1,0,0,1,0,0);
-  ctx.scale(dpr, dpr);
-}
-window.addEventListener('resize', resizeCanvas);
-if (window.visualViewport) window.visualViewport.addEventListener('resize', resizeCanvas);
-window.addEventListener('orientationchange', ()=> setTimeout(resizeCanvas, 200));
-resizeCanvas();
+const canvas=document.getElementById('game'); const ctx=canvas.getContext('2d',{alpha:false});
+function resizeCanvas(){ const dpr=Math.max(1,window.devicePixelRatio||1); const vw=Math.max(document.documentElement.clientWidth,innerWidth||0); const vh=Math.max(document.documentElement.clientHeight,innerHeight||0); canvas.width=Math.round(vw*dpr); canvas.height=Math.round(vh*dpr); ctx.setTransform(1,0,0,1,0,0); ctx.scale(dpr,dpr) }
+addEventListener('resize',resizeCanvas); if(window.visualViewport) window.visualViewport.addEventListener('resize',resizeCanvas); addEventListener('orientationchange',()=>setTimeout(resizeCanvas,200)); resizeCanvas();
 
-const PLANETS = [
-  {name:"水星", g:3.7,  r:90,  color:"#7a8aa0", creatures:5},
-  {name:"金星", g:8.87, r:120, color:"#d8b45b", creatures:6},
-  {name:"地球", g:9.81, r:130, color:"#5fb9e5", creatures:7},
-  {name:"火星", g:3.71, r:110, color:"#b3533a", creatures:7},
-  {name:"木星", g:24.79,r:180, color:"#d89a6a", creatures:10},
-  {name:"土星", g:10.44,r:165, color:"#cdbb89", creatures:9, ring:true},
-  {name:"天王星",g:8.69, r:140, color:"#7fd0c4", creatures:8},
-  {name:"海王星",g:11.15,r:145, color:"#355edb", creatures:8}
+const PLANETS=[
+{name:"水星",g:3.7,r:90,color:"#7a8aa0",creatures:5},
+{name:"金星",g:8.87,r:120,color:"#d8b45b",creatures:6},
+{name:"地球",g:9.81,r:130,color:"#5fb9e5",creatures:7},
+{name:"火星",g:3.71,r:110,color:"#b3533a",creatures:7},
+{name:"木星",g:24.79,r:180,color:"#d89a6a",creatures:10},
+{name:"土星",g:10.44,r:165,color:"#cdbb89",creatures:9,ring:true},
+{name:"天王星",g:8.69,r:140,color:"#7fd0c4",creatures:8},
+{name:"海王星",g:11.15,r:145,color:"#355edb",creatures:8}
 ];
-const G_CONST = 1000;
+const G_CONST=1000;
+const ui={lvl:document.getElementById('levelName'),left:document.getElementById('leftCount'),res:document.getElementById('rescued'),dead:document.getElementById('dead'),energy:document.getElementById('energy'),next:document.getElementById('nextBtn'),retry:document.getElementById('retryBtn'),sun:document.getElementById('sunfill'),msg:document.getElementById('msg')};
+function showMsg(t,ms=1200){ui.msg.textContent=t;ui.msg.style.opacity=1;clearTimeout(showMsg._t);showMsg._t=setTimeout(()=>ui.msg.style.opacity=0,ms)}
 
-const ui = {
-  lvl: document.getElementById('levelName'),
-  left: document.getElementById('leftCount'),
-  res: document.getElementById('rescued'),
-  dead: document.getElementById('dead'),
-  next: document.getElementById('nextBtn'),
-  retry: document.getElementById('retryBtn'),
-  sun: document.getElementById('sunfill'),
-  msg: document.getElementById('msg')
-};
-function showMsg(t,ms=1200){ ui.msg.textContent=t; ui.msg.style.opacity=1; clearTimeout(showMsg._t); showMsg._t=setTimeout(()=>ui.msg.style.opacity=0,ms); }
+let level=0,rescuedTotal=0,deadTotal=0,planet=null,creatures=[],ships=[],sunProgress=0;
+let dragging=false,anchor=null,pointer=null,activePointerId=null,creatureRing=100,energy=50;
 
-let level=0, rescuedTotal=0, deadTotal=0, planet=null;
-let creatures=[], ships=[], sunProgress=0;
-let dragging=false, anchor=null, pointer=null, activePointerId=null;
-let creatureRing=100;
+function planetCenter(){ const dpr=window.devicePixelRatio||1; return {x:canvas.width/dpr*0.5,y:canvas.height/dpr*0.55} }
 
-function planetCenter(){ return { x: canvas.width / (window.devicePixelRatio||1) * 0.5, y: canvas.height /(window.devicePixelRatio||1) * 0.55 }; }
-
-function spawnCreatures(n){
-  creatures=[];
-  for(let i=0;i<n;i++){
-    const ang=Math.random()*Math.PI*2;
-    const speed=(Math.random()<0.5?-1:1)*(0.4+Math.random()*0.6);
-    creatures.push({alive:true,angle:ang,speed});
-  }
+function spawnCreatures(n){creatures=[];for(let i=0;i<n;i++){const ang=Math.random()*Math.PI*2;const speed=(Math.random()<0.5?-1:1)*(0.4+Math.random()*0.6);creatures.push({alive:true,angle:ang,speed})}}
+function addShip(pos,release){
+  if(energy<2){showMsg('⚠️ 星艦能源不足（需要 2 點）');return}
+  const dx=release.x-pos.x, dy=release.y-pos.y; const s=0.35; // 10x
+  const vx=-dx*s, vy=-dy*s; // 拉弓反向
+  energy-=2; ui.energy.textContent=energy;
+  ships.push({x:pos.x,y:pos.y,vx,vy,alive:true,carrying:false,t:0,trail:[],_orbitStable:false,_orbitTimer:0});
 }
-function addShip(pos, release){
-  const dx=release.x-pos.x, dy=release.y-pos.y;
-  const s=0.035;
-  ships.push({x:pos.x,y:pos.y,vx:dx*s,vy:dy*s,alive:true,carrying:false,t:0,trail:[],_orbitStable:false,_orbitTimer:0});
-}
+
 function loadLevel(i){
   level=i; planet=structuredClone(PLANETS[i]);
   planet.drag=(planet.name==='金星')?0.0006:0.00015; if(['天王星','海王星'].includes(planet.name)) planet.drag*=.6;
   ui.lvl.textContent=`${i+1}/8 ${planet.name}`;
-  creatureRing=planet.r*1.05; spawnCreatures(planet.creatures);
-  ui.left.textContent=creatures.length; ui.next.disabled=true;
-  ships=[]; sunProgress=i/PLANETS.length; ui.sun.style.width=`${Math.floor(100*sunProgress)}%`;
+  creatureRing=planet.r*1.05; spawnCreatures(planet.creatures); ui.left.textContent=creatures.length;
+  ui.next.disabled=true; ships=[]; sunProgress=i/PLANETS.length; ui.sun.style.width=`${Math.floor(100*sunProgress)}%`;
   showMsg(`第 ${i+1} 關：${planet.name}`); loadLevel._rescuedAtStart=rescuedTotal;
 }
-function winLevel(){ ui.next.disabled=false; showMsg('✅ 本關完成！') }
-function gameOver(){ showMsg('❌ 生物全滅（重玩以繼續）',1600) }
-function getPoint(e){ return e.touches && e.touches.length ? {x:e.touches[0].clientX, y:e.touches[0].clientY} : {x:e.clientX, y:e.clientY}; }
+function winLevel(){ui.next.disabled=false;showMsg('✅ 本關完成！')}
+function gameOver(){showMsg('❌ 生物全滅（重玩以繼續）',1600)}
+function getPoint(e){return e.touches&&e.touches.length?{x:e.touches[0].clientX,y:e.touches[0].clientY}:{x:e.clientX,y:e.clientY}}
 
-canvas.addEventListener('pointerdown', e=>{
-  e.preventDefault(); activePointerId=e.pointerId; canvas.setPointerCapture(activePointerId);
-  dragging=true; anchor=getPoint(e); pointer=anchor;
-});
-canvas.addEventListener('pointermove', e=>{
-  if(!dragging || e.pointerId!==activePointerId) return; e.preventDefault(); pointer=getPoint(e);
-});
-function endGesture(e){
-  if(!dragging || e.pointerId!==activePointerId) return; e.preventDefault();
-  const release=getPoint(e); addShip(anchor, release); dragging=false; activePointerId=null;
-}
-canvas.addEventListener('pointerup', endGesture);
-canvas.addEventListener('pointercancel', endGesture);
+canvas.addEventListener('pointerdown',e=>{e.preventDefault();activePointerId=e.pointerId;canvas.setPointerCapture(activePointerId);dragging=true;anchor=getPoint(e);pointer=anchor});
+canvas.addEventListener('pointermove',e=>{if(!dragging||e.pointerId!==activePointerId)return;e.preventDefault();pointer=getPoint(e)});
+function endGesture(e){if(!dragging||e.pointerId!==activePointerId)return;e.preventDefault();const release=getPoint(e);addShip(anchor,release);dragging=false;activePointerId=null}
+canvas.addEventListener('pointerup',endGesture);canvas.addEventListener('pointercancel',endGesture);
 
 function step(dt){
   const c=planetCenter();
-  for(const b of creatures){ if(b.alive) b.angle+=b.speed*dt; }
+  for(const b of creatures){if(b.alive)b.angle+=b.speed*dt}
   for(const ship of ships){
-    if(!ship.alive) continue;
-    ship.t+=dt;
-    const rx=c.x-ship.x, ry=c.y-ship.y, r2=rx*rx+ry*ry, r=Math.sqrt(r2);
+    if(!ship.alive)continue;
+    ship.t+=dt; const rx=c.x-ship.x, ry=c.y-ship.y, r2=rx*rx+ry*ry, r=Math.sqrt(r2);
     if(r<planet.r*.95){
       const v=Math.hypot(ship.vx,ship.vy);
-      let kill=Math.min(creatures.filter(b=>b.alive).length, Math.max(1,Math.floor(v/120)+(planet.g>10?1:0)));
-      for(const b of creatures){ if(kill>0&&b.alive){b.alive=false; kill--; } }
-      deadTotal+=Math.max(1,Math.floor(v/120)+(planet.g>10?1:0));
-      ui.dead.textContent=deadTotal; ui.left.textContent=creatures.filter(b=>b.alive).length; ship.alive=false; continue;
+      let kill=Math.min(creatures.filter(b=>b.alive).length,Math.max(1,Math.floor(v/120)+(planet.g>10?1:0)));
+      for(const b of creatures){if(kill>0&&b.alive){b.alive=false;kill--}}
+      deadTotal+=Math.max(1,Math.floor(v/120)+(planet.g>10?1:0)); ui.dead.textContent=deadTotal; ui.left.textContent=creatures.filter(b=>b.alive).length; showMsg('💥 墜毀！'); ship.alive=false; checkState(); continue;
     }
     const g=(G_CONST*planet.g)/(r2+2000), ax=g*(rx/r), ay=g*(ry/r);
-    ship.vx+=(ax-ship.vx*planet.drag)*dt; ship.vy+=(ay-ship.vy*planet.drag)*dt;
-    ship.x+=ship.vx*dt; ship.y+=ship.vy*dt;
+    ship.vx+=(ax-ship.vx*planet.drag)*dt; ship.vy+=(ay-ship.vy*planet.drag)*dt; ship.x+=ship.vx*dt; ship.y+=ship.vy*dt;
     ship.trail.push({x:ship.x,y:ship.y}); if(ship.trail.length>180) ship.trail.shift();
     const vmag=Math.hypot(ship.vx,ship.vy), dot=(ship.vx*rx+ship.vy*ry)/(vmag*r+1e-6), nearT=Math.abs(dot)<.17, nearR=r>planet.r*.98&&r<planet.r*1.6;
-    if(nearT&&nearR){ ship._orbitTimer+=dt; if(ship._orbitTimer>1.0) ship._orbitStable=true } else { ship._orbitTimer=Math.max(0,ship._orbitTimer-dt*.8); if(ship._orbitTimer<.3) ship._orbitStable=false }
-    if(ship._orbitStable && !ship.carrying){
+    if(nearT&&nearR){ship._orbitTimer+=dt;if(ship._orbitTimer>1.0)ship._orbitStable=true}else{ship._orbitTimer=Math.max(0,ship._orbitTimer-dt*.8);if(ship._orbitTimer<.3)ship._orbitStable=false}
+    if(ship._orbitStable&&!ship.carrying){
       const cap=18;
       for(const b of creatures){
-        if(!b.alive) continue;
+        if(!b.alive)continue;
         const bx=c.x+Math.cos(b.angle)*creatureRing, by=c.y+Math.sin(b.angle)*creatureRing;
         if(Math.hypot(ship.x-bx,ship.y-by)<cap){
-          b.alive=false; ship.carrying=true; rescuedTotal++; ui.res.textContent=rescuedTotal; ui.left.textContent=creatures.filter(x=>x.alive).length; break;
+          b.alive=false; ship.carrying=true; rescuedTotal++; ui.res.textContent=rescuedTotal; ui.left.textContent=creatures.filter(x=>x.alive).length;
+          energy+=10; ui.energy.textContent=energy; showMsg('🧍 救援成功！+10 能源'); break;
         }
       }
     }
@@ -163,86 +117,33 @@ function step(dt){
       const nx=(ship.x-c.x)/(r+1e-6), ny=(ship.y-c.y)/(r+1e-6);
       ship.vx+=nx*8*planet.drag; ship.vy+=ny*8*planet.drag;
       const W=canvas.width/(window.devicePixelRatio||1), H=canvas.height/(window.devicePixelRatio||1);
-      if(ship.x<-80||ship.x>W+80||ship.y<-80||ship.y>H+80){ ship.alive=false; }
+      if(ship.x<-80||ship.x>W+80||ship.y<-80||ship.y>H+80){ship.alive=false;checkState()}
     }else{
       const W=canvas.width/(window.devicePixelRatio||1), H=canvas.height/(window.devicePixelRatio||1);
-      if(ship.x<-200||ship.x>W+200||ship.y<-200||ship.y>H+200){ ship.alive=false; }
+      if(ship.x<-200||ship.x>W+200||ship.y<-200||ship.y>H+200){ship.alive=false}
     }
   }
   ships=ships.filter(s=>s.alive);
-  checkState();
 }
-
-function checkState(){
-  const alive=creatures.filter(b=>b.alive).length;
-  if(alive===0){ if(rescuedTotal-(loadLevel._rescuedAtStart??0)>0){ ui.next.disabled=false; } else { /* Game Over: 留給玩家自行重玩 */ } }
-}
-
-function hexRgb(hex){ const n=parseInt(hex.replace('#',''),16); return {r:(n>>16)&255, g:(n>>8)&255, b:n&255}; }
-function lighten(hex,k){ const {r,g,b}=hexRgb(hex); const L=c=>Math.min(255,Math.round(c+(255-c)*k)); return `rgb(${L(r)},${L(g)},${L(b)})`; }
-function shade(hex,k){ const {r,g,b}=hexRgb(hex); const S=c=>Math.max(0,Math.round(c*(1-k))); return `rgb(${S(r)},${S(g)},${S(b)})`; }
-
+function checkState(){const alive=creatures.filter(b=>b.alive).length;if(alive===0){if(rescuedTotal-(loadLevel._rescuedAtStart??0)>0)winLevel();else gameOver()}}
+function hexRgb(hex){const n=parseInt(hex.replace('#',''),16);return{r:(n>>16)&255,g:(n>>8)&255,b:n&255}} function lighten(hex,k){const{r,g,b}=hexRgb(hex);const L=c=>Math.min(255,Math.round(c+(255-c)*k));return`rgb(${L(r)},${L(g)},${L(b)})`} function shade(hex,k){const{r,g,b}=hexRgb(hex);const S=c=>Math.max(0,Math.round(c*(1-k)));return`rgb(${S(r)},${S(g)},${S(b)})`}
 function draw(){
-  const W=canvas.width/(window.devicePixelRatio||1), H=canvas.height/(window.devicePixelRatio||1);
-  const c=planetCenter();
-  const grd=ctx.createRadialGradient(W*.15,H*.2,30,W*.15,H*.2,Math.max(W,H)*.9);
-  const sunColor=`rgba(${200+Math.floor(55*sunProgress)},${150-Math.floor(90*sunProgress)},40,.5)`;
-  grd.addColorStop(0,sunColor); grd.addColorStop(1,'#000'); ctx.fillStyle=grd; ctx.fillRect(0,0,W,H);
-  if(!planet) return;
-  const pgr=ctx.createRadialGradient(c.x-planet.r*.4,c.y-planet.r*.4,planet.r*.2,c.x,c.y,planet.r*1.2);
-  pgr.addColorStop(0,lighten(planet.color,.25)); pgr.addColorStop(.7,planet.color); pgr.addColorStop(1,shade(planet.color,.65));
-  ctx.fillStyle=pgr; ctx.beginPath(); ctx.arc(c.x,c.y,planet.r,0,Math.PI*2); ctx.fill();
-  if(planet.ring){
-    ctx.save(); ctx.translate(c.x,c.y); ctx.rotate(-.35);
-    ctx.strokeStyle="rgba(230,210,160,.65)"; ctx.lineWidth=12; ctx.beginPath(); ctx.ellipse(0,0,planet.r*1.55,planet.r*.75,0,0,Math.PI*2); ctx.stroke();
-    ctx.lineWidth=4; ctx.strokeStyle="rgba(230,210,160,.3)"; ctx.beginPath(); ctx.ellipse(0,0,planet.r*1.35,planet.r*.66,0,0,Math.PI*2); ctx.stroke();
-    ctx.restore();
-  }
-  for(const b of creatures){
-    if(!b.alive) continue;
-    const bx=c.x+Math.cos(b.angle)*creatureRing, by=c.y+Math.sin(b.angle)*creatureRing;
-    drawCreature(bx,by,10);
-  }
-  for(const ship of ships){
-    if(!ship.alive || ship.trail.length<2) continue;
-    ctx.strokeStyle = ship._orbitStable ? "rgba(100,255,180,.9)" : "rgba(255,255,255,.6)";
-    ctx.lineWidth=2; ctx.beginPath();
-    for(let i=0;i<ship.trail.length;i++){ const p=ship.trail[i]; if(i===0) ctx.moveTo(p.x,p.y); else ctx.lineTo(p.x,p.y); }
-    ctx.stroke();
-  }
-  for(const ship of ships){ if(ship.alive) drawShip(ship.x,ship.y,ship.vx,ship.vy,ship.carrying); }
-
-  if(dragging && anchor && pointer){
-    ctx.save(); ctx.setLineDash([8,6]); ctx.strokeStyle="rgba(255,255,255,.9)"; ctx.lineWidth=2;
-    ctx.beginPath(); ctx.moveTo(anchor.x,anchor.y); ctx.lineTo(pointer.x,pointer.y); ctx.stroke();
-    ctx.setLineDash([]); ctx.fillStyle="rgba(255,255,255,.15)"; ctx.beginPath(); ctx.arc(anchor.x,anchor.y,6,0,Math.PI*2); ctx.fill(); ctx.restore();
-  }
-  ctx.strokeStyle="rgba(255,255,255,.08)"; ctx.lineWidth=1; ctx.beginPath(); ctx.arc(c.x,c.y,planet.r*1.2,0,Math.PI*2); ctx.stroke();
+  const dpr=window.devicePixelRatio||1, W=canvas.width/dpr, H=canvas.height/dpr, c=planetCenter();
+  const grd=ctx.createRadialGradient(W*.15,H*.2,30,W*.15,H*.2,Math.max(W,H)*.9); const sunColor=`rgba(${200+Math.floor(55*sunProgress)},${150-Math.floor(90*sunProgress)},40,.5)`; grd.addColorStop(0,sunColor); grd.addColorStop(1,'#000'); ctx.fillStyle=grd; ctx.fillRect(0,0,W,H);
+  if(!planet)return;
+  const pgr=ctx.createRadialGradient(c.x-planet.r*.4,c.y-planet.r*.4,planet.r*.2,c.x,c.y,planet.r*1.2); pgr.addColorStop(0,lighten(planet.color,.25)); pgr.addColorStop(.7,planet.color); pgr.addColorStop(1,shade(planet.color,.65)); ctx.fillStyle=pgr; ctx.beginPath(); ctx.arc(c.x,c.y,planet.r,0,Math.PI*2); ctx.fill();
+  if(planet.ring){ctx.save();ctx.translate(c.x,c.y);ctx.rotate(-.35);ctx.strokeStyle="rgba(230,210,160,.65)";ctx.lineWidth=12;ctx.beginPath();ctx.ellipse(0,0,planet.r*1.55,planet.r*.75,0,0,Math.PI*2);ctx.stroke();ctx.lineWidth=4;ctx.strokeStyle="rgba(230,210,160,.3)";ctx.beginPath();ctx.ellipse(0,0,planet.r*1.35,planet.r*.66,0,0,Math.PI*2);ctx.stroke();ctx.restore()}
+  for(const b of creatures){if(!b.alive)continue;const bx=c.x+Math.cos(b.angle)*creatureRing,by=c.y+Math.sin(b.angle)*creatureRing;drawCreature(bx,by,10)}
+  for(const ship of ships){if(!ship.alive||ship.trail.length<2)continue;ctx.strokeStyle=ship._orbitStable?"rgba(100,255,180,.9)":"rgba(255,255,255,.6)";ctx.lineWidth=2;ctx.beginPath();for(let i=0;i<ship.trail.length;i++){const p=ship.trail[i];if(i===0)ctx.moveTo(p.x,p.y);else ctx.lineTo(p.x,p.y)}ctx.stroke()}
+  for(const ship of ships){if(ship.alive)drawShip(ship.x,ship.y,ship.vx,ship.vy,ship.carrying)}
+  if(dragging&&anchor&&pointer){ctx.save();ctx.setLineDash([8,6]);ctx.strokeStyle="rgba(255,255,255,.9)";ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(anchor.x,anchor.y);ctx.lineTo(pointer.x,pointer.y);ctx.stroke();ctx.setLineDash([]);ctx.fillStyle="rgba(255,255,255,.15)";ctx.beginPath();ctx.arc(anchor.x,anchor.y,6,0,Math.PI*2);ctx.fill();ctx.restore()}
+  ctx.strokeStyle="rgba(255,255,255,.08)";ctx.lineWidth=1;ctx.beginPath();ctx.arc(c.x,c.y,planet.r*1.2,0,Math.PI*2);ctx.stroke();
 }
+function drawCreature(x,y,s){ctx.save();ctx.translate(x,y);ctx.fillStyle="#000";ctx.shadowColor="rgba(0,0,0,.25)";ctx.shadowBlur=6;ctx.beginPath();ctx.moveTo(0,-s*.9);ctx.quadraticCurveTo(s*.9,-s*.1,0,s);ctx.quadraticCurveTo(-s*.9,-s*.1,0,-s*.9);ctx.fill();ctx.strokeStyle="#000";ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(-s*.2,-s*.7);ctx.quadraticCurveTo(-s*.6,-s*1.1,-s*.4,-s*1.2);ctx.moveTo(s*.2,-s*.7);ctx.quadraticCurveTo(s*.6,-s*1.1,s*.4,-s*1.2);ctx.stroke();ctx.restore()}
+function drawShip(x,y,vx,vy,carrying){const ang=Math.atan2(vy,vx);ctx.save();ctx.translate(x,y);ctx.rotate(ang);ctx.fillStyle=carrying?"#7bffc9":"#fff";ctx.beginPath();ctx.moveTo(14,0);ctx.lineTo(-10,-6);ctx.lineTo(-6,0);ctx.lineTo(-10,6);ctx.closePath();ctx.fill();ctx.fillStyle=carrying?"rgba(100,255,200,.8)":"rgba(255,160,80,.9)";ctx.beginPath();ctx.moveTo(-10,0);ctx.lineTo(-18,-3);ctx.lineTo(-16,0);ctx.lineTo(-18,3);ctx.closePath();ctx.fill();ctx.restore()}
 
-function drawCreature(x,y,s){
-  ctx.save(); ctx.translate(x,y);
-  ctx.fillStyle="#000"; ctx.shadowColor="rgba(0,0,0,.25)"; ctx.shadowBlur=6;
-  ctx.beginPath(); ctx.moveTo(0,-s*.9); ctx.quadraticCurveTo(s*.9,-s*.1,0,s); ctx.quadraticCurveTo(-s*.9,-s*.1,0,-s*.9); ctx.fill();
-  ctx.strokeStyle="#000"; ctx.lineWidth=2;
-  ctx.beginPath(); ctx.moveTo(-s*.2,-s*.7); ctx.quadraticCurveTo(-s*.6,-s*1.1,-s*.4,-s*1.2);
-  ctx.moveTo(s*.2,-s*.7); ctx.quadraticCurveTo(s*.6,-s*1.1,s*.4,-s*1.2); ctx.stroke();
-  ctx.restore();
-}
-function drawShip(x,y,vx,vy,carrying){
-  const ang=Math.atan2(vy,vx);
-  ctx.save(); ctx.translate(x,y); ctx.rotate(ang);
-  ctx.fillStyle=carrying?"#7bffc9":"#fff";
-  ctx.beginPath(); ctx.moveTo(14,0); ctx.lineTo(-10,-6); ctx.lineTo(-6,0); ctx.lineTo(-10,6); ctx.closePath(); ctx.fill();
-  ctx.fillStyle=carrying?"rgba(100,255,200,.8)":"rgba(255,160,80,.9)";
-  ctx.beginPath(); ctx.moveTo(-10,0); ctx.lineTo(-18,-3); ctx.lineTo(-16,0); ctx.lineTo(-18,3); ctx.closePath(); ctx.fill();
-  ctx.restore();
-}
-
-let last=performance.now();
-function loop(now){ const dt=Math.min(.033,(now-last)/1000); last=now; step(dt); draw(); requestAnimationFrame(loop) }
-ui.retry.onclick=()=>{ loadLevel(level); loadLevel._rescuedAtStart=rescuedTotal; }
-ui.next.onclick=()=>{ if(level<PLANETS.length-1){ loadLevel(level+1); loadLevel._rescuedAtStart=rescuedTotal } else { showMsg('🎉 全部關卡完成！') } };
+let last=performance.now(); function loop(now){const dt=Math.min(.033,(now-last)/1000);last=now;step(dt);draw();requestAnimationFrame(loop)}
+ui.retry.onclick=()=>{loadLevel(level);loadLevel._rescuedAtStart=rescuedTotal}; ui.next.onclick=()=>{if(level<PLANETS.length-1){loadLevel(level+1);loadLevel._rescuedAtStart=rescuedTotal}else{showMsg('🎉 全部關卡完成！')}};
 loadLevel(0); requestAnimationFrame(loop);
 </script>
 </body>
