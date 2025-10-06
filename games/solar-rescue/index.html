@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>紅巨星救援計畫：Solar Rescue (v9 行星重力差異 + 穩軌調校)</title>
+<title>紅巨星救援計畫：Solar Rescue (v11 設定面板)</title>
 <style>
   html, body { margin:0; height:100%; background:#000; color:#fff;
     font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans TC","Helvetica Neue",Arial;
@@ -19,14 +19,20 @@
   #sunbar{position:fixed;left:0;right:0;bottom:0;height:8px;z-index:2;background:rgba(255,255,255,.08)}
   #sunfill{height:100%;width:0;background:linear-gradient(90deg,#ffcf33,#ff3b3b)}
   canvas{display:block;width:100vw;height:100vh;touch-action:none}
-  #hint{position:fixed;right:12px;bottom:16px;z-index:3;background:rgba(0,0,0,.45);padding:6px 10px;border-radius:8px;font-size:12px;opacity:.9}
-  /* Modal */
-  #modal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;z-index:5;background:rgba(0,0,0,.55)}
-  #modal .card{width:min(720px,90vw);max-height:80vh;overflow:auto;background:#101114;border:1px solid rgba(255,255,255,.1);border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.4)}
-  #modal header{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid rgba(255,255,255,.08)}
-  #modal header h3{margin:0;font-size:16px}
-  #modal .body{padding:16px}
-  #modal .body pre{white-space:pre-wrap;word-wrap:break-word;font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace}
+  #hint{position:fixed;right:12px;bottom:16px;z-index:3;background:#00000073;padding:6px 10px;border-radius:8px;font-size:12px}
+  /* Modal base */
+  .overlay{position:fixed;inset:0;display:none;align-items:center;justify-content:center;z-index:5;background:rgba(0,0,0,.55)}
+  .card{width:min(860px,92vw);max-height:82vh;overflow:auto;background:#101114;border:1px solid rgba(255,255,255,.12);border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.4)}
+  .card header{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid rgba(255,255,255,.08)}
+  .card header h3{margin:0;font-size:16px}
+  .card .body{padding:16px}
+  .card .body pre{white-space:pre-wrap;word-wrap:break-word;font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace}
+  /* Settings grid */
+  .grid{display:grid;grid-template-columns:1fr auto;gap:10px 12px}
+  .grid label{opacity:.9}
+  .grid input[type=range]{width:min(50vw,360px)}
+  .row{display:flex;gap:8px;align-items:center}
+  .badge{background:rgba(255,255,255,.1);padding:2px 6px;border-radius:6px}
 </style>
 </head>
 <body>
@@ -38,6 +44,7 @@
   <div class="pill">星艦能源 🔋：<span id="energy">50</span></div>
   <div id="buttons">
     <button id="readmeBtn">遊戲說明 📖</button>
+    <button id="settingsBtn">⚙️ 設定</button>
     <button id="retryBtn">重玩關卡</button>
     <button id="nextBtn" disabled>下一關 ▶</button>
   </div>
@@ -45,80 +52,179 @@
 <div id="msg"></div>
 <div id="sunbar"><div id="sunfill"></div></div>
 <canvas id="game"></canvas>
-<div id="hint">拉弓式：按下=發射點 → 往後拉=速度（方向取反）→ 放開=發射；多重發射；每次-2能源，救援+10；能源=0結束</div>
+<div id="hint">拉弓式：按下=發射點 → 往後拉=速度（方向取反）→ 放開=發射；救援後自動推進；多重發射；能源 -2/+10</div>
 
-<!-- Modal -->
-<div id="modal">
+<!-- README Modal -->
+<div id="modalReadme" class="overlay">
   <div class="card">
     <header>
       <h3>README</h3>
-      <button id="closeModal">關閉</button>
+      <button data-close="modalReadme">關閉</button>
     </header>
     <div class="body"><pre id="mdContent">載入中...</pre></div>
   </div>
 </div>
 
+<!-- Settings Modal -->
+<div id="modalSettings" class="overlay">
+  <div class="card">
+    <header>
+      <h3>設定面板（僅做倍率調整，不改變每顆行星的預設差異）</h3>
+      <div class="row">
+        <button id="resetSettings">回復預設</button>
+        <button data-close="modalSettings">關閉</button>
+      </div>
+    </header>
+    <div class="body">
+      <div class="grid">
+        <label>重力倍率（影響 μ）</label>
+        <div class="row"><input id="muMul" type="range" min="0.3" max="2.0" step="0.01"><span class="badge" id="muMulV"></span></div>
+
+        <label>阻力倍率（影響大氣拖曳）</label>
+        <div class="row"><input id="dragMul" type="range" min="0.2" max="3.0" step="0.01"><span class="badge" id="dragMulV"></span></div>
+
+        <label>軟化係數倍率（近地緩和）</label>
+        <div class="row"><input id="softMul" type="range" min="0.2" max="2.0" step="0.01"><span class="badge" id="softMulV"></span></div>
+
+        <label>入軌輔助倍率（切線化強度）</label>
+        <div class="row"><input id="assistMul" type="range" min="0.0" max="2.0" step="0.01"><span class="badge" id="assistMulV"></span></div>
+
+        <label>向心抑制倍率（減少被吸死）</label>
+        <div class="row"><input id="radialMul" type="range" min="0.0" max="2.0" step="0.01"><span class="badge" id="radialMulV"></span></div>
+
+        <label>救援後推進力</label>
+        <div class="row"><input id="pickupThrust" type="range" min="0" max="40" step="1"><span class="badge" id="pickupThrustV"></span></div>
+
+        <label>救援後推進模式</label>
+        <div class="row">
+          <select id="pickupMode">
+            <option value="prograde">沿速度方向（prograde）</option>
+            <option value="radialOut">徑向外推（radialOut）</option>
+          </select>
+        </div>
+
+        <label>物理子步進（整數）</label>
+        <div class="row"><input id="substeps" type="range" min="1" max="12" step="1"><span class="badge" id="substepsV"></span></div>
+      </div>
+      <p style="opacity:.8;margin-top:12px">提示：這些設定以「倍率」動態應用在每顆行星的既有屬性上；關卡重載後仍保留你的倍率（可重置）。</p>
+    </div>
+  </div>
+</div>
+
 <script>
-/* ====== Canvas & DPI：維持圓形 ====== */
+/* ====== Canvas ====== */
 const canvas=document.getElementById('game'); const ctx=canvas.getContext('2d',{alpha:false});
 function resizeCanvas(){ const dpr=Math.max(1,window.devicePixelRatio||1); const vw=Math.max(document.documentElement.clientWidth,innerWidth||0); const vh=Math.max(document.documentElement.clientHeight,innerHeight||0); canvas.width=Math.round(vw*dpr); canvas.height=Math.round(vh*dpr); ctx.setTransform(1,0,0,1,0,0); ctx.scale(dpr,dpr) }
 addEventListener('resize',resizeCanvas); if(window.visualViewport) window.visualViewport.addEventListener('resize',resizeCanvas); addEventListener('orientationchange',()=>setTimeout(resizeCanvas,200)); resizeCanvas();
 
-/* ====== 行星資料：半徑(px) + 表面重力 g(m/s^2) + 個別阻力與輔助係數 ====== */
+/* ====== Planet data with per-planet defaults ====== */
 const PLANETS=[
-  {name:"水星", g:3.70, r:90,  color:"#7a8aa0", creatures:5,  dragMul:0.4, assist:0.90},
-  {name:"金星", g:8.87, r:120, color:"#d8b45b", creatures:6,  dragMul:2.0, assist:0.70},
-  {name:"地球", g:9.81, r:130, color:"#5fb9e5", creatures:7,  dragMul:1.2, assist:0.80},
-  {name:"火星", g:3.71, r:110, color:"#b3533a", creatures:7,  dragMul:0.6, assist:0.90},
-  {name:"木星", g:24.79,r:180, color:"#d89a6a", creatures:10, dragMul:0.8, assist:0.55},
-  {name:"土星", g:10.44,r:165, color:"#cdbb89", creatures:9,  dragMul:0.7, assist:0.60, ring:true},
-  {name:"天王星",g:8.69, r:140, color:"#7fd0c4", creatures:8,  dragMul:0.7, assist:0.60},
-  {name:"海王星",g:11.15,r:145, color:"#355edb", creatures:8,  dragMul:0.8, assist:0.60}
+  {name:"水星", g:3.70, r:90,  color:"#7a8aa0", creatures:7,  dragMul:0.35, assist:0.85,
+    species:[{id:"bud",size:[8,12],speedMul:1.1},{id:"tri",size:[9,13],speedMul:0.9},{id:"tall",size:[10,14],speedMul:1.2}]},
+  {name:"金星", g:8.87, r:120, color:"#d8b45b", creatures:8,  dragMul:2.2, assist:0.70,
+    species:[{id:"ring",size:[9,12],speedMul:1.0},{id:"blob",size:[11,16],speedMul:0.8},{id:"tri",size:[10,14],speedMul:0.9},{id:"tall",size:[9,13],speedMul:1.1}]},
+  {name:"地球", g:9.81, r:130, color:"#5fb9e5", creatures:9,  dragMul:1.0, assist:0.80,
+    species:[{id:"bud",size:[10,14],speedMul:1.0},{id:"ring",size:[10,13],speedMul:1.0},{id:"blob",size:[11,16],speedMul:0.9}]},
+  {name:"火星", g:3.71, r:110, color:"#b3533a", creatures:8,  dragMul:0.6, assist:0.90,
+    species:[{id:"tri",size:[8,12],speedMul:1.2},{id:"bud",size:[9,13],speedMul:1.1},{id:"ring",size:[8,11],speedMul:1.0}]},
+  {name:"木星", g:24.79,r:180, color:"#d89a6a", creatures:11, dragMul:0.9, assist:0.55,
+    species:[{id:"blob",size:[12,18],speedMul:1.0},{id:"tri",size:[12,16],speedMul:0.9},{id:"tall",size:[12,18],speedMul:1.1},{id:"ring",size:[11,15],speedMul:1.05}]},
+  {name:"土星", g:10.44,r:165, color:"#cdbb89", creatures:10, dragMul:0.8, assist:0.60, ring:true,
+    species:[{id:"ring",size:[10,14],speedMul:1.1},{id:"bud",size:[10,15],speedMul:1.0},{id:"tri",size:[11,15],speedMul:0.95},{id:"tall",size:[10,14],speedMul:1.05}]},
+  {name:"天王星",g:8.69, r:140, color:"#7fd0c4", creatures:9,  dragMul:0.7, assist:0.60,
+    species:[{id:"bud",size:[9,13],speedMul:1.0},{id:"ring",size:[9,12],speedMul:1.0},{id:"blob",size:[11,16],speedMul:0.9},{id:"tri",size:[10,14],speedMul:1.0}]},
+  {name:"海王星",g:11.15,r:145, color:"#355edb", creatures:9,  dragMul:0.8, assist:0.60,
+    species:[{id:"tall",size:[10,15],speedMul:1.0},{id:"ring",size:[9,13],speedMul:1.0},{id:"bud",size:[10,14],speedMul:1.1}]}
 ];
 
-/* 物理常數（遊戲化） */
-const MU_SCALE = 0.22;          // GM = g * R^2 * MU_SCALE
-const BASE_DRAG = 0.00012;      // 空氣阻力（乘以行星 dragMul）
-const SUBSTEPS = 5;             // 子步進
-const FSOFT_FACTOR = 0.35;      // 核心軟化比例
-const ORBIT_BAND_IN  = 1.03;    // 入軌內緣
-const ORBIT_BAND_OUT = 1.85;    // 入軌外緣
-const RADIAL_DAMP = 0.9;        // 徑向速度衰減（只吃向心）
-const ASSIST_BASE_BLEND = 0.35; // 切線化混合基礎
-const GRAV_CAP = 25;            // 重力加速度上限（避免爆值）
+/* ====== Physics base (kept as v10 defaults) ====== */
+const BASES = {
+  MU_SCALE: 0.22,
+  BASE_DRAG: 0.00011,
+  SUBSTEPS: 6,
+  FSOFT_FACTOR: 0.33,
+  ORBIT_BAND_IN: 1.03,
+  ORBIT_BAND_OUT: 1.90,
+  RADIAL_DAMP: 0.85,
+  ASSIST_BASE_BLEND: 0.30,
+  GRAV_CAP: 28,
+  PICKUP_THRUST: 18,
+  PICKUP_MODE: "prograde"
+};
 
-/* UI */
-const ui={lvl:document.getElementById('levelName'),left:document.getElementById('leftCount'),res:document.getElementById('rescued'),dead:document.getElementById('dead'),energy:document.getElementById('energy'),next:document.getElementById('nextBtn'),retry:document.getElementById('retryBtn'),sun:document.getElementById('sunfill'),msg:document.getElementById('msg')};
+/* ====== User multipliers (persistent) ====== */
+const LS_KEY = "solar_rescue_settings_v11";
+const multipliers = Object.assign({
+  muMul: 1.0,
+  dragMul: 1.0,
+  softMul: 1.0,
+  assistMul: 1.0,
+  radialMul: 1.0,
+  pickupThrust: BASES.PICKUP_THRUST,
+  pickupMode: BASES.PICKUP_MODE,
+  substeps: BASES.SUBSTEPS
+}, JSON.parse(localStorage.getItem(LS_KEY) || "{}"));
+
+function persist(){ localStorage.setItem(LS_KEY, JSON.stringify(multipliers)); }
+
+/* ====== UI bindings for settings ====== */
+function q(id){ return document.getElementById(id) }
+function bindRange(id, prop, fmt=(v)=>v){
+  const el=q(id), label=q(id+"V"); el.value=multipliers[prop];
+  const upd=()=>{ multipliers[prop] = Number(el.value); label.textContent = fmt(multipliers[prop]); persist(); };
+  el.addEventListener('input', upd); upd();
+}
+function bindSelect(id, prop){
+  const el=q(id); el.value=multipliers[prop];
+  el.addEventListener('change', ()=>{ multipliers[prop] = el.value; persist(); });
+}
+function openModal(id){ q(id).style.display='flex' }
+function closeModal(id){ q(id).style.display='none' }
+
+/* ====== Game state ====== */
+const ui={lvl:q('levelName'),left:q('leftCount'),res:q('rescued'),dead:q('dead'),energy:q('energy'),
+          next:q('nextBtn'),retry:q('retryBtn'),sun:q('sunfill'),msg:q('msg')};
 function showMsg(t,ms=1200){ui.msg.textContent=t;ui.msg.style.opacity=1;clearTimeout(showMsg._t);showMsg._t=setTimeout(()=>ui.msg.style.opacity=0,ms)}
 
-/* 狀態 */
 let level=0,rescuedTotal=0,deadTotal=0,planet=null,creatures=[],ships=[],sunProgress=0;
 let dragging=false,anchor=null,pointer=null,activePointerId=null,creatureRing=100,energy=50,ended=false;
 
-/* 幾何 */
+/* ====== Helpers ====== */
 function planetCenter(){ const dpr=window.devicePixelRatio||1; return {x:canvas.width/dpr*0.5,y:canvas.height/dpr*0.55} }
+function rand(a,b){ return a + Math.random()*(b-a) }
+function pick(arr){ return arr[Math.floor(Math.random()*arr.length)] }
 
-/* 生物：圓周上運動 */
-function spawnCreatures(n){creatures=[];for(let i=0;i<n;i++){const ang=Math.random()*Math.PI*2;const speed=(Math.random()<0.5?-1:1)*(0.35+Math.random()*0.55);creatures.push({alive:true,angle:ang,speed})}}
+/* ====== Creatures ====== */
+function spawnCreatures(n){
+  creatures=[];
+  for(let i=0;i<n;i++){
+    const spec = pick(planet.species);
+    const ang = Math.random()*Math.PI*2;
+    const baseSpeed = (Math.random()<0.5?-1:1) * (0.32 + Math.random()*0.5) * spec.speedMul;
+    const size = Math.round(rand(spec.size[0], spec.size[1]));
+    creatures.push({alive:true,angle:ang,speed:baseSpeed,species:spec.id,size});
+  }
+}
 
-/* 飛船：拉弓發射 */
+/* ====== Launch ====== */
 function addShip(pos,release){
-  if(ended) return;
-  if(energy<2){showMsg('⚠️ 星艦能源不足（需要 2 點）'); return}
-  const dx=release.x-pos.x, dy=release.y-pos.y;
-  const s=0.35; // 初速（拉弓反向）
+  if(ended) return; if(energy<2){showMsg('⚠️ 星艦能源不足（需要 2 點）'); return}
+  const dx=release.x-pos.x, dy=release.y-pos.y, s=0.35;
   let vx=-dx*s, vy=-dy*s;
   energy-=2; ui.energy.textContent=energy;
-  ships.push({x:pos.x,y:pos.y,vx,vy,alive:true,carrying:false,t:0,trail:[],_orbitStable:false,_orbitTimer:0});
+  ships.push({x:pos.x,y:pos.y,vx,vy,alive:true,carrying:false,t:0,trail:[],_orbitStable:false,_orbitTimer:0, orbitType:"—"});
   if(energy<=0){ endGame('🔋 能源耗盡，任務失敗'); }
 }
 
-/* 關卡流程 */
+/* ====== Level lifecycle ====== */
 function loadLevel(i){
   level=i; planet=structuredClone(PLANETS[i]);
-  planet.mu = MU_SCALE * planet.g * (planet.r*planet.r);
-  planet.drag = BASE_DRAG * planet.dragMul;
-  planet.assistBlend = ASSIST_BASE_BLEND * planet.assist;
+  // Apply per-planet defaults, then global multipliers
+  planet.mu = BASES.MU_SCALE * multipliers.muMul * planet.g * (planet.r*planet.r);
+  planet.drag = BASES.BASE_DRAG * multipliers.dragMul * planet.dragMul;
+  planet.assistBlend = BASES.ASSIST_BASE_BLEND * multipliers.assistMul * planet.assist;
+  planet.softSq = (BASES.FSOFT_FACTOR * multipliers.softMul * planet.r) ** 2;
+  planet.radialDamp = BASES.RADIAL_DAMP * multipliers.radialMul;
   ui.lvl.textContent=`${i+1}/8 ${planet.name}`;
   creatureRing=planet.r*1.05; spawnCreatures(planet.creatures); ui.left.textContent=creatures.length;
   ui.next.disabled=true; ships=[]; sunProgress=i/PLANETS.length; ui.sun.style.width=`${Math.floor(100*sunProgress)}%`;
@@ -128,16 +234,14 @@ function winLevel(){ if(ended) return; ui.next.disabled=false; showMsg('✅ 本�
 function gameOver(){ endGame('❌ 生物全滅，任務失敗') }
 function endGame(text){ ended=true; showMsg(text,1800); }
 
-/* 事件座標 */
+/* ====== Pointer ====== */
 function getPoint(e){return e.touches&&e.touches.length?{x:e.touches[0].clientX,y:e.touches[0].clientY}:{x:e.clientX,y:e.clientY}}
-
-/* 手勢（拉弓式） */
 canvas.addEventListener('pointerdown',e=>{ if(ended) return; e.preventDefault(); activePointerId=e.pointerId; canvas.setPointerCapture(activePointerId); dragging=true; anchor=getPoint(e); pointer=anchor });
 canvas.addEventListener('pointermove',e=>{ if(!dragging||e.pointerId!==activePointerId) return; e.preventDefault(); pointer=getPoint(e) });
 function endGesture(e){ if(!dragging||e.pointerId!==activePointerId) return; e.preventDefault(); const release=getPoint(e); addShip(anchor,release); dragging=false; activePointerId=null }
 canvas.addEventListener('pointerup',endGesture); canvas.addEventListener('pointercancel',endGesture);
 
-/* 物理（子步進 + orbit assist + 徑向抑制） */
+/* ====== Physics ====== */
 function physicsSubstep(dt){
   const c=planetCenter();
   for(const b of creatures){ if(b.alive) b.angle+=b.speed*dt }
@@ -145,8 +249,6 @@ function physicsSubstep(dt){
     if(!ship.alive) continue;
     ship.t+=dt;
     const rx=c.x-ship.x, ry=c.y-ship.y, r2=rx*rx+ry*ry, r=Math.sqrt(r2);
-
-    // 撞星球
     if(r<planet.r*.95){
       const v=Math.hypot(ship.vx,ship.vy);
       let kill=Math.min(creatures.filter(b=>b.alive).length, Math.max(1,Math.floor(v/140)+(planet.g>10?1:0)));
@@ -154,24 +256,20 @@ function physicsSubstep(dt){
       deadTotal+=Math.max(1,Math.floor(v/140)+(planet.g>10?1:0)); ui.dead.textContent=deadTotal; ui.left.textContent=creatures.filter(b=>b.alive).length;
       showMsg('💥 墜毀！'); ship.alive=false; checkState(); continue;
     }
-
-    // 重力 with softening
-    const soft = (FSOFT_FACTOR*planet.r)**2;
-    let grav = planet.mu / Math.max(r2 + soft, 800);
-    grav = Math.min(grav, GRAV_CAP);
+    // Gravity with softening and cap
+    let grav = planet.mu / Math.max(r2 + planet.softSq, 800);
+    grav = Math.min(grav, BASES.GRAV_CAP);
     const invr = 1/(r||1);
-    const ax = grav * (rx * invr), ay = grav * (ry * invr);
-
-    // 阻力
+    let ax = grav * (rx * invr), ay = grav * (ry * invr);
+    // Drag
     ship.vx += (ax - ship.vx*planet.drag) * dt;
     ship.vy += (ay - ship.vy*planet.drag) * dt;
-
-    // 徑向速度抑制與 Orbit Assist
-    const nearBand = r > planet.r*ORBIT_BAND_IN && r < planet.r*ORBIT_BAND_OUT;
-    if(nearBand){
-      const vr = (ship.vx*rx + ship.vy*ry) * invr; // 徑向分量（>0 離心；<0 向心）
+    // Orbit assist (not carrying)
+    const nearBand = r > BASES.ORBIT_BAND_IN*planet.r && r < BASES.ORBIT_BAND_OUT*planet.r;
+    if(nearBand && !ship.carrying){
+      const vr = (ship.vx*rx + ship.vy*ry) * invr;
       if(vr < 0){
-        const k = RADIAL_DAMP * dt;
+        const k = planet.radialDamp * dt;
         ship.vx -= (vr * rx * invr) * k;
         ship.vy -= (vr * ry * invr) * k;
       }
@@ -183,24 +281,33 @@ function physicsSubstep(dt){
       ship.vx = ship.vx*(1-blend) + targetVx*blend;
       ship.vy = ship.vy*(1-blend) + targetVy*blend;
     }
-
-    // 積分位置
-    ship.x  += ship.vx * dt; ship.y += ship.vy * dt;
-
-    // 航跡（淡化 life）
+    // Post-pickup thrust (escape)
+    if(ship.carrying){
+      const thrust = multipliers.pickupThrust;
+      if(multipliers.pickupMode === "prograde"){
+        const vmag = Math.hypot(ship.vx, ship.vy) || 1;
+        ship.vx += (ship.vx/vmag) * thrust * dt;
+        ship.vy += (ship.vy/vmag) * thrust * dt;
+      }else{
+        ship.vx += (-rx*invr) * thrust * dt;
+        ship.vy += (-ry*invr) * thrust * dt;
+      }
+    }
+    // Integrate
+    ship.x += ship.vx * dt; ship.y += ship.vy * dt;
+    // Trail
     ship.trail.push({x:ship.x,y:ship.y, life:1});
     for(let i=0;i<ship.trail.length;i++){ ship.trail[i].life -= dt*0.9 }
     ship.trail = ship.trail.filter(p=>p.life>0);
-    if (ship.trail.length>260) ship.trail.shift();
-
-    // 入軌判定（微調）
-    const vmag=Math.hypot(ship.vx,ship.vy);
+    if (ship.trail.length>300) ship.trail.shift();
+    // Orbit stable check
+    const v2 = ship.vx*ship.vx + ship.vy*ship.vy;
+    const vmag=Math.sqrt(v2);
     const dot=(ship.vx*rx+ship.vy*ry)/(vmag*r+1e-6);
-    const nearT=Math.abs(dot)<.26;
-    if(nearT&&nearBand){ ship._orbitTimer=(ship._orbitTimer||0)+dt; if(ship._orbitTimer>0.55) ship._orbitStable=true }
+    const isStable = Math.abs(dot)<.26 && nearBand;
+    if(isStable){ ship._orbitTimer=(ship._orbitTimer||0)+dt; if(ship._orbitTimer>0.55) ship._orbitStable=true }
     else { ship._orbitTimer=Math.max(0,(ship._orbitTimer||0)-dt*.7); if(ship._orbitTimer<.18) ship._orbitStable=false }
-
-    // 救援
+    // Rescue
     if(ship._orbitStable && !ship.carrying){
       const cap=18;
       for(const b of creatures){
@@ -208,26 +315,24 @@ function physicsSubstep(dt){
         const bx=c.x+Math.cos(b.angle)*creatureRing, by=c.y+Math.sin(b.angle)*creatureRing;
         if(Math.hypot(ship.x-bx,ship.y-by)<cap){
           b.alive=false; ship.carrying=true; rescuedTotal++; ui.res.textContent=rescuedTotal; ui.left.textContent=creatures.filter(x=>x.alive).length;
-          energy+=10; ui.energy.textContent=energy; showMsg('🧍 救援成功！+10 能源'); break;
+          energy+=10; ui.energy.textContent=energy; showMsg('🧍 救援成功！推進啟動'); break;
         }
       }
     }
-
-    // 帶生物逃離
+    // Offscreen cull
+    const W=canvas.width/(window.devicePixelRatio||1), H=canvas.height/(window.devicePixelRatio||1);
     if(ship.carrying){
-      const nx=(ship.x-c.x)*invr, ny=(ship.y-c.y)*invr;
-      ship.vx+=nx*8*planet.drag; ship.vy+=ny*8*planet.drag;
-      const W=canvas.width/(window.devicePixelRatio||1), H=canvas.height/(window.devicePixelRatio||1);
-      if(ship.x<-80||ship.x>W+80||ship.y<-80||ship.y>H+80){ ship.alive=false; checkState(); }
+      if(ship.x<-100||ship.x>W+100||ship.y<-100||ship.y>H+100){ ship.alive=false; checkState(); }
     }else{
-      const W=canvas.width/(window.devicePixelRatio||1), H=canvas.height/(window.devicePixelRatio||1);
-      if(ship.x<-260||ship.x>W+260||ship.y<-260||ship.y>H+260){ ship.alive=false; }
+      if(ship.x<-300||ship.x>W+300||ship.y<-300||ship.y>H+300){ ship.alive=false; }
     }
   }
 }
 function step(dt){
   if(ended) return;
-  const n=SUBSTEPS, h=dt/n; for(let i=0;i<n;i++) physicsSubstep(h);
+  const n = Math.max(1, Math.floor(multipliers.substeps||BASES.SUBSTEPS));
+  const h = dt / n;
+  for(let i=0;i<n;i++) physicsSubstep(h);
   ships=ships.filter(s=>s.alive);
 }
 function checkState(){
@@ -235,18 +340,15 @@ function checkState(){
   if(alive===0){ if(rescuedTotal-(loadLevel._rescuedAtStart??0)>0){ winLevel() } else { gameOver() } }
 }
 
-/* 色彩工具 */
-function hexRgb(hex){ const n=parseInt(hex.replace('#',''),16); return {r:(n>>16)&255,g:(n>>8)&255,b:n&255} }
-function lighten(hex,k){ const {r,g,b}=hexRgb(hex); const L=c=>Math.min(255,Math.round(c+(255-c)*k)); return `rgb(${L(r)},${L(g)},${L(b)})` }
-function shade(hex,k){ const {r,g,b}=hexRgb(hex); const S=c=>Math.max(0,Math.round(c*(1-k))); return `rgb(${S(r)},${S(g)},${S(b)})` }
+/* ====== Drawing ====== */
+function lighten(hex,k){ const n=parseInt(hex.replace('#',''),16); const r=(n>>16)&255,g=(n>>8)&255,b=n&255; const L=c=>Math.min(255,Math.round(c+(255-c)*k)); return `rgb(${L(r)},${L(g)},${L(b)})` }
+function shade(hex,k){ const n=parseInt(hex.replace('#',''),16); const r=(n>>16)&255,g=(n>>8)&255,b=n&255; const S=c=>Math.max(0,Math.round(c*(1-k))); return `rgb(${S(r)},${S(g)},${S(b)})` }
 
-/* 繪製 */
 function draw(){
   const dpr=window.devicePixelRatio||1, W=canvas.width/dpr, H=canvas.height/dpr, c=planetCenter();
   const grd=ctx.createRadialGradient(W*.15,H*.2,30,W*.15,H*.2,Math.max(W,H)*.9);
   grd.addColorStop(0,`rgba(${200+Math.floor(55*(level/8))},${150-Math.floor(90*(level/8))},40,.5)`);
   grd.addColorStop(1,'#000'); ctx.fillStyle=grd; ctx.fillRect(0,0,W,H);
-
   if(!planet) return;
   const pgr=ctx.createRadialGradient(c.x-planet.r*.4,c.y-planet.r*.4,planet.r*.2,c.x,c.y,planet.r*1.2);
   pgr.addColorStop(0,lighten(planet.color,.25)); pgr.addColorStop(.7,planet.color); pgr.addColorStop(1,shade(planet.color,.65));
@@ -254,24 +356,25 @@ function draw(){
   if(planet.ring){ ctx.save(); ctx.translate(c.x,c.y); ctx.rotate(-.35);
     ctx.strokeStyle="rgba(230,210,160,.65)"; ctx.lineWidth=12; ctx.beginPath(); ctx.ellipse(0,0,planet.r*1.55,planet.r*.75,0,0,Math.PI*2); ctx.stroke();
     ctx.lineWidth=4; ctx.strokeStyle="rgba(230,210,160,.3)"; ctx.beginPath(); ctx.ellipse(0,0,planet.r*1.35,planet.r*.66,0,0,Math.PI*2); ctx.stroke(); ctx.restore(); }
-
-  for(const b of creatures){ if(!b.alive) continue;
-    const bx=c.x+Math.cos(b.angle)*creatureRing, by=c.y+Math.sin(b.angle)*creatureRing; drawCreature(bx,by,10) }
-
+  // Creatures
+  for(const b of creatures){
+    if(!b.alive) continue;
+    const bx=c.x+Math.cos(b.angle)*creatureRing, by=c.y+Math.sin(b.angle)*creatureRing;
+    drawCreature(b.species, bx, by, b.size);
+  }
+  // Trails
   for(const ship of ships){
     if(!ship.alive || ship.trail.length<2) continue;
-    const n=ship.trail.length;
-    for(let i=1;i<n;i++){
+    for(let i=1;i<ship.trail.length;i++){
       const p0=ship.trail[i-1], p1=ship.trail[i];
       const alpha=Math.max(0, Math.min(1, p1.life));
-      ctx.strokeStyle = ship._orbitStable ? `rgba(100,255,180,${alpha})` : `rgba(255,255,255,${alpha*.9})`;
-      ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.moveTo(p0.x,p0.y); ctx.lineTo(p1.x,p1.y); ctx.stroke();
+      const col = `rgba(255,255,255,${alpha})`;
+      ctx.strokeStyle=col; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(p0.x,p0.y); ctx.lineTo(p1.x,p1.y); ctx.stroke();
     }
   }
-
+  // Ships
   for(const ship of ships){ if(ship.alive) drawShip(ship.x,ship.y,ship.vx,ship.vy,ship.carrying) }
-
+  // Drag preview
   if(dragging && anchor && pointer){
     ctx.save(); ctx.setLineDash([8,6]); ctx.strokeStyle="rgba(255,255,255,.9)"; ctx.lineWidth=2;
     ctx.beginPath(); ctx.moveTo(anchor.x,anchor.y); ctx.lineTo(pointer.x,pointer.y); ctx.stroke();
@@ -281,30 +384,34 @@ function draw(){
     ctx.beginPath(); ctx.moveTo(ax,ay); ctx.lineTo(ax - dx*0.12, ay - dy*0.12); ctx.strokeStyle="rgba(160,220,255,.9)"; ctx.stroke();
     ctx.fillStyle="rgba(255,255,255,.15)"; ctx.beginPath(); ctx.arc(anchor.x,anchor.y,6,0,Math.PI*2); ctx.fill(); ctx.restore();
   }
-
+  // Orbit band hint
   ctx.strokeStyle="rgba(255,255,255,.08)"; ctx.lineWidth=1; ctx.beginPath(); ctx.arc(c.x,c.y,planet.r*1.2,0,Math.PI*2); ctx.stroke();
 }
-
-function drawCreature(x,y,s){ ctx.save(); ctx.translate(x,y); ctx.fillStyle="#000"; ctx.shadowColor="rgba(0,0,0,.25)"; ctx.shadowBlur=6;
-  ctx.beginPath(); ctx.moveTo(0,-s*.9); ctx.quadraticCurveTo(s*.9,-s*.1,0,s); ctx.quadraticCurveTo(-s*.9,-s*.1,0,-s*.9); ctx.fill();
-  ctx.strokeStyle="#000"; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(-s*.2,-s*.7); ctx.quadraticCurveTo(-s*.6,-s*1.1,-s*.4,-s*1.2);
-  ctx.moveTo(s*.2,-s*.7); ctx.quadraticCurveTo(s*.6,-s*1.1,s*.4,-s*1.2); ctx.stroke(); ctx.restore(); }
+function drawCreature(kind, x, y, s){
+  ctx.save(); ctx.translate(x,y); ctx.fillStyle="#000"; ctx.shadowColor="rgba(0,0,0,.25)"; ctx.shadowBlur=6;
+  ctx.beginPath();
+  if(kind==="bud"){ ctx.moveTo(0,-s*.9); ctx.quadraticCurveTo(s*.9,-s*.1,0,s); ctx.quadraticCurveTo(-s*.9,-s*.1,0,-s*.9); }
+  else if(kind==="tri"){ ctx.moveTo(0,-s); for(let i=1;i<6;i++){ const a=i*(Math.PI*2/6); const r=i%2? s: s*0.55; ctx.lineTo(Math.cos(a)*r, Math.sin(a)*r) } ctx.closePath(); }
+  else if(kind==="ring"){ ctx.arc(0,0,s*0.9,0,Math.PI*2); ctx.moveTo(s*0.55,0); ctx.arc(0,0,s*0.55,0,Math.PI*2,true); }
+  else if(kind==="tall"){ ctx.moveTo(-s*0.4,s*0.9); ctx.quadraticCurveTo(0,-s*1.2,s*0.4,s*0.9); ctx.closePath(); }
+  else{ for(let i=0;i<7;i++){ const a=i*(Math.PI*2/7); const r = s*(0.75+0.35*Math.sin(i*2.2)); if(i===0) ctx.moveTo(Math.cos(a)*r, Math.sin(a)*r); else ctx.lineTo(Math.cos(a)*r, Math.sin(a)*r) } ctx.closePath(); }
+  ctx.fill(); ctx.restore();
+}
 function drawShip(x,y,vx,vy,carrying){ const ang=Math.atan2(vy,vx); ctx.save(); ctx.translate(x,y); ctx.rotate(ang);
   ctx.fillStyle=carrying?"#7bffc9":"#fff"; ctx.beginPath(); ctx.moveTo(14,0); ctx.lineTo(-10,-6); ctx.lineTo(-6,0); ctx.lineTo(-10,6); ctx.closePath(); ctx.fill();
   ctx.fillStyle=carrying?"rgba(100,255,200,.8)":"rgba(255,160,80,.9)"; ctx.beginPath(); ctx.moveTo(-10,0); ctx.lineTo(-18,-3); ctx.lineTo(-16,0); ctx.lineTo(-18,3); ctx.closePath(); ctx.fill(); ctx.restore(); }
 
-/* 主迴圈 */
+/* ====== Loop ====== */
 let last=performance.now();
 function loop(now){ const dt=Math.min(.033,(now-last)/1000); last=now; step(dt); draw(); requestAnimationFrame(loop) }
 
-/* 控制按鈕 */
+/* ====== Buttons ====== */
 ui.retry.onclick=()=>{ energy=50; ui.energy.textContent=energy; loadLevel(level); loadLevel._rescuedAtStart=rescuedTotal };
 ui.next.onclick=()=>{ if(level<PLANETS.length-1){ loadLevel(level+1); loadLevel._rescuedAtStart=rescuedTotal } else { showMsg('🎉 全部關卡完成！') } };
 
-/* README modal */
-const modal = document.getElementById('modal');
+/* ====== README modal ====== */
 document.getElementById('readmeBtn').onclick = async ()=>{
-  modal.style.display='flex';
+  openModal('modalReadme');
   const pre = document.getElementById('mdContent');
   pre.textContent = '載入中...';
   try{
@@ -315,9 +422,31 @@ document.getElementById('readmeBtn').onclick = async ()=>{
     pre.textContent = '讀取 readme.md 失敗：'+err;
   }
 };
-document.getElementById('closeModal').onclick = ()=>{ modal.style.display='none' };
 
-/* 啟動 */
+/* ====== Settings modal logic ====== */
+document.getElementById('settingsBtn').onclick = ()=>{ openModal('modalSettings') };
+document.querySelectorAll('button[data-close]').forEach(b=> b.onclick=()=> closeModal(b.getAttribute('data-close')) );
+document.getElementById('resetSettings').onclick = ()=>{
+  multipliers.muMul=1; multipliers.dragMul=1; multipliers.softMul=1; multipliers.assistMul=1; multipliers.radialMul=1;
+  multipliers.pickupThrust=BASES.PICKUP_THRUST; multipliers.pickupMode=BASES.PICKUP_MODE; multipliers.substeps=BASES.SUBSTEPS;
+  persist(); // refresh sliders
+  bindAll(); // rebind to update UI
+  showMsg('已回復預設倍率');
+};
+
+function bindAll(){
+  bindRange('muMul','muMul',v=>v.toFixed(2)+'×');
+  bindRange('dragMul','dragMul',v=>v.toFixed(2)+'×');
+  bindRange('softMul','softMul',v=>v.toFixed(2)+'×');
+  bindRange('assistMul','assistMul',v=>v.toFixed(2)+'×');
+  bindRange('radialMul','radialMul',v=>v.toFixed(2)+'×');
+  bindRange('pickupThrust','pickupThrust',v=>v+' N');
+  bindSelect('pickupMode','pickupMode');
+  bindRange('substeps','substeps',v=>v);
+}
+bindAll();
+
+/* ====== Init ====== */
 loadLevel(0); requestAnimationFrame(loop);
 </script>
 </body>
