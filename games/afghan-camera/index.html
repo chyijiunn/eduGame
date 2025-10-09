@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>阿富汗相機｜v8.1：修正拖曳 + 右側影像狀態</title>
+<style>
+  :root { --bg:#0f1115; --panel:#171923; --ink:#e2e8f0; --muted:#94a3b8; --accent:#7dd3fc; }
+  * { box-sizing:border-box }
+  body { margin:0; color:var(--ink); font-family: system-ui,-apple-system, "Noto Sans TC","PingFang TC",Segoe UI,Roboto,Helvetica,Arial;
+         background:linear-gradient(180deg,#0c0f16,#10131a 30%,#0c0f16); }
+  .wrap { max-width:1200px; margin:0 auto; padding:20px }
+  header{display:flex;gap:14px;align-items:center}
+  h1{margin:0 0 6px;font-size:clamp(20px,2.4vw,28px)}
+  .grid{display:grid;grid-template-columns:1.15fr 1fr;gap:18px;margin-top:16px}
+  @media (max-width:980px){ .grid{grid-template-columns:1fr} }
+  .card{padding:14px;border-radius:18px;border:1px solid #273043;
+        background:radial-gradient(120% 120% at 100% 0%,#1b2030 0%,#161a25 40%,#121622 100%);}
+  h2{margin:0 0 8px;font-size:18px;letter-spacing:.4px}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  button{cursor:pointer;padding:8px 12px;border-radius:12px;border:1px solid #2b344a;background:#0e1726;color:var(--ink)}
+  button:hover{transform:translateY(-1px)}
+  input[type="range"]{width:220px;accent-color:var(--accent)}
+  .tiny{color:#9fb2d8;font-size:12px}
+  .chip{border:1px dashed #3a4867;border-radius:999px;padding:6px 10px;color:#b6c2df;font-size:12px}
+  .statusBox{display:flex;gap:10px;margin-top:8px;flex-wrap:wrap}
+  .statusBox span{background:#121a2a;border:1px solid #2a3348;border-radius:12px;padding:6px 10px;font-size:12px}
+  svg.scene{display:block;width:100%;height:auto;background:#0b1221;border:1px solid #2a3348;border-radius:14px;touch-action:none}
+  .progress{height:10px;border:1px solid #2a3349;border-radius:999px;overflow:hidden;background:#0b1221}
+  .progress>i{display:block;height:100%;width:0;background:linear-gradient(90deg,#38bdf8,#34d399)}
+  .badge{background:#0e1630;border:1px solid #2c3a6b;color:#c7d2fe;border-radius:10px;padding:2px 6px;font-size:12px}
+  #paperPreview { position:relative; overflow:hidden }
+  #previewSVG { position:absolute; inset:6px; width:calc(100% - 12px); height:calc(100% - 12px); }
+  #dragHot { fill: transparent; cursor: ew-resize; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>阿富汗相機｜對焦成像 × 操作 × 藥劑</h1>
+      <div class="tiny">v8.1 修正：恢復「整張示意圖可拖曳對焦板」，右側〈影像狀態〉顯示箭頭經凸透鏡在對焦板上的影像（倒立、倍率、模糊、亮度）。</div>
+    </div>
+  </header>
+
+  <div class="grid">
+    <section class="card">
+      <h2>鏡頭成像與操作</h2>
+
+      <div class="row tiny">
+        <label>光圈（f/）</label>
+        <input id="aperture" type="range" min="1.4" max="16" step="0.1" value="4">
+        <span id="apVal" class="badge">f/4.0</span>
+        <span class="tiny">在圖上任意處拖曳，即可移動對焦板（80–260 mm）。</span>
+      </div>
+
+      <div class="statusBox">
+        <span>焦距 f = <b>100 mm</b></span>
+        <span>物距 do = <b>300 mm</b></span>
+        <span>像距 di = <b id="di">150</b> mm</span>
+        <span>倍率 m = <b id="mag">-0.50×</b></span>
+        <span>清晰度 Δ = <b id="delta">0</b> mm</span>
+        <span id="mmRead" class="badge">150 mm</span>
+      </div>
+
+      <svg id="optic" class="scene" viewBox="0 0 800 260" aria-label="成像示意">
+        <defs>
+          <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#7dd3fc"/>
+          </marker>
+          <filter id="blurFilter"><feGaussianBlur stdDeviation="0" in="SourceGraphic" result="blurred"/></filter>
+          <filter id="imgBlur"><feGaussianBlur stdDeviation="0" /></filter>
+        </defs>
+
+        <rect id="dragHot" x="360" y="20" width="420" height="220"/>
+
+        <line x1="120" y1="190" x2="120" y2="110" stroke="#e2e8f0" stroke-width="4" />
+        <polygon points="120,100 110,120 130,120" fill="#e2e8f0"/>
+        <text x="110" y="220" fill="#9fb2d8" font-size="12">物體</text>
+
+        <line x1="20" y1="130" x2="360" y2="130" stroke="#7dd3fc" stroke-width="2" marker-end="url(#arrow)"/>
+
+        <g id="lens">
+          <rect x="360" y="40" width="6" height="180" fill="#7dd3fc"/>
+          <text x="350" y="28" fill="#9fb2d8" font-size="12">鏡頭</text>
+        </g>
+
+        <g id="boardG">
+          <text id="boardValTxt" x="510" y="20" text-anchor="middle" fill="#c7d2fe" font-size="12" class="badge">150 mm</text>
+          <rect id="boardRect" x="507" y="40" width="6" height="180" fill="#93c5fd"/>
+          <text id="boardLbl" x="510" y="234" text-anchor="middle" fill="#9fb2d8" font-size="12">對焦板</text>
+        </g>
+
+        <line id="ray1" x1="120" y1="110" x2="360" y2="130" stroke="#7dd3fc" stroke-width="1.6"/>
+        <line id="ray1b" x1="360" y1="130" x2="520" y2="170" stroke="#7dd3fc" stroke-width="1.6"/>
+        <line id="ray2" x1="120" y1="110" x2="360" y2="70" stroke="#7dd3fc" stroke-width="1.2"/>
+        <line id="ray2b" x1="360" y1="70" x2="520" y2="170" stroke="#7dd3fc" stroke-width="1.2"/>
+
+        <g id="projG" filter="url(#imgBlur)" opacity="0.85">
+          <g id="projArrow">
+            <line id="pLine" x1="520" y1="130" x2="520" y2="170" stroke="#e2e8f0" stroke-width="5" />
+            <polygon id="pTip" points="520,180 510,160 530,160" fill="#e2e8f0"/>
+          </g>
+        </g>
+
+        <g id="imageG" filter="url(#blurFilter)">
+          <line id="img" x1="520" y1="130" x2="520" y2="170" stroke="#e2e8f0" stroke-width="4"/>
+          <polygon id="imgTip" points="520,180 510,160 530,160" fill="#e2e8f0"/>
+        </g>
+      </svg>
+
+      <div style="margin-top:10px">
+        <div class="chip">1. 拖曳對焦板至最清晰（對焦時光圈可開到最大），夾具固定</div>
+        <div class="chip">2. 關鏡頭 → 放入相紙</div>
+        <div class="chip">3. 回推對焦板到夾具位置</div>
+        <div class="chip">4. 曝光 1 秒 → 立即關鏡頭</div>
+      </div>
+
+      <div style="margin-top:10px">
+        <div class="progress"><i id="expBar" style="width:0%"></i></div>
+        <div class="row tiny">
+          <button id="btnOpen">打開鏡頭</button>
+          <button id="btnExpose">開始曝光 1 秒</button>
+          <button id="btnClose">關鏡頭</button>
+          <span id="expNote" class="tiny">尚未曝光</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="card" id="chem">
+      <h2>藥劑流程</h2>
+      <ol style="margin-top:6px">
+        <li>D72 1+3（50 + 150 ml）</li>
+        <li>過錳酸鉀 + 稀硫酸（75 + 75 ml）</li>
+        <li>離箱、過水 → 粉紅退去呈淡黃</li>
+        <li>再曝光</li>
+        <li>D72</li>
+        <li>過水</li>
+        <li>海波定影</li>
+      </ol>
+
+      <div style="margin-top:10px;border:1px solid #2a3348;border-radius:14px;padding:12px;background:#0b1221">
+        <div class="row" style="justify-content:space-between">
+          <div>影像狀態（箭頭經凸透鏡的影像）</div>
+          <div id="chemStepBadge" class="chip">步驟 0 / 7</div>
+        </div>
+
+        <div style="position:relative;display:grid;place-items:center;height:140px">
+          <div id="paperPreview" style="width:180px;height:120px;border-radius:10px;border:1px solid #2a3348;background:#0b0b0b">
+            <svg id="previewSVG" viewBox="0 0 180 120" preserveAspectRatio="xMidYMid meet">
+              <defs>
+                <filter id="previewBlur"><feGaussianBlur stdDeviation="0"/></filter>
+              </defs>
+              <rect x="1" y="1" width="178" height="118" fill="none" stroke="#334155" stroke-width="1"/>
+              <g id="previewG" filter="url(#previewBlur)" opacity="0.85">
+                <line id="pvLine" x1="90" y1="60" x2="90" y2="90" stroke="#e2e8f0" stroke-width="6"/>
+                <polygon id="pvTip" points="90,100 78,80 102,80" fill="#e2e8f0"/>
+              </g>
+            </svg>
+          </div>
+        </div>
+
+        <div class="progress"><i id="chemBar" style="width:0%"></i></div>
+        <div class="row" style="margin-top:8px">
+          <button id="chemNext">完成此步</button>
+          <button id="chemReset">重設</button>
+        </div>
+      </div>
+      <div class="tiny" style="margin-top:6px">顏色：黑（初始）→ 粉紅（KMnO₄）→ 淡黃（過水）→ 白（定影完成）。</div>
+    </section>
+  </div>
+</div>
+
+<script>
+const f = 100, do_ = 300, ho = 60, lensX = 360;
+const diIdeal = 1 / (1/f - 1/do_);
+document.getElementById('di').textContent = diIdeal.toFixed(0);
+
+const ap = document.getElementById('aperture');
+const apVal = document.getElementById('apVal');
+const blurFilter = document.getElementById('blurFilter').firstElementChild;
+const imgBlur = document.querySelector('#imgBlur feGaussianBlur');
+const pvBlur = document.querySelector('#previewBlur feGaussianBlur');
+
+const svg = document.getElementById('optic');
+const imgLine = document.getElementById('img');
+const imgTip  = document.getElementById('imgTip');
+const ray1b = document.getElementById('ray1b');
+const ray2  = document.getElementById('ray2');
+const ray2b = document.getElementById('ray2b');
+
+const boardRect = document.getElementById('boardRect');
+const boardLbl = document.getElementById('boardLbl');
+const boardValTxt = document.getElementById('boardValTxt');
+const mmRead = document.getElementById('mmRead');
+
+const pLine = document.getElementById('pLine');
+const pTip  = document.getElementById('pTip');
+
+const pvLine = document.getElementById('pvLine');
+const pvTip  = document.getElementById('pvTip');
+
+const magSpan = document.getElementById('mag');
+const deltaSpan = document.getElementById('delta');
+
+let boardMM = 150;
+const minMM = 80, maxMM = 260;
+
+function mmToX(mm) { return lensX + mm; }
+function xToMM_svgX(svgX) { return Math.min(maxMM, Math.max(minMM, svgX - lensX)); }
+function clientToSvgX(evt){
+  const pt = svg.createSVGPoint();
+  const e = (evt.touches ? evt.touches[0] : evt);
+  pt.x = e.clientX; pt.y = e.clientY;
+  const inv = svg.getScreenCTM().inverse();
+  return pt.matrixTransform(inv).x;
+}
+
+function updateImaging() {
+  const mBoard = -(boardMM / do_);
+  const mIdeal = -(diIdeal / do_);
+  const hiIdeal = Math.abs(mIdeal) * ho;
+
+  const imgX = mmToX(boardMM);
+  const imgTop = 130 + hiIdeal;
+  const imgBottom = 130;
+
+  imgLine.setAttribute('x1', imgX);
+  imgLine.setAttribute('x2', imgX);
+  imgLine.setAttribute('y1', imgBottom);
+  imgLine.setAttribute('y2', imgTop);
+  imgTip.setAttribute('points', `${imgX},${imgTop+10} ${imgX-10},${imgTop-20} ${imgX+10},${imgTop-20}`);
+
+  ray1b.setAttribute('x1', lensX);
+  ray1b.setAttribute('y1', 130);
+  ray1b.setAttribute('x2', imgX);
+  ray1b.setAttribute('y2', imgTop);
+  ray2.setAttribute('x2', lensX);
+  ray2.setAttribute('y2', 70);
+  ray2b.setAttribute('x1', lensX);
+  ray2b.setAttribute('y1', 70);
+  ray2b.setAttribute('x2', imgX);
+  ray2b.setAttribute('y2', imgTop);
+
+  boardRect.setAttribute('x', imgX - 3);
+  boardLbl.setAttribute('x', imgX);
+  boardValTxt.setAttribute('x', imgX);
+  boardValTxt.textContent = Math.round(boardMM) + " mm";
+  mmRead.textContent = Math.round(boardMM) + " mm";
+
+  const baseH = 50;
+  const scaleRel = Math.max(0.15, Math.abs(mBoard) / Math.abs(mIdeal));
+  const hL = baseH * scaleRel;
+  const topY = 130 + hL;
+  pLine.setAttribute('x1', imgX);
+  pLine.setAttribute('x2', imgX);
+  pLine.setAttribute('y1', 130);
+  pLine.setAttribute('y2', topY);
+  pTip.setAttribute('points', `${imgX},${topY+10} ${imgX-12},${topY-20} ${imgX+12},${topY-20}`);
+
+  const delta = Math.abs(boardMM - diIdeal);
+  const blur = Math.min(8, delta/10);
+  blurFilter.setAttribute('stdDeviation', blur.toFixed(2));
+  imgBlur.setAttribute('stdDeviation', (blur*1.1).toFixed(2));
+
+  const brightness = Math.min(1, 1.4 / Number(ap.value));
+
+  const cx = 90, cy = 60;
+  const baseHpv = 60;
+  const hPv = baseHpv * scaleRel;
+  const y2 = cy + hPv/2;
+  pvLine.setAttribute('x1', cx);
+  pvLine.setAttribute('x2', cx);
+  pvLine.setAttribute('y1', cy);
+  pvLine.setAttribute('y2', y2);
+  pvTip.setAttribute('points', `${cx},${y2+10} ${cx-12},${y2-20} ${cx+12},${y2-20}`);
+
+  pvBlur.setAttribute('stdDeviation', (blur*1.2).toFixed(2));
+  document.getElementById('previewG').setAttribute('opacity', (0.55 + 0.45 * Math.min(1, 1.4/Number(ap.value))).toFixed(2));
+
+  magSpan.textContent = mIdeal.toFixed(2) + "×";
+  deltaSpan.textContent = delta.toFixed(0);
+}
+ap.addEventListener('input', ()=>{ apVal.textContent = "f/" + Number(ap.value).toFixed(1); updateImaging(); });
+
+let dragging = false;
+function startDrag(e){ dragging = true; svg.setPointerCapture && svg.setPointerCapture(e.pointerId); moveDrag(e); e.preventDefault(); }
+function moveDrag(e){
+  if(!dragging) return;
+  const x_svg = clientToSvgX(e);
+  boardMM = xToMM_svgX(x_svg);
+  updateImaging();
+  e.preventDefault();
+}
+function endDrag(e){ dragging = false; e.preventDefault(); }
+
+svg.addEventListener('pointerdown', startDrag, {passive:false});
+svg.addEventListener('pointermove', moveDrag, {passive:false});
+svg.addEventListener('pointerup', endDrag);
+svg.addEventListener('pointercancel', endDrag);
+
+document.getElementById('dragHot').addEventListener('pointerdown', startDrag, {passive:false});
+
+updateImaging();
+
+const expBar = document.getElementById('expBar');
+const expNote = document.getElementById('expNote');
+const btnOpen = document.getElementById('btnOpen');
+const btnExpose = document.getElementById('btnExpose');
+const btnClose = document.getElementById('btnClose');
+let lensOpen = false, ticking=false;
+
+btnOpen.onclick = ()=>{ lensOpen = true; expNote.textContent = "鏡頭打開"; };
+btnClose.onclick = ()=>{ lensOpen = false; expNote.textContent = "鏡頭關閉"; };
+
+btnExpose.onclick = ()=>{
+  if(!lensOpen){ expNote.textContent="請先打開鏡頭"; return; }
+  if(ticking) return;
+  ticking = true; expBar.style.width="0%";
+  const t0 = performance.now(), dur=1000;
+  function loop(t){
+    const p = Math.min(1,(t-t0)/dur);
+    expBar.style.width = (p*100).toFixed(1)+"%";
+    expNote.textContent = "曝光中… " + ( (dur-(t-t0))>0 ? ((dur-(t-t0))/1000).toFixed(2) : "0.00") + " s";
+    if(p<1 && ticking) requestAnimationFrame(loop);
+    if(p>=1){ expNote.textContent="請立刻關鏡頭"; ticking=false; }
+  }
+  requestAnimationFrame(loop);
+};
+
+const chemColors = ["#0b0b0b","#0b0b0b","#ff4da6","#f1e58f","#0b0b0b","#0b0b0b","#f1e58f","#ffffff"];
+let chemStep=0;
+const paperPreview = document.getElementById('paperPreview');
+const chemBar = document.getElementById('chemBar');
+const chemStepBadge = document.getElementById('chemStepBadge');
+function updateChem(){
+  paperPreview.style.background = chemColors[Math.min(chemStep,7)];
+  chemBar.style.width = (chemStep/7*100)+"%";
+  chemStepBadge.textContent = "步驟 " + chemStep + " / 7";
+}
+document.getElementById('chemNext').onclick = ()=>{ chemStep=Math.min(7,chemStep+1); updateChem(); };
+document.getElementById('chemReset').onclick = ()=>{ chemStep=0; updateChem(); };
+updateChem();
+</script>
+</body>
+</html>
