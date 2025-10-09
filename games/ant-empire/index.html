@@ -123,9 +123,10 @@ const REF = [
 //  遊戲參數
 // ————————————————————————————
 const TILE = 18; // 每格像素
-const W = 36, H = 28; // 格數（約 648x504）
+const W = 48, H = 36; // 放大地圖（約 864x648）
 const CANVAS_W = W*TILE, CANVAS_H = H*TILE;
 const ANT_MAX = 120; const RIVAL_MAX = 110; // 每關會調
+const MOVE_COOLDOWN = 0.30; // 放慢螞蟻：移動間隔秒（約 3.3 格/秒）
 let level = 1, timeLeft = 120;
 
 // 地圖格類型
@@ -195,14 +196,14 @@ function choice(arr){return arr[Math.floor(Math.random()*arr.length)]}
 function makeMap_Lv1(){
   baseRandomMap(0.12); // water ratio
   placeNests();
-  scatterFood([{type:'sugar',yield:{O:2,C:1}}, {type:'peanut',yield:{C:2,R:1}}, {type:'fish',yield:{N:2,C:1}}], 28);
+  scatterFood([{type:'sugar',yield:{O:2,C:1}}, {type:'peanut',yield:{C:2,R:1}}, {type:'fish',yield:{N:2,C:1}}], 40);
   setGoal('在 120 秒內，搬回的顆粒數量要超過對手。');
   timeLeft=120; spider=null; targetZone=[];
 }
 function makeMap_Lv2(){
   baseRandomMap(0.08);
   placeNests();
-  scatterFood([{type:'resin',yield:{T:2,C:1}},{type:'citrus',yield:{Ald:1,O:1,R:1}},{type:'oil',yield:{HC:2,C:1}}], 26);
+  scatterFood([{type:'resin',yield:{T:2,C:1}},{type:'citrus',yield:{Ald:1,O:1,R:1}},{type:'oil',yield:{HC:2,C:1}}], 36);
   // 指定新巢區域
   targetZone=[]; const tx=randInt(4,W-5), ty=randInt(4,H-5);
   for(let y=-2;y<=2;y++) for(let x=-2;x<=2;x++){
@@ -214,7 +215,7 @@ function makeMap_Lv2(){
 function makeMap_Lv3(){
   baseRandomMap(0.05);
   placeNests();
-  scatterFood([{type:'berry',yield:{Acid:2,O:1}}, {type:'wax',yield:{HC:2}}, {type:'chitin',yield:{N:1,Acid:1,R:1}}], 24);
+  scatterFood([{type:'berry',yield:{Acid:2,O:1}}, {type:'wax',yield:{HC:2}}, {type:'chitin',yield:{N:1,Acid:1,R:1}}], 34);
   // 蜘蛛
   spider={x:randInt(3,W-4), y:randInt(3,H-4), hp:120, cooldown:0, mode:'patrol', t:0, killCount:0};
   setGoal('維持運輸並擊退蜘蛛 3 次（或擊倒）。善用「蟻酸 + 十一烷」增效區。');
@@ -293,7 +294,7 @@ function scatterFood(list, count){
 // ————————————————————————————
 function spawnAnt(team){
   const pos=findNest(team);
-  return {team:team, x:pos.x, y:pos.y, carry:false, hp:1, mood:'explore', cd:0};
+  return {team:team, x:pos.x, y:pos.y, carry:false, hp:1, mood:'explore', cd:Math.random()*MOVE_COOLDOWN};
 }
 function findNest(team){
   for(let y=0;y<H;y++) for(let x=0;x<W;x++){
@@ -311,6 +312,9 @@ function resetGame(){
   ants=[]; antsRival=[]; inventory={}; mats={}; scoreMe=0; scoreRival=0; carrying=0; spider=null; placingLine=null;
   unlocked = UNLOCK[level].slice(0); selectedPh = unlocked[0]||null;
   for(let i=0;i<MATERIALS.length;i++){ mats[MATERIALS[i]]=0; }
+  // 起始原料加量（便於一開始就能合成與佈署）
+  const START = {C:6,O:6,N:4,R:3,T:3,Ald:3,Acid:3,HC:4,LAC:2};
+  for(const k in START){ mats[k] = (mats[k]||0) + START[k]; }
   if(level===1) makeMap_Lv1();
   if(level===2) makeMap_Lv2();
   if(level===3) makeMap_Lv3();
@@ -354,7 +358,7 @@ function step(dt){
       const score = A - R + triBoost + baseNoise + (Math.random()*0.1);
       if(score>bestScore){ bestScore=score; best=[nx,ny]; }
     }
-    if(best){ a.x=best[0]; a.y=best[1]; }
+    if(best){ a.x=best[0]; a.y=best[1]; a.cd = MOVE_COOLDOWN; }
 
     // 事件：食物
     const cell=grid[idx(a.x,a.y)];
