@@ -3,19 +3,20 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>模式螞蟻費洛蒙策略遊戲 v0.5.4 — 陣營費洛蒙/風向箭頭/縮放UI/防卡蟲</title>
+<title>模式螞蟻費洛蒙策略遊戲 v0.5.5 — 材料入庫在回巢、風向箭頭在面板、統計表格</title>
 <style>
   :root { --bg:#0f1115; --panel:#151922; --ink:#e8eefc; --muted:#9aa4b2; --accent:#77e4a0; --danger:#ff7a7a; --warn:#ffd36e; }
   html,body{height:100%; margin:0; background:var(--bg); color:var(--ink); font-family: ui-sans-serif, system-ui, -apple-system, PingFangTC, "Noto Sans TC", Segoe UI, Roboto, Helvetica, Arial;}
-  #wrap{display:grid; grid-template-columns: 1fr 320px; gap:10px; height:100vh; padding:10px; box-sizing:border-box;}
+  #wrap{display:grid; grid-template-columns: 1fr 360px; gap:10px; height:100vh; padding:10px; box-sizing:border-box;}
   #stage{position:relative; width:100%; height:100%;}
   #canvas{position:absolute; inset:0; background:#0b0d12; border:1px solid #22283a; border-radius:12px; width:100%; height:100%; display:block; image-rendering:pixelated}
   #panel{background:var(--panel); border-radius:14px; padding:12px; overflow:auto; display:grid; gap:10px}
   h2{margin:6px 0 8px; font-size:18px}
   .slot{background:#101625; border:1px solid #2b3246; border-radius:10px; padding:8px 10px; display:flex; align-items:center; gap:8px; justify-content:space-between}
+  .col{display:flex; flex-direction:column; gap:8px; width:100%}
   .row{display:flex; gap:6px; align-items:center; flex-wrap:wrap}
   button,select,input[type="range"]{background:#23293a; color:var(--ink); border:1px solid #2b3246; border-radius:10px; padding:6px 10px; cursor:pointer}
-  input[type="range"]{padding:4px 6px; width:180px}
+  input[type="range"]{padding:4px 6px; width:200px}
   button:hover{filter:brightness(1.08)}
   .pill{border:1px solid #334; border-radius:30px; padding:4px 8px; font-size:12px}
   .badge{font-size:11px; padding:2px 6px; border-radius:8px; background:#223}
@@ -26,9 +27,10 @@
   #refCard{width:min(980px,92vw); height:min(80vh,680px); background:#111522; border:1px solid #2b3246; border-radius:14px; overflow:auto; padding:16px}
   table{width:100%; border-collapse:collapse; font-size:13px}
   th,td{border-bottom:1px solid #2b3246; padding:6px 8px; text-align:left}
-  /* Zoom UI */
   #zoomUI{position:absolute; left:12px; top:12px; z-index:10; display:flex; gap:6px}
   #zoomUI button{padding:6px 10px; border-radius:8px}
+  #wxBox{display:flex; align-items:center; gap:8px}
+  #wxArrow{width:120px; height:36px; background:#0c1020; border:1px solid #2b3246; border-radius:8px}
 </style>
 </head>
 <body>
@@ -58,12 +60,37 @@
         <span>🎯 <span id="goalText"></span></span>
         <span id="timerWrap" style="display:none">⏱ <span id="timerText">0</span>s</span>
       </div>
-      <div class="slot"><span>🐜 我 <b id="antsMe">0</b>/<b id="capMe">∞</b>｜敵 <b id="antsRival">0</b></span><span>📦 我 <b id="scoreMe">0</b>｜敵 <b id="scoreRival">0</b></span></div>
-      <div class="slot"><b>速度</b><span class="row"><input type="range" id="speedRange" min="1" max="100" step="1" value="1"><span class="mini" id="speedLabel">1×</span></span></div>
+      <div class="slot col">
+        <div class="row" style="justify-content:space-between"><b>速度</b><span class="mini" id="speedLabel">1×</span></div>
+        <input type="range" id="speedRange" min="1" max="100" step="1" value="1">
+      </div>
+      <div class="slot col">
+        <b>統計</b>
+        <table id="statsTable">
+          <thead><tr><th>陣營</th><th>螞蟻數</th><th>搬運中</th><th>得分</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="slot col">
+        <b>地圖食物</b>
+        <table id="foodTable">
+          <thead><tr><th>種類</th><th>數量</th><th>剩餘總量</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
       <div class="slot"><b>瓶庫</b><div id="invList" class="row"></div></div>
       <div class="slot"><b>合成</b><span class="row"><select id="craftSel"></select><button id="btnCraft">+1</button></span></div>
-      <div class="slot"><b>材料</b><div id="matRow" class="row"></div></div>
-      <div class="slot"><b>天氣</b><div class="mini" id="wxText">—</div></div>
+      <div class="slot col">
+        <b>材料</b>
+        <div id="matRow" class="row"></div>
+      </div>
+      <div class="slot">
+        <b>天氣</b>
+        <div id="wxBox">
+          <canvas id="wxArrow" width="120" height="36"></canvas>
+          <div class="mini" id="wxText">—</div>
+        </div>
+      </div>
       <div class="mini">操作：左鍵放置、右鍵清除、中鍵/空白鍵拖曳、滾輪縮放／左上角按鈕縮放、1:1</div>
     </div>
   </div>
@@ -126,6 +153,7 @@ let wx={wind:1.2, windDir:0, humidIdx:3, raining:false, tWind:0, tDir:0};
 function inBounds(x,y){ return x>=0&&y>=0&&x<W&&y<H; } function idx(x,y){ return y*W+x; } function randInt(a,b){ return Math.floor(Math.random()*(b-a+1))+a; } function choice(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
 function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
 function lerp(a,b,t){ return a+(b-a)*t; }
+function clone(obj){ return JSON.parse(JSON.stringify(obj)); }
 
 /******************** 離屏精靈 ********************/
 const SCALE=8; const ANT_W=6, ANT_H=4; const FOOD_W=10, FOOD_H=8;
@@ -149,16 +177,27 @@ frames.antsRv.push(mkAnt(0,0,"#cfd3da88"),mkAnt(1,0,"#cfd3da88"),mkAnt(0,1,"#cfd
 /******************** 天氣（偏向 0~3m/s） ********************/
 function rndSign(){ return Math.random()<0.5?-1:1; }
 function stepWeather(dt){
-  // 風速以 0~3 m/s 為主，做微小 OU 過程
   const mean=1.2, k=0.9;
   wx.wind = clamp(wx.wind + (mean - wx.wind)*k*dt + (Math.random()-0.5)*0.6*dt, 0, 3.5);
-  // 風向：每 30s 緩慢變動 ≤ 60°
   wx.tDir += dt; if(wx.tDir>=30){ wx.windDir = (wx.windDir + (Math.random()*60 - 30)) % 360; wx.tDir=0; }
-  // 溼度偶爾變動
   if(Math.random()<0.02*dt){ wx.humidIdx = clamp(wx.humidIdx + rndSign()*1, 0, 6); }
-  wx.raining = (wx.humidIdx===6 && wx.wind>3); // 高濕且較強風時
+  wx.raining = (wx.humidIdx===6 && wx.wind>3);
   const humidText=['極乾','很乾','偏乾','中等','偏濕','很濕','極濕'][wx.humidIdx];
   document.getElementById('wxText').textContent = '風 ' + wx.wind.toFixed(1) + ' m/s @ ' + wx.windDir.toFixed(0) + '°｜濕度 ' + humidText + (wx.raining?'｜🌧 下雨':'');
+  drawWxArrow();
+}
+function drawWxArrow(){
+  const c=document.getElementById('wxArrow'); const o=c.getContext('2d'); o.setTransform(1,0,0,1,0,0); o.clearRect(0,0,c.width,c.height);
+  const cx=18, cy=c.height/2; const len = 22 + wx.wind*10; const ang = wx.windDir * Math.PI/180;
+  // 背景刻度
+  o.strokeStyle="#283049"; o.beginPath(); o.moveTo(2,cy); o.lineTo(c.width-2,cy); o.stroke();
+  // 箭頭
+  o.save(); o.translate(cx, cy); o.rotate(ang);
+  o.strokeStyle="#9aa4b2"; o.lineWidth=2; o.beginPath(); o.moveTo(0,0); o.lineTo(len,0); o.stroke();
+  o.beginPath(); o.moveTo(len,0); o.lineTo(len-6, 3); o.lineTo(len-6, -3); o.closePath(); o.fillStyle="#9aa4b2"; o.fill();
+  o.restore();
+  // 標籤
+  o.fillStyle="#9aa4b2"; o.font="12px ui-sans-serif"; o.fillText(wx.wind.toFixed(1)+" m/s", cx+len+8, cy+4);
 }
 
 /******************** 地圖 ********************/
@@ -176,7 +215,7 @@ function findNest(team){ for(let y=0;y<H;y++){ for(let x=0;x<W;x++){ const t=gri
 function spawnAnt(team){
   const n=findNest(team); const px=n.x*TILE+TILE/2, py=n.y*TILE+TILE/2; const aim=Math.random()*Math.PI*2;
   return {team:team, x:px, y:py, aim:aim, speed:26+Math.random()*10, sinceSig:0, sinceSteps:0, changeAt: (3+Math.random()*2)*ANT_H,
-          carry:false, cool:0, hp:3, phCharge:(team==='me'?4:4), phMax:6, dropCooldown:0,
+          carry:false, load:null, cool:0, hp:3, phCharge:4, phMax:6, dropCooldown:0,
           lastX:px, lastY:py, stuckT:0};
 }
 
@@ -194,7 +233,7 @@ function placePher(x,y,key,amt,team){
   const c=grid[idx(x,y)]; if([T_WATER,T_WALL].includes(c.type)) return;
   const bucket = (team==='rv' ? c.pherRv : c.pherMe);
   const windRad = (wx.windDir*Math.PI/180);
-  const boost = 1 + Math.max(0, Math.cos(windRad)) * (wx.wind/3.5)*0.6; // 風更弱時的增益比例
+  const boost = 1 + Math.max(0, Math.cos(windRad)) * (wx.wind/3.5)*0.6;
   bucket[key]=(bucket[key]||0)+amt*boost;
   c.sniff = c.sniff||0;
 }
@@ -217,7 +256,6 @@ function stepPher(dt){
     decay(c.pherMe); decay(c.pherRv);
   }
 }
-// 聞光：固定嗅聞次數後衰退（對雙方都作用）
 function sniffAt(x,y){ if(!inBounds(x,y)) return; const c=grid[idx(x,y)]; c.sniff=(c.sniff||0)+1; if(c.sniff%30===0){ for(const k in c.pherMe){ c.pherMe[k]*=0.8; } for(const k in c.pherRv){ c.pherRv[k]*=0.8; } } }
 
 /******************** 遊戲流程 ********************/
@@ -274,20 +312,26 @@ function step(dt){
     a.x=nx; a.y=ny;
     sniffAt(cgx,cgy);
     const cell=grid[idx(cgx,cgy)];
-    // 遇到食物：補充費洛蒙庫存 +2；我方收集材料
+    // 遇到食物：開始搬運，**不立即入庫材料**，而是把本次負載記在 a.load，等回巢再入庫
     if(!a.carry && cell.type===T_FOOD){
       a.carry=true; carrying++;
+      a.load = clone(cell.food.yield); // 本趟負載
       a.phCharge = Math.min(a.phMax, a.phCharge + 2);
-      if(a.team==='me'){ const yv=cell.food.yield; for(const k in yv){ mats[k]=(mats[k]||0)+yv[k]; } }
       cell.food.hp-=1; cell.food.size = Math.max(1.0, cell.food.size-0.3);
       if(cell.food.hp<=0){ cell.type=T_EMPTY; cell.food=null; placePher(cgx,cgy,'noentry',1.2,a.team); }
       if(a.phCharge>0){ placePher(cgx,cgy, selectedOrDefaultTrail(), 1.0, a.team); a.phCharge -= 1; }
-      colonyCap = Math.min(colonyMax, colonyCap + (a.team==='me'?1:0)); // 我方擴編
+      if(a.team==='me'){ colonyCap = Math.min(colonyMax, colonyCap + 1); } // 我方擴編
     }
-    // 回巢：計分與補滿 pher
+    // 回巢：計分與**材料入庫**，補滿 pher
     if(a.carry && cgx===nest.x && cgy===nest.y){
       a.carry=false; carrying=Math.max(0,carrying-1);
-      if(a.team==='me') scoreMe++; else scoreRival++;
+      if(a.team==='me'){
+        scoreMe++;
+        if(a.load){ for(const k in a.load){ mats[k]=(mats[k]||0)+a.load[k]; } refreshMats(); }
+      }else{
+        scoreRival++;
+      }
+      a.load=null;
       if(a.phCharge>0){ placePher(cgx,cgy, selectedOrDefaultTrail(), 0.4, a.team); a.phCharge -= 1; }
       a.phCharge = a.phMax;
     }
@@ -311,36 +355,31 @@ function advanceCountdown(dt){
 }
 
 function updateHud(){
-  document.getElementById('antsMe').textContent=ants.length; document.getElementById('antsRival').textContent=antsRival.length;
-  document.getElementById('scoreMe').textContent=scoreMe; document.getElementById('scoreRival').textContent=scoreRival;
   document.getElementById('capMe').textContent=(colonyMax===Infinity?'∞':colonyMax);
+  // 統計表
+  const meCarry = ants.reduce((n,a)=>n+(a.carry?1:0),0);
+  const rvCarry = antsRival.reduce((n,a)=>n+(a.carry?1:0),0);
+  const tbody=document.querySelector('#statsTable tbody');
+  tbody.innerHTML = '<tr><td>我方</td><td>'+ants.length+'</td><td>'+meCarry+'</td><td>'+scoreMe+'</td></tr>' +
+                    '<tr><td>敵方</td><td>'+antsRival.length+'</td><td>'+rvCarry+'</td><td>'+scoreRival+'</td></tr>';
+  // 食物表
+  const agg={};
+  for(let i=0;i<grid.length;i++){ const c=grid[i]; if(c.type===T_FOOD){ const k=c.food.type; if(!agg[k]) agg[k]={cnt:0,hp:0}; agg[k].cnt++; agg[k].hp+=c.food.hp; } }
+  const fbody=document.querySelector('#foodTable tbody'); fbody.innerHTML='';
+  const order=['sugar','peanut','fish','resin','citrus','oil','berry','wax','chitin'];
+  order.forEach(function(k){ if(agg[k]){ const tr=document.createElement('tr'); tr.innerHTML='<td>'+k+'</td><td>'+agg[k].cnt+'</td><td>'+agg[k].hp+'</td>'; fbody.appendChild(tr);} });
 }
 
 /******************** 繪圖 ********************/
 function groundColor(t){ if(t===T_WATER) return '#0a1830'; if(t===T_WALL) return '#0a0a10'; return '#0c101a'; }
-function drawWindArrow(){
-  const pad=14; const cx=viewX + pad, cy=viewY + pad;
-  ctx.save(); ctx.translate(cx, cy);
-  const len = 22 + wx.wind*10; // 風越大箭越長
-  const ang = wx.windDir * Math.PI/180;
-  ctx.rotate(ang);
-  ctx.strokeStyle="#9aa4b2"; ctx.lineWidth=2;
-  ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(len,0); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(len,0); ctx.lineTo(len-6, 3); ctx.lineTo(len-6, -3); ctx.closePath();
-  ctx.fillStyle="#9aa4b2"; ctx.fill();
-  ctx.restore();
-}
 function draw(){ const dpr=window.devicePixelRatio||1; ctx.setTransform(1,0,0,1,0,0); ctx.clearRect(0,0,canvas.width,canvas.height); ctx.scale(dpr,dpr); ctx.save(); ctx.scale(viewScale,viewScale); ctx.translate(-viewX,-viewY);
   ctx.fillStyle=groundColor(T_EMPTY); ctx.fillRect(0,0,WORLD_W,WORLD_H);
   // 地圖與我方/敵方訊號
   for(let y=0;y<H;y++){ for(let x=0;x<W;x++){
     const c=grid[idx(x,y)]; const col=groundColor(c.type); ctx.fillStyle=col; ctx.fillRect(x*TILE,y*TILE,TILE,TILE);
-    // 我方訊號：用對應顏色
     for(const k in c.pherMe){ ctx.fillStyle=PH[k].color; ctx.globalAlpha=Math.min(0.6,c.pherMe[k]); ctx.fillRect(x*TILE,y*TILE,TILE,TILE); ctx.globalAlpha=1; }
-    // 敵方訊號：統一灰
     for(const k in c.pherRv){ ctx.fillStyle="#cfd3da44"; ctx.globalAlpha=Math.min(0.6,c.pherRv[k]); ctx.fillRect(x*TILE,y*TILE,TILE,TILE); ctx.globalAlpha=1; }
     if(c.type===T_FOOD){ const fx=x*TILE+TILE/2, fy=y*TILE+TILE/2; const img=frames.food[c.food.type]; const sz = (c.food.size||1); ctx.drawImage(img, fx-FOOD_W/2*sz, fy-FOOD_H/2*sz, FOOD_W*sz, FOOD_H*sz);
-      // 缺角
       const frac = 1 - (c.food.hp / c.food.maxhp);
       if(frac>0){ const ang0=c.food.notchDir; const span = Math.PI*0.6*frac + 0.2; const r = Math.max(FOOD_W, FOOD_H)*c.food.size*0.7;
         ctx.beginPath(); ctx.moveTo(fx,fy); ctx.arc(fx,fy,r, ang0, ang0+span, false); ctx.closePath();
@@ -354,8 +393,6 @@ function draw(){ const dpr=window.devicePixelRatio||1; ctx.setTransform(1,0,0,1,
   function drawAnt(a, sprites){ const phase=(Math.floor((performance.now()/120 + a.x*0.01)%2))?1:0; const idx=(Math.cos(a.aim)>=0?0:2)+phase; const off=sprites[idx]; ctx.drawImage(off, a.x-ANT_W/2, a.y-ANT_H/2, ANT_W, ANT_H); }
   for(let i=0;i<ants.length;i++) drawAnt(ants[i], frames.antsMe);
   for(let i=0;i<antsRival.length;i++) drawAnt(antsRival[i], frames.antsRv);
-  // 風向箭頭
-  drawWindArrow();
   ctx.restore();
 }
 
