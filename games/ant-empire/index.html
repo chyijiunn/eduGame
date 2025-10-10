@@ -3,87 +3,52 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>模式螞蟻費洛蒙策略遊戲 v0.4.1 — 多造型食物精靈 + 下載版</title>
+<title>模式螞蟻費洛蒙策略遊戲 v0.4.2 — 簡潔面板＋漸次出巢＋探索路徑</title>
 <style>
   :root { --bg:#0f1115; --panel:#151922; --ink:#e8eefc; --muted:#9aa4b2; --accent:#77e4a0; --danger:#ff7a7a; --warn:#ffd36e; }
   html,body{height:100%; margin:0; background:var(--bg); color:var(--ink); font-family: ui-sans-serif, system-ui, -apple-system, PingFangTC, "Noto Sans TC", Segoe UI, Roboto, Helvetica, Arial;}
-  #wrap{display:grid; grid-template-columns: 1fr 360px; gap:10px; height:100vh; padding:10px; box-sizing:border-box;}
-  .panel{background:var(--panel); border-radius:14px; padding:12px; overflow:auto}
-  h2{margin:6px 0 8px; font-size:18px}
-  h3{margin:12px 0 6px; font-size:14px; color:var(--muted)}
-  button,select{background:#23293a; color:var(--ink); border:1px solid #2b3246; border-radius:10px; padding:6px 10px; cursor:pointer}
-  button:hover{filter:brightness(1.1)}
-  .row{display:flex; gap:6px; align-items:center; flex-wrap:wrap}
-  .pill{border:1px solid #334; border-radius:30px; padding:4px 8px; font-size:12px}
-  .stat{display:flex; justify-content:space-between; font-size:13px; padding:4px 0}
-
+  #wrap{display:grid; grid-template-columns: 1fr 320px; gap:10px; height:100vh; padding:10px; box-sizing:border-box;}
   #stage{position:relative; width:100%; height:100%;}
   #canvas{position:absolute; inset:0; background:#0b0d12; border:1px solid #22283a; border-radius:12px; width:100%; height:100%; display:block; image-rendering:pixelated}
-  #rightStack{display:grid; grid-auto-rows:min-content; gap:10px}
-  #topbar{display:grid; gap:8px}
-  .slot{background:#101625; border:1px solid #2b3246; border-radius:10px; padding:8px 10px; display:flex; align-items:center; gap:8px}
-  .kbd{font-family: ui-monospace, SFMono-Regular, Menlo, monospace; background:#1b2030; border:1px solid #2b3246; border-radius:6px; padding:1px 6px; font-size:12px}
-  .list{display:grid; gap:6px}
+  #panel{background:var(--panel); border-radius:14px; padding:12px; overflow:auto; display:grid; gap:10px}
+  h2{margin:6px 0 8px; font-size:18px}
+  .slot{background:#101625; border:1px solid #2b3246; border-radius:10px; padding:8px 10px; display:flex; align-items:center; gap:8px; justify-content:space-between}
+  .row{display:flex; gap:6px; align-items:center; flex-wrap:wrap}
+  button,select{background:#23293a; color:var(--ink); border:1px solid #2b3246; border-radius:10px; padding:6px 10px; cursor:pointer}
+  button:hover{filter:brightness(1.08)}
+  .pill{border:1px solid #334; border-radius:30px; padding:4px 8px; font-size:12px}
   .badge{font-size:11px; padding:2px 6px; border-radius:8px; background:#223}
-
+  .mini{font-size:12px; color:var(--muted)}
   #errorOverlay{position:fixed; right:12px; bottom:12px; display:none; z-index:9999; background:#1d2233; color:#ffd1d1; border:1px solid #b44; border-radius:12px; padding:12px; box-shadow:0 6px 30px #0008; max-width:40vw}
   #errorOverlay pre{white-space:pre-wrap; font-family:ui-monospace, SFMono-Regular, Menlo, monospace; font-size:12px; color:#ffd1d1}
-
   #refModal{position:fixed; inset:0; display:none; place-items:center; background:#0008}
   #refCard{width:min(980px,92vw); height:min(80vh,680px); background:#111522; border:1px solid #2b3246; border-radius:14px; overflow:auto; padding:16px}
   table{width:100%; border-collapse:collapse; font-size:13px}
   th,td{border-bottom:1px solid #2b3246; padding:6px 8px; text-align:left}
-  .grid2{display:grid; grid-template-columns: 1fr 1fr; gap:10px}
 </style>
 </head>
 <body>
   <div id="wrap">
-    <div id="stage">
-      <canvas id="canvas"></canvas>
-    </div>
-    <div id="rightStack">
-      <div id="topbar">
-        <div class="slot">關卡：
+    <div id="stage"><canvas id="canvas"></canvas></div>
+    <div id="panel">
+      <div class="slot"><b>關卡</b>
+        <span class="row">
           <select id="levelSel">
-            <option value="1">Lv1 搬運競速</option>
-            <option value="2">Lv2 蟻巢擴充</option>
-            <option value="3">Lv3 蜘蛛入侵</option>
-            <option value="4">Lv4 吸引+禁止解謎</option>
+            <option value="1">Lv1</option>
+            <option value="2">Lv2</option>
+            <option value="3">Lv3</option>
+            <option value="4">Lv4</option>
           </select>
           <button id="btnRestart">重新開始</button>
-          <button id="btnRef">開啟 ref</button>
-        </div>
-        <div class="slot">目標：<span id="goalText"></span></div>
-        <div class="slot">時間：<span id="timerText">0</span> 秒</div>
-        <div class="slot">我方運回：<span id="scoreMe">0</span>　對手：<span id="scoreRival">0</span></div>
+          <button id="btnRef">ref</button>
+        </span>
       </div>
-      <div class="panel">
-        <h2>合成與費洛蒙</h2>
-        <h3>材料（由食物拆解取得）</h3>
-        <div id="matRow" class="row"></div>
-        <h3>合成</h3>
-        <div class="row">
-          <select id="craftSel"></select>
-          <button id="btnCraft">合成 1 瓶</button>
-        </div>
-        <h3>瓶庫（點地面部署）</h3>
-        <div id="invList" class="list"></div>
-        <h3>提示</h3>
-        <div id="tipBox" style="font-size:13px; color:var(--muted)">左鍵放置費洛蒙；右鍵清除；中鍵或空白鍵拖曳平移；滾輪縮放</div>
-      </div>
-      <div class="panel">
-        <h2>資訊</h2>
-        <div class="stat"><span>我方螞蟻</span><b id="antsMe">0</b></div>
-        <div class="stat"><span>對手螞蟻</span><b id="antsRival">0</b></div>
-        <div class="stat"><span>搬運中</span><b id="carrying">0</b></div>
-        <div class="stat"><span>蜘蛛狀態</span><b id="spiderStat">—</b></div>
-        <h3>已解鎖費洛蒙</h3>
-        <div id="unlocked" class="list"></div>
-        <h3>快捷鍵</h3>
-        <div style="font-size:13px; color:var(--muted)">
-          <div><span class="kbd">1-9</span> 選瓶；<span class="kbd">R</span> 重開；<span class="kbd">F</span> ref</div>
-        </div>
-      </div>
+      <div class="slot"><span>⏱ <span id="timerText">0</span>s</span><span>🎯 <span id="goalText"></span></span></div>
+      <div class="slot"><span>🐜 <b id="antsMe">0</b>/<b id="capMe">∞</b>（我方）｜敵 <b id="antsRival">0</b></span><span>📦 我 <b id="scoreMe">0</b>｜敵 <b id="scoreRival">0</b></span></div>
+      <div class="slot"><b>瓶庫</b><div id="invList" class="row"></div></div>
+      <div class="slot"><b>合成</b><span class="row"><select id="craftSel"></select><button id="btnCraft">+1</button></span></div>
+      <div class="slot"><b>材料</b><div id="matRow" class="row"></div></div>
+      <div class="mini">操作：左鍵放置、右鍵清除、中鍵/空白鍵拖曳、滾輪縮放</div>
     </div>
   </div>
 
@@ -92,30 +57,30 @@
 
 <script>
 'use strict';
-/******************** 基本資料（ref） ********************/
+/******************** ref ********************/
 const REF=[
-  {id:'m4mp2c',short:'吡咯酸甲酯',formal:'methyl 4-methylpyrrole-2-carboxylate (M4MP2C)',cls:'路徑-短',source:'毒腺',notes:'切葉蟻經典 trail，短效但強吸引。'},
-  {id:'edp',short:'乙基二甲基吡嗪（EDP）',formal:'3-ethyl-2,5-dimethylpyrazine',cls:'路徑/警戒',source:'毒腺',notes:'短效路徑與局部警戒。'},
-  {id:'faranal',short:'Faranal',formal:'faranal',cls:'路徑-長',source:'杜佛氏腺',notes:'法老蟻長效幹線。'},
-  {id:'mono1',short:'Monomorine I',formal:'monomorine I',cls:'招募-短',source:'毒腺',notes:'近距快速集結。'},
-  {id:'noentry',short:'禁止混合物',formal:'no-entry blend（法老蟻抑制型）',cls:'禁止',source:'毒腺',notes:'封鎖無效路徑、形成單向流'},
-  {id:'formic',short:'蟻酸',formal:'formic acid',cls:'防禦',source:'毒腺',notes:'與烴類並用增效鋪展'},
-  {id:'c11',short:'十一烷',formal:'n-undecane',cls:'警戒/增效',source:'杜佛氏腺/毒腺',notes:'與酸同在可提升覆蓋與持續'},
-  {id:'farnesene',short:'α-法呢烯',formal:'(Z,E)-α-farnesene',cls:'招募',source:'杜佛氏腺',notes:'收穫蟻招募訊號'},
-  {id:'dolich',short:'多利克二醛',formal:'dolichodial',cls:'路徑',source:'腹端腺',notes:'阿根廷蟻 trail 主成分之一'},
-  {id:'irido',short:'Iridomyrmecin',formal:'iridomyrmecin',cls:'路徑',source:'腹端腺',notes:'阿根廷蟻 trail 主成分之一'},
-  {id:'z9',short:'Z9-16 醛',formal:'(Z)-9-hexadecenal',cls:'增益',source:'腹端腺',notes:'微量增益跟隨效率'}
+  {id:'m4mp2c',short:'吡咯酸甲酯',formal:'methyl 4-methylpyrrole-2-carboxylate',cls:'路徑-短',source:'毒腺'},
+  {id:'edp',short:'乙基二甲基吡嗪（EDP）',formal:'3-ethyl-2,5-dimethylpyrazine',cls:'路徑/警戒',source:'毒腺'},
+  {id:'faranal',short:'Faranal',formal:'faranal',cls:'路徑-長',source:'杜佛氏腺'},
+  {id:'mono1',short:'Monomorine I',formal:'monomorine I',cls:'招募-短',source:'毒腺'},
+  {id:'noentry',short:'禁止混合物',formal:'no-entry blend',cls:'禁止',source:'毒腺'},
+  {id:'formic',short:'蟻酸',formal:'formic acid',cls:'防禦',source:'毒腺'},
+  {id:'c11',short:'十一烷',formal:'n-undecane',cls:'增效',source:'杜佛氏腺/毒腺'},
+  {id:'farnesene',short:'α-法呢烯',formal:'(Z,E)-α-farnesene',cls:'招募',source:'杜佛氏腺'},
+  {id:'dolich',short:'多利克二醛',formal:'dolichodial',cls:'路徑',source:'腹端腺'},
+  {id:'irido',short:'Iridomyrmecin',formal:'iridomyrmecin',cls:'路徑',source:'腹端腺'},
+  {id:'z9',short:'Z9-16 醛',formal:'(Z)-9-hexadecenal',cls:'增益',source:'腹端腺'}
 ];
 
-/******************** 參數（大地圖＋大量螞蟻） ********************/
+/******************** 參數 ********************/
 const TILE=14; let W=64, H=48; const WORLD_W=W*TILE, WORLD_H=H*TILE;
-const ANT_ME=200, ANT_RV=180; const MOVE_COOLDOWN=0.28; let level=1, timeLeft=140;
+const MOVE_COOLDOWN=0.28; let level=1, timeLeft=140;
 let viewScale=1.0, viewX=0, viewY=0;
-const T_EMPTY=0, T_WATER=1, T_FOOD=2, T_NEST_ME=3, T_NEST_RIVAL=4, T_WALL=5, T_SPIDER=6, T_TARGET=7;
+const T_EMPTY=0, T_WATER=1, T_FOOD=2, T_NEST_ME=3, T_NEST_RIVAL=4, T_WALL=5, T_TARGET=7;
 const MATERIALS=['C','O','N','R','T','Ald','Acid','HC','LAC'];
 const RECIPES={m4mp2c:{label:'吡咯酸甲酯',cost:{C:1,O:1,N:1}}, edp:{label:'乙基二甲基吡嗪',cost:{N:2,R:1,C:1}}, faranal:{label:'Faranal',cost:{T:2,Ald:1,HC:1}}, mono1:{label:'Monomorine I',cost:{N:1,R:1,HC:1}}, noentry:{label:'禁止混合物',cost:{Ald:1,Acid:1,HC:1}}, formic:{label:'蟻酸',cost:{Acid:2}}, c11:{label:'十一烷',cost:{HC:2}}, farnesene:{label:'α-法呢烯',cost:{T:2,HC:1}}, dolich:{label:'多利克二醛',cost:{Ald:2,R:1}}, irido:{label:'Iridomyrmecin',cost:{LAC:1,T:1}}, z9:{label:'Z9-16 醛',cost:{Ald:1,HC:1}}};
 const UNLOCK={1:['m4mp2c','edp'],2:['faranal','mono1','noentry','farnesene','m4mp2c','edp'],3:['formic','c11','m4mp2c','faranal','mono1'],4:['faranal','noentry','dolich','irido','z9','m4mp2c']};
-const PH={m4mp2c:{type:'trail',color:'#68f',strength:2,radius:1,halfLife:20,amplify:0.4}, edp:{type:'trail',color:'#9bf',strength:2,radius:1,halfLife:15,amplify:0.3}, faranal:{type:'trail',color:'#6fa',strength:3,radius:1,halfLife:60,amplify:0.5}, mono1:{type:'recruit',color:'#aff',strength:2,radius:1,halfLife:18,amplify:0.4}, noentry:{type:'ban',color:'#f77',strength:3,radius:1,halfLife:30,amplify:0.2}, formic:{type:'acid',color:'#f55',strength:2,radius:2,halfLife:8,amplify:0.2}, c11:{type:'alkane',color:'#fc8',strength:0,radius:2,halfLife:20,amplify:0.0}, farnesene:{type:'recruit',color:'#dff76a',strength:2,radius:1,halfLife:25,amplify:0.4}, dolich:{type:'trail',color:'#a5f',strength:2,radius:1,halfLife:25,amplify:0.4}, irido:{type:'trail',color:'#c7f',strength:2,radius:1,halfLife:25,amplify:0.4}, z9:{type:'boost',color:'#fff38a',strength:0,radius:1,halfLife:12,amplify:0.0}};
+const PH={m4mp2c:{type:'trail',color:'#68f',strength:2,halfLife:20}, edp:{type:'trail',color:'#9bf',strength:2,halfLife:15}, faranal:{type:'trail',color:'#6fa',strength:3,halfLife:60}, mono1:{type:'recruit',color:'#aff',strength:2,halfLife:18}, noentry:{type:'ban',color:'#f77',strength:3,halfLife:30}, formic:{type:'acid',color:'#f55',strength:2,halfLife:8}, c11:{type:'alkane',color:'#fc8',strength:0,halfLife:20}, farnesene:{type:'recruit',color:'#dff76a',strength:2,halfLife:25}, dolich:{type:'trail',color:'#a5f',strength:2,halfLife:25}, irido:{type:'trail',color:'#c7f',strength:2,halfLife:25}, z9:{type:'boost',color:'#fff38a',strength:0,halfLife:12}};
 
 /******************** 畫布 ********************/
 const canvas=document.getElementById('canvas'); const ctx=canvas.getContext('2d');
@@ -123,164 +88,151 @@ function resizeCanvas(){ const rect=canvas.getBoundingClientRect(); const dpr=wi
 window.addEventListener('resize', function(){ resizeCanvas(); });
 
 /******************** 狀態 ********************/
-let grid=[], foodLeft=0, scoreMe=0, scoreRival=0; let ants=[], antsRival=[]; let carrying=0; let spider=null; let targetZone=[]; let mats={}, inventory={}, unlocked=[], selectedPh=null, placingLine=null;
+let grid=[], scoreMe=0, scoreRival=0; let ants=[], antsRival=[]; let carrying=0; let mats={}, inventory={}, unlocked=[], selectedPh=null, placingLine=null;
+let colonyCap=60, colonyMax=Infinity, spawnBudget=0, rivalSpawn=180;
 
 /******************** 工具 ********************/
 function inBounds(x,y){ return x>=0&&y>=0&&x<W&&y<H; } function idx(x,y){ return y*W+x; } function randInt(a,b){ return Math.floor(Math.random()*(b-a+1))+a; } function choice(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+function dist(a,b,c,d){ const dx=a-c, dy=b-d; return Math.hypot(dx,dy); }
 
-/******************** 以「附件風格」建立離屏精靈影格（含多造型食物） ********************/
-const SPRITE_SCALE=8; // 畫大再縮小，銳利
-const ANT_W=6, ANT_H=4; const FOOD_W=7, FOOD_H=6; const SP_W=10, SP_H=8; // spider
+/******************** 離屏精靈 ********************/
+const SCALE=8; const ANT_W=6, ANT_H=4; const FOOD_W=7, FOOD_H=6;
+const SP_W=10, SP_H=8;
 const frames={antsMe:[], antsRv:[], spider:[], food:{}};
-function makeAntFrame(phase, flip, stroke){
-  const off=document.createElement('canvas'), o=off.getContext('2d'); off.width=ANT_W*SPRITE_SCALE; off.height=ANT_H*SPRITE_SCALE; o.scale(SPRITE_SCALE,SPRITE_SCALE); o.lineWidth=0.9; o.strokeStyle=stroke;
-  o.translate(ANT_W/2,ANT_H/2); if(flip) o.scale(-1,1); o.translate(-ANT_W/2,-ANT_H/2);
-  o.beginPath(); o.ellipse(1.6,2,1.6,1.2,0,0,Math.PI*2); o.ellipse(3.4,2,1.2,1.0,0,0,Math.PI*2); o.ellipse(4.8,2,0.9,0.9,0,0,Math.PI*2); o.stroke();
-  const A=0.6; for(let i=0;i<3;i++){ const p=phase?1:-1, bx=[1.4,3.0,4.4][i], by=2; const a1=(i*0.6 + p*A), a2=(i*0.6 - p*A); o.beginPath(); o.moveTo(bx,by-0.4); o.lineTo(bx+Math.cos(a1)*1.5,by-0.4+Math.sin(a1)*1.5); o.stroke(); o.beginPath(); o.moveTo(bx,by+0.4); o.lineTo(bx+Math.cos(a2)*1.5,by+0.4+Math.sin(a2)*1.5); o.stroke(); }
-  o.beginPath(); o.moveTo(5.3,1.3); o.lineTo(6,0.5); o.moveTo(5.3,2.7); o.lineTo(6,3.3); o.stroke();
-  return off;
-}
-function makeSpiderFrame(phase){ const off=document.createElement('canvas'), o=off.getContext('2d'); off.width=SP_W*SPRITE_SCALE; off.height=SP_H*SPRITE_SCALE; o.scale(SPRITE_SCALE,SPRITE_SCALE); o.lineWidth=1; o.strokeStyle="#ff9aaacc"; const cx=SP_W/2, cy=SP_H/2;
-  o.beginPath(); o.ellipse(cx-1,cy,2.4,1.6,0,0,Math.PI*2); o.ellipse(cx+1.8,cy,1.8,1.4,0,0,Math.PI*2); o.stroke();
-  const A=0.8*(phase?1:-1); for(let i=0;i<4;i++){ const ang=i*0.5; for(let sgn of [-1,1]){ o.beginPath(); o.moveTo(cx,cy); o.lineTo(cx+Math.cos(ang+A*sgn)*3.2, cy+Math.sin(ang+A*sgn)*3.2); o.stroke(); } }
-  return off; }
-
-// 多造型食物
-function makeFoodFrame(kind){
-  const off=document.createElement('canvas'), o=off.getContext('2d'); off.width=FOOD_W*SPRITE_SCALE; off.height=FOOD_H*SPRITE_SCALE; o.scale(SPRITE_SCALE,SPRITE_SCALE);
-  o.lineWidth=1; o.strokeStyle="#ffffffaa";
-  if(kind==='sugar'){ // 糖塊
-    o.fillStyle="#ffe9a6"; o.beginPath(); o.roundRect(0.8,1,FOOD_W-1.6,FOOD_H-2,1); o.fill(); o.stroke();
-    o.strokeStyle="#ffffff55"; o.beginPath(); o.moveTo(1.2,1.6); o.lineTo(FOOD_W-1.2,1.6); o.stroke();
-  } else if(kind==='peanut'){ // 花生
-    o.fillStyle="#caa86d"; o.beginPath(); o.ellipse(FOOD_W/2,FOOD_H/2,3,2.1,0,0,Math.PI*2); o.fill(); o.stroke();
-    o.strokeStyle="#8a6b3a"; for(let x=FOOD_W/2-2.2; x<=FOOD_W/2+2.2; x+=0.8){ o.beginPath(); o.moveTo(x,FOOD_H/2-1.4); o.lineTo(x,FOOD_H/2+1.4); o.stroke(); }
-  } else if(kind==='fish'){ // 魚乾
-    o.fillStyle="#88b7ff"; o.beginPath(); o.ellipse(FOOD_W/2+0.5,FOOD_H/2,2.8,1.5,0,0,Math.PI*2); o.fill(); o.stroke();
-    o.beginPath(); o.moveTo(1.2,FOOD_H/2); o.lineTo(2.2,FOOD_H/2-1.2); o.lineTo(2.2,FOOD_H/2+1.2); o.closePath(); o.fill(); o.stroke();
-  } else if(kind==='resin'){ // 樹脂滴
-    o.fillStyle="#f6c84a"; o.beginPath(); o.moveTo(FOOD_W/2,1); o.bezierCurveTo(FOOD_W-1,2.2,FOOD_W-1,4.2,FOOD_W/2,FOOD_H-1); o.bezierCurveTo(1,4.2,1,2.2,FOOD_W/2,1); o.fill(); o.stroke();
-  } else if(kind==='citrus'){ // 柑橘瓣
-    o.fillStyle="#ffa94d"; o.beginPath(); o.arc(FOOD_W/2,FOOD_H/2,2.6,Math.PI*0.1,Math.PI*0.9); o.lineTo(FOOD_W/2,FOOD_H/2); o.closePath(); o.fill(); o.stroke();
-    o.strokeStyle="#ffffff77"; o.beginPath(); o.moveTo(FOOD_W/2,FOOD_H/2); o.lineTo(FOOD_W/2+2,FOOD_H/2-1); o.stroke();
-  } else if(kind==='oil'){ // 油滴
-    o.fillStyle="#c7ffd1"; o.beginPath(); o.ellipse(FOOD_W/2,FOOD_H/2,2.8,1.8,0.3,0,Math.PI*2); o.fill(); o.stroke();
-  } else if(kind==='berry'){ // 漿果
-    o.fillStyle="#ff7aa8"; o.beginPath(); o.ellipse(FOOD_W/2-0.6,FOOD_H/2,1.6,1.6,0,0,Math.PI*2); o.fill(); o.stroke();
-    o.beginPath(); o.ellipse(FOOD_W/2+0.8,FOOD_H/2,1.6,1.6,0,0,Math.PI*2); o.fill(); o.stroke();
-  } else if(kind==='wax'){ // 蜜蠟
-    o.fillStyle="#ffd36e"; o.beginPath(); o.roundRect(1.0,1.2,FOOD_W-2.0,FOOD_H-2.4,0.8); o.fill(); o.stroke();
-    o.strokeStyle="#ffffff55"; o.beginPath(); o.moveTo(1.2,2.0); o.lineTo(FOOD_W-1.2,2.0); o.stroke();
-  } else if(kind==='chitin'){ // 幾丁質碎片
-    o.fillStyle="#b9d4ff"; o.beginPath(); o.moveTo(1.2,FOOD_H-1.2); o.lineTo(FOOD_W/2,1.2); o.lineTo(FOOD_W-1.2,FOOD_H-1.2); o.closePath(); o.fill(); o.stroke();
-  } else { // generic
-    o.fillStyle="#ffd36e"; o.beginPath(); o.roundRect(0.8,1,FOOD_W-1.6,FOOD_H-2,1); o.fill(); o.stroke();
-  }
-  return off;
-}
-
-// 建立影格（螞蟻/蜘蛛）
-frames.antsMe.push(makeAntFrame(0,0,"#9ffcac"),makeAntFrame(1,0,"#9ffcac"),makeAntFrame(0,1,"#9ffcac"),makeAntFrame(1,1,"#9ffcac"));
-frames.antsRv.push(makeAntFrame(0,0,"#ff9fbd"),makeAntFrame(1,0,"#ff9fbd"),makeAntFrame(0,1,"#ff9fbd"),makeAntFrame(1,1,"#ff9fbd"));
-frames.spider.push(makeSpiderFrame(0), makeSpiderFrame(1));
-
-// 建立所有會出現的食物影格
-['sugar','peanut','fish','resin','citrus','oil','berry','wax','chitin'].forEach(k=>{ frames.food[k]=makeFoodFrame(k); });
+function mkAnt(phase,flip,stroke){ const off=document.createElement('canvas'), o=off.getContext('2d'); off.width=ANT_W*SCALE; off.height=ANT_H*SCALE; o.scale(SCALE,SCALE); o.lineWidth=0.9; o.strokeStyle=stroke; o.translate(ANT_W/2,ANT_H/2); if(flip) o.scale(-1,1); o.translate(-ANT_W/2,-ANT_H/2); o.beginPath(); o.ellipse(1.6,2,1.6,1.2,0,0,Math.PI*2); o.ellipse(3.4,2,1.2,1.0,0,0,Math.PI*2); o.ellipse(4.8,2,0.9,0.9,0,0,Math.PI*2); o.stroke(); const A=0.6; for(let i=0;i<3;i++){ const p=phase?1:-1, bx=[1.4,3.0,4.4][i], by=2; const a1=(i*0.6 + p*A), a2=(i*0.6 - p*A); o.beginPath(); o.moveTo(bx,by-0.4); o.lineTo(bx+Math.cos(a1)*1.5,by-0.4+Math.sin(a1)*1.5); o.stroke(); o.beginPath(); o.moveTo(bx,by+0.4); o.lineTo(bx+Math.cos(a2)*1.5,by+0.4+Math.sin(a2)*1.5); o.stroke(); } o.beginPath(); o.moveTo(5.3,1.3); o.lineTo(6,0.5); o.moveTo(5.3,2.7); o.lineTo(6,3.3); o.stroke(); return off; }
+function mkSpider(phase){ const off=document.createElement('canvas'), o=off.getContext('2d'); off.width=SP_W*SCALE; off.height=SP_H*SCALE; o.scale(SCALE,SCALE); o.lineWidth=1; o.strokeStyle="#ff9aaacc"; const cx=SP_W/2, cy=SP_H/2; o.beginPath(); o.ellipse(cx-1,cy,2.4,1.6,0,0,Math.PI*2); o.ellipse(cx+1.8,cy,1.8,1.4,0,0,Math.PI*2); o.stroke(); const A=0.8*(phase?1:-1); for(let i=0;i<4;i++){ const ang=i*0.5; for(let sgn of [-1,1]){ o.beginPath(); o.moveTo(cx,cy); o.lineTo(cx+Math.cos(ang+A*sgn)*3.2, cy+Math.sin(ang+A*sgn)*3.2); o.stroke(); } } return off; }
+function mkFood(kind){ const off=document.createElement('canvas'), o=off.getContext('2d'); off.width=FOOD_W*SCALE; off.height=FOOD_H*SCALE; o.scale(SCALE,SCALE); o.lineWidth=1; o.strokeStyle="#ffffffaa"; function sugar(){ o.fillStyle="#ffe9a6"; o.beginPath(); o.roundRect(0.8,1,FOOD_W-1.6,FOOD_H-2,1); o.fill(); o.stroke(); o.strokeStyle="#ffffff55"; o.beginPath(); o.moveTo(1.2,1.6); o.lineTo(FOOD_W-1.2,1.6); o.stroke(); } function peanut(){ o.fillStyle="#caa86d"; o.beginPath(); o.ellipse(FOOD_W/2,FOOD_H/2,3,2.1,0,0,Math.PI*2); o.fill(); o.stroke(); o.strokeStyle="#8a6b3a"; for(let x=FOOD_W/2-2.2; x<=FOOD_W/2+2.2; x+=0.8){ o.beginPath(); o.moveTo(x,FOOD_H/2-1.4); o.lineTo(x,FOOD_H/2+1.4); o.stroke(); } } function fish(){ o.fillStyle="#88b7ff"; o.beginPath(); o.ellipse(FOOD_W/2+0.5,FOOD_H/2,2.8,1.5,0,0,Math.PI*2); o.fill(); o.stroke(); o.beginPath(); o.moveTo(1.2,FOOD_H/2); o.lineTo(2.2,FOOD_H/2-1.2); o.lineTo(2.2,FOOD_H/2+1.2); o.closePath(); o.fill(); o.stroke(); } function resin(){ o.fillStyle="#f6c84a"; o.beginPath(); o.moveTo(FOOD_W/2,1); o.bezierCurveTo(FOOD_W-1,2.2,FOOD_W-1,4.2,FOOD_W/2,FOOD_H-1); o.bezierCurveTo(1,4.2,1,2.2,FOOD_W/2,1); o.fill(); o.stroke(); } function citrus(){ o.fillStyle="#ffa94d"; o.beginPath(); o.arc(FOOD_W/2,FOOD_H/2,2.6,Math.PI*0.1,Math.PI*0.9); o.lineTo(FOOD_W/2,FOOD_H/2); o.closePath(); o.fill(); o.stroke(); o.strokeStyle="#ffffff77"; o.beginPath(); o.moveTo(FOOD_W/2,FOOD_H/2); o.lineTo(FOOD_W/2+2,FOOD_H/2-1); o.stroke(); } function oil(){ o.fillStyle="#c7ffd1"; o.beginPath(); o.ellipse(FOOD_W/2,FOOD_H/2,2.8,1.8,0.3,0,Math.PI*2); o.fill(); o.stroke(); } function berry(){ o.fillStyle="#ff7aa8"; o.beginPath(); o.ellipse(FOOD_W/2-0.6,FOOD_H/2,1.6,1.6,0,0,Math.PI*2); o.fill(); o.stroke(); o.beginPath(); o.ellipse(FOOD_W/2+0.8,FOOD_H/2,1.6,1.6,0,0,Math.PI*2); o.fill(); o.stroke(); } function wax(){ o.fillStyle="#ffd36e"; o.beginPath(); o.roundRect(1.0,1.2,FOOD_W-2.0,FOOD_H-2.4,0.8); o.fill(); o.stroke(); o.strokeStyle="#ffffff55"; o.beginPath(); o.moveTo(1.2,2.0); o.lineTo(FOOD_W-1.2,2.0); o.stroke(); } function chitin(){ o.fillStyle="#b9d4ff"; o.beginPath(); o.moveTo(1.2,FOOD_H-1.2); o.lineTo(FOOD_W/2,1.2); o.lineTo(FOOD_W-1.2,FOOD_H-1.2); o.closePath(); o.fill(); o.stroke(); } ({sugar,peanut,fish,resin,citrus,oil,berry,wax,chitin}[kind]||sugar)(); return off; }
+frames.antsMe.push(mkAnt(0,0,"#9ffcac"),mkAnt(1,0,"#9ffcac"),mkAnt(0,1,"#9ffcac"),mkAnt(1,1,"#9ffcac"));
+frames.antsRv.push(mkAnt(0,0,"#ff9fbd"),mkAnt(1,0,"#ff9fbd"),mkAnt(0,1,"#ff9fbd"),mkAnt(1,1,"#ff9fbd"));
+frames.spider.push(mkSpider(0), mkSpider(1));
+['sugar','peanut','fish','resin','citrus','oil','berry','wax','chitin'].forEach(k=>frames.food[k]=mkFood(k));
 
 /******************** 地圖 ********************/
 function baseRandomMap(waterRatio){ grid=new Array(W*H).fill(0).map(function(){return {type:T_EMPTY, food:null, pher:{}};}); for(let y=0;y<H;y++){ for(let x=0;x<W;x++){ if(Math.random()<waterRatio) grid[idx(x,y)].type=T_WATER; } } for(let i=0;i<Math.floor((W+H)/2); i++){ const side=Math.random()<0.5?0:W-1; const y=randInt(0,H-1); grid[idx(side,y)].type=T_WATER; } }
 function placeNests(){ grid[idx(2,2)].type=T_NEST_ME; grid[idx(W-3,H-3)].type=T_NEST_RIVAL; }
-function scatterFood(list,count){ foodLeft=0; for(let i=0;i<count;i++){ const x=randInt(1,W-2), y=randInt(1,H-2); if(grid[idx(x,y)].type===T_EMPTY){ grid[idx(x,y)].type=T_FOOD; grid[idx(x,y)].food=choice(list); foodLeft++; } } }
-function makeMap_Lv1(){ baseRandomMap(0.10); placeNests(); scatterFood([{type:'sugar',yield:{O:2,C:1}}, {type:'peanut',yield:{C:2,R:1}}, {type:'fish',yield:{N:2,C:1}}], 56); setGoal('在 140 秒內，搬回的顆粒數量要超過對手。'); timeLeft=140; spider=null; targetZone=[]; }
-function makeMap_Lv2(){ baseRandomMap(0.08); placeNests(); scatterFood([{type:'resin',yield:{T:2,C:1}},{type:'citrus',yield:{Ald:1,O:1,R:1}},{type:'oil',yield:{HC:2,C:1}}], 48); targetZone=[]; const tx=randInt(6,W-7), ty=randInt(6,H-7); for(let y=-2;y<=2;y++){ for(let x=-2;x<=2;x++){ if(inBounds(tx+x,ty+y)){ grid[idx(tx+x,ty+y)].type=T_TARGET; targetZone.push({x:tx+x,y:ty+y}); } } } setGoal('在標示區內建立新蟻巢（集結築巢進度 100%）。'); timeLeft=160; spider=null; }
-function makeMap_Lv3(){ baseRandomMap(0.06); placeNests(); scatterFood([{type:'berry',yield:{Acid:2,O:1}}, {type:'wax',yield:{HC:2}}, {type:'chitin',yield:{N:1,Acid:1,R:1}}], 44); spider={x:randInt(3,W-4)*TILE, y:randInt(3,H-4)*TILE, hp:140, cooldown:0, mode:'patrol', t:0, killCount:0, ph:0}; setGoal('維持運輸並擊退蜘蛛 3 次（或擊倒）。善用「蟻酸 + 十一烷」增效區。'); timeLeft=150; }
-function makeMap_Lv4(){ grid=new Array(W*H).fill(0).map(function(){return {type:T_WALL, food:null, pher:{}};}); function carve(x,y){ grid[idx(x,y)].type=T_EMPTY; const d=[[1,0],[-1,0],[0,1],[0,-1]].sort(function(){return Math.random()-0.5}); for(let i=0;i<d.length;i++){ const dx=d[i][0],dy=d[i][1],nx=x+dx*2,ny=y+dy*2; if(inBounds(nx,ny)&&grid[idx(nx,ny)].type===T_WALL){ grid[idx(x+dx,y+dy)].type=T_EMPTY; carve(nx,ny); } } } var sx=(randInt(1,W-2)|1), sy=(randInt(1,H-2)|1); carve(sx,sy); for(let i=0;i<200;i++){ const x=randInt(0,W-1), y=randInt(0,H-1); if(grid[idx(x,y)].type===T_EMPTY && Math.random()<0.06) grid[idx(x,y)].type=T_WATER; } const nestMe={x:2,y:2}, nestR={x:W-3,y:H-3}; grid[idx(nestMe.x,nestMe.y)].type=T_NEST_ME; grid[idx(nestR.x,nestR.y)].type=T_NEST_RIVAL; for(let i=0;i<26;i++){ const x=randInt(3,W-4), y=randInt(3,H-4); if(grid[idx(x,y)].type===T_EMPTY){ grid[idx(x,y)].type=T_FOOD; grid[idx(x,y)].food=choice([{type:'resin',yield:{T:2,C:1}},{type:'citrus',yield:{Ald:1,O:1,R:1}},{type:'oil',yield:{HC:2,C:1}}]); foodLeft++; } } setGoal('用「Faranal + 禁止」在迷宮中引導螞蟻找到食物並搬回。'); timeLeft=160; spider=null; targetZone=[]; }
+function scatterFood(list,count){ for(let i=0;i<count;i++){ const x=randInt(1,W-2), y=randInt(1,H-2); if(grid[idx(x,y)].type===T_EMPTY){ grid[idx(x,y)].type=T_FOOD; grid[idx(x,y)].food=choice(list); } } }
+function makeMap_Lv1(){ baseRandomMap(0.10); placeNests(); scatterFood([{type:'sugar',yield:{O:2,C:1}}, {type:'peanut',yield:{C:2,R:1}}, {type:'fish',yield:{N:2,C:1}}], 56); setGoal('在 140 秒內，搬回的顆粒數量要超過對手。'); timeLeft=140; colonyCap=40; colonyMax=500; }
+function makeMap_Lv2(){ baseRandomMap(0.08); placeNests(); scatterFood([{type:'resin',yield:{T:2,C:1}},{type:'citrus',yield:{Ald:1,O:1,R:1}},{type:'oil',yield:{HC:2,C:1}}], 48); setGoal('在指定區擴建新蟻巢。'); timeLeft=160; colonyCap=60; colonyMax=Infinity; }
+function makeMap_Lv3(){ baseRandomMap(0.06); placeNests(); scatterFood([{type:'berry',yield:{Acid:2,O:1}}, {type:'wax',yield:{HC:2}}, {type:'chitin',yield:{N:1,Acid:1,R:1}}], 44); setGoal('擊退蜘蛛並持續運輸。'); timeLeft=150; colonyCap=80; colonyMax=Infinity; }
+function makeMap_Lv4(){ grid=new Array(W*H).fill(0).map(function(){return {type:T_WALL, food:null, pher:{}};}); function carve(x,y){ grid[idx(x,y)].type=T_EMPTY; const d=[[1,0],[-1,0],[0,1],[0,-1]].sort(function(){return Math.random()-0.5}); for(let i=0;i<d.length;i++){ const dx=d[i][0],dy=d[i][1],nx=x+dx*2,ny=y+dy*2; if(inBounds(nx,ny)&&grid[idx(nx,ny)].type===T_WALL){ grid[idx(x+dx,y+dy)].type=T_EMPTY; carve(nx,ny); } } } var sx=(randInt(1,W-2)|1), sy=(randInt(1,H-2)|1); carve(sx,sy); for(let i=0;i<200;i++){ const x=randInt(0,W-1), y=randInt(0,H-1); if(grid[idx(x,y)].type===T_EMPTY && Math.random()<0.06) grid[idx(x,y)].type=T_WATER; } const nestMe={x:2,y:2}, nestR={x:W-3,y:H-3}; grid[idx(nestMe.x,nestMe.y)].type=T_NEST_ME; grid[idx(nestR.x,nestR.y)].type=T_NEST_RIVAL; for(let i=0;i<26;i++){ const x=randInt(3,W-4), y=randInt(3,H-4); if(grid[idx(x,y)].type===T_EMPTY){ grid[idx(x,y)].type=T_FOOD; grid[idx(x,y)].food=choice([{type:'resin',yield:{T:2,C:1}},{type:'citrus',yield:{Ald:1,O:1,R:1}},{type:'oil',yield:{HC:2,C:1}}]); } } setGoal('用吸引+禁止導引至正確食物。'); timeLeft=160; colonyCap=60; colonyMax=Infinity; }
 
-/******************** 螞蟻資料（像素座標 + 影格相位） ********************/
+function setGoal(t){ document.getElementById('goalText').textContent=t; }
+
+/******************** 螞蟻 ********************/
 function findNest(team){ for(let y=0;y<H;y++){ for(let x=0;x<W;x++){ const t=grid[idx(x,y)].type; if(team==='me'&&t===T_NEST_ME) return {x:x,y:y}; if(team==='rv'&&t===T_NEST_RIVAL) return {x:x,y:y}; } } return {x:1,y:1}; }
-function spawnAnt(team){ const pos=findNest(team); const px=pos.x*TILE+TILE/2, py=pos.y*TILE+TILE/2; const dir=Math.random()<.5?-1:1; return {team:team, x:px, y:py, dir:dir, ph:Math.random()*2, cad:0.6+Math.random()*1.2, spdK:12+Math.random()*8, turnT:2+Math.random()*6, aim:Math.random()*Math.PI*2, carry:false, cd:Math.random()*MOVE_COOLDOWN}; }
+function spawnAnt(team){ const n=findNest(team); const px=n.x*TILE+TILE/2, py=n.y*TILE+TILE/2; const aim=Math.random()*Math.PI*2; return {team:team, x:px, y:py, aim:aim, speed:26+Math.random()*10, sinceSig:0, changeAt: 3*TILE + Math.random()*2*TILE, carry:false, cool:Math.random()*MOVE_COOLDOWN}; }
+
+/******************** 招募與出巢邏輯 ********************/
+function signalMass(){ let s=0; for(let i=0;i<grid.length;i++){ const p=grid[i].pher; if(!p) continue; for(const k in p){ const t=PH[k].type; if(t==='trail'||t==='recruit') s += p[k]*PH[k].strength; } } return s; }
+function desiredPopulation(){ const base=20; const k=0.06; const want=Math.min(colonyMax, colonyCap + Math.floor(k*signalMass())); return want; }
 
 /******************** 遊戲流程 ********************/
-function resetGame(){ ants=[]; antsRival=[]; inventory={}; mats={}; scoreMe=0; scoreRival=0; carrying=0; spider=null; placingLine=null; unlocked=UNLOCK[level].slice(0); selectedPh=unlocked[0]||null; for(let i=0;i<MATERIALS.length;i++){ mats[MATERIALS[i]]=0; } const START={C:8,O:8,N:6,R:4,T:4,Ald:4,Acid:4,HC:6,LAC:3}; for(const k in START){ mats[k]+=START[k]; } if(level===1) makeMap_Lv1(); if(level===2) makeMap_Lv2(); if(level===3) makeMap_Lv3(); if(level===4) makeMap_Lv4(); for(let i=0;i<ANT_ME;i++){ ants.push(spawnAnt('me')); } for(let i=0;i<ANT_RV;i++){ antsRival.push(spawnAnt('rv')); } buildCraftSel(); refreshUnlock(); refreshInv(); refreshMats(); resizeCanvas(); clampView(); draw(); }
+function resetGame(){ ants=[]; antsRival=[]; inventory={}; mats={}; scoreMe=0; scoreRival=0; carrying=0; placingLine=null; unlocked=UNLOCK[level].slice(0); selectedPh=unlocked[0]||null; MATERIALS.forEach(k=>mats[k]=0);
+  if(level===1) makeMap_Lv1(); if(level===2) makeMap_Lv2(); if(level===3) makeMap_Lv3(); if(level===4) makeMap_Lv4();
+  for(let i=0;i<10;i++) ants.push(spawnAnt('me'));
+  for(let i=0;i<60;i++) antsRival.push(spawnAnt('rv'));
+  buildCraftSel(); refreshInv(); refreshMats(); resizeCanvas(); clampView(); draw(); updateHud();
+}
 
 let _last=performance.now(); function loop(now){ const dt=(now-_last)/1000; _last=now; step(dt); draw(); requestAnimationFrame(loop); }
 
-function step(dt){ timeLeft=Math.max(0,timeLeft-dt); if(timeLeft===0){ checkWin(); }
-  // 蒸散
-  for(let i=0;i<grid.length;i++){ const c=grid[i]; if(!c.pher) continue; for(const k in c.pher){ c.pher[k]-=dt*(1/PH[k].halfLife); if(c.pher[k]<=0) delete c.pher[k]; } }
-  if(Math.random()<0.05){ const a=choice(antsRival); if(a){ const gx=Math.round(a.x/TILE), gy=Math.round(a.y/TILE); placePher(gx,gy,'m4mp2c',0.6); } }
-  // 走路（連續座標，但吸引/禁止依格子判斷）
-  function advance(a){ a.ph+=a.cad*dt*2; a.aim += (Math.random()-.5)*0.2*dt; const v=(a.cad*a.spdK); a.x += v*dt*a.dir; a.y += Math.sin(a.aim)*6*dt;
-    a.turnT-=dt; const gx=Math.round(a.x/TILE), gy=Math.round(a.y/TILE);
-    let A=0,R=0, anySignal=false; if(inBounds(gx,gy)){ const c=grid[idx(gx,gy)], p=c.pher; if(p){ for(const k in p){ const v=p[k], t=PH[k].type; if(t==='trail'||t==='recruit'){A+=v*PH[k].strength; anySignal=true;} if(t==='ban') R+=v*PH[k].strength; if(t==='acid') R+=v*0.5; } } }
-    if(anySignal){ if(A>R) a.dir=1; else a.dir=-1; } if(a.turnT<=0){ a.dir*=-1; a.turnT=2+Math.random()*6; }
-    if(a.x< 6){ a.x=6; a.dir=1; } if(a.x>WORLD_W-6){ a.x=WORLD_W-6; a.dir=-1; }
-    if(a.y< 6){ a.y=6; a.aim*=-1; } if(a.y>WORLD_H-6){ a.y=WORLD_H-6; a.aim*=-1; }
-    const gx2=Math.round(a.x/TILE), gy2=Math.round(a.y/TILE); const cell=inBounds(gx2,gy2)?grid[idx(gx2,gy2)]:null;
-    if(cell){ if(!a.carry && cell.type===T_FOOD){ a.carry=true; carrying++; const yv=cell.food.yield; for(const k in yv){ if(a.team==='me') mats[k]=(mats[k]||0)+yv[k]; } cell._hp=(cell._hp||2)-1; if(cell._hp<=0){ cell.type=T_EMPTY; cell.food=null; foodLeft--; } if(a.team==='me') placePher(gx2,gy2, selectedOrDefaultTrail(), 0.6); }
-      const t=cell.type; if(a.carry && ((a.team==='me'&&t===T_NEST_ME)||(a.team==='rv'&&t===T_NEST_RIVAL))){ a.carry=false; carrying=Math.max(0,carrying-1); if(a.team==='me') scoreMe++; else scoreRival++; }
-      if(Math.random()<0.06 && a.team==='me'){ placePher(gx2,gy2, selectedOrDefaultTrail(), 0.3); }
+function step(dt){
+  timeLeft=Math.max(0,timeLeft-dt); if(timeLeft===0){ checkWin(); }
+  for(let i=0;i<grid.length;i++){ const c=grid[i]; const p=c.pher; if(!p) continue; for(const k in p){ p[k]-=dt*(1/PH[k].halfLife); if(p[k]<=0) delete p[k]; } }
+  const want=desiredPopulation(); if(ants.length < want){ spawnBudget += dt * 10; while(spawnBudget>=1 && ants.length<want){ ants.push(spawnAnt('me')); spawnBudget-=1; } }
+  if(antsRival.length < 180){ if(Math.random()<0.5*dt) antsRival.push(spawnAnt('rv')); }
+  function sensePher(gx,gy){ if(!inBounds(gx,gy)) return 0; const p=grid[idx(gx,gy)].pher||{}; let A=0,R=0; for(const k in p){ const t=PH[k].type, v=p[k]; if(t==='ban'||t==='acid') R+=v*PH[k].strength; if(t==='trail'||t==='recruit') A+=v*PH[k].strength; } return A-R; }
+  function stepAnt(a){
+    if(a.cool>0){ a.cool-=dt; return; }
+    const speed=a.speed;
+    const gx=Math.floor(a.x/TILE), gy=Math.floor(a.y/TILE);
+    const sig=sensePher(gx,gy);
+    if(sig>0.01) a.sinceSig=0; else a.sinceSig+=speed*dt;
+    const nest=findNest(a.team);
+    if(a.carry){
+      const nx=nest.x*TILE+TILE/2, ny=nest.y*TILE+TILE/2;
+      const ang=Math.atan2(ny-a.y, nx-a.x);
+      a.aim = ang + (Math.random()-0.5)*0.2;
+    }else{
+      if(a.sinceSig > a.changeAt){ a.aim += (Math.random()-0.5)*Math.PI; a.sinceSig=0; a.changeAt = (3+Math.random()*2)*ANT_H; }
+      if(sig>0.01){ a.aim += (Math.random()-0.5)*0.1; }
     }
+    const dx=Math.cos(a.aim)*speed*dt, dy=Math.sin(a.aim)*speed*dt;
+    let nx=a.x+dx, ny=a.y+dy;
+    const cgx=Math.floor(nx/TILE), cgy=Math.floor(ny/TILE);
+    if(!inBounds(cgx,cgy) || [T_WATER,T_WALL].includes(grid[idx(cgx,cgy)].type)){ a.aim += Math.PI*0.6*(Math.random()<0.5?1:-1); return; }
+    a.x=nx; a.y=ny;
+    const cell=grid[idx(cgx,cgy)];
+    if(!a.carry && cell.type===T_FOOD){
+      a.carry=true; carrying++;
+      const yv=cell.food.yield; for(const k in yv){ if(a.team==='me') mats[k]=(mats[k]||0)+yv[k]; }
+      cell._hp=(cell._hp||2)-1; if(cell._hp<=0){ cell.type=T_EMPTY; cell.food=null; }
+      placePher(cgx,cgy, selectedOrDefaultTrail(), 0.8);
+      colonyCap = Math.min(colonyMax, colonyCap + 1);
+    }
+    if(a.carry && cgx===nest.x && cgy===nest.y){
+      a.carry=false; carrying=Math.max(0,carrying-1); if(a.team==='me') scoreMe++; else scoreRival++;
+      placePher(cgx,cgy, selectedOrDefaultTrail(), 0.4);
+    }
+    if(!a.carry && Math.random()<0.03){ placePher(cgx,cgy, selectedOrDefaultTrail(), 0.25); }
   }
-  ants.forEach(advance); antsRival.forEach(advance);
-  // 蜘蛛
-  if(spider){ spider.t=(spider.t||0)+dt; spider.ph=(spider.ph||0)+dt*3; if(spider.mode==='patrol'){ if(Math.random()<0.3){ const dir=Math.random()<.5?-1:1; spider.x+=dir*10*dt; spider.y+= (Math.random()-.5)*20*dt; } if(Math.random()<0.2){ const near=ants.find(function(p){return Math.hypot(p.x-spider.x,p.y-spider.y)<60}); if(near) spider.mode='rush'; } } else if(spider.mode==='rush'){ const tgt=ants.slice().sort(function(a,b){return Math.hypot(a.x-spider.x,a.y-spider.y)-Math.hypot(b.x-spider.x,b.y-spider.y)})[0]; if(tgt){ const dx=Math.sign(tgt.x-spider.x),dy=Math.sign(tgt.y-spider.y); spider.x+=dx*30*dt; spider.y+=dy*30*dt; } let dot=3*dt; if(acidBoost(Math.round(spider.x/TILE),Math.round(spider.y/TILE))) dot+=20*dt; spider.hp-=dot; if(spider.hp<=0){ spider.mode='down'; timeLeft+=10; spider.killCount++; spider.hp=140; spider.x=randInt(2,W-3)*TILE; spider.y=randInt(2,H-3)*TILE; spider.mode='patrol'; } }
-  }
-  document.getElementById('spiderStat').textContent = spider?('HP '+spider.hp.toFixed(0)+'｜擊退 '+(spider.killCount||0)):'—';
-  document.getElementById('timerText').textContent = Math.ceil(timeLeft);
-  document.getElementById('scoreMe').textContent=scoreMe; document.getElementById('scoreRival').textContent=scoreRival; document.getElementById('carrying').textContent=carrying; document.getElementById('antsMe').textContent=ants.length; document.getElementById('antsRival').textContent=antsRival.length; }
+  ants.forEach(stepAnt);
+  antsRival.forEach(function(b){
+    b.aim += (Math.random()-0.5)*0.2*dt*6; const dx=Math.cos(b.aim)*24*dt, dy=Math.sin(b.aim)*24*dt; let nx=b.x+dx, ny=b.y+dy; const gx=Math.floor(nx/TILE), gy=Math.floor(ny/TILE); if(!inBounds(gx,gy) || [T_WATER,T_WALL].includes(grid[idx(gx,gy)].type)){ b.aim += Math.PI*0.6; return; } b.x=nx; b.y=ny; if(Math.random()<0.02){ placePher(gx,gy,'m4mp2c',0.2); } });
+  updateHud();
+}
+
+function updateHud(){ document.getElementById('timerText').textContent=Math.ceil(timeLeft);
+  document.getElementById('antsMe').textContent=ants.length; document.getElementById('antsRival').textContent=antsRival.length;
+  document.getElementById('scoreMe').textContent=scoreMe; document.getElementById('scoreRival').textContent=scoreRival;
+  document.getElementById('capMe').textContent=(colonyMax===Infinity?'∞':colonyMax);
+}
 
 /******************** 費洛蒙 ********************/
-function placePher(x,y,key,amt){ if(amt===undefined) amt=1; if(!inBounds(x,y)) return; const c=grid[idx(x,y)]; if(c.type===T_WATER||c.type===T_WALL) return; if(!c.pher) c.pher={}; c.pher[key]=(c.pher[key]||0)+amt; }
+function placePher(x,y,key,amt){ if(amt===undefined) amt=1; if(!inBounds(x,y)) return; const c=grid[idx(x,y)]; if([T_WATER,T_WALL].includes(c.type)) return; if(!c.pher) c.pher={}; c.pher[key]=(c.pher[key]||0)+amt; }
 function selectedOrDefaultTrail(){ if(selectedPh && (PH[selectedPh].type==='trail'||PH[selectedPh].type==='recruit')) return selectedPh; return 'm4mp2c'; }
-function hasTriBoost(x,y){ const set={}; for(let dy=0;dy<2;dy++){ for(let dx=0;dx<2;dx++){ const nx=x+dx, ny=y+dy; if(!inBounds(nx,ny)) continue; const p=grid[idx(nx,ny)].pher; if(!p) continue; if(p.dolich>0.01) set.dolich=1; if(p.irido>0.01) set.irido=1; if(p.z9>0.01) set.z9=1; } } return !!(set.dolich&&set.irido&&set.z9); }
-function acidBoost(x,y){ for(let dy=-1;dy<=1;dy++){ for(let dx=-1;dx<=1;dx++){ const nx=x+dx, ny=y+dy; if(!inBounds(nx,ny)) continue; const p=grid[idx(nx,ny)].pher||{}; if((p.formic||0)>0.05 && (p.c11||0)>0.05) return true; } } return false; }
 
-/******************** 繪圖（像素精靈 + 視圖轉換） ********************/
+/******************** 繪圖 ********************/
 function draw(){ const dpr=window.devicePixelRatio||1; ctx.setTransform(1,0,0,1,0,0); ctx.clearRect(0,0,canvas.width,canvas.height); ctx.scale(dpr,dpr); ctx.save(); ctx.scale(viewScale,viewScale); ctx.translate(-viewX,-viewY);
   ctx.fillStyle="#0c101a"; ctx.fillRect(0,0,WORLD_W,WORLD_H);
-  for(let y=0;y<H;y++){ for(let x=0;x<W;x++){ const c=grid[idx(x,y)]; let col='#0c101a'; if(c.type===T_WATER) col='#0a1830'; if(c.type===T_WALL) col='#0a0a10'; if(c.type===T_TARGET) col='#10231a'; ctx.fillStyle=col; ctx.fillRect(x*TILE,y*TILE,TILE,TILE);
+  for(let y=0;y<H;y++){ for(let x=0;x<W;x++){ const c=grid[idx(x,y)]; let col='#0c101a'; if(c.type===T_WATER) col='#0a1830'; if(c.type===T_WALL) col='#0a0a10'; ctx.fillStyle=col; ctx.fillRect(x*TILE,y*TILE,TILE,TILE);
     if(c.pher){ for(const k in c.pher){ ctx.fillStyle=PH[k].color; ctx.globalAlpha=Math.min(0.6,c.pher[k]); ctx.fillRect(x*TILE,y*TILE,TILE,TILE); ctx.globalAlpha=1; } }
-    if(c.type===T_FOOD){ const fx=x*TILE+TILE/2, fy=y*TILE+TILE/2; const kind=c.food.type; const img=frames.food[kind]||frames.food['generic']||makeFoodFrame('generic'); ctx.drawImage(img, fx-FOOD_W/2, fy-FOOD_H/2, FOOD_W, FOOD_H); }
+    if(c.type===T_FOOD){ const fx=x*TILE+TILE/2, fy=y*TILE+TILE/2; const img=frames.food[c.food.type]; ctx.drawImage(img, fx-FOOD_W/2, fy-FOOD_H/2, FOOD_W, FOOD_H); }
   } }
   for(let y=0;y<H;y++){ for(let x=0;x<W;x++){ const t=grid[idx(x,y)].type; if(t===T_NEST_ME){ ctx.fillStyle='#77e4a0'; ctx.fillRect(x*TILE+2,y*TILE+2,TILE-4,TILE-4);} else if(t===T_NEST_RIVAL){ ctx.fillStyle='#e477a0'; ctx.fillRect(x*TILE+2,y*TILE+2,TILE-4,TILE-4);} } }
-  function drawAnt(a, myFrames){ const phase=(a.ph%1)>0.5?1:0; const idxx=(a.dir===1?0:2)+phase; const off=myFrames[idxx]; ctx.drawImage(off, a.x-ANT_W/2, a.y-ANT_H/2, ANT_W, ANT_H); }
-  for(let i=0;i<ants.length;i++){ drawAnt(ants[i], frames.antsMe); }
-  for(let i=0;i<antsRival.length;i++){ drawAnt(antsRival[i], frames.antsRv); }
-  if(spider){ const ph=((spider.ph||0)%1)>0.5?1:0; const off=frames.spider[ph]; ctx.drawImage(off, (spider.x||200)-SP_W/2, (spider.y||120)-SP_H/2, SP_W, SP_H); }
-  ctx.restore(); }
+  function drawAnt(a, sprites){ const phase=(Math.floor((performance.now()/120 + a.x*0.01)%2))?1:0; const idx=(Math.cos(a.aim)>=0?0:2)+phase; const off=sprites[idx]; ctx.drawImage(off, a.x-ANT_W/2, a.y-ANT_H/2, ANT_W, ANT_H); }
+  for(let i=0;i<ants.length;i++) drawAnt(ants[i], frames.antsMe);
+  for(let i=0;i<antsRival.length;i++) drawAnt(antsRival[i], frames.antsRv);
+  ctx.restore();
+}
 
-/******************** 互動（放置/清除 + 平移/縮放） ********************/
-let isPanning=false; let panStartX=0, panStartY=0, panViewX=0, panViewY=0; let spaceDown=false; canvas.addEventListener('contextmenu', function(e){ e.preventDefault(); }); window.addEventListener('keydown', function(e){ if(e.code==='Space') spaceDown=true; if(e.key==='r'||e.key==='R') resetGame(); if(e.key==='f'||e.key==='F') openRef(); const n=parseInt(e.key,10); if(n>=1&&n<=9){ const id=unlocked[n-1]; if(id){ selectedPh=id; tip('選擇：'+((RECIPES[id]&&RECIPES[id].label)||id)); } } }); window.addEventListener('keyup', function(e){ if(e.code==='Space') spaceDown=false; });
-canvas.addEventListener('mousedown', function(e){ const rect=canvas.getBoundingClientRect(); const toWorld=function(cx,cy){ const px=(cx-rect.left)/(window.devicePixelRatio||1)/viewScale + viewX; const py=(cy-rect.top )/(window.devicePixelRatio||1)/viewScale + viewY; return {gx:Math.floor(px/TILE), gy:Math.floor(py/TILE)}; }; const m=toWorld(e.clientX,e.clientY); if(e.button===1 || spaceDown){ isPanning=true; panStartX=e.clientX; panStartY=e.clientY; panViewX=viewX; panViewY=viewY; return; } if(e.button===2){ if(inBounds(m.gx,m.gy) && grid[idx(m.gx,m.gy)].pher) grid[idx(m.gx,m.gy)].pher={}; return; } if(!selectedPh) return; if((inventory[selectedPh]||0)<=0){ tip('瓶庫不足，請先合成。'); return; } placingLine={sx:m.gx,sy:m.gy}; placePher(m.gx,m.gy,selectedPh,1); inventory[selectedPh]--; refreshInv(); });
-canvas.addEventListener('mousemove', function(e){ if(isPanning){ const dx=e.clientX-panStartX, dy=e.clientY-panStartY; const dpr=window.devicePixelRatio||1; viewX=panViewX-dx/(dpr*viewScale); viewY=panViewY-dy/(dpr*viewScale); clampView(); return; } if(!placingLine) return; if(!selectedPh) return; if((inventory[selectedPh]||0)<=0) return; const rect=canvas.getBoundingClientRect(); const px=(e.clientX-rect.left)/(window.devicePixelRatio||1)/viewScale + viewX; const py=(e.clientY-rect.top )/(window.devicePixelRatio||1)/viewScale + viewY; const x=Math.floor(px/TILE), y=Math.floor(py/TILE); if(!inBounds(x,y)) return; placePher(x,y,selectedPh,0.8); inventory[selectedPh]--; refreshInv(); });
-window.addEventListener('mouseup', function(){ placingLine=null; isPanning=false; });
+/******************** 互動 ********************/
+let isPanning=false; let panStartX=0, panStartY=0, panViewX=0, panViewY=0; let spaceDown=false; canvas.addEventListener('contextmenu', e=>e.preventDefault());
+window.addEventListener('keydown', function(e){ if(e.code==='Space') spaceDown=true; if(e.key==='r'||e.key==='R') resetGame(); if(e.key==='f'||e.key==='F') openRef(); const n=parseInt(e.key,10); if(n>=1&&n<=9){ const id=unlocked[n-1]; if(id){ selectedPh=id; tip('選：'+((RECIPES[id]&&RECIPES[id].label)||id)); } } });
+window.addEventListener('keyup', function(e){ if(e.code==='Space') spaceDown=false; });
+canvas.addEventListener('mousedown', function(e){ const rect=canvas.getBoundingClientRect(); const toWorld=function(cx,cy){ const px=(cx-rect.left)/(window.devicePixelRatio||1)/viewScale + viewX; const py=(cy-rect.top )/(window.devicePixelRatio||1)/viewScale + viewY; return {gx:Math.floor(px/TILE), gy:Math.floor(py/TILE)}; }; const m=toWorld(e.clientX,e.clientY); if(e.button===1 || spaceDown){ isPanning=true; panStartX=e.clientX; panStartY=e.clientY; panViewX=viewX; panViewY=viewY; return; } if(e.button===2){ if(inBounds(m.gx,m.gy) && grid[idx(m.gx,m.gy)].pher) grid[idx(m.gx,m.gy)].pher={}; return; } if(!selectedPh) return; if((inventory[selectedPh]||0)<=0){ tip('瓶庫不足，請先合成。'); return; } placePher(m.gx,m.gy,selectedPh,1); inventory[selectedPh]--; refreshInv(); });
+canvas.addEventListener('mousemove', function(e){ if(isPanning){ const dx=e.clientX-panStartX, dy=e.clientY-panStartY; const dpr=window.devicePixelRatio||1; viewX=panViewX-dx/(dpr*viewScale); viewY=panViewY-dy/(dpr*viewScale); clampView(); return; } });
+window.addEventListener('mouseup', function(){ isPanning=false; });
 canvas.addEventListener('wheel', function(e){ e.preventDefault(); const rect=canvas.getBoundingClientRect(); const dpr=window.devicePixelRatio||1; const mx=(e.clientX-rect.left)/dpr; const my=(e.clientY-rect.top)/dpr; const worldX = viewX + mx / viewScale; const worldY = viewY + my / viewScale; const delta = Math.sign(e.deltaY); const factor = (delta>0)? 0.9 : 1.1; const newScale = Math.min(4, Math.max(0.5, viewScale*factor)); if(newScale===viewScale) return; viewX = worldX - (mx / newScale); viewY = worldY - (my / newScale); viewScale = newScale; clampView(); }, {passive:false});
 function clampView(){ const rect=canvas.getBoundingClientRect(); const vw=rect.width/(window.devicePixelRatio||1)/viewScale; const vh=rect.height/(window.devicePixelRatio||1)/viewScale; viewX=Math.max(0, Math.min(WORLD_W - vw, viewX)); viewY=Math.max(0, Math.min(WORLD_H - vh, viewY)); }
 
-function tryCraft(){ const id=document.getElementById('craftSel').value; const need=RECIPES[id].cost; for(const k in need){ if((mats[k]||0)<need[k]){ tip('材料不足'); return; } } for(const k in need){ mats[k]-=need[k]; } inventory[id]=(inventory[id]||0)+1; refreshInv(); refreshMats(); }
-
-// 控制 UI
- document.getElementById('btnCraft').onclick=function(){ tryCraft(); };
- document.getElementById('btnRestart').onclick=function(){ resetGame(); };
- document.getElementById('levelSel').onchange=function(e){ level=parseInt(e.target.value,10); resetGame(); };
- document.getElementById('btnRef').onclick=function(){ openRef(); };
-
-/******************** UI 建構 ********************/
+/******************** UI ********************/
 function refreshMats(){ const row=document.getElementById('matRow'); row.innerHTML=''; for(let i=0;i<MATERIALS.length;i++){ const k=MATERIALS[i]; const d=document.createElement('div'); d.className='pill'; d.textContent=k+': '+(mats[k]||0); row.appendChild(d);} }
-function refreshInv(){ const list=document.getElementById('invList'); list.innerHTML=''; for(let i=0;i<unlocked.length;i++){ const id=unlocked[i]; const div=document.createElement('div'); div.className='ph-btn row'; const left=document.createElement('span'); left.textContent=(RECIPES[id]&&RECIPES[id].label)||id; const right=document.createElement('span'); right.innerHTML='<span class="badge">'+(inventory[id]||0)+'</span> <span class="badge" style="background:'+PH[id].color+'">●</span> <span class="badge">'+(i+1)+'</span>'; div.appendChild(left); div.appendChild(right); div.style.border='1px solid #2b3246'; div.style.padding='6px 8px'; div.style.borderRadius='10px'; div.onclick=function(){ selectedPh=id; tip('選擇：'+((RECIPES[id]&&RECIPES[id].label)||id)); }; list.appendChild(div);} }
-function refreshUnlock(){ const area=document.getElementById('unlocked'); area.innerHTML=''; for(let i=0;i<unlocked.length;i++){ const id=unlocked[i]; const d=document.createElement('div'); d.innerHTML='<b>'+((RECIPES[id]&&RECIPES[id].label)||id)+'</b> <span class="badge">'+PH[id].type+'</span>'; area.appendChild(d);} }
+function refreshInv(){ const list=document.getElementById('invList'); list.innerHTML=''; for(let i=0;i<unlocked.length;i++){ const id=unlocked[i]; const div=document.createElement('button'); div.textContent=(RECIPES[id]&&RECIPES[id].label)||id; div.title='剩餘 '+(inventory[id]||0); div.onclick=function(){ selectedPh=id; tip('選：'+((RECIPES[id]&&RECIPES[id].label)||id)); }; list.appendChild(div); const badge=document.createElement('span'); badge.className='badge'; badge.textContent=inventory[id]||0; list.appendChild(badge);} }
 function buildCraftSel(){ const sel=document.getElementById('craftSel'); sel.innerHTML=''; for(let i=0;i<unlocked.length;i++){ const id=unlocked[i]; const opt=document.createElement('option'); opt.value=id; opt.textContent=(RECIPES[id]&&RECIPES[id].label)||id; sel.appendChild(opt);} }
-function tip(t){ document.getElementById('tipBox').textContent=t; }
-function setGoal(t){ document.getElementById('goalText').textContent=t; }
+function tip(t){ /* minimal */ }
+document.getElementById('btnCraft').onclick=function(){ const id=document.getElementById('craftSel').value; const need=RECIPES[id].cost; for(const k in need){ if((mats[k]||0)<need[k]) return; } for(const k in need) mats[k]-=need[k]; inventory[id]=(inventory[id]||0)+1; refreshInv(); refreshMats(); };
+document.getElementById('btnRestart').onclick=function(){ resetGame(); };
+document.getElementById('levelSel').onchange=function(e){ level=parseInt(e.target.value,10); resetGame(); };
+document.getElementById('btnRef').onclick=function(){ openRef(); };
 
-function openRef(){ const modal=document.getElementById('refModal'); const card=document.getElementById('refCard'); var listHTML=''; for(let i=0;i<unlocked.length;i++){ const id=unlocked[i]; listHTML+='<li style="margin:4px 0"><span class="pill">'+((RECIPES[id]&&RECIPES[id].label)||id)+'</span> <span class="badge">'+PH[id].type+'</span></li>'; } var tableRows=''; for(let i=0;i<REF.length;i++){ var r=REF[i]; tableRows+='<tr><td>'+r.short+'</td><td>'+r.formal+'</td><td>'+r.cls+'</td><td>'+r.source+'</td><td>'+r.notes+'</td></tr>'; } card.innerHTML='<div class="row" style="justify-content:space-between; align-items:center"><h2>ref — 螞蟻費洛蒙（簡名 → 正式名）</h2><button onclick="closeRef()">關閉</button></div><div class="grid2"><div><h3>遊戲用簡名</h3><ul style="list-style:none; padding-left:0">'+listHTML+'</ul></div><div><h3>說明</h3><p style="color:var(--muted)">協同：吸引+禁止；蟻酸+十一烷；多利克二醛+Iridomyrmecin+Z9-16 醛。</p></div></div><h3>正式對照</h3><table><thead><tr><th>簡名</th><th>正式名</th><th>類別</th><th>來源腺體</th><th>備註</th></tr></thead><tbody>'+tableRows+'</tbody></table>'; modal.style.display='grid'; }
+function openRef(){ const modal=document.getElementById('refModal'); const card=document.getElementById('refCard'); let tableRows=''; for(let i=0;i<REF.length;i++){ const r=REF[i]; tableRows+='<tr><td>'+r.short+'</td><td>'+r.formal+'</td><td>'+r.cls+'</td><td>'+r.source+'</td></tr>'; } card.innerHTML='<div class="row" style="justify-content:space-between; align-items:center"><h2>ref</h2><button onclick="closeRef()">關閉</button></div><table><thead><tr><th>簡名</th><th>正式名</th><th>類別</th><th>來源腺體</th></tr></thead><tbody>'+tableRows+'</tbody></table>'; modal.style.display='grid'; }
 function closeRef(){ document.getElementById('refModal').style.display='none'; } window.closeRef=closeRef;
 
 /******************** 勝負 ********************/
-function checkWin(){ let pass=false,msg=''; if(level===1){ pass=scoreMe>scoreRival; msg= pass?'Lv1 通過！':'挑戰失敗：對手搬得更多。'; } if(level===2){ const count=ants.filter(function(a){return targetZone.some(function(t){return Math.round(a.x/TILE)===t.x&&Math.round(a.y/TILE)===t.y;});}).length; pass=count>8; msg= pass?'Lv2 通過！':'未達成：新蟻巢集結不足。'; } if(level===3){ pass=(spider&&spider.killCount||0)>=3; msg= pass?'Lv3 通過！':'未達成：擊退次數不足。'; } if(level===4){ pass=scoreMe>=20; msg= pass?'Lv4 通過！':'未達成：回收不足，試試吸引+禁止。'; } alert(msg); }
+function checkWin(){ let pass=false,msg=''; if(level===1){ pass=scoreMe>scoreRival; msg= pass?'Lv1 通過！':'失敗：對手較多。'; } else { pass=true; msg='本關結束'; } alert(msg); }
 
-/******************** 啟動 + 錯誤攔截 ********************/
+/******************** 啟動 ********************/
 (function(){ try{ resizeCanvas(); resetGame(); requestAnimationFrame(loop); } catch(err){ const box=document.getElementById('errorOverlay'); const pre=document.getElementById('errorText'); box.style.display='block'; pre.textContent=String(err && err.stack || err); console.error(err); } })();
 </script>
 </body>
