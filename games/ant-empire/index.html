@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>模式螞蟻費洛蒙策略遊戲 v0.5.2 — 修正遇物件後卡住</title>
+<title>模式螞蟻費洛蒙策略遊戲 v0.5.4 — 陣營費洛蒙/風向箭頭/縮放UI/防卡蟲</title>
 <style>
   :root { --bg:#0f1115; --panel:#151922; --ink:#e8eefc; --muted:#9aa4b2; --accent:#77e4a0; --danger:#ff7a7a; --warn:#ffd36e; }
   html,body{height:100%; margin:0; background:var(--bg); color:var(--ink); font-family: ui-sans-serif, system-ui, -apple-system, PingFangTC, "Noto Sans TC", Segoe UI, Roboto, Helvetica, Arial;}
@@ -15,7 +15,7 @@
   .slot{background:#101625; border:1px solid #2b3246; border-radius:10px; padding:8px 10px; display:flex; align-items:center; gap:8px; justify-content:space-between}
   .row{display:flex; gap:6px; align-items:center; flex-wrap:wrap}
   button,select,input[type="range"]{background:#23293a; color:var(--ink); border:1px solid #2b3246; border-radius:10px; padding:6px 10px; cursor:pointer}
-  input[type="range"]{padding:4px 6px; width:150px}
+  input[type="range"]{padding:4px 6px; width:180px}
   button:hover{filter:brightness(1.08)}
   .pill{border:1px solid #334; border-radius:30px; padding:4px 8px; font-size:12px}
   .badge{font-size:11px; padding:2px 6px; border-radius:8px; background:#223}
@@ -26,11 +26,21 @@
   #refCard{width:min(980px,92vw); height:min(80vh,680px); background:#111522; border:1px solid #2b3246; border-radius:14px; overflow:auto; padding:16px}
   table{width:100%; border-collapse:collapse; font-size:13px}
   th,td{border-bottom:1px solid #2b3246; padding:6px 8px; text-align:left}
+  /* Zoom UI */
+  #zoomUI{position:absolute; left:12px; top:12px; z-index:10; display:flex; gap:6px}
+  #zoomUI button{padding:6px 10px; border-radius:8px}
 </style>
 </head>
 <body>
   <div id="wrap">
-    <div id="stage"><canvas id="canvas"></canvas></div>
+    <div id="stage">
+      <div id="zoomUI">
+        <button id="btnZoomIn">＋</button>
+        <button id="btnZoomOut">－</button>
+        <button id="btnZoomReset">1:1</button>
+      </div>
+      <canvas id="canvas"></canvas>
+    </div>
     <div id="panel">
       <div class="slot"><b>關卡</b>
         <span class="row">
@@ -49,12 +59,12 @@
         <span id="timerWrap" style="display:none">⏱ <span id="timerText">0</span>s</span>
       </div>
       <div class="slot"><span>🐜 我 <b id="antsMe">0</b>/<b id="capMe">∞</b>｜敵 <b id="antsRival">0</b></span><span>📦 我 <b id="scoreMe">0</b>｜敵 <b id="scoreRival">0</b></span></div>
-      <div class="slot"><b>速度</b><span class="row"><input type="range" id="speedRange" min="0.2" max="5" step="0.1" value="1"><span class="mini" id="speedLabel">1.0×</span></span></div>
+      <div class="slot"><b>速度</b><span class="row"><input type="range" id="speedRange" min="1" max="100" step="1" value="1"><span class="mini" id="speedLabel">1×</span></span></div>
       <div class="slot"><b>瓶庫</b><div id="invList" class="row"></div></div>
       <div class="slot"><b>合成</b><span class="row"><select id="craftSel"></select><button id="btnCraft">+1</button></span></div>
       <div class="slot"><b>材料</b><div id="matRow" class="row"></div></div>
       <div class="slot"><b>天氣</b><div class="mini" id="wxText">—</div></div>
-      <div class="mini">操作：左鍵放置、右鍵清除、中鍵/空白鍵拖曳、滾輪縮放</div>
+      <div class="mini">操作：左鍵放置、右鍵清除、中鍵/空白鍵拖曳、滾輪縮放／左上角按鈕縮放、1:1</div>
     </div>
   </div>
 
@@ -75,6 +85,7 @@ CanvasRenderingContext2D.prototype._rr = function(x,y,w,h,r){
   this.arcTo(x, y, x+w, y, r);
   this.closePath();
 };
+function rr(o,x,y,w,h,r){ o._rr(x,y,w,h,r); o.fill(); o.stroke(); }
 
 /******************** ref ********************/
 const REF=[
@@ -109,7 +120,7 @@ window.addEventListener('resize', function(){ resizeCanvas(); });
 /******************** 狀態 ********************/
 let grid=[], scoreMe=0, scoreRival=0; let ants=[], antsRival=[]; let carrying=0; let mats={}, inventory={}, unlocked=[], selectedPh=null;
 let colonyCap=40, colonyMax=Infinity, spawnBudget=0, rivalSpawn=150;
-let wx={wind:0, windDir:0, humidIdx:3, raining:false, tWind:0, tDir:0};
+let wx={wind:1.2, windDir:0, humidIdx:3, raining:false, tWind:0, tDir:0};
 
 /******************** 工具 ********************/
 function inBounds(x,y){ return x>=0&&y>=0&&x<W&&y<H; } function idx(x,y){ return y*W+x; } function randInt(a,b){ return Math.floor(Math.random()*(b-a+1))+a; } function choice(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
@@ -120,7 +131,6 @@ function lerp(a,b,t){ return a+(b-a)*t; }
 const SCALE=8; const ANT_W=6, ANT_H=4; const FOOD_W=10, FOOD_H=8;
 const frames={antsMe:[], antsRv:[], food:{}};
 function mkAnt(phase,flip,stroke){ const off=document.createElement('canvas'), o=off.getContext('2d'); off.width=ANT_W*SCALE; off.height=ANT_H*SCALE; o.scale(SCALE,SCALE); o.lineWidth=0.9; o.strokeStyle=stroke; o.translate(ANT_W/2,ANT_H/2); if(flip) o.scale(-1,1); o.translate(-ANT_W/2,-ANT_H/2); o.beginPath(); o.ellipse(1.6,2,1.6,1.2,0,0,Math.PI*2); o.ellipse(3.4,2,1.2,1.0,0,0,Math.PI*2); o.ellipse(4.8,2,0.9,0.9,0,0,Math.PI*2); o.stroke(); const A=0.6; for(let i=0;i<3;i++){ const p=phase?1:-1, bx=[1.4,3.0,4.4][i], by=2; const a1=(i*0.6 + p*A), a2=(i*0.6 - p*A); o.beginPath(); o.moveTo(bx,by-0.4); o.lineTo(bx+Math.cos(a1)*1.5,by-0.4+Math.sin(a1)*1.5); o.stroke(); o.beginPath(); o.moveTo(bx,by+0.4); o.lineTo(bx+Math.cos(a2)*1.5,by+0.4+Math.sin(a2)*1.5); o.stroke(); } o.beginPath(); o.moveTo(5.3,1.3); o.lineTo(6,0.5); o.moveTo(5.3,2.7); o.lineTo(6,3.3); o.stroke(); return off; }
-function rr(o,x,y,w,h,r){ o._rr(x,y,w,h,r); o.fill(); o.stroke(); }
 function mkFood(kind){ const off=document.createElement('canvas'), o=off.getContext('2d'); off.width=FOOD_W*SCALE; off.height=FOOD_H*SCALE; o.scale(SCALE,SCALE); o.lineWidth=1; o.strokeStyle="#ffffffaa";
   function sugar(){ o.fillStyle="#ffe9a6"; rr(o,0.8,1,FOOD_W-1.6,FOOD_H-2,1); }
   function peanut(){ o.fillStyle="#caa86d"; o.beginPath(); o.ellipse(FOOD_W/2,FOOD_H/2,4.0,2.4,0,0,Math.PI*2); o.fill(); o.stroke(); }
@@ -136,21 +146,25 @@ frames.antsMe.push(mkAnt(0,0,"#9ffcac"),mkAnt(1,0,"#9ffcac"),mkAnt(0,1,"#9ffcac"
 frames.antsRv.push(mkAnt(0,0,"#cfd3da88"),mkAnt(1,0,"#cfd3da88"),mkAnt(0,1,"#cfd3da88"),mkAnt(1,1,"#cfd3da88"));
 ['sugar','peanut','fish','resin','citrus','oil','berry','wax','chitin'].forEach(k=>frames.food[k]=mkFood(k));
 
-/******************** 天氣 ********************/
+/******************** 天氣（偏向 0~3m/s） ********************/
 function rndSign(){ return Math.random()<0.5?-1:1; }
 function stepWeather(dt){
-  wx.tWind += dt; if(wx.tWind>=1){ wx.wind = clamp(wx.wind + (Math.random()*3)*rndSign(), 0, 10); wx.tWind=0; }
+  // 風速以 0~3 m/s 為主，做微小 OU 過程
+  const mean=1.2, k=0.9;
+  wx.wind = clamp(wx.wind + (mean - wx.wind)*k*dt + (Math.random()-0.5)*0.6*dt, 0, 3.5);
+  // 風向：每 30s 緩慢變動 ≤ 60°
   wx.tDir += dt; if(wx.tDir>=30){ wx.windDir = (wx.windDir + (Math.random()*60 - 30)) % 360; wx.tDir=0; }
+  // 溼度偶爾變動
   if(Math.random()<0.02*dt){ wx.humidIdx = clamp(wx.humidIdx + rndSign()*1, 0, 6); }
-  wx.raining = (wx.humidIdx===6 && wx.wind>6);
+  wx.raining = (wx.humidIdx===6 && wx.wind>3); // 高濕且較強風時
   const humidText=['極乾','很乾','偏乾','中等','偏濕','很濕','極濕'][wx.humidIdx];
   document.getElementById('wxText').textContent = '風 ' + wx.wind.toFixed(1) + ' m/s @ ' + wx.windDir.toFixed(0) + '°｜濕度 ' + humidText + (wx.raining?'｜🌧 下雨':'');
 }
 
 /******************** 地圖 ********************/
-function baseRandomMap(waterRatio){ grid=new Array(W*H).fill(0).map(function(){return {type:T_EMPTY, food:null, pher:{}, sniff:0};}); for(let y=0;y<H;y++){ for(let x=0;x<W;x++){ if(Math.random()<waterRatio) grid[idx(x,y)].type=T_WATER; } } for(let i=0;i<Math.floor((W+H)/2); i++){ const side=Math.random()<0.5?0:W-1; const y=randInt(0,H-1); grid[idx(side,y)].type=T_WATER; } }
+function baseRandomMap(waterRatio){ grid=new Array(W*H).fill(0).map(function(){return {type:T_EMPTY, food:null, pherMe:{}, pherRv:{}, sniff:0};}); for(let y=0;y<H;y++){ for(let x=0;x<W;x++){ if(Math.random()<waterRatio) grid[idx(x,y)].type=T_WATER; } } for(let i=0;i<Math.floor((W+H)/2); i++){ const side=Math.random()<0.5?0:W-1; const y=randInt(0,H-1); grid[idx(side,y)].type=T_WATER; } }
 function placeNests(){ grid[idx(2,2)].type=T_NEST_ME; grid[idx(W-3,H-3)].type=T_NEST_RIVAL; }
-function scatterFood(list,count){ for(let i=0;i<count;i++){ const x=randInt(2,W-3), y=randInt(2,H-3); if(grid[idx(x,y)].type===T_EMPTY){ const item=Object.assign({}, choice(list)); item.size = lerp(1.2,3.0, Math.random()); item.hp = Math.ceil(item.size*3); grid[idx(x,y)].type=T_FOOD; grid[idx(x,y)].food=item; } } }
+function scatterFood(list,count){ for(let i=0;i<count;i++){ const x=randInt(2,W-3), y=randInt(2,H-3); if(grid[idx(x,y)].type===T_EMPTY){ const item=Object.assign({}, choice(list)); item.size = lerp(1.2,3.0, Math.random()); item.hp = Math.ceil(item.size*3); item.maxhp=item.hp; item.notchDir = Math.random()*Math.PI*2; grid[idx(x,y)].type=T_FOOD; grid[idx(x,y)].food=item; } } }
 function makeMap_Lv1(){ baseRandomMap(0.08); placeNests(); scatterFood([{type:'sugar',yield:{O:2,C:1}}, {type:'peanut',yield:{C:2,R:1}}, {type:'fish',yield:{N:2,C:1}}], 30); setGoal('沒有時間限制：搬回的顆粒數量要超過對手。通關後 5 秒自動進 Lv2。'); showTimer=false; colonyCap=30; colonyMax=500; timeLeft=0; }
 function makeMap_Lv2(){ baseRandomMap(0.08); placeNests(); scatterFood([{type:'resin',yield:{T:2,C:1}},{type:'citrus',yield:{Ald:1,O:1,R:1}},{type:'oil',yield:{HC:2,C:1}}], 26); setGoal('指定區擴建新蟻巢（示意）。'); showTimer=true; timeLeft=160; colonyCap=60; colonyMax=Infinity; }
 function makeMap_Lv3(){ baseRandomMap(0.06); placeNests(); scatterFood([{type:'berry',yield:{Acid:2,O:1}}, {type:'wax',yield:{HC:2}}, {type:'chitin',yield:{N:1,Acid:1,R:1}}], 22); setGoal('擊退中型敵人並持續運輸（示意）。'); showTimer=true; timeLeft=150; colonyCap=80; colonyMax=Infinity; }
@@ -159,41 +173,52 @@ function setGoal(t){ document.getElementById('goalText').textContent=t; document
 
 /******************** 螞蟻 ********************/
 function findNest(team){ for(let y=0;y<H;y++){ for(let x=0;x<W;x++){ const t=grid[idx(x,y)].type; if(team==='me'&&t===T_NEST_ME) return {x:x,y:y}; if(team==='rv'&&t===T_NEST_RIVAL) return {x:x,y:y}; } } return {x:1,y:1}; }
-function spawnAnt(team){ const n=findNest(team); const px=n.x*TILE+TILE/2, py=n.y*TILE+TILE/2; const aim=Math.random()*Math.PI*2; return {team:team, x:px, y:py, aim:aim, speed:26+Math.random()*10, sinceSig:0, sinceSteps:0, changeAt: (3+Math.random()*2)*ANT_H, carry:false, cool:0, hp:3}; }
+function spawnAnt(team){
+  const n=findNest(team); const px=n.x*TILE+TILE/2, py=n.y*TILE+TILE/2; const aim=Math.random()*Math.PI*2;
+  return {team:team, x:px, y:py, aim:aim, speed:26+Math.random()*10, sinceSig:0, sinceSteps:0, changeAt: (3+Math.random()*2)*ANT_H,
+          carry:false, cool:0, hp:3, phCharge:(team==='me'?4:4), phMax:6, dropCooldown:0,
+          lastX:px, lastY:py, stuckT:0};
+}
 
 /******************** 招募與出巢邏輯 ********************/
-function signalMass(){ let s=0; for(let i=0;i<grid.length;i++){ const p=grid[i].pher; if(!p) continue; for(const k in p){ const t=PH[k].type; if(t==='trail'||t==='recruit') s += p[k]*PH[k].strength; } } return s; }
-function desiredPopulation(){ const k=0.05; const want=Math.min(colonyMax, colonyCap + Math.floor(k*signalMass())); return want; }
+function signalMass(team){ let s=0; for(let i=0;i<grid.length;i++){ const p=team==='me'?grid[i].pherMe:grid[i].pherRv; if(!p) continue; for(const k in p){ const t=PH[k].type; if(t==='trail'||t==='recruit') s += p[k]*PH[k].strength; } } return s; }
+function desiredPopulation(){ const k=0.05; const want=Math.min(colonyMax, colonyCap + Math.floor(k*signalMass('me'))); return want; }
 
-/******************** 費洛蒙 ********************/
-function selectedOrDefaultTrail(){ // 修復：缺少此函式導致放費洛蒙時拋錯而整個 loop 中斷
+/******************** 費洛蒙（分陣營儲存/渲染/感知） ********************/
+function selectedOrDefaultTrail(){
   if(selectedPh && (PH[selectedPh].type==='trail' || PH[selectedPh].type==='recruit')) return selectedPh;
   return 'm4mp2c';
 }
-function placePher(x,y,key,amt){
+function placePher(x,y,key,amt,team){
   if(amt===undefined) amt=1; if(!inBounds(x,y)) return;
   const c=grid[idx(x,y)]; if([T_WATER,T_WALL].includes(c.type)) return;
-  if(!c.pher) c.pher={};
+  const bucket = (team==='rv' ? c.pherRv : c.pherMe);
   const windRad = (wx.windDir*Math.PI/180);
-  const boost = 1 + Math.max(0, Math.cos(windRad)) * (wx.wind/10)*0.8;
-  c.pher[key]=(c.pher[key]||0)+amt*boost;
+  const boost = 1 + Math.max(0, Math.cos(windRad)) * (wx.wind/3.5)*0.6; // 風更弱時的增益比例
+  bucket[key]=(bucket[key]||0)+amt*boost;
   c.sniff = c.sniff||0;
+}
+function localTrailStrength(gx,gy,team){
+  if(!inBounds(gx,gy)) return 0; const p=(team==='rv'?grid[idx(gx,gy)].pherRv:grid[idx(gx,gy)].pherMe)||{}; let s=0; for(const k in p){ const t=PH[k].type; if(t==='trail'||t==='recruit') s+=p[k]; } return s;
 }
 function stepPher(dt){
   for(let i=0;i<grid.length;i++){
-    const c=grid[i]; const p=c.pher; if(!p) continue;
-    for(const k in p){
-      const humidScale = [1.5,1.3,1.15,1.0,0.9,0.8,0.7][wx.humidIdx];
-      const hl=PH[k].halfLife * humidScale;
-      const windDilute = 1 + wx.wind*0.06;
-      p[k] -= dt*(windDilute/hl);
-      if(wx.raining) p[k] -= dt*0.8;
-      if(p[k]<=0) delete p[k];
+    const c=grid[i];
+    function decay(p){
+      for(const k in p){
+        const humidScale = [1.5,1.3,1.15,1.0,0.9,0.8,0.7][wx.humidIdx];
+        const hl=PH[k].halfLife * humidScale;
+        const windDilute = 1 + wx.wind*0.04;
+        p[k] -= dt*(windDilute/hl);
+        if(wx.raining) p[k] -= dt*0.6;
+        if(p[k]<=0) delete p[k];
+      }
     }
+    decay(c.pherMe); decay(c.pherRv);
   }
 }
-// 聞光：固定嗅聞次數後衰退
-function sniffAt(x,y){ if(!inBounds(x,y)) return; const c=grid[idx(x,y)]; c.sniff=(c.sniff||0)+1; if(c.sniff%30===0 && c.pher){ for(const k in c.pher){ c.pher[k]*=0.8; } } }
+// 聞光：固定嗅聞次數後衰退（對雙方都作用）
+function sniffAt(x,y){ if(!inBounds(x,y)) return; const c=grid[idx(x,y)]; c.sniff=(c.sniff||0)+1; if(c.sniff%30===0){ for(const k in c.pherMe){ c.pherMe[k]*=0.8; } for(const k in c.pherRv){ c.pherRv[k]*=0.8; } } }
 
 /******************** 遊戲流程 ********************/
 function resetGame(){
@@ -213,17 +238,28 @@ function step(dt){
   const want=desiredPopulation(); if(ants.length < want){ spawnBudget += dt * 10; while(spawnBudget>=1 && ants.length<want){ ants.push(spawnAnt('me')); spawnBudget-=1; } }
   if(antsRival.length < rivalSpawn){ if(Math.random()<0.4*dt) antsRival.push(spawnAnt('rv')); }
 
-  function sensePher(gx,gy){ if(!inBounds(gx,gy)) return 0; const p=grid[idx(gx,gy)].pher||{}; let A=0,R=0; for(const k in p){ const t=PH[k].type, v=p[k]; if(t==='ban'||t==='acid') R+=v*PH[k].strength; if(t==='trail'||t==='recruit') A+=v*PH[k].strength; } return A-R; }
+  function sensePher(gx,gy,team){ if(!inBounds(gx,gy)) return 0; const p=(team==='rv'?grid[idx(gx,gy)].pherRv:grid[idx(gx,gy)].pherMe)||{}; let A=0,R=0; for(const k in p){ const t=PH[k].type, v=p[k]; if(t==='ban'||t==='acid') R+=v*PH[k].strength; if(t==='trail'||t==='recruit') A+=v*PH[k].strength; } return A-R; }
   function stepAnt(a){
     a.sinceSteps += dt*a.speed; const need = a.changeAt;
+    a.dropCooldown = Math.max(0, a.dropCooldown - dt);
+    // stuck 偵測
+    const moved = Math.hypot(a.x-(a.lastX||a.x), a.y-(a.lastY||a.y));
+    if(moved < 0.2){ a.stuckT = (a.stuckT||0) + dt; if(a.stuckT>0.6){ a.aim += (Math.random()-0.5)*Math.PI; a.stuckT=0; } }
+    else { a.stuckT = 0; }
+    a.lastX=a.x; a.lastY=a.y;
+
     const gx=Math.floor(a.x/TILE), gy=Math.floor(a.y/TILE);
-    const sig=sensePher(gx,gy);
+    const sig=sensePher(gx,gy,a.team);
     if(sig>0.02){ a.sinceSteps=0; }
     const nest=findNest(a.team);
     if(a.carry){
       const nx=nest.x*TILE+TILE/2, ny=nest.y*TILE+TILE/2; const ang=Math.atan2(ny-a.y, nx-a.x);
       a.aim = ang + (Math.random()-0.5)*0.16;
-      if(Math.random()<0.2*dt){ placePher(gx,gy, selectedOrDefaultTrail(), 0.3); }
+      if(a.dropCooldown<=0 && a.phCharge>0 && localTrailStrength(gx,gy,a.team) < 0.3){
+        placePher(gx,gy, selectedOrDefaultTrail(), 0.5, a.team);
+        a.phCharge -= 1;
+        a.dropCooldown = 0.20;
+      }
     }else{
       if(a.sinceSteps > need && sig<=0.02){
         a.sinceSteps=0; a.aim += (Math.random()-0.5)*Math.PI;
@@ -231,37 +267,33 @@ function step(dt){
         a.aim += (Math.random()-0.5)*0.08;
       }
     }
+    // 前進
     const dx=Math.cos(a.aim)*a.speed*dt, dy=Math.sin(a.aim)*a.speed*dt; let nx=a.x+dx, ny=a.y+dy;
     const cgx=Math.floor(nx/TILE), cgy=Math.floor(ny/TILE);
     if(!inBounds(cgx,cgy) || [T_WATER,T_WALL].includes(grid[idx(cgx,cgy)].type)){ a.aim += Math.PI*0.6*(Math.random()<0.5?1:-1); return; }
     a.x=nx; a.y=ny;
     sniffAt(cgx,cgy);
     const cell=grid[idx(cgx,cgy)];
+    // 遇到食物：補充費洛蒙庫存 +2；我方收集材料
     if(!a.carry && cell.type===T_FOOD){
-      if((cell.food.size||1) > 2){
-        a.carry=true; carrying++;
-        const yv=cell.food.yield; for(const k in yv){ if(a.team==='me') mats[k]=(mats[k]||0)+yv[k]; }
-        cell.food.hp-=1; cell.food.size = Math.max(1.0, cell.food.size-0.3);
-        if(cell.food.hp<=0){ cell.type=T_EMPTY; cell.food=null; placePher(cgx,cgy,'noentry',1.2); }
-        placePher(cgx,cgy, selectedOrDefaultTrail(), 1.0);
-        colonyCap = Math.min(colonyMax, colonyCap + 1);
-      }else{
-        a.carry=true; carrying++;
-        const yv=cell.food.yield; for(const k in yv){ if(a.team==='me') mats[k]=(mats[k]||0)+yv[k]; }
-        cell.type=T_EMPTY; cell.food=null; placePher(cgx,cgy,'noentry',1.0);
-        placePher(cgx,cgy, selectedOrDefaultTrail(), 0.8);
-        colonyCap = Math.min(colonyMax, colonyCap + 1);
-      }
+      a.carry=true; carrying++;
+      a.phCharge = Math.min(a.phMax, a.phCharge + 2);
+      if(a.team==='me'){ const yv=cell.food.yield; for(const k in yv){ mats[k]=(mats[k]||0)+yv[k]; } }
+      cell.food.hp-=1; cell.food.size = Math.max(1.0, cell.food.size-0.3);
+      if(cell.food.hp<=0){ cell.type=T_EMPTY; cell.food=null; placePher(cgx,cgy,'noentry',1.2,a.team); }
+      if(a.phCharge>0){ placePher(cgx,cgy, selectedOrDefaultTrail(), 1.0, a.team); a.phCharge -= 1; }
+      colonyCap = Math.min(colonyMax, colonyCap + (a.team==='me'?1:0)); // 我方擴編
     }
+    // 回巢：計分與補滿 pher
     if(a.carry && cgx===nest.x && cgy===nest.y){
-      a.carry=false; carrying=Math.max(0,carrying-1); if(a.team==='me') scoreMe++; else scoreRival++;
-      placePher(cgx,cgy, selectedOrDefaultTrail(), 0.4);
+      a.carry=false; carrying=Math.max(0,carrying-1);
+      if(a.team==='me') scoreMe++; else scoreRival++;
+      if(a.phCharge>0){ placePher(cgx,cgy, selectedOrDefaultTrail(), 0.4, a.team); a.phCharge -= 1; }
+      a.phCharge = a.phMax;
     }
   }
   ants.forEach(stepAnt);
-  antsRival.forEach(function(b){
-    b.sinceSteps = (b.sinceSteps||0) + dt*b.speed; if(b.sinceSteps > (3+Math.random()*2)*ANT_H){ b.aim += (Math.random()-0.5)*Math.PI; b.sinceSteps=0; }
-    b.aim += (Math.random()-0.5)*0.1*dt*6; const dx=Math.cos(b.aim)*24*dt, dy=Math.sin(b.aim)*24*dt; let nx=b.x+dx, ny=b.y+dy; const gx=Math.floor(nx/TILE), gy=Math.floor(ny/TILE); if(!inBounds(gx,gy) || [T_WATER,T_WALL].includes(grid[idx(gx,gy)].type)){ b.aim += Math.PI*0.6; return; } b.x=nx; b.y=ny; if(Math.random()<0.015){ placePher(gx,gy,'m4mp2c',0.2); } });
+  antsRival.forEach(stepAnt);
 
   updateHud();
   if(level===1 && scoreMe>=10 && scoreMe>scoreRival){ advanceCountdown(dt); }
@@ -285,16 +317,45 @@ function updateHud(){
 }
 
 /******************** 繪圖 ********************/
+function groundColor(t){ if(t===T_WATER) return '#0a1830'; if(t===T_WALL) return '#0a0a10'; return '#0c101a'; }
+function drawWindArrow(){
+  const pad=14; const cx=viewX + pad, cy=viewY + pad;
+  ctx.save(); ctx.translate(cx, cy);
+  const len = 22 + wx.wind*10; // 風越大箭越長
+  const ang = wx.windDir * Math.PI/180;
+  ctx.rotate(ang);
+  ctx.strokeStyle="#9aa4b2"; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(len,0); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(len,0); ctx.lineTo(len-6, 3); ctx.lineTo(len-6, -3); ctx.closePath();
+  ctx.fillStyle="#9aa4b2"; ctx.fill();
+  ctx.restore();
+}
 function draw(){ const dpr=window.devicePixelRatio||1; ctx.setTransform(1,0,0,1,0,0); ctx.clearRect(0,0,canvas.width,canvas.height); ctx.scale(dpr,dpr); ctx.save(); ctx.scale(viewScale,viewScale); ctx.translate(-viewX,-viewY);
-  ctx.fillStyle="#0c101a"; ctx.fillRect(0,0,WORLD_W,WORLD_H);
-  for(let y=0;y<H;y++){ for(let x=0;x<W;x++){ const c=grid[idx(x,y)]; let col='#0c101a'; if(c.type===T_WATER) col='#0a1830'; if(c.type===T_WALL) col='#0a0a10'; ctx.fillStyle=col; ctx.fillRect(x*TILE,y*TILE,TILE,TILE);
-    if(c.pher){ for(const k in c.pher){ ctx.fillStyle=PH[k].color; ctx.globalAlpha=Math.min(0.6,c.pher[k]); ctx.fillRect(x*TILE,y*TILE,TILE,TILE); ctx.globalAlpha=1; } }
-    if(c.type===T_FOOD){ const fx=x*TILE+TILE/2, fy=y*TILE+TILE/2; const img=frames.food[c.food.type]; const sz = (c.food.size||1); ctx.drawImage(img, fx-FOOD_W/2*sz, fy-FOOD_H/2*sz, FOOD_W*sz, FOOD_H*sz); }
+  ctx.fillStyle=groundColor(T_EMPTY); ctx.fillRect(0,0,WORLD_W,WORLD_H);
+  // 地圖與我方/敵方訊號
+  for(let y=0;y<H;y++){ for(let x=0;x<W;x++){
+    const c=grid[idx(x,y)]; const col=groundColor(c.type); ctx.fillStyle=col; ctx.fillRect(x*TILE,y*TILE,TILE,TILE);
+    // 我方訊號：用對應顏色
+    for(const k in c.pherMe){ ctx.fillStyle=PH[k].color; ctx.globalAlpha=Math.min(0.6,c.pherMe[k]); ctx.fillRect(x*TILE,y*TILE,TILE,TILE); ctx.globalAlpha=1; }
+    // 敵方訊號：統一灰
+    for(const k in c.pherRv){ ctx.fillStyle="#cfd3da44"; ctx.globalAlpha=Math.min(0.6,c.pherRv[k]); ctx.fillRect(x*TILE,y*TILE,TILE,TILE); ctx.globalAlpha=1; }
+    if(c.type===T_FOOD){ const fx=x*TILE+TILE/2, fy=y*TILE+TILE/2; const img=frames.food[c.food.type]; const sz = (c.food.size||1); ctx.drawImage(img, fx-FOOD_W/2*sz, fy-FOOD_H/2*sz, FOOD_W*sz, FOOD_H*sz);
+      // 缺角
+      const frac = 1 - (c.food.hp / c.food.maxhp);
+      if(frac>0){ const ang0=c.food.notchDir; const span = Math.PI*0.6*frac + 0.2; const r = Math.max(FOOD_W, FOOD_H)*c.food.size*0.7;
+        ctx.beginPath(); ctx.moveTo(fx,fy); ctx.arc(fx,fy,r, ang0, ang0+span, false); ctx.closePath();
+        ctx.fillStyle = groundColor(T_EMPTY); ctx.fill(); ctx.lineWidth=1; ctx.strokeStyle = "#ffffffaa"; ctx.stroke();
+      }
+    }
   } }
+  // 巢穴
   for(let y=0;y<H;y++){ for(let x=0;x<W;x++){ const t=grid[idx(x,y)].type; if(t===T_NEST_ME){ ctx.fillStyle='#77e4a0'; ctx.fillRect(x*TILE+2,y*TILE+2,TILE-4,TILE-4);} else if(t===T_NEST_RIVAL){ ctx.fillStyle='#cfd3da44'; ctx.fillRect(x*TILE+2,y*TILE+2,TILE-4,TILE-4);} } }
+  // 螞蟻
   function drawAnt(a, sprites){ const phase=(Math.floor((performance.now()/120 + a.x*0.01)%2))?1:0; const idx=(Math.cos(a.aim)>=0?0:2)+phase; const off=sprites[idx]; ctx.drawImage(off, a.x-ANT_W/2, a.y-ANT_H/2, ANT_W, ANT_H); }
   for(let i=0;i<ants.length;i++) drawAnt(ants[i], frames.antsMe);
   for(let i=0;i<antsRival.length;i++) drawAnt(antsRival[i], frames.antsRv);
+  // 風向箭頭
+  drawWindArrow();
   ctx.restore();
 }
 
@@ -303,11 +364,17 @@ let isPanning=false; let panStartX=0, panStartY=0, panViewX=0, panViewY=0; let s
 canvas.addEventListener('contextmenu', function(e){ e.preventDefault(); });
 window.addEventListener('keydown', function(e){ if(e.code==='Space') spaceDown=true; if(e.key==='r'||e.key==='R') resetGame(); if(e.key==='f'||e.key==='F') openRef(); });
 window.addEventListener('keyup', function(e){ if(e.code==='Space') spaceDown=false; });
-canvas.addEventListener('mousedown', function(e){ const rect=canvas.getBoundingClientRect(); function toWorld(cx,cy){ const px=(cx-rect.left)/(window.devicePixelRatio||1)/viewScale + viewX; const py=(cy-rect.top )/(window.devicePixelRatio||1)/viewScale + viewY; return {gx:Math.floor(px/TILE), gy:Math.floor(py/TILE)}; } const m=toWorld(e.clientX,e.clientY); if(e.button===1 || spaceDown){ isPanning=true; panStartX=e.clientX; panStartY=e.clientY; panViewX=viewX; panViewY=viewY; return; } if(e.button===2){ if(inBounds(m.gx,m.gy) && grid[idx(m.gx,m.gy)].pher) grid[idx(m.gx,m.gy)].pher={}; return; } if(!selectedPh) return; if((inventory[selectedPh]||0)<=0) return; placePher(m.gx,m.gy,selectedPh,1); inventory[selectedPh]--; refreshInv(); });
+canvas.addEventListener('mousedown', function(e){ const rect=canvas.getBoundingClientRect(); function toWorld(cx,cy){ const px=(cx-rect.left)/(window.devicePixelRatio||1)/viewScale + viewX; const py=(cy-rect.top )/(window.devicePixelRatio||1)/viewScale + viewY; return {gx:Math.floor(px/TILE), gy:Math.floor(py/TILE)}; } const m=toWorld(e.clientX,e.clientY); if(e.button===1 || spaceDown){ isPanning=true; panStartX=e.clientX; panStartY=e.clientY; panViewX=viewX; panViewY=viewY; return; } if(e.button===2){ if(inBounds(m.gx,m.gy)){ grid[idx(m.gx,m.gy)].pherMe={}; } return; } if(!selectedPh) return; if((inventory[selectedPh]||0)<=0) return; placePher(m.gx,m.gy,selectedPh,1,'me'); inventory[selectedPh]--; refreshInv(); });
 canvas.addEventListener('mousemove', function(e){ if(isPanning){ const dx=e.clientX-panStartX, dy=e.clientY-panStartY; const dpr=window.devicePixelRatio||1; viewX=panViewX-dx/(dpr*viewScale); viewY=panViewY-dy/(dpr*viewScale); clampView(); return; } });
 window.addEventListener('mouseup', function(){ isPanning=false; });
 canvas.addEventListener('wheel', function(e){ e.preventDefault(); const rect=canvas.getBoundingClientRect(); const dpr=window.devicePixelRatio||1; const mx=(e.clientX-rect.left)/dpr; const my=(e.clientY-rect.top)/dpr; const worldX = viewX + mx / viewScale; const worldY = viewY + my / viewScale; const delta = Math.sign(e.deltaY); const factor = (delta>0)? 0.9 : 1.1; const newScale = Math.min(4, Math.max(0.5, viewScale*factor)); if(newScale===viewScale) return; viewX = worldX - (mx / newScale); viewY = worldY - (my / newScale); viewScale = newScale; clampView(); }, {passive:false});
 function clampView(){ const rect=canvas.getBoundingClientRect(); const vw=rect.width/(window.devicePixelRatio||1)/viewScale; const vh=rect.height/(window.devicePixelRatio||1)/viewScale; viewX=Math.max(0, Math.min(WORLD_W - vw, viewX)); viewY=Math.max(0, Math.min(WORLD_H - vh, viewY)); }
+
+// Zoom UI
+document.getElementById('btnZoomIn').onclick=function(){ const rect=canvas.getBoundingClientRect(); const cx=rect.width/2, cy=rect.height/2; zoomAround(cx,cy,1.1); };
+document.getElementById('btnZoomOut').onclick=function(){ const rect=canvas.getBoundingClientRect(); const cx=rect.width/2, cy=rect.height/2; zoomAround(cx,cy,0.9); };
+document.getElementById('btnZoomReset').onclick=function(){ viewScale=1; clampView(); };
+function zoomAround(cx,cy,factor){ const rect=canvas.getBoundingClientRect(); const dpr=window.devicePixelRatio||1; const mx=(cx-rect.left)/dpr; const my=(cy-rect.top)/dpr; const worldX = viewX + mx / viewScale; const worldY = viewY + my / viewScale; const newScale = Math.min(4, Math.max(0.5, viewScale*factor)); if(newScale===viewScale) return; viewX = worldX - (mx / newScale); viewY = worldY - (my / newScale); viewScale = newScale; clampView(); }
 
 /******************** UI ********************/
 function refreshMats(){ const row=document.getElementById('matRow'); row.innerHTML=''; for(let i=0;i<MATERIALS.length;i++){ const k=MATERIALS[i]; const d=document.createElement('div'); d.className='pill'; d.textContent=k+': '+(mats[k]||0); row.appendChild(d);} }
@@ -317,7 +384,7 @@ document.getElementById('btnCraft').onclick=function(){ const id=document.getEle
 document.getElementById('btnRestart').onclick=function(){ resetGame(); };
 document.getElementById('levelSel').onchange=function(e){ level=parseInt(e.target.value,10); resetGame(); };
 document.getElementById('btnRef').onclick=function(){ openRef(); };
-document.getElementById('speedRange').addEventListener('input', function(e){ timeScale=parseFloat(e.target.value); document.getElementById('speedLabel').textContent=timeScale.toFixed(1)+'×'; });
+document.getElementById('speedRange').addEventListener('input', function(e){ timeScale=parseFloat(e.target.value); document.getElementById('speedLabel').textContent=timeScale.toFixed(0)+'×'; });
 
 function openRef(){ const modal=document.getElementById('refModal'); const card=document.getElementById('refCard'); let tableRows=''; for(let i=0;i<REF.length;i++){ const r=REF[i]; tableRows+='<tr><td>'+r.short+'</td><td>'+r.formal+'</td><td>'+r.cls+'</td><td>'+r.source+'</td></tr>'; } card.innerHTML='<div class="row" style="justify-content:space-between; align-items:center"><h2>ref</h2><button onclick="closeRef()">關閉</button></div><table><thead><tr><th>簡名</th><th>正式名</th><th>類別</th><th>來源腺體</th></tr></thead><tbody>'+tableRows+'</tbody></table>'; modal.style.display='grid'; }
 function closeRef(){ document.getElementById('refModal').style.display='none'; } window.closeRef=closeRef;
