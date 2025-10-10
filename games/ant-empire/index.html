@@ -3,11 +3,11 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>模式螞蟻費洛蒙策略遊戲 v0.5.5 — 材料入庫在回巢、風向箭頭在面板、統計表格</title>
+<title>模式螞蟻費洛蒙策略遊戲 v0.6.0 — Lv1/Lv2規則更新、Lv3蜘蛛、表格與風向面板</title>
 <style>
   :root { --bg:#0f1115; --panel:#151922; --ink:#e8eefc; --muted:#9aa4b2; --accent:#77e4a0; --danger:#ff7a7a; --warn:#ffd36e; }
   html,body{height:100%; margin:0; background:var(--bg); color:var(--ink); font-family: ui-sans-serif, system-ui, -apple-system, PingFangTC, "Noto Sans TC", Segoe UI, Roboto, Helvetica, Arial;}
-  #wrap{display:grid; grid-template-columns: 1fr 360px; gap:10px; height:100vh; padding:10px; box-sizing:border-box;}
+  #wrap{display:grid; grid-template-columns: 1fr 380px; gap:10px; height:100vh; padding:10px; box-sizing:border-box;}
   #stage{position:relative; width:100%; height:100%;}
   #canvas{position:absolute; inset:0; background:#0b0d12; border:1px solid #22283a; border-radius:12px; width:100%; height:100%; display:block; image-rendering:pixelated}
   #panel{background:var(--panel); border-radius:14px; padding:12px; overflow:auto; display:grid; gap:10px}
@@ -16,7 +16,7 @@
   .col{display:flex; flex-direction:column; gap:8px; width:100%}
   .row{display:flex; gap:6px; align-items:center; flex-wrap:wrap}
   button,select,input[type="range"]{background:#23293a; color:var(--ink); border:1px solid #2b3246; border-radius:10px; padding:6px 10px; cursor:pointer}
-  input[type="range"]{padding:4px 6px; width:200px}
+  input[type="range"]{padding:4px 6px; width:220px}
   button:hover{filter:brightness(1.08)}
   .pill{border:1px solid #334; border-radius:30px; padding:4px 8px; font-size:12px}
   .badge{font-size:11px; padding:2px 6px; border-radius:8px; background:#223}
@@ -27,20 +27,13 @@
   #refCard{width:min(980px,92vw); height:min(80vh,680px); background:#111522; border:1px solid #2b3246; border-radius:14px; overflow:auto; padding:16px}
   table{width:100%; border-collapse:collapse; font-size:13px}
   th,td{border-bottom:1px solid #2b3246; padding:6px 8px; text-align:left}
-  #zoomUI{position:absolute; left:12px; top:12px; z-index:10; display:flex; gap:6px}
-  #zoomUI button{padding:6px 10px; border-radius:8px}
   #wxBox{display:flex; align-items:center; gap:8px}
-  #wxArrow{width:120px; height:36px; background:#0c1020; border:1px solid #2b3246; border-radius:8px}
+  #wxArrow{width:140px; height:40px; background:#0c1020; border:1px solid #2b3246; border-radius:8px}
 </style>
 </head>
 <body>
   <div id="wrap">
     <div id="stage">
-      <div id="zoomUI">
-        <button id="btnZoomIn">＋</button>
-        <button id="btnZoomOut">－</button>
-        <button id="btnZoomReset">1:1</button>
-      </div>
       <canvas id="canvas"></canvas>
     </div>
     <div id="panel">
@@ -61,8 +54,18 @@
         <span id="timerWrap" style="display:none">⏱ <span id="timerText">0</span>s</span>
       </div>
       <div class="slot col">
-        <div class="row" style="justify-content:space-between"><b>速度</b><span class="mini" id="speedLabel">1×</span></div>
+        <div class="row" style="justify-content:space-between">
+          <b>速度</b><span class="mini" id="speedLabel">1×</span>
+        </div>
         <input type="range" id="speedRange" min="1" max="100" step="1" value="1">
+      </div>
+      <div class="slot col">
+        <b>視圖</b>
+        <div class="row">
+          <button id="btnZoomIn">＋</button>
+          <button id="btnZoomOut">－</button>
+          <button id="btnZoomReset">1:1</button>
+        </div>
       </div>
       <div class="slot col">
         <b>統計</b>
@@ -87,11 +90,15 @@
       <div class="slot">
         <b>天氣</b>
         <div id="wxBox">
-          <canvas id="wxArrow" width="120" height="36"></canvas>
+          <canvas id="wxArrow" width="140" height="40"></canvas>
           <div class="mini" id="wxText">—</div>
         </div>
       </div>
-      <div class="mini">操作：左鍵放置、右鍵清除、中鍵/空白鍵拖曳、滾輪縮放／左上角按鈕縮放、1:1</div>
+      <div id="nextActions" class="slot" style="display:none; justify-content:flex-start; gap:8px">
+        <b id="nextLabel"></b>
+        <button id="btnNext" style="display:none"></button>
+        <button id="btnAddEnemy" style="display:none">新增敵人</button>
+      </div>
     </div>
   </div>
 
@@ -113,6 +120,7 @@ CanvasRenderingContext2D.prototype._rr = function(x,y,w,h,r){
   this.closePath();
 };
 function rr(o,x,y,w,h,r){ o._rr(x,y,w,h,r); o.fill(); o.stroke(); }
+function drawArrow(o,x,y,len,ang,color){ o.save(); o.translate(x,y); o.rotate(ang); o.strokeStyle=color; o.lineWidth=2; o.beginPath(); o.moveTo(0,0); o.lineTo(len,0); o.stroke(); o.beginPath(); o.moveTo(len,0); o.lineTo(len-6, 3); o.lineTo(len-6, -3); o.closePath(); o.fillStyle=color; o.fill(); o.restore(); }
 
 /******************** ref ********************/
 const REF=[
@@ -148,6 +156,8 @@ window.addEventListener('resize', function(){ resizeCanvas(); });
 let grid=[], scoreMe=0, scoreRival=0; let ants=[], antsRival=[]; let carrying=0; let mats={}, inventory={}, unlocked=[], selectedPh=null;
 let colonyCap=40, colonyMax=Infinity, spawnBudget=0, rivalSpawn=150;
 let wx={wind:1.2, windDir:0, humidIdx:3, raining:false, tWind:0, tDir:0};
+let targets=[]; // Lv2 控點
+let enemies=[]; // Lv3 敵人
 
 /******************** 工具 ********************/
 function inBounds(x,y){ return x>=0&&y>=0&&x<W&&y<H; } function idx(x,y){ return y*W+x; } function randInt(a,b){ return Math.floor(Math.random()*(b-a+1))+a; } function choice(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
@@ -187,28 +197,136 @@ function stepWeather(dt){
   drawWxArrow();
 }
 function drawWxArrow(){
-  const c=document.getElementById('wxArrow'); const o=c.getContext('2d'); o.setTransform(1,0,0,1,0,0); o.clearRect(0,0,c.width,c.height);
+  const c=document.getElementById('wxArrow'); if(!c) return; const o=c.getContext('2d'); o.setTransform(1,0,0,1,0,0); o.clearRect(0,0,c.width,c.height);
   const cx=18, cy=c.height/2; const len = 22 + wx.wind*10; const ang = wx.windDir * Math.PI/180;
-  // 背景刻度
   o.strokeStyle="#283049"; o.beginPath(); o.moveTo(2,cy); o.lineTo(c.width-2,cy); o.stroke();
-  // 箭頭
-  o.save(); o.translate(cx, cy); o.rotate(ang);
-  o.strokeStyle="#9aa4b2"; o.lineWidth=2; o.beginPath(); o.moveTo(0,0); o.lineTo(len,0); o.stroke();
-  o.beginPath(); o.moveTo(len,0); o.lineTo(len-6, 3); o.lineTo(len-6, -3); o.closePath(); o.fillStyle="#9aa4b2"; o.fill();
-  o.restore();
-  // 標籤
+  drawArrow(o, cx, cy, len, ang, "#9aa4b2");
   o.fillStyle="#9aa4b2"; o.font="12px ui-sans-serif"; o.fillText(wx.wind.toFixed(1)+" m/s", cx+len+8, cy+4);
 }
 
-/******************** 地圖 ********************/
-function baseRandomMap(waterRatio){ grid=new Array(W*H).fill(0).map(function(){return {type:T_EMPTY, food:null, pherMe:{}, pherRv:{}, sniff:0};}); for(let y=0;y<H;y++){ for(let x=0;x<W;x++){ if(Math.random()<waterRatio) grid[idx(x,y)].type=T_WATER; } } for(let i=0;i<Math.floor((W+H)/2); i++){ const side=Math.random()<0.5?0:W-1; const y=randInt(0,H-1); grid[idx(side,y)].type=T_WATER; } }
-function placeNests(){ grid[idx(2,2)].type=T_NEST_ME; grid[idx(W-3,H-3)].type=T_NEST_RIVAL; }
-function scatterFood(list,count){ for(let i=0;i<count;i++){ const x=randInt(2,W-3), y=randInt(2,H-3); if(grid[idx(x,y)].type===T_EMPTY){ const item=Object.assign({}, choice(list)); item.size = lerp(1.2,3.0, Math.random()); item.hp = Math.ceil(item.size*3); item.maxhp=item.hp; item.notchDir = Math.random()*Math.PI*2; grid[idx(x,y)].type=T_FOOD; grid[idx(x,y)].food=item; } } }
-function makeMap_Lv1(){ baseRandomMap(0.08); placeNests(); scatterFood([{type:'sugar',yield:{O:2,C:1}}, {type:'peanut',yield:{C:2,R:1}}, {type:'fish',yield:{N:2,C:1}}], 30); setGoal('沒有時間限制：搬回的顆粒數量要超過對手。通關後 5 秒自動進 Lv2。'); showTimer=false; colonyCap=30; colonyMax=500; timeLeft=0; }
-function makeMap_Lv2(){ baseRandomMap(0.08); placeNests(); scatterFood([{type:'resin',yield:{T:2,C:1}},{type:'citrus',yield:{Ald:1,O:1,R:1}},{type:'oil',yield:{HC:2,C:1}}], 26); setGoal('指定區擴建新蟻巢（示意）。'); showTimer=true; timeLeft=160; colonyCap=60; colonyMax=Infinity; }
-function makeMap_Lv3(){ baseRandomMap(0.06); placeNests(); scatterFood([{type:'berry',yield:{Acid:2,O:1}}, {type:'wax',yield:{HC:2}}, {type:'chitin',yield:{N:1,Acid:1,R:1}}], 22); setGoal('擊退中型敵人並持續運輸（示意）。'); showTimer=true; timeLeft=150; colonyCap=80; colonyMax=Infinity; }
-function makeMap_Lv4(){ baseRandomMap(0.08); placeNests(); scatterFood([{type:'resin',yield:{T:2,C:1}},{type:'citrus',yield:{Ald:1,O:1,R:1}},{type:'oil',yield:{HC:2,C:1}}], 20); setGoal('吸引＋禁止導引至正確食物（示意）。'); showTimer=true; timeLeft=160; colonyCap=60; colonyMax=Infinity; }
+/******************** 地圖與關卡 ********************/
+function baseRandomMap(waterRatio){
+  grid=new Array(W*H).fill(0).map(function(){return {type:T_EMPTY, food:null, pherMe:{}, pherRv:{}, sniff:0, owner:null, control:0};});
+  for(let y=0;y<H;y++){ for(let x=0;x<W;x++){ if(Math.random()<waterRatio) grid[idx(x,y)].type=T_WATER; } }
+  for(let i=0;i<Math.floor((W+H)/2); i++){ const side=Math.random()<0.5?0:W-1; const y=randInt(0,H-1); grid[idx(side,y)].type=T_WATER; }
+}
+function randomNest(){ return {x:randInt(2,W-3), y:randInt(2,H-3)}; }
+function placeNestsRandom(){
+  const a=randomNest(); const b=randomNest(); grid[idx(a.x,a.y)].type=T_NEST_ME; grid[idx(b.x,b.y)].type=T_NEST_RIVAL;
+}
+function placeNestsCorners(){ grid[idx(2,2)].type=T_NEST_ME; grid[idx(W-3,H-3)].type=T_NEST_RIVAL; }
+function scatterFood(list,count){
+  for(let i=0;i<count;i++){
+    const x=randInt(2,W-3), y=randInt(2,H-3);
+    if(grid[idx(x,y)].type===T_EMPTY){
+      const item=Object.assign({}, choice(list));
+      item.size = Math.round(1 + Math.random()*9); // 1x ~ 10x
+      item.hp = Math.ceil(item.size*5);
+      item.maxhp=item.hp;
+      item.notchDir = Math.random()*Math.PI*2;
+      grid[idx(x,y)].type=T_FOOD; grid[idx(x,y)].food=item;
+    }
+  }
+}
+function spawnTargets(n){
+  targets=[];
+  for(let i=0;i<n;i++){
+    const x=randInt(4,W-5), y=randInt(4,H-5);
+    if(grid[idx(x,y)].type===T_EMPTY){
+      grid[idx(x,y)].type=T_TARGET; grid[idx(x,y)].owner=null; grid[idx(x,y)].control=0;
+      targets.push({x,y});
+    } else { i--; }
+  }
+}
+
+function makeMap_Lv1(){
+  baseRandomMap(0.08); placeNestsCorners();
+  scatterFood([{type:'sugar',yield:{O:2,C:1}}, {type:'peanut',yield:{C:2,R:1}}, {type:'fish',yield:{N:2,C:1}}], 26);
+  setGoal('Lv1：沒有時間限制。搬回的顆粒數量要超過對手。通關後會出現「進入 Lv2」按鈕。');
+  showTimer=false; colonyCap=30; colonyMax=500; timeLeft=0;
+}
+function makeMap_Lv2(){
+  baseRandomMap(0.08); placeNestsRandom();
+  scatterFood([{type:'resin',yield:{T:2,C:1}},{type:'citrus',yield:{Ald:1,O:1,R:1}},{type:'oil',yield:{HC:2,C:1}}], 22);
+  spawnTargets(4);
+  setGoal('Lv2：在時間內佔領的控制點數量要多於敵方。通關後可按鈕新增一個控制點並補充食物。');
+  showTimer=true; timeLeft=160; colonyCap=60; colonyMax=Infinity;
+}
+function makeMap_Lv3(){
+  baseRandomMap(0.06); placeNestsCorners();
+  scatterFood([{type:'berry',yield:{Acid:2,O:1}}, {type:'wax',yield:{HC:2}}, {type:'chitin',yield:{N:1,Acid:1,R:1}}], 20);
+  setGoal('Lv3：出現中型敵人（蜘蛛）。擊敗後會變成食物；並解鎖「新增敵人」按鈕（會隨機生成蜘蛛/壁虎/蟑螂）。');
+  showTimer=true; timeLeft=150; colonyCap=80; colonyMax=Infinity;
+  enemies=[ makeEnemy('spider') ];
+}
+function makeMap_Lv4(){
+  baseRandomMap(0.08); placeNestsCorners();
+  scatterFood([{type:'resin',yield:{T:2,C:1}},{type:'citrus',yield:{Ald:1,O:1,R:1}},{type:'oil',yield:{HC:2,C:1}}], 20);
+  setGoal('Lv4：吸引＋禁止導引至正確食物（示意）。');
+  showTimer=true; timeLeft=160; colonyCap=60; colonyMax=Infinity;
+}
 function setGoal(t){ document.getElementById('goalText').textContent=t; document.getElementById('timerWrap').style.display = showTimer ? 'inline-flex' : 'none'; }
+
+/******************** 敵人（Lv3+） ********************/
+function makeEnemy(kind){
+  // 基本屬性
+  const base = { kind, x:randInt(8,W-8)*TILE, y:randInt(8,H-8)*TILE, aim:Math.random()*Math.PI*2, hp:10, speed:20, alive:true };
+  if(kind==='spider'){ base.hp=12; base.speed=24; }
+  if(kind==='gecko'){ base.hp=20; base.speed=22; }
+  if(kind==='roach'){ base.hp=14; base.speed=28; }
+  return base;
+}
+function stepEnemies(dt){
+  for(let e of enemies){
+    if(!e.alive) continue;
+    // 隨機遊走
+    if(Math.random()<0.05) e.aim += (Math.random()-0.5)*0.8;
+    const dx=Math.cos(e.aim)*e.speed*dt, dy=Math.sin(e.aim)*e.speed*dt;
+    let nx=e.x+dx, ny=e.y+dy; const gx=Math.floor(nx/TILE), gy=Math.floor(ny/TILE);
+    if(!inBounds(gx,gy) || grid[idx(gx,gy)].type===T_WATER){ e.aim += Math.PI*0.6; continue; }
+    e.x=nx; e.y=ny;
+    // 與螞蟻互動：簡化戰鬥
+    function combat(list){
+      for(const a of list){
+        const d=Math.hypot(a.x-e.x,a.y-e.y);
+        if(d<10){
+          // 互相扣血；螞蟻有機率陣亡
+          e.hp -= 4*dt;
+          if(Math.random()<0.02*dt){ a.hp-=1; if(a.hp<=0){ a.alive=false; } }
+        }
+      }
+    }
+    combat(ants); combat(antsRival);
+    if(e.hp<=0){
+      e.alive=false;
+      // 變成食物（蛋白質來源）：用 fish 圖，產出較高 N
+      const gx2=Math.floor(e.x/TILE), gy2=Math.floor(e.y/TILE);
+      if(inBounds(gx2,gy2) && grid[idx(gx2,gy2)].type===T_EMPTY){
+        grid[idx(gx2,gy2)].type=T_FOOD;
+        grid[idx(gx2,gy2)].food={type:'fish',yield:{N:3,C:1}, size:4, hp:8, maxhp:8, notchDir:Math.random()*Math.PI*2};
+      }
+      // 顯示新增敵人按鈕
+      showNextAction('敵人被擊敗！', null, true);
+    }
+  }
+  // 移除死亡螞蟻
+  ants = ants.filter(a=>a.alive!==false);
+  antsRival = antsRival.filter(a=>a.alive!==false);
+}
+
+/******************** 控制點（Lv2） ********************/
+function stepTargets(dt){
+  for(let y=0;y<H;y++){ for(let x=0;x<W;x++){
+    if(grid[idx(x,y)].type!==T_TARGET) continue;
+    let me=0, rv=0;
+    for(const a of ants){ if(Math.hypot(a.x-(x*TILE+TILE/2), a.y-(y*TILE+TILE/2))<18) me++; }
+    for(const a of antsRival){ if(Math.hypot(a.x-(x*TILE+TILE/2), a.y-(y*TILE+TILE/2))<18) rv++; }
+    const diff = me - rv;
+    grid[idx(x,y)].control = clamp((grid[idx(x,y)].control||0) + diff*dt*0.5, -10, 10);
+    if(grid[idx(x,y)].control>=10) grid[idx(x,y)].owner='me';
+    else if(grid[idx(x,y)].control<=-10) grid[idx(x,y)].owner='rv';
+  } } 
+}
 
 /******************** 螞蟻 ********************/
 function findNest(team){ for(let y=0;y<H;y++){ for(let x=0;x<W;x++){ const t=grid[idx(x,y)].type; if(team==='me'&&t===T_NEST_ME) return {x:x,y:y}; if(team==='rv'&&t===T_NEST_RIVAL) return {x:x,y:y}; } } return {x:1,y:1}; }
@@ -259,14 +377,15 @@ function stepPher(dt){
 function sniffAt(x,y){ if(!inBounds(x,y)) return; const c=grid[idx(x,y)]; c.sniff=(c.sniff||0)+1; if(c.sniff%30===0){ for(const k in c.pherMe){ c.pherMe[k]*=0.8; } for(const k in c.pherRv){ c.pherRv[k]*=0.8; } } }
 
 /******************** 遊戲流程 ********************/
+let nextReady=false;
 function resetGame(){
   ants=[]; antsRival=[]; inventory={}; mats={}; scoreMe=0; scoreRival=0; carrying=0; unlocked=UNLOCK[level].slice(0); selectedPh=unlocked[0]||null; MATERIALS.forEach(k=>mats[k]=0);
+  targets=[]; enemies=[]; nextReady=false; hideNextAction();
   if(level===1) makeMap_Lv1(); if(level===2) makeMap_Lv2(); if(level===3) makeMap_Lv3(); if(level===4) makeMap_Lv4();
   for(let i=0;i<10;i++) ants.push(spawnAnt('me'));
   for(let i=0;i<50;i++) antsRival.push(spawnAnt('rv'));
   buildCraftSel(); refreshInv(); refreshMats(); resizeCanvas(); clampView(); draw(); updateHud();
 }
-
 let _last=performance.now(); function loop(now){ let dt=(now-_last)/1000; _last=now; dt*=timeScale; step(dt); draw(); requestAnimationFrame(loop); }
 
 function step(dt){
@@ -312,25 +431,21 @@ function step(dt){
     a.x=nx; a.y=ny;
     sniffAt(cgx,cgy);
     const cell=grid[idx(cgx,cgy)];
-    // 遇到食物：開始搬運，**不立即入庫材料**，而是把本次負載記在 a.load，等回巢再入庫
+    // 遇到食物：開始搬運（材料記在 a.load，回巢才入庫）
     if(!a.carry && cell.type===T_FOOD){
-      a.carry=true; carrying++;
-      a.load = clone(cell.food.yield); // 本趟負載
+      a.carry=true; carrying++; a.load = clone(cell.food.yield);
       a.phCharge = Math.min(a.phMax, a.phCharge + 2);
       cell.food.hp-=1; cell.food.size = Math.max(1.0, cell.food.size-0.3);
       if(cell.food.hp<=0){ cell.type=T_EMPTY; cell.food=null; placePher(cgx,cgy,'noentry',1.2,a.team); }
       if(a.phCharge>0){ placePher(cgx,cgy, selectedOrDefaultTrail(), 1.0, a.team); a.phCharge -= 1; }
-      if(a.team==='me'){ colonyCap = Math.min(colonyMax, colonyCap + 1); } // 我方擴編
+      if(a.team==='me'){ colonyCap = Math.min(colonyMax, colonyCap + 1); }
     }
     // 回巢：計分與**材料入庫**，補滿 pher
     if(a.carry && cgx===nest.x && cgy===nest.y){
       a.carry=false; carrying=Math.max(0,carrying-1);
       if(a.team==='me'){
-        scoreMe++;
-        if(a.load){ for(const k in a.load){ mats[k]=(mats[k]||0)+a.load[k]; } refreshMats(); }
-      }else{
-        scoreRival++;
-      }
+        scoreMe++; if(a.load){ for(const k in a.load){ mats[k]=(mats[k]||0)+a.load[k]; } refreshMats(); }
+      }else{ scoreRival++; }
       a.load=null;
       if(a.phCharge>0){ placePher(cgx,cgy, selectedOrDefaultTrail(), 0.4, a.team); a.phCharge -= 1; }
       a.phCharge = a.phMax;
@@ -339,46 +454,116 @@ function step(dt){
   ants.forEach(stepAnt);
   antsRival.forEach(stepAnt);
 
-  updateHud();
-  if(level===1 && scoreMe>=10 && scoreMe>scoreRival){ advanceCountdown(dt); }
-}
+  // Lv2 控點
+  if(level===2){ stepTargets(dt); }
+  // Lv3 敵人
+  if(level>=3){ stepEnemies(dt); }
 
-let advT=0, advActive=false;
-function advanceCountdown(dt){
-  if(!advActive){ advActive=true; advT=5; setGoal('Lv1 達成！將於 5 秒後自動進入 Lv2'); }
-  advT -= dt;
-  if(advT<=0){
-    level=2; document.getElementById('levelSel').value='2'; advActive=false; resetGame();
-  }else{
-    setGoal('Lv1 達成！將於 '+Math.ceil(advT)+' 秒後自動進入 Lv2');
+  updateHud();
+
+  // 勝利條件與下一步
+  if(level===1 && !nextReady && scoreMe>=10 && scoreMe>scoreRival){
+    showNextAction('Lv1 達成！', '進入 Lv2');
+    document.getElementById('btnNext').onclick=function(){ level=2; document.getElementById('levelSel').value='2'; resetGame(); };
   }
+  if(level===2 && showTimer && timeLeft<=0 && !nextReady){
+    // 計算控點得分
+    let me=0, rv=0;
+    for(let y=0;y<H;y++){ for(let x=0;x<W;x++){ const c=grid[idx(x,y)]; if(c.type===T_TARGET){ if(c.owner==='me') me++; else if(c.owner==='rv') rv++; } } }
+    if(me>rv){
+      showNextAction('Lv2 達成！', '新增控制點＋補給');
+      document.getElementById('btnNext').onclick=function(){
+        spawnTargets(1);
+        scatterFood([{type:'resin',yield:{T:2,C:1}},{type:'citrus',yield:{Ald:1,O:1,R:1}},{type:'oil',yield:{HC:2,C:1}}], 8);
+        hideNextAction(); // 可讓玩家持續遊玩
+      };
+    } else {
+      showNextAction('Lv2 未達成，繼續嘗試', '重來');
+      document.getElementById('btnNext').onclick=function(){ resetGame(); };
+    }
+  }
+}
+function showNextAction(label, btnText, showEnemyBtn){
+  nextReady=true;
+  const box=document.getElementById('nextActions'); box.style.display='flex';
+  document.getElementById('nextLabel').textContent=label||'';
+  const btn=document.getElementById('btnNext');
+  if(btnText){ btn.style.display='inline-block'; btn.textContent=btnText; } else { btn.style.display='none'; }
+  const be=document.getElementById('btnAddEnemy');
+  if(showEnemyBtn){ be.style.display='inline-block'; be.onclick=function(){ enemies.push(makeEnemy(choice(['spider','gecko','roach']))); hideNextAction(); }; }
+  else { be.style.display='none'; }
+}
+function hideNextAction(){
+  const box=document.getElementById('nextActions'); if(!box) return; box.style.display='none';
+  document.getElementById('btnNext').style.display='none';
+  document.getElementById('btnAddEnemy').style.display='none';
+  nextReady=false;
 }
 
 function updateHud(){
-  document.getElementById('capMe').textContent=(colonyMax===Infinity?'∞':colonyMax);
   // 統計表
   const meCarry = ants.reduce((n,a)=>n+(a.carry?1:0),0);
   const rvCarry = antsRival.reduce((n,a)=>n+(a.carry?1:0),0);
   const tbody=document.querySelector('#statsTable tbody');
-  tbody.innerHTML = '<tr><td>我方</td><td>'+ants.length+'</td><td>'+meCarry+'</td><td>'+scoreMe+'</td></tr>' +
-                    '<tr><td>敵方</td><td>'+antsRival.length+'</td><td>'+rvCarry+'</td><td>'+scoreRival+'</td></tr>';
+  if(tbody){
+    tbody.innerHTML = '<tr><td>我方</td><td>'+ants.length+'</td><td>'+meCarry+'</td><td>'+scoreMe+'</td></tr>' +
+                      '<tr><td>敵方</td><td>'+antsRival.length+'</td><td>'+rvCarry+'</td><td>'+scoreRival+'</td></tr>';
+  }
   // 食物表
   const agg={};
   for(let i=0;i<grid.length;i++){ const c=grid[i]; if(c.type===T_FOOD){ const k=c.food.type; if(!agg[k]) agg[k]={cnt:0,hp:0}; agg[k].cnt++; agg[k].hp+=c.food.hp; } }
-  const fbody=document.querySelector('#foodTable tbody'); fbody.innerHTML='';
+  const fbody=document.querySelector('#foodTable tbody'); if(fbody){ fbody.innerHTML=''; }
   const order=['sugar','peanut','fish','resin','citrus','oil','berry','wax','chitin'];
-  order.forEach(function(k){ if(agg[k]){ const tr=document.createElement('tr'); tr.innerHTML='<td>'+k+'</td><td>'+agg[k].cnt+'</td><td>'+agg[k].hp+'</td>'; fbody.appendChild(tr);} });
+  for(const k of order){ if(agg[k]){ const tr=document.createElement('tr'); tr.innerHTML='<td>'+k+'</td><td>'+agg[k].cnt+'</td><td>'+agg[k].hp+'</td>'; fbody.appendChild(tr);} }
 }
 
 /******************** 繪圖 ********************/
-function groundColor(t){ if(t===T_WATER) return '#0a1830'; if(t===T_WALL) return '#0a0a10'; return '#0c101a'; }
-function draw(){ const dpr=window.devicePixelRatio||1; ctx.setTransform(1,0,0,1,0,0); ctx.clearRect(0,0,canvas.width,canvas.height); ctx.scale(dpr,dpr); ctx.save(); ctx.scale(viewScale,viewScale); ctx.translate(-viewX,-viewY);
+function groundColor(t){ if(t===T_WATER) return '#0a1830'; if(t===T_WALL) return '#0a0a10'; if(t===T_TARGET) return '#0c101a'; return '#0c101a'; }
+function drawTarget(x,y){
+  const cx=x*TILE+TILE/2, cy=y*TILE+TILE/2;
+  const c=grid[idx(x,y)];
+  ctx.lineWidth=2;
+  let col='#999';
+  if(c.owner==='me') col='#77e4a0';
+  else if(c.owner==='rv') col='#cfd3da88';
+  ctx.strokeStyle=col;
+  ctx.beginPath();
+  ctx.arc(cx,cy,6,0,Math.PI*2); ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(cx,cy,10,0,Math.PI*2); ctx.stroke();
+}
+function drawEnemy(e){
+  if(!e.alive) return;
+  ctx.save();
+  ctx.translate(e.x, e.y);
+  // 簡化造型
+  if(e.kind==='spider'){
+    ctx.strokeStyle='#ff8bd1'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.arc(0,0,6,0,Math.PI*2); ctx.stroke();
+    for(let i=0;i<4;i++){ const a=i*Math.PI/4 + Math.PI/8; ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(Math.cos(a)*10, Math.sin(a)*10); ctx.stroke(); ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(-Math.cos(a)*10, -Math.sin(a)*10); ctx.stroke(); }
+  }else if(e.kind==='gecko'){
+    ctx.strokeStyle='#a7ff8a'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.ellipse(0,0,8,4,0,0,Math.PI*2); ctx.stroke();
+  }else{ // roach
+    ctx.strokeStyle='#ffd36e'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.ellipse(0,0,7,3,0,0,Math.PI*2); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-6,0); ctx.lineTo(6,0); ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function draw(){
+  const dpr=window.devicePixelRatio||1; ctx.setTransform(1,0,0,1,0,0); ctx.clearRect(0,0,canvas.width,canvas.height); ctx.scale(dpr,dpr); ctx.save(); ctx.scale(viewScale,viewScale); ctx.translate(-viewX,-viewY);
   ctx.fillStyle=groundColor(T_EMPTY); ctx.fillRect(0,0,WORLD_W,WORLD_H);
-  // 地圖與我方/敵方訊號
   for(let y=0;y<H;y++){ for(let x=0;x<W;x++){
     const c=grid[idx(x,y)]; const col=groundColor(c.type); ctx.fillStyle=col; ctx.fillRect(x*TILE,y*TILE,TILE,TILE);
+    // 控制點
+    if(c.type===T_TARGET){ drawTarget(x,y); }
+    // 我方訊號
     for(const k in c.pherMe){ ctx.fillStyle=PH[k].color; ctx.globalAlpha=Math.min(0.6,c.pherMe[k]); ctx.fillRect(x*TILE,y*TILE,TILE,TILE); ctx.globalAlpha=1; }
+    // 敵方訊號（灰）
     for(const k in c.pherRv){ ctx.fillStyle="#cfd3da44"; ctx.globalAlpha=Math.min(0.6,c.pherRv[k]); ctx.fillRect(x*TILE,y*TILE,TILE,TILE); ctx.globalAlpha=1; }
+    // 食物
     if(c.type===T_FOOD){ const fx=x*TILE+TILE/2, fy=y*TILE+TILE/2; const img=frames.food[c.food.type]; const sz = (c.food.size||1); ctx.drawImage(img, fx-FOOD_W/2*sz, fy-FOOD_H/2*sz, FOOD_W*sz, FOOD_H*sz);
       const frac = 1 - (c.food.hp / c.food.maxhp);
       if(frac>0){ const ang0=c.food.notchDir; const span = Math.PI*0.6*frac + 0.2; const r = Math.max(FOOD_W, FOOD_H)*c.food.size*0.7;
@@ -393,6 +578,8 @@ function draw(){ const dpr=window.devicePixelRatio||1; ctx.setTransform(1,0,0,1,
   function drawAnt(a, sprites){ const phase=(Math.floor((performance.now()/120 + a.x*0.01)%2))?1:0; const idx=(Math.cos(a.aim)>=0?0:2)+phase; const off=sprites[idx]; ctx.drawImage(off, a.x-ANT_W/2, a.y-ANT_H/2, ANT_W, ANT_H); }
   for(let i=0;i<ants.length;i++) drawAnt(ants[i], frames.antsMe);
   for(let i=0;i<antsRival.length;i++) drawAnt(antsRival[i], frames.antsRv);
+  // 敵人
+  enemies.forEach(drawEnemy);
   ctx.restore();
 }
 
@@ -407,7 +594,7 @@ window.addEventListener('mouseup', function(){ isPanning=false; });
 canvas.addEventListener('wheel', function(e){ e.preventDefault(); const rect=canvas.getBoundingClientRect(); const dpr=window.devicePixelRatio||1; const mx=(e.clientX-rect.left)/dpr; const my=(e.clientY-rect.top)/dpr; const worldX = viewX + mx / viewScale; const worldY = viewY + my / viewScale; const delta = Math.sign(e.deltaY); const factor = (delta>0)? 0.9 : 1.1; const newScale = Math.min(4, Math.max(0.5, viewScale*factor)); if(newScale===viewScale) return; viewX = worldX - (mx / newScale); viewY = worldY - (my / newScale); viewScale = newScale; clampView(); }, {passive:false});
 function clampView(){ const rect=canvas.getBoundingClientRect(); const vw=rect.width/(window.devicePixelRatio||1)/viewScale; const vh=rect.height/(window.devicePixelRatio||1)/viewScale; viewX=Math.max(0, Math.min(WORLD_W - vw, viewX)); viewY=Math.max(0, Math.min(WORLD_H - vh, viewY)); }
 
-// Zoom UI
+// Zoom UI in panel
 document.getElementById('btnZoomIn').onclick=function(){ const rect=canvas.getBoundingClientRect(); const cx=rect.width/2, cy=rect.height/2; zoomAround(cx,cy,1.1); };
 document.getElementById('btnZoomOut').onclick=function(){ const rect=canvas.getBoundingClientRect(); const cx=rect.width/2, cy=rect.height/2; zoomAround(cx,cy,0.9); };
 document.getElementById('btnZoomReset').onclick=function(){ viewScale=1; clampView(); };
