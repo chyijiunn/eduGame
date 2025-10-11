@@ -3,511 +3,540 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>模式螞蟻費洛蒙策略遊戲 v0.6.4</title>
+<title>模式螞蟻費洛蒙策略遊戲 v0.7.4.1</title>
 <style>
-  :root { --bg:#0f1115; --panel:#151922; --ink:#e8eefc; --muted:#9aa4b2; --accent:#77e4a0; --danger:#ff7a7a; --warn:#ffd36e; }
+  :root { --bg:#0f1115; --panel:#151922; --ink:#e8eefc; --muted:#9aa4b2; --accent:#77e4a0; --danger:#ff7a7a; --warn:#ffd36e; --hi:#ffffff; }
   html,body{height:100%; margin:0; background:var(--bg); color:var(--ink); font-family: ui-sans-serif, system-ui, -apple-system, PingFangTC, "Noto Sans TC", Segoe UI, Roboto, Helvetica, Arial;}
-  #wrap{display:grid; grid-template-columns: 1fr 300px; gap:8px; height:100vh; padding:8px; box-sizing:border-box;}
-  #stage{position:relative; width:100%; height:100%;}
-  #canvas{position:absolute; inset:0; background:#0b0d12; border:1px solid #22283a; border-radius:12px; width:100%; height:100%; display:block; image-rendering:pixelated}
-  #panel{background:var(--panel); border-radius:12px; padding:10px; overflow:auto; display:grid; gap:8px}
+  #wrap{display:grid; grid-template-columns: 1fr 320px; gap:8px; height:100vh; padding:8px; box-sizing:border-box;}
+  #stage{position:relative; width:100%; height:100%; overflow:hidden}
+  #canvas{position:absolute; inset:0; background:#0b0d12; border:1px solid #22283a; border-radius:12px; width:100%; height:100%; display:block; image-rendering:pixelated; cursor:crosshair}
+  #panel{background:var(--panel); border-radius:12px; padding:8px; overflow:auto; display:grid; gap:8px}
   .slot{background:#101625; border:1px solid #2b3246; border-radius:10px; padding:8px; display:flex; align-items:center; gap:8px; justify-content:space-between}
   .col{display:flex; flex-direction:column; gap:8px; width:100%}
-  .row{display:flex; gap:6px; align-items:center; flex-wrap:wrap}
-  button,select{background:#23293a; color:var(--ink); border:1px solid #2b3246; border-radius:10px; padding:6px 10px; cursor:pointer}
+  .row{display:flex; gap:8px; align-items:center; flex-wrap:wrap}
+  .between{justify-content:space-between}
+  button,select,input[type=range]{background:#23293a; color:var(--ink); border:1px solid #2b3246; border-radius:10px; padding:6px 10px; cursor:pointer}
+  input[type=range]{-webkit-appearance: none; width:240px; height:8px; padding:0}
+  input[type=range]::-webkit-slider-thumb{ -webkit-appearance:none; width:14px; height:14px; background:#77e4a0; border-radius:50% }
   button:hover{filter:brightness(1.08)}
-  .pill{border:1px solid #334; border-radius:30px; padding:4px 8px; font-size:12px}
-  .badge{font-size:11px; padding:2px 6px; border-radius:8px; background:#223}
   .mini{font-size:12px; color:var(--muted)}
-  #wxBox{display:flex; align-items:center; gap:8px}
-  #wxArrow{width:160px; height:42px; background:#0c1020; border:1px solid #2b3246; border-radius:8px}
-  #clock{width:120px; height:120px; background:#0c1020; border:1px solid #2b3246; border-radius:60px}
-  #errorOverlay{position:fixed; right:12px; bottom:12px; display:none; z-index:9999; background:#1d2233; color:#ffd1d1; border:1px solid #b44; border-radius:12px; padding:12px; box-shadow:0 6px 30px #0008; max-width:40vw}
+  .label{font-size:12px; color:#cbd3e3; text-align:center}
+  table{border-collapse:collapse; font-size:13px}
+  th,td{border-bottom:1px solid #2b3246; padding:4px 6px; text-align:left; vertical-align:top}
+  #dash4{display:grid; grid-template-columns: repeat(4, 1fr); gap:0; width:100%}
+  .card{background:#0e1424; border:1px solid #2b3246; border-radius:10px; padding:4px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px}
+  .stack{display:flex; flex-direction:column; gap:4px; align-items:center; justify-content:center}
+  canvas.mini{background:#0c1020; border:1px solid #2b3246; border-radius:10px}
+  #errorOverlay{position:fixed; right:12px; bottom:12px; display:none; z-index:9999; background:#1d2233; color:#ffd1d1; border:1px solid #b44; border-radius:12px; padding:12px; box-shadow:0 6px 30px #0008; max-width:46vw}
   #errorOverlay pre{white-space:pre-wrap; font-family:ui-monospace, SFMono-Regular, Menlo, monospace; font-size:12px; color:#ffd1d1}
-  table{width:100%; border-collapse:collapse; font-size:13px}
-  th,td{border-bottom:1px solid #2b3246; padding:6px 8px; text-align:left; vertical-align:top}
+  #refModal{position:fixed; inset:0; display:none; place-items:center; background:#0008; z-index:9998}
+  #refCard{width:min(1040px,94vw); height:min(86vh,820px); background:#111522; border:1px solid #2b3246; border-radius:14px; overflow:auto; padding:16px}
+  #refClose{position:sticky; top:0; display:inline-block; margin-left:auto; background:#23293a}
+  code.k{background:#0c1020; padding:0 6px; border-radius:6px; border:1px solid #2b3246}
+  #top2{display:grid; grid-template-columns: 1fr 1fr; gap:6px}
+  .mat{padding:2px 6px; border-radius:6px; border:2px solid #2b3246; background:#0c1020}
+  .mat.hi{font-weight:800; color:#ffffff}
+  .mono{font-family:ui-monospace, SFMono-Regular, Menlo, monospace}
+  @media (orientation:portrait){
+    #wrap{grid-template-columns: 1fr; grid-template-rows: 1fr auto}
+    #panel{order:2}
+    #stage{order:1; height:60vh}
+    #dash4{order:99}
+  }
 </style>
 </head>
 <body>
   <div id="wrap">
     <div id="stage"><canvas id="canvas"></canvas></div>
     <div id="panel">
-      <!-- Weather -->
-      <div class="slot">
-        <b>天氣</b>
-        <div id="wxBox">
-          <canvas id="wxArrow" width="160" height="42"></canvas>
-          <div class="mini" id="wxText">—</div>
+      <div id="top2">
+        <div class="slot" style="gap:6px; width:100%">
+          <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:6px; width:100%">
+            <div class="col" style="align-items:center">
+              <div><b>關卡</b></div>
+              <select id="levelSel"><option value="1">Lv1</option><option value="2">Lv2</option><option value="3">Lv3</option><option value="4">Lv4</option></select>
+            </div>
+            <button id="btnRestart">reset</button>
+            <button id="btnRef">ref</button>
+          </div>
+        </div>
+        <div class="slot">
+          <table style="width:auto"><thead><tr><th></th><th>螞蟻</th><th>分</th></tr></thead>
+            <tbody>
+              <tr><td>我</td><td id="meAnts">0</td><td id="meScore">0</td></tr>
+              <tr><td>敵</td><td id="rvAnts">0</td><td id="rvScore">0</td></tr>
+            </tbody>
+          </table>
         </div>
       </div>
-      <!-- Level / controls -->
-      <div class="slot"><b>關卡</b>
-        <span class="row">
-          <select id="levelSel"><option value="1">Lv1</option><option value="2">Lv2</option><option value="3">Lv3</option><option value="4">Lv4</option></select>
-          <button id="btnRestart">重新開始</button>
-          <button id="btnRef">ref</button>
-        </span>
-      </div>
-      <div class="slot">
-        <span>🎯 <span id="goalText"></span></span>
-        <span id="timerWrap" style="display:none">⏱ <span id="timerText">0</span>s</span>
-      </div>
-      <!-- Merged stats -->
-      <div class="slot col">
-        <b>概況</b>
-        <table id="mergedTable"><thead><tr><th>分類</th><th>項目</th><th>數值</th></tr></thead><tbody></tbody></table>
-      </div>
-      <!-- Materials & crafting -->
-      <div class="slot col">
-        <b>材料</b>
-        <div id="matRow" class="row"></div>
-        <div class="row" style="justify-content:space-between">
-          <span class="row"><b>合成</b> <select id="craftSel"></select></span>
-          <button id="btnCraft">+1</button>
+
+      <div class="col">
+        <div id="dash4">
+          <div class="card stack"><div class="label">風速</div><canvas id="wxClock" class="mini" width="60" height="60"></canvas></div>
+          <div class="card stack"><div class="label">溼度</div><canvas id="humGauge" class="mini" width="60" height="60"></canvas></div>
+          <div class="card stack"><div class="label">時間</div><canvas id="spdClock" class="mini" width="60" height="60"></canvas></div>
+          <div class="card stack"><div class="label">視窗</div><canvas id="zoomGauge" class="mini" width="60" height="60"></canvas></div>
         </div>
-        <div class="slot" style="background:#0e1424; width:100%; justify-content:flex-start">
-          <b>瓶庫</b><div id="invList" class="row" style="margin-left:6px"></div>
+        <div class="row" style="justify-content:center">
+          <span class="mini">1×</span>
+          <input id="speedSlider" type="range" min="1" max="100" value="1">
+          <span class="mini">100×</span>
         </div>
+        <div class="mini" style="text-align:center">累積時間：<span id="accumTime" class="mono">00:00:00:00</span></div>
       </div>
-      <!-- Speed clock -->
-      <div class="slot col">
-        <b>速度</b>
-        <div class="row" style="justify-content:space-between;width:100%">
-          <div class="row"><button id="speedDown">−</button><button id="speedUp">＋</button></div>
-          <div class="mini">目前：<span id="speedLabel">1×</span></div>
+
+      <div class="slot" style="display:grid; grid-template-columns: 1fr 1fr; gap:8px">
+        <div class="col">
+          <b>材料</b>
+          <div id="matRow" class="row"></div>
+          <div class="mini">蛋白質（我）<span id="proteinMe">0</span>／（敵）<span id="proteinRv">0</span></div>
+          <div class="row between">
+            <span class="row"><b>費洛蒙</b> <select id="craftSel"></select></span>
+            <button id="btnCraft">合成 +1</button>
+          </div>
         </div>
-        <canvas id="clock" width="120" height="120" title="點選 + / − 調整速度"></canvas>
-      </div>
-      <!-- View -->
-      <div class="slot col">
-        <b>視圖</b>
-        <div class="row">
-          <button id="btnZoomIn">＋</button>
-          <button id="btnZoomOut">－</button>
-          <button id="btnZoomReset">1:1</button>
+        <div class="col">
+          <b>食物碎塊</b>
+          <div class="row between">
+            <div class="mini">目前數量：<span id="fragCount">—</span></div>
+            <button id="btnMoreFood" style="display:none">灑食物</button>
+          </div>
+          <b>庫存</b>
+          <div id="invList" class="row"></div>
         </div>
       </div>
-      <div id="nextActions" class="slot" style="display:none; justify-content:flex-start; gap:8px">
-        <b id="nextLabel"></b>
-        <button id="btnNext" style="display:none"></button>
-        <button id="btnAddEnemy" style="display:none">新增敵人</button>
-      </div>
+
+      <div id="refModal"><div id="refCard">
+        <div class="row" style="justify-content:flex-end"><button id="refClose">關閉</button></div>
+        <h2>參考（ref）</h2>
+        <p class="mini">費洛蒙功能表、合成配方、各種食物材料含量。</p>
+        <h3>費洛蒙功能表</h3>
+        <table id="refPhTable"><thead><tr><th>遊戲名</th><th>正式/學名</th><th>類型</th><th>分子量估</th><th>顏色</th><th>說明</th></tr></thead><tbody></tbody></table>
+        <h3>費洛蒙合成配方</h3>
+        <table id="refRecipeTable"><thead><tr><th>遊戲名</th><th>配方（材料→數量）</th></tr></thead><tbody></tbody></table>
+        <h3>各種食物的材料含量（基礎 1×）</h3>
+        <table id="refFoodTable"><thead><tr><th>食物</th><th>外觀</th><th>基礎材料</th></tr></thead><tbody></tbody></table>
+      </div></div>
+
     </div>
   </div>
 
-  <div id="refModal" style="position:fixed; inset:0; display:none; place-items:center; background:#0008"><div id="refCard" style="width:min(1040px,94vw); height:min(84vh,760px); background:#111522; border:1px solid #2b3246; border-radius:14px; overflow:auto; padding:16px"></div></div>
   <div id="errorOverlay"><b>⚠️ 腳本錯誤</b><pre id="errorText"></pre></div>
 
 <script>
 'use strict';
-/*********** Canvas helpers ***********/
-CanvasRenderingContext2D.prototype._rr = function(x,y,w,h,r){
-  if(this.roundRect){ this.roundRect(x,y,w,h,r); return; }
-  r = Math.min(r, w/2, h/2);
-  this.beginPath(); this.moveTo(x+r, y);
-  this.arcTo(x+w, y, x+w, y+h, r);
-  this.arcTo(x+w, y+h, x, y+h, r);
-  this.arcTo(x, y+h, x, y, r);
-  this.arcTo(x, y, x+w, y, r); this.closePath();
-};
-function rr(o,x,y,w,h,r){ o._rr(x,y,w,h,r); o.fill(); o.stroke(); }
-function drawArrow(o,x,y,len,ang,color){ o.save(); o.translate(x,y); o.rotate(ang); o.strokeStyle=color; o.lineWidth=2; o.beginPath(); o.moveTo(0,0); o.lineTo(len,0); o.stroke(); o.beginPath(); o.moveTo(len,0); o.lineTo(len-6, 3); o.lineTo(len-6, -3); o.closePath(); o.fillStyle=color; o.fill(); o.restore(); }
+function reportError(err){ try{ const box=document.getElementById('errorOverlay'); const pre=document.getElementById('errorText'); box.style.display='block'; pre.textContent=String(err && err.stack || err); console.error(err);}catch(_){ } }
+const PI=Math.PI; function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
+function randInt(a,b){ return Math.floor(Math.random()*(b-a+1))+a; } function choice(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+function rr(o,x,y,w,h,r){ if(o.roundRect){ o.beginPath(); o.roundRect(x,y,w,h,r); o.fill(); o.stroke(); return; } r=Math.min(r,w/2,h/2); o.beginPath(); o.moveTo(x+r,y); o.arcTo(x+w,y,x+w,y+h,r); o.arcTo(x+w,y+h,x,y+h,r); o.arcTo(x,y+h,x,y,r); o.arcTo(x,y,x+w,y,r); o.closePath(); o.fill(); o.stroke(); }
+function clone(obj){ try{ return JSON.parse(JSON.stringify(obj)); }catch(_){ return null; }}
 
-/*********** Data: ref & chemistry ***********/
 const REF=[
-  {id:'m4mp2c',short:'吡咯酸甲酯',formal:'methyl 4-methylpyrrole-2-carboxylate',cls:'路徑-短',source:'毒腺',mw:169},
-  {id:'edp',short:'乙基二甲基吡嗪（EDP）',formal:'3-ethyl-2,5-dimethylpyrazine',cls:'路徑/警戒',source:'毒腺',mw:136},
-  {id:'faranal',short:'Faranal',formal:'faranal',cls:'路徑-長',source:'杜佛氏腺',mw:208},
-  {id:'mono1',short:'Monomorine I',formal:'monomorine I',cls:'招募-短',source:'毒腺',mw:195},
-  {id:'noentry',short:'禁止混合物',formal:'no-entry blend',cls:'禁止',source:'毒腺',mw:160},
-  {id:'formic',short:'蟻酸',formal:'formic acid',cls:'防禦',source:'毒腺',mw:46},
-  {id:'c11',short:'十一烷',formal:'n-undecane',cls:'增效',source:'杜佛氏腺/毒腺',mw:156},
-  {id:'farnesene',short:'α-法呢烯',formal:'(Z,E)-α-farnesene',cls:'招募',source:'杜佛氏腺',mw:204},
-  {id:'dolich',short:'多利克二醛',formal:'dolichodial',cls:'路徑',source:'腹端腺',mw:236},
-  {id:'irido',short:'Iridomyrmecin',formal:'iridomyrmecin',cls:'路徑',source:'腹端腺',mw:168},
-  {id:'z9',short:'Z9-16 醛',formal:'(Z)-9-hexadecenal',cls:'增益',source:'腹端腺',mw:240}
+  {id:'m4mp2c',label:'吡咯酸甲酯',cls:'trail',mw:169,color:'#9bf',note:'路徑/食物跟隨'},
+  {id:'edp',label:'乙基二甲基吡嗪',cls:'trail',mw:136,color:'#8cf',note:'路徑/食物跟隨'},
+  {id:'faranal',label:'Faranal',cls:'trail',mw:208,color:'#6fa',note:'路徑/遠距跟隨'},
+  {id:'mono1',label:'Monomorine I',cls:'recruit',mw:195,color:'#dff76a',note:'招募/集結'},
+  {id:'noentry',label:'禁止混合物',cls:'ban',mw:160,color:'#f77',note:'避免重複前往'},
+  {id:'formic',label:'蟻酸',cls:'acid',mw:46,color:'#f55',note:'攻擊/警戒'}
 ];
 const MATERIALS=['C','O','N','R','T','Ald','Acid','HC','LAC'];
-const RECIPES={m4mp2c:{label:'吡咯酸甲酯',cost:{C:1,O:1,N:1}}, edp:{label:'乙基二甲基吡嗪',cost:{N:2,R:1,C:1}}, faranal:{label:'Faranal',cost:{T:2,Ald:1,HC:1}}, mono1:{label:'Monomorine I',cost:{N:1,R:1,HC:1}}, noentry:{label:'禁止混合物',cost:{Ald:1,Acid:1,HC:1}}, formic:{label:'蟻酸',cost:{Acid:2}}, c11:{label:'十一烷',cost:{HC:2}}, farnesene:{label:'α-法呢烯',cost:{T:2,HC:1}}, dolich:{label:'多利克二醛',cost:{Ald:2,R:1}}, irido:{label:'Iridomyrmecin',cost:{LAC:1,T:1}}, z9:{label:'Z9-16 醛',cost:{Ald:1,HC:1}}};
+const RECIPES={m4mp2c:{label:'吡咯酸甲酯',cost:{C:1,O:1,N:1}}, edp:{label:'乙基二甲基吡嗪',cost:{N:2,R:1,C:1}}, faranal:{label:'Faranal',cost:{T:2,Ald:1,HC:1}}, mono1:{label:'Monomorine I',cost:{N:1,R:1,HC:1}}, noentry:{label:'禁止混合物',cost:{Ald:1,Acid:1,HC:1}}, formic:{label:'蟻酸',cost:{Acid:2}}};
+const PH={}; for(const r of REF){ PH[r.id]={type:r.cls,color:r.color,halfLife:3600,label:r.label,note:r.note,mw:r.mw}; } // 1h 半衰期
 
-const TILE=16; let W=64, H=48; let WORLD_W=W*TILE, WORLD_H=H*TILE;
-let level=1; let timeLeft=0; let showTimer=false;
-let viewScale=1.0, viewX=0, viewY=0, timeScale=1.0;
-const T_EMPTY=0, T_WATER=1, T_FOOD=2, T_NEST_ME=3, T_NEST_RIVAL=4, T_WALL=5, T_TARGET=7;
+const FOOD_BASE={
+  fish:   {label:'魚',     base:{N:2,C:1},    art:'fish'},
+  peanut: {label:'堅果',   base:{C:2,R:1},    art:'nut'},
+  cater:  {label:'毛毛蟲', base:{N:2,HC:1},   art:'cater'},
+  resin:  {label:'樹脂',   base:{T:2,C:1},    art:'resin'},
+  citrus: {label:'柑橘',   base:{Ald:1,O:1,R:1}, art:'citrus'},
+  oil:    {label:'油脂',   base:{HC:2,C:1},   art:'oil'},
+  berry:  {label:'漿果',   base:{Acid:2,O:1}, art:'berry'},
+  wax:    {label:'蜂蠟',   base:{HC:2},       art:'wax'},
+  chitin: {label:'甲殼',   base:{N:1,Acid:1,R:1}, art:'chitin'}
+};
 
-const PH={};
-for(const r of REF){
-  const baseHalf = 60; // minimum 60s at 1x
-  // Heavier → longer; map MW 46..240 → 60..180 seconds
-  const half = baseHalf + (Math.max(46, Math.min(240, r.mw)) - 46) * (120/(240-46));
-  PH[r.id] = {type: (r.id==='noentry'?'ban': r.id==='formic'?'acid': (r.id==='mono1'||r.id==='farnesene')?'recruit':'trail'),
-              color: (r.id==='noentry')?'#f77': (r.id==='formic')?'#f55': (r.id==='faranal')?'#6fa':
-                     (r.id==='c11')?'#fc8': (r.id==='farnesene')?'#dff76a': (r.id==='irido')?'#c7f': (r.id==='dolich')?'#a5f': (r.id==='z9')?'#fff38a':'#9bf',
-              strength: (r.id==='noentry'||r.id==='formic')?3:2,
-              halfLifeSec: half };
-}
-
-/*********** Canvas & state ***********/
+const TILE=16; let W=64, H=48; const WORLD_W=W*TILE, WORLD_H=H*TILE;
+const T_EMPTY=0, T_WATER=1, T_FOOD=2, T_NEST_ME=3, T_NEST_RIVAL=4;
+let level=1, timeScale=1.0, maxAnts=500;
 const canvas=document.getElementById('canvas'); const ctx=canvas.getContext('2d');
 function resizeCanvas(){ const rect=canvas.getBoundingClientRect(); const dpr=window.devicePixelRatio||1; canvas.width=Math.max(1, Math.floor(rect.width*dpr)); canvas.height=Math.max(1, Math.floor(rect.height*dpr)); }
-window.addEventListener('resize', resizeCanvas);
-
-let grid=[], scoreMe=0, scoreRival=0; let ants=[], antsRival=[]; let carrying=0; let mats={}, inventory={}, unlocked=[], selectedPh=null;
-let colonyCap=40, colonyMax=Infinity, spawnBudget=0, rivalSpawn=150;
-let wx={wind:1.2, windDir:0, humidIdx:3, raining:false, tDir:0};
-let targets=[]; let enemies=[];
-
-/*********** Utilities ***********/
+window.addEventListener('resize', resizeCanvas); resizeCanvas();
 function inBounds(x,y){ return x>=0&&y>=0&&x<W&&y<H; } function idx(x,y){ return y*W+x; }
-function randInt(a,b){ return Math.floor(Math.random()*(b-a+1))+a; } function choice(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
-function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); } function clone(obj){ return JSON.parse(JSON.stringify(obj)); }
 
-/*********** Offscreen sprites (ants & foods) ***********/
-const SCALE=8; const ANT_W=6, ANT_H=4;
-const frames={antsMe:[], antsRv:[], food:{}};
-function mkAnt(phase,flip,stroke){ const off=document.createElement('canvas'), o=off.getContext('2d'); off.width=ANT_W*SCALE; off.height=ANT_H*SCALE; o.scale(SCALE,SCALE); o.lineWidth=0.9; o.strokeStyle=stroke; o.translate(ANT_W/2,ANT_H/2); if(flip) o.scale(-1,1); o.translate(-ANT_W/2,-ANT_H/2);
-  o.beginPath(); o.ellipse(1.6,2,1.6,1.2,0,0,Math.PI*2); o.ellipse(3.4,2,1.2,1.0,0,0,Math.PI*2); o.ellipse(4.8,2,0.9,0.9,0,0,Math.PI*2); o.stroke();
-  const A=0.6; for(let i=0;i<3;i++){ const p=phase?1:-1, bx=[1.4,3.0,4.4][i], by=2; const a1=(i*0.6 + p*A), a2=(i*0.6 - p*A);
-    o.beginPath(); o.moveTo(bx,by-0.4); o.lineTo(bx+Math.cos(a1)*1.5,by-0.4+Math.sin(a1)*1.5); o.stroke();
-    o.beginPath(); o.moveTo(bx,by+0.4); o.lineTo(bx+Math.cos(a2)*1.5,by+0.4+Math.sin(a2)*1.5); o.stroke(); }
-  o.beginPath(); o.moveTo(5.3,1.3); o.lineTo(6,0.5); o.moveTo(5.3,2.7); o.lineTo(6,3.3); o.stroke(); return off; }
-frames.antsMe.push(mkAnt(0,0,"#9ffcac"),mkAnt(1,0,"#9ffcac"),mkAnt(0,1,"#9ffcac"),mkAnt(1,1,"#9ffcac"));
-frames.antsRv.push(mkAnt(0,0,"#cfd3da88"),mkAnt(1,0,"#cfd3da88"),mkAnt(0,1,"#cfd3da88"),mkAnt(1,1,"#cfd3da88"));
+let grid=[], ants=[], antsRival=[], scoreMe=0, scoreRival=0, mats={}, inventory={}, selectedPh='m4mp2c';
+let proteinMe=0, proteinRv=0;
+let viewScale=1.0, viewX=0, viewY=0;
+let wx={wind:1.2, windDir:0, humidIdx:3, raining:false, tDir:0};
 
-/*********** Food fragments ***********/
-function makeFood(kind){
-  // Each food cell holds many fragments (positions, size)
-  const baseCount = randInt(4,8);
-  const frags=[];
-  for(let i=0;i<baseCount;i++){
-    const r = Math.random()*4 + 2; // px radius at base scale
-    const ox = (Math.random()*0.6 - 0.3) * (TILE-6);
-    const oy = (Math.random()*0.6 - 0.3) * (TILE-6);
-    frags.push({ox,oy,r});
+// time model
+let hasAccelerated=false;
+let simElapsed = 0;          // 累積的模擬秒數（含快轉）
+let baseTaipei = null;       // 遊戲開始的台北時間
+
+function taipeiNowDate(){
+  const fmt = new Intl.DateTimeFormat('zh-TW',{timeZone:'Asia/Taipei', hour12:false, year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', second:'2-digit'});
+  const parts = fmt.formatToParts(new Date());
+  const get = t => Number(parts.find(p=>p.type==t).value);
+  return new Date(get('year'), get('month')-1, get('day'), get('hour'), get('minute'), get('second'));
+}
+
+let initialFoodCount = 22;
+
+let isPanning=false, panStart={x:0,y:0}, viewStart={x:0,y:0};
+canvas.addEventListener('mousedown', e=>{ if(e.button!==1) { isPanning=true; } panStart={x:e.clientX,y:e.clientY}; viewStart={x:viewX,y:viewY}; });
+window.addEventListener('mouseup', ()=>{ isPanning=false; });
+window.addEventListener('mousemove', e=>{ if(!isPanning) return; const dpr=window.devicePixelRatio||1; const dx=(e.clientX-panStart.x)/dpr/viewScale; const dy=(e.clientY-panStart.y)/dpr/viewScale; viewX = clamp(viewStart.x - dx, 0, WORLD_W-canvas.width/(dpr*viewScale)); viewY = clamp(viewStart.y - dy, 0, WORLD_H-canvas.height/(dpr*viewScale)); });
+canvas.addEventListener('wheel', e=>{ e.preventDefault(); const rect=canvas.getBoundingClientRect(); const dpr=window.devicePixelRatio||1; const mx=(e.clientX-rect.left)/dpr; const my=(e.clientY-rect.top)/dpr; const wxp=mx/viewScale + viewX; const wyp=my/viewScale + viewY; const s = Math.exp(-e.deltaY*0.001); const ns = clamp(viewScale*s, 0.5, 4); viewScale=ns; viewX=clamp(wxp - mx/viewScale,0,Math.max(0,WORLD_W-canvas.width/(dpr*viewScale))); viewY=clamp(wyp - my/viewScale,0,Math.max(0,WORLD_H-canvas.height/(dpr*viewScale))); }, {passive:false});
+
+function baseRandomMap(){
+  grid=new Array(W*H).fill(0).map(()=>({type:T_EMPTY, pherMe:{}, pherRv:{}, food:null}));
+  const pools = randInt(2,4);
+  for(let i=0;i<pools;i++){
+    const cx=randInt(6, W-7), cy=randInt(6, H-7), r = randInt(4,8);
+    for(let y=cy-r-1; y<=cy+r+1; y++){ for(let x=cx-r-1; x<=cx+r+1; x++){
+      if(!inBounds(x,y)) continue; const dx=x-cx, dy=y-cy; const d=Math.sqrt(dx*dx+dy*dy) + (Math.random()*0.8-0.4); if(d<r) grid[idx(x,y)].type=T_WATER;
+    }}}
+  grid[idx(2,2)].type=T_NEST_ME; grid[idx(W-3,H-3)].type=T_NEST_RIVAL;
+}
+function scaleYield(base, size){ const out={}; for(const k in base){ out[k]=Math.max(1, Math.round(base[k]*size)); } return out; }
+function makeFood(kind, size){
+  const spec=FOOD_BASE[kind]||FOOD_BASE.peanut; const frags=[]; const n=Math.max(3, Math.round(3+size));
+  for(let i=0;i<n;i++){ const r = (Math.random()*3 + 1.5) * (0.7 + 0.3*size); const ox=(Math.random()*0.6-0.3)*(TILE-6)*size*0.4, oy=(Math.random()*0.6-0.3)*(TILE-6)*size*0.4; frags.push({ox,oy,r}); }
+  return {type:kind, label:spec.label, art:spec.art, size, frags, yield:scaleYield(spec.base,size)};
+}
+function scatterFood(list,count){ for(let i=0;i<count;i++){ const x=randInt(2,W-3), y=randInt(2,H-3); if(grid[idx(x,y)].type===T_EMPTY){ const kind=choice(list); const size=randInt(1,5); grid[idx(x,y)].type=T_FOOD; grid[idx(x,y)].food=makeFood(kind,size); } else i--; } }
+
+function stepWeather(dt){
+  const mean=1.2, k=0.9;
+  wx.wind = clamp(wx.wind + (mean - wx.wind)*k*dt + (Math.random()-0.5)*0.6*dt, 0, 4.0);
+  wx.tDir = (wx.tDir||0) + dt; if(wx.tDir>=30){ wx.windDir = (wx.windDir + (Math.random()*300 - 150)) % 360; wx.tDir=0; }
+  if(Math.random()<0.02*dt){ wx.humidIdx = clamp(wx.humidIdx + (Math.random()<0.5?-1:1), 0, 9); }
+  wx.raining = (wx.humidIdx>=9 && wx.wind>3.2);
+}
+
+function ensureEntry(bucket, key){ return bucket[key]||(bucket[key]={s:0,vx:0,vy:0}); }
+function placePher(gx,gy,key,amt,team,vx,vy){
+  if(!inBounds(gx,gy)) return; const c=grid[idx(gx,gy)]; if(c.type===T_WATER) return;
+  const bucket = (team==='rv')? c.pherRv : c.pherMe; const e = ensureEntry(bucket, key);
+  e.s += amt; e.vx += (vx||0)*amt; e.vy += (vy||0)*amt;
+}
+function stepPher(dt){
+  const windRad = wx.windDir*Math.PI/180; const wxvx=Math.cos(windRad), wxvy=Math.sin(windRad);
+  const diffBase = 0.06 * dt; const advBase = 0.05 * dt * (wx.wind/4);
+  const rainWash = wx.raining ? Math.exp(-dt*0.6) : 1;
+  const addMe = new Array(W*H), addRv = new Array(W*H);
+  for(let i=0;i<grid.length;i++){ addMe[i]={}; addRv[i]={}; }
+  function processBucket(src, add){
+    for(let y=0;y<H;y++){ for(let x=0;x<W;x++){
+      const cell=grid[idx(x,y)]; const p=(src==='me')?cell.pherMe:cell.pherRv;
+      for(const key in p){
+        const ph=p[key]; let s=ph.s; if(s<=0) continue;
+        const half = 3600; // 固定 1h 半衰期
+        const lambda=Math.LN2/half;
+        s = s*Math.exp(-lambda*dt) * rainWash; if(s<0.01) continue;
+        const dirs=[[1,0],[-1,0],[0,1],[0,-1]]; let remain=s;
+        for(const d of dirs){
+          const nx=x+d[0], ny=y+d[1]; if(!inBounds(nx,ny)) continue; if(grid[idx(nx,ny)].type===T_WATER) continue;
+          const len=Math.hypot(d[0],d[1])||1, dxn=d[0]/len, dyn=d[1]/len;
+          const windAlign = Math.max(-1, Math.min(1, dxn*wxvx + dyn*wxvy));
+          const bias = 1 + 0.6*windAlign*(wx.wind/4);
+          const flow = Math.min(remain*0.5, diffBase * s * bias);
+          if(flow>0){
+            remain -= flow;
+            const acc = add[idx(nx,ny)][key] || (add[idx(nx,ny)][key]={s:0,vx:0,vy:0});
+            acc.s += flow; acc.vx += ph.vx*(flow/s) + dxn*flow*0.15 + wxvx*flow*advBase; acc.vy += ph.vy*(flow/s) + dyn*flow*0.15 + wxvy*flow*advBase;
+          }
+        }
+        const here = add[idx(x,y)][key] || (add[idx(x,y)][key]={s:0,vx:0,vy:0});
+        here.s += remain; const denom=Math.max(1e-6, ph.s); here.vx += ph.vx*(remain/denom); here.vy += ph.vy*(remain/denom);
+      }
+    }}
   }
-  const yieldMap = (kind==='sugar')?{O:2,C:1} :
-                   (kind==='peanut')?{C:2,R:1} :
-                   (kind==='fish')?{N:2,C:1} :
-                   (kind==='resin')?{T:2,C:1} :
-                   (kind==='citrus')?{Ald:1,O:1,R:1} :
-                   (kind==='oil')?{HC:2,C:1} :
-                   (kind==='berry')?{Acid:2,O:1} :
-                   (kind==='wax')?{HC:2} :
-                   (kind==='chitin')?{N:1,Acid:1,R:1} : {C:1};
-  return {type:kind, frags:frags, yield:yieldMap};
+  processBucket('me', addMe); processBucket('rv', addRv);
+  for(let i=0;i<grid.length;i++){ grid[i].pherMe=addMe[i]; grid[i].pherRv=addRv[i]; }
+}
+
+function senseVector(gx,gy,team){
+  if(!inBounds(gx,gy)) return {vx:0,vy:0,mag:0};
+  const bucket = (team==='rv')? grid[idx(gx,gy)].pherRv : grid[idx(gx,gy)].pherMe;
+  let vx=0, vy=0, mag=0;
+  for(const key in bucket){
+    const e=bucket[key]; const type=(PH[key]&&PH[key].type)||'trail';
+    const sign = (type==='trail'||type==='recruit')? +1 : -1;
+    vx += sign * e.vx; vy += sign * e.vy; mag += e.s;
+  }
+  return {vx,vy,mag:mag};
+}
+function nearestObjectVector(gx,gy){
+  let bestD2=1e9, bestDX=0, bestDY=0;
+  for(let y=gy-2; y<=gy+2; y++){ for(let x=gx-2; x<=gx+2; x++){
+    if(!inBounds(x,y)) continue; const c=grid[idx(x,y)];
+    if(c.type===T_FOOD || c.type===T_NEST_ME || c.type===T_NEST_RIVAL){
+      const dx=x-gx, dy=y-gy; const d2=dx*dx+dy*dy; if(d2<bestD2){ bestD2=d2; bestDX=dx; bestDY=dy; }
+    } else {
+      let s=0; for(const k in c.pherMe){ s += (c.pherMe[k] && c.pherMe[k].s)||0; } for(const k in c.pherRv){ s += (c.pherRv[k] && c.pherRv[k].s)||0; }
+      if(s>0.6){ const dx=x-gx, dy=y-gy; const d2=dx*dx+dy*dy; if(d2<bestD2){ bestD2=d2; bestDX=dx; bestDY=dy; } }
+    }
+  }}
+  if(bestD2>(1.5*1.5)) return {vx:0,vy:0,mag:0};
+  const len=Math.sqrt(bestD2)||1e-6; return {vx:bestDX/len, vy:bestDY/len, mag:1/len};
+}
+
+function findNest(team){ for(let y=0;y<H;y++){ for(let x=0;x<W;x++){ const t=grid[idx(x,y)].type; if(team==='me'&&t===T_NEST_ME) return {x,y}; if(team==='rv'&&t===T_NEST_RIVAL) return {x,y}; } } return {x:1,y:1}; }
+function spawnAnt(team){
+  const n=findNest(team); const px=n.x*TILE+TILE/2, py=n.y*TILE+TILE/2; 
+  const sector = Math.floor(Math.random()*8); const baseAng = sector*(PI/4) + (Math.random()-0.5)*(PI/12);
+  return {team, x:px, y:py, aim:baseAng, speed:26+Math.random()*10, carry:false, state:'foraging', load:null, hp:3, phCharge:4, phMax:6, dropCooldown:0, since:0, stuckT:0, stuckOriginX:px, stuckOriginY:py, inWater:false, speedFactor:1, age:0};
+}
+function stepAnt(a, dt){
+  a.age += dt; a.since += dt*a.speed;
+  const gx=Math.floor(a.x/TILE), gy=Math.floor(a.y/TILE);
+  const vec = senseVector(gx,gy,a.team);
+  const near = nearestObjectVector(gx,gy);
+  let biasVX=0, biasVY=0;
+  if(a.state==='foraging' && a.age<6 && vec.mag<0.1){
+    const nest=findNest(a.team); const vx=(a.x-(nest.x*TILE+TILE/2)), vy=(a.y-(nest.y*TILE+TILE/2)); const len=Math.hypot(vx,vy)||1; biasVX=vx/len; biasVY=vy/len;
+  }
+  const nest=findNest(a.team);
+  let steerVX, steerVY;
+  if(a.state==='carrying'){
+    const dirToNest = Math.atan2(nest.y*TILE+TILE/2 - a.y, nest.x*TILE+TILE/2 - a.x);
+    const toVX = Math.cos(dirToNest), toVY = Math.sin(dirToNest);
+    steerVX = toVX*1.6 + 0.2*vec.vx;
+    steerVY = toVY*1.6 + 0.2*vec.vy;
+  } else {
+    steerVX = vec.vx + 0.8*near.vx + 0.6*biasVX;
+    steerVY = vec.vy + 0.8*near.vy + 0.6*biasVY;
+  }
+  const steerMag = Math.hypot(steerVX,steerVY);
+  if(steerMag>0.02){ const dir = Math.atan2(steerVY, steerVX); const turn = ((dir - a.aim + PI*3)%(PI*2))-PI; a.aim += clamp(turn, -0.25, 0.25) * 0.65; a.since = 0; }
+  else if(a.since > (a.state==='carrying'? 12 : 4)){ a.since = 0; if(a.state!=='carrying') a.aim += (Math.random()-0.5)*PI; }
+  if(a.state==='carrying'){ if(a.dropCooldown<=0 && a.phCharge>0){ const dirToNest=Math.atan2(nest.y*TILE+TILE/2 - a.y, nest.x*TILE+TILE/2 - a.x); placePher(gx,gy,'m4mp2c', 0.7, a.team, Math.cos(dirToNest), Math.sin(dirToNest)); a.phCharge--; a.dropCooldown=0.2; } else a.dropCooldown=Math.max(0,a.dropCooldown-dt); }
+  let sp=a.speed*dt*a.speedFactor; let nx=a.x+Math.cos(a.aim)*sp, ny=a.y+Math.sin(a.aim)*sp; let cgx=Math.floor(nx/TILE), cgy=Math.floor(ny/TILE);
+  if(!inBounds(cgx,cgy) || grid[idx(cgx,cgy)].type===T_WATER){ a.aim += (Math.random()-0.5)*PI; } else { a.x=nx; a.y=ny; }
+  const dx=a.x - a.stuckOriginX, dy=a.y - a.stuckOriginY; const nearRadius = 0.75*TILE;
+  if(dx*dx+dy*dy > nearRadius*nearRadius){ a.stuckOriginX=a.x; a.stuckOriginY=a.y; a.stuckT=0; }
+  else { a.stuckT += dt; if(a.stuckT>=60 && !a.inWater){ let best=null, bestD2=1e12; for(let y=gy-6;y<=gy+6;y++){ for(let x=gx-6;x<=gx+6;x++){ if(!inBounds(x,y)) continue; if(grid[idx(x,y)].type!==T_WATER) continue; const wxp=x*TILE+TILE/2, wyp=y*TILE+TILE/2; const dd=(wxp-a.x)**2+(wyp-a.y)**2; if(dd<bestD2){ bestD2=dd; best={x:wxp,y:wyp}; } }} if(best){ a.x=best.x; a.y=best.y; } a.inWater=true; a.speedFactor=0.1; } }
+  const cg=grid[idx(Math.floor(a.x/TILE), Math.floor(a.y/TILE))];
+  if(a.inWater){ if(cg.type!==T_WATER){ let nearD2=1e12; for(let y=gy-6;y<=gy+6;y++){ for(let x=gx-6;x<=gx+6;x++){ if(!inBounds(x,y)) continue; if(grid[idx(x,y)].type!==T_WATER) continue; const wxp=x*TILE+TILE/2, wyp=y*TILE+TILE/2; const dd=(wxp-a.x)**2+(wyp-a.y)**2; if(dd<nearD2) nearD2=dd; }} if(Math.sqrt(nearD2) > 2*TILE){ a.inWater=false; a.speedFactor=1.0; a.stuckT=0; a.stuckOriginX=a.x; a.stuckOriginY=a.y; } } }
+  const cell=grid[idx(Math.floor(a.x/TILE), Math.floor(a.y/TILE))];
+  if(a.state==='foraging' && cell.type===T_FOOD && cell.food && Array.isArray(cell.food.frags) && cell.food.frags.length){
+    a.state='carrying'; a.carry=true; a.load=clone(cell.food.yield);
+    placePher(gx,gy,'m4mp2c', 0.9, a.team, 0, 0);
+    cell.food.frags.sort((u,v)=>u.r-v.r); cell.food.frags.shift();
+    if(!cell.food.frags.length){ cell.type=T_EMPTY; cell.food=null; placePher(gx,gy,'noentry', 1.2, a.team, 0,0); }
+  }
+  const nestGX = nest.x, nestGY = nest.y;
+  if(a.state==='carrying' && Math.floor(a.x/TILE)===nestGX && Math.floor(a.y/TILE)===nestGY){
+    a.state='foraging'; a.carry=false;
+    if(a.team==='me'){ 
+      scoreMe++; 
+      if(a.load){ for(const k in a.load){ mats[k]=(mats[k]||0)+(a.load[k]||0); } proteinMe += (a.load.N||0); }
+      refreshMats(); refreshInv();
+    } else {
+      scoreRival++; if(a.load){ proteinRv += (a.load.N||0); }
+    }
+    a.load=null; a.phCharge=a.phMax;
+  }
+}
+
+function autoRecruit(){
+  const desiredMe = Math.min(maxAnts, 10 + proteinMe);
+  while(ants.length < desiredMe){ ants.push(spawnAnt('me')); }
+  const desiredRv = Math.min(maxAnts, 10 + proteinRv);
+  while(antsRival.length < desiredRv){ antsRival.push(spawnAnt('rv')); }
+}
+
+function groundColor(t){ if(t===T_WATER) return '#0a1830'; return '#0c101a'; }
+function drawFoodArt(cx,cy,size,art){
+  const s=size*2.2; const o=ctx; o.save(); o.translate(cx,cy);
+  if(art==='fish'){ o.fillStyle='#88b7ff'; o.strokeStyle='#ffffff66'; o.lineWidth=1; o.beginPath(); o.ellipse(0,0,4*s,2*s,0,0,2*PI); o.fill(); o.stroke(); o.beginPath(); o.moveTo(4*s,0); o.lineTo(6*s,1.5*s); o.lineTo(6*s,-1.5*s); o.closePath(); o.fill(); o.stroke(); o.beginPath(); o.ellipse(-1.5*s,-1.2*s,1.2*s,0.6*s,0.6,0,2*PI); o.fill(); o.stroke(); }
+  else if(art==='nut'){ o.fillStyle='#caa86d'; o.strokeStyle='#ffffff55'; o.lineWidth=1; o.beginPath(); o.ellipse(0,0,3.2*s,2.6*s,0,0,2*PI); o.fill(); o.stroke(); o.beginPath(); o.moveTo(-2.2*s,0); o.quadraticCurveTo(0,-1.8*s,2.2*s,0); o.quadraticCurveTo(0,1.8*s,-2.2*s,0); o.stroke(); }
+  else if(art==='cater'){ o.fillStyle='#77e4a0'; o.strokeStyle='#ffffff55'; o.lineWidth=1; for(let i=-3;i<=3;i++){ o.beginPath(); o.ellipse(i*1.6*s,0,1.4*s,1.1*s,0,0,2*PI); o.fill(); o.stroke(); } o.fillStyle='#e8eefcaa'; o.beginPath(); o.arc(3.2*s,-0.6*s,0.5*s,0,2*PI); o.fill(); }
+  else if(art==='resin'){ o.fillStyle='#f6c84a'; o.strokeStyle='#ffffff55'; o.lineWidth=1; o.beginPath(); o.ellipse(0,0,2.8*s,2.2*s,0.3,0,2*PI); o.fill(); o.stroke(); }
+  else if(art==='citrus'){ o.fillStyle='#ffa94d'; o.strokeStyle='#ffffff55'; o.beginPath(); o.ellipse(0,0,3*s,3*s,0,0,2*PI); o.fill(); o.stroke(); o.strokeStyle='#ffffff22'; for(let i=0;i<6;i++){ o.beginPath(); o.moveTo(0,0); const a=i*PI/3; o.lineTo(Math.cos(a)*3*s, Math.sin(a)*3*s); o.stroke(); } }
+  else if(art==='oil'){ o.fillStyle='#c7ffd1'; o.strokeStyle='#ffffff55'; o.beginPath(); o.ellipse(0,0,3*s,2.2*s,0.4,0,2*PI); o.fill(); o.stroke(); }
+  else if(art==='berry'){ o.fillStyle='#ff7aa8'; o.strokeStyle='#ffffff55'; o.beginPath(); o.ellipse(0,0,2.6*s,2.6*s,0,0,2*PI); o.fill(); o.stroke(); }
+  else if(art==='wax'){ o.fillStyle='#ffd36e'; o.strokeStyle='#ffffff55'; o.beginPath(); o.rect(-2.6*s,-2.2*s,5.2*s,4.4*s); o.fill(); o.stroke(); }
+  else if(art==='chitin'){ o.fillStyle='#b9d4ff'; o.strokeStyle='#ffffff55'; o.beginPath(); o.ellipse(0,0,3*s,2.2*s,0.2,0,2*PI); o.fill(); o.stroke(); }
+  else { o.fillStyle='#ddd'; o.beginPath(); o.ellipse(0,0,2.6*s,2.2*s,0,0,2*PI); o.fill(); }
+  o.restore();
 }
 function drawFood(x,y,food){
   const cx=x*TILE+TILE/2, cy=y*TILE+TILE/2;
   for(const f of food.frags){
-    const col = (food.type==='sugar')?'#ffe9a6' :
-                (food.type==='peanut')?'#caa86d' :
-                (food.type==='fish')?'#88b7ff' :
-                (food.type==='resin')?'#f6c84a' :
-                (food.type==='citrus')?'#ffa94d' :
-                (food.type==='oil')?'#c7ffd1' :
-                (food.type==='berry')?'#ff7aa8' :
-                (food.type==='wax')?'#ffd36e' :
-                (food.type==='chitin')?'#b9d4ff' : '#ddd';
-    ctx.fillStyle=col; ctx.strokeStyle="#ffffffaa"; ctx.lineWidth=1;
-    ctx.beginPath(); ctx.ellipse(cx+f.ox, cy+f.oy, f.r, f.r*0.7, 0.3, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+    ctx.save(); ctx.translate(cx+f.ox, cy+f.oy); ctx.globalAlpha=0.96;
+    drawFoodArt(0,0, Math.max(0.6, f.r/4), food.art);
+    ctx.restore();
   }
 }
-
-/*********** Weather ***********/
-function rndSign(){ return Math.random()<0.5?-1:1; }
-function stepWeather(dt){
-  const mean=1.2, k=0.9;
-  wx.wind = clamp(wx.wind + (mean - wx.wind)*k*dt + (Math.random()-0.5)*0.6*dt, 0, 4.0);
-  wx.tDir += dt; if(wx.tDir>=30){ wx.windDir = (wx.windDir + (Math.random()*300 - 150)) % 360; wx.tDir=0; }
-  if(Math.random()<0.02*dt){ wx.humidIdx = clamp(wx.humidIdx + rndSign()*1, 0, 6); }
-  wx.raining = (wx.humidIdx===6 && wx.wind>3.2);
-  const humidText=['極乾','很乾','偏乾','中等','偏濕','很濕','極濕'][wx.humidIdx];
-  const t = document.getElementById('wxText'); if(t) t.textContent = '風 ' + wx.wind.toFixed(1) + ' m/s @ ' + wx.windDir.toFixed(0) + '°｜濕度 ' + humidText + (wx.raining?'｜🌧 下雨':'');
-  drawWxArrow();
-}
-function drawWxArrow(){
-  const c=document.getElementById('wxArrow'); if(!c) return; const o=c.getContext('2d'); o.setTransform(1,0,0,1,0,0); o.clearRect(0,0,c.width,c.height);
-  const cx=18, cy=c.height/2; const len = 24 + wx.wind*18; const ang = wx.windDir * Math.PI/180;
-  o.strokeStyle="#283049"; o.beginPath(); o.moveTo(2,cy); o.lineTo(c.width-2,cy); o.stroke();
-  drawArrow(o, cx, cy, len, ang, "#9aa4b2");
-  o.fillStyle="#9aa4b2"; o.font="12px ui-sans-serif"; o.fillText(wx.wind.toFixed(1)+" m/s", cx+len+8, cy+4);
-}
-
-/*********** Map generation with round water pools ***********/
-function baseRandomMap(){
-  grid=new Array(W*H).fill(0).map(function(){return {type:T_EMPTY, food:null, pherMe:{}, pherRv:{}, sniff:0, owner:null, control:0};});
-  const pools = randInt(3,6);
-  for(let i=0;i<pools;i++){
-    const cx=randInt(6, W-7), cy=randInt(6, H-7);
-    const r = randInt(3,6);
-    for(let y=cy-r-1; y<=cy+r+1; y++){
-      for(let x=cx-r-1; x<=cx+r+1; x++){
-        if(!inBounds(x,y)) continue;
-        const dx=x-cx, dy=y-cy; const d=Math.sqrt(dx*dx+dy*dy) + (Math.random()*0.8-0.4);
-        if(d < r) grid[idx(x,y)].type=T_WATER;
-      }
-    }
-  }
-}
-function randomNest(){ return {x:randInt(2,W-3), y:randInt(2,H-3)}; }
-function placeNestsRandom(){ const a=randomNest(); const b=randomNest(); grid[idx(a.x,a.y)].type=T_NEST_ME; grid[idx(b.x,b.y)].type=T_NEST_RIVAL; }
-function placeNestsCorners(){ grid[idx(2,2)].type=T_NEST_ME; grid[idx(W-3,H-3)].type=T_NEST_RIVAL; }
-function scatterFood(list,count){
-  for(let i=0;i<count;i++){
-    const x=randInt(2,W-3), y=randInt(2,H-3);
-    if(grid[idx(x,y)].type===T_EMPTY){
-      const kind = choice(list);
-      grid[idx(x,y)].type=T_FOOD; grid[idx(x,y)].food=makeFood(kind);
-    }
-  }
-}
-function spawnTargets(n){
-  targets=[];
-  for(let i=0;i<n;i++){
-    const x=randInt(4,W-5), y=randInt(4,H-5);
-    if(grid[idx(x,y)].type===T_EMPTY){
-      grid[idx(x,y)].type=T_TARGET; grid[idx(x,y)].owner=null; grid[idx(x,y)].control=0;
-      targets.push({x,y});
-    } else { i--; }
-  }
-}
-
-/*********** Levels ***********/
-function setGoal(t){ const g=document.getElementById('goalText'); if(g) g.textContent=t; const tw=document.getElementById('timerWrap'); if(tw) tw.style.display = showTimer ? 'inline-flex' : 'none'; }
-function makeMap_Lv1(){ baseRandomMap(); placeNestsCorners(); scatterFood(['sugar','peanut','fish'], 22); setGoal('Lv1：搬回顆粒數量要超過對手。'); showTimer=false; colonyCap=30; colonyMax=500; timeLeft=0; }
-function makeMap_Lv2(){ baseRandomMap(); placeNestsRandom(); scatterFood(['resin','citrus','oil'], 18); spawnTargets(4); setGoal('Lv2：限時佔領控制點。'); showTimer=true; timeLeft=160; colonyCap=60; colonyMax=Infinity; }
-function makeMap_Lv3(){ baseRandomMap(); placeNestsCorners(); scatterFood(['berry','wax','chitin'], 18); setGoal('Lv3：敵人可被擊敗轉為食物。'); showTimer=true; timeLeft=150; colonyCap=80; colonyMax=Infinity; enemies=[]; enemies.push(makeEnemy('spider'), makeEnemy('spider'), makeEnemy('gecko'), makeEnemy('roach')); }
-function makeMap_Lv4(){ baseRandomMap(); placeNestsCorners(); scatterFood(['resin','citrus','oil'], 18); setGoal('Lv4：吸引＋禁止導引示意。'); showTimer=true; timeLeft=160; colonyCap=60; colonyMax=Infinity; }
-
-/*********** Enemies (simplified) ***********/
-function makeEnemy(kind){ const base = { kind, x:randInt(8,W-8)*TILE, y:randInt(8,H-8)*TILE, aim:Math.random()*Math.PI*2, hp:24, speed:24, alive:true, scale:1.6 }; if(kind==='gecko'){ base.hp=36; base.speed=22; base.scale=1.8; } if(kind==='roach'){ base.hp=28; base.speed=28; base.scale=1.5; } return base; }
-function stepEnemies(dt){ for(let e of enemies){ if(!e.alive) continue; if(Math.random()<0.05) e.aim += (Math.random()-0.5)*0.8; const dx=Math.cos(e.aim)*e.speed*dt, dy=Math.sin(e.aim)*e.speed*dt; let nx=e.x+dx, ny=e.y+dy; const gx=Math.floor(nx/TILE), gy=Math.floor(ny/TILE); if(!inBounds(gx,gy) || grid[idx(gx,gy)].type===T_WATER){ e.aim += Math.PI*0.6; continue; } e.x=nx; e.y=ny; function combat(list){ for(const a of list){ const d=Math.hypot(a.x-e.x,a.y-e.y); if(d<12*e.scale){ e.hp -= 3*dt; if(Math.random()<0.12*dt){ a.hp -= 1; if(a.hp<=0){ a.alive=false; } } } } } combat(ants); combat(antsRival); if(e.hp<=0){ e.alive=false; const gx2=Math.floor(e.x/TILE), gy2=Math.floor(e.y/TILE); if(inBounds(gx2,gy2) && grid[idx(gx2,gy2)].type===T_EMPTY){ const sizeYield = Math.max(1, Math.round(3*e.scale)); grid[idx(gx2,gy2)].type=T_FOOD; grid[idx(gx2,gy2)].food=makeFood('fish'); } showNextAction('敵人被擊敗！', null, true); } } ants = ants.filter(a=>a.alive!==false); antsRival = antsRival.filter(a=>a.alive!==false); }
-
-/*********** Pheromones ***********/
-function placePher(x,y,key,amt,team){ if(!inBounds(x,y)) return; const c=grid[idx(x,y)]; if([T_WATER,T_WALL].includes(c.type)) return; const bucket=(team==='rv'?c.pherRv:c.pherMe); const windRad=(wx.windDir*Math.PI/180); const boost=1 + Math.max(0,Math.cos(windRad))*(wx.wind/3.5)*0.6; bucket[key]=(bucket[key]||0)+amt*boost; }
-function localTrailStrength(gx,gy,team){ if(!inBounds(gx,gy)) return 0; const p=(team==='rv'?grid[idx(gx,gy)].pherRv:grid[idx(gx,gy)].pherMe)||{}; let s=0; for(const k in p){ const t=PH[k].type; if(t==='trail'||t==='recruit') s+=p[k]; } return s; }
-function sniffAt(x,y){ if(!inBounds(x,y)) return; const c=grid[idx(x,y)]; c.sniff=(c.sniff||0)+1; if(c.sniff%30===0){ for(const k in c.pherMe){ c.pherMe[k]*=0.9; } for(const k in c.pherRv){ c.pherRv[k]*=0.9; } } }
-function stepPher(dt){ for(let i=0;i<grid.length;i++){ const c=grid[i]; function decay(p){ for(const k in p){ const humidScale=[1.4,1.25,1.12,1.0,0.92,0.86,0.8][wx.humidIdx]; const half = PH[k].halfLifeSec * humidScale; const lambda = Math.LN2 / half; p[k] *= Math.exp(-lambda * dt); if(wx.raining) p[k]*=Math.exp(-dt*0.6); if(p[k]<0.01) delete p[k]; } } decay(c.pherMe); decay(c.pherRv); } }
-
-/*********** Ants ***********/
-function findNest(team){ for(let y=0;y<H;y++){ for(let x=0;x<W;x++){ const t=grid[idx(x,y)].type; if(team==='me'&&t===T_NEST_ME) return {x:x,y:y}; if(team==='rv'&&t===T_NEST_RIVAL) return {x:x,y:y}; } } return {x:1,y:1}; }
-function spawnAnt(team){ const n=findNest(team); const px=n.x*TILE+TILE/2, py=n.y*TILE+TILE/2; const aim=Math.random()*Math.PI*2; return {team:team, x:px, y:py, aim:aim, speed:26+Math.random()*10, sinceSig:0, sinceSteps:0, changeAt:(3+Math.random()*2)*ANT_H, carry:false, load:null, cool:0, hp:3, phCharge:4, phMax:6, dropCooldown:0, lastX:px, lastY:py, stuckT:0}; }
-function signalMass(team){ let s=0; for(let i=0;i<grid.length;i++){ const p=team==='me'?grid[i].pherMe:grid[i].pherRv; if(!p) continue; for(const k in p){ const t=PH[k].type; if(t==='trail'||t==='recruit') s+=p[k]*2; } } return s; }
-function desiredPopulation(){ const k=0.05; return Math.min(colonyMax, colonyCap + Math.floor(k*signalMass('me'))); }
-function tryMoveAnt(a, dt){
-  // attempt movement with obstacle avoidance up to 4 tries
-  for(let t=0;t<4;t++){
-    const dx=Math.cos(a.aim)*a.speed*dt, dy=Math.sin(a.aim)*a.speed*dt;
-    const nx=a.x+dx, ny=a.y+dy; const gx=Math.floor(nx/TILE), gy=Math.floor(ny/TILE);
-    if(inBounds(gx,gy) && grid[idx(gx,gy)].type!==T_WATER && grid[idx(gx,gy)].type!==T_WALL){ a.x=nx; a.y=ny; return true; }
-    a.aim += (Math.random()-0.5)*Math.PI; // bounce
-  }
-  return false;
-}
-function stepAnt(a, dt){
-  a.sinceSteps += dt*a.speed; const need = a.changeAt;
-  a.dropCooldown = Math.max(0, a.dropCooldown - dt);
-  const moved = Math.hypot(a.x-(a.lastX||a.x), a.y-(a.lastY||a.y));
-  if(moved < 0.15){ a.stuckT = (a.stuckT||0) + dt; } else { a.stuckT = 0; }
-  a.lastX=a.x; a.lastY=a.y;
-
-  const gx=Math.floor(a.x/TILE), gy=Math.floor(a.y/TILE);
-  const sig=(function(){ if(!inBounds(gx,gy)) return 0; const p=(a.team==='rv'?grid[idx(gx,gy)].pherRv:grid[idx(gx,gy)].pherMe)||{}; let A=0,R=0; for(const k in p){ const t=PH[k].type, v=p[k]; if(t==='ban'||t==='acid') R+=v*3; if(t==='trail'||t==='recruit') A+=v*2; } return A-R; })();
-  if(sig>0.02){ a.sinceSteps=0; }
-
-  const nest=findNest(a.team);
-
-  if(a.carry){
-    const nx=nest.x*TILE+TILE/2, ny=nest.y*TILE+TILE/2; const ang=Math.atan2(ny-a.y, nx-a.x);
-    // Add small wander, but keep bias to nest
-    a.aim = ang + (Math.random()-0.5)*0.12;
-    if(a.dropCooldown<=0 && a.phCharge>0 && localTrailStrength(gx,gy,a.team) < 0.3){
-      placePher(gx,gy, 'm4mp2c', 0.5, a.team);
-      a.phCharge -= 1; a.dropCooldown = 0.20;
-    }
-    // Anti-stuck boost while carrying
-    if(a.stuckT>0.6){ a.aim += (Math.random()-0.5)*Math.PI; a.speed *= 1.12; a.stuckT=0; }
-  }else{
-    if(a.sinceSteps > need && sig<=0.02){
-      a.sinceSteps=0; a.aim += (Math.random()-0.5)*Math.PI;
-    }else if(sig>0.02){
-      a.aim += (Math.random()-0.5)*0.08;
-    }
-  }
-
-  if(!tryMoveAnt(a, dt)) return;
-
-  sniffAt(gx,gy);
-  const cell=grid[idx(gx,gy)];
-  if(!a.carry && cell.type===T_FOOD && cell.food.frags.length>0){
-    a.carry=true; carrying++; a.load = clone(cell.food.yield);
-    a.phCharge = Math.min(a.phMax, a.phCharge + 2);
-    // remove one fragment (the smallest first to show "碎塊化")
-    cell.food.frags.sort((u,v)=>u.r-v.r);
-    const taken = cell.food.frags.shift();
-    if(!cell.food.frags.length){ cell.type=T_EMPTY; cell.food=null; placePher(gx,gy,'noentry',1.2,a.team); }
-    if(a.phCharge>0){ placePher(gx,gy, 'm4mp2c', 1.0, a.team); a.phCharge -= 1; }
-    if(a.team==='me'){ colonyCap = Math.min(colonyMax, colonyCap + 1); }
-  }
-  if(a.carry && gx===nest.x && gy===nest.y){
-    a.carry=false; carrying=Math.max(0,carrying-1);
-    if(a.team==='me'){ scoreMe++; if(a.load){ for(const k in a.load){ mats[k]=(mats[k]||0)+a.load[k]; } refreshMats(); } } else { scoreRival++; }
-    a.load=null;
-    if(a.phCharge>0){ placePher(gx,gy, 'm4mp2c', 0.4, a.team); a.phCharge -= 1; }
-    a.phCharge = a.phMax; // refill at nest
-  }
-}
-
-/*********** HUD / Ref / UI ***********/
-function refreshMats(){ const row=document.getElementById('matRow'); if(!row) return; row.innerHTML=''; for(const k of MATERIALS){ const d=document.createElement('div'); d.className='pill'; d.textContent=k+': '+(mats[k]||0); row.appendChild(d);} }
-function refreshInv(){ const list=document.getElementById('invList'); if(!list) return; list.innerHTML=''; for(const id of unlocked){ const btn=document.createElement('button'); btn.textContent=(RECIPES[id]&&RECIPES[id].label)||id; btn.title='剩餘 '+(inventory[id]||0); btn.onclick=function(){ selectedPh=id; }; list.appendChild(btn); const badge=document.createElement('span'); badge.className='badge'; badge.textContent=inventory[id]||0; list.appendChild(badge);} }
-function buildCraftSel(){ const sel=document.getElementById('craftSel'); if(!sel) return; sel.innerHTML=''; for(const id of unlocked){ const opt=document.createElement('option'); opt.value=id; opt.textContent=(RECIPES[id]&&RECIPES[id].label)||id; sel.appendChild(opt);} }
-document.getElementById('btnCraft').onclick=function(){ const id=document.getElementById('craftSel').value; const need=RECIPES[id].cost; for(const k in need){ if((mats[k]||0)<need[k]) return; } for(const k in need) mats[k]-=need[k]; inventory[id]=(inventory[id]||0)+1; refreshInv(); refreshMats(); };
-function updateHud(){
-  const tbody=document.querySelector('#mergedTable tbody'); if(!tbody) return; tbody.innerHTML='';
-  function row(cat,item,val){ const tr=document.createElement('tr'); tr.innerHTML='<td>'+cat+'</td><td>'+item+'</td><td>'+val+'</td>'; tbody.appendChild(tr); }
-  const meCarry = ants.reduce((n,a)=>n+(a.carry?1:0),0);
-  const rvCarry = antsRival.reduce((n,a)=>n+(a.carry?1:0),0);
-  row('我方','螞蟻數', ants.length); row('我方','搬運中', meCarry); row('我方','得分', scoreMe);
-  row('敵方','螞蟻數', antsRival.length); row('敵方','搬運中', rvCarry); row('敵方','得分', scoreRival);
-  const agg={}; for(let i=0;i<grid.length;i++){ const c=grid[i]; if(c.type===T_FOOD){ const k=c.food.type; if(!agg[k]) agg[k]={cnt:0,rem:0}; agg[k].cnt++; agg[k].rem+=c.food.frags.length; } }
-  for(const k of Object.keys(agg)){ row('食物', k, '堆數 '+agg[k].cnt+'｜碎塊 '+agg[k].rem); }
-}
-
-/*********** Ref modal (same content as before, compact) ***********/
-function openRef(){
-  const modal=document.getElementById('refModal'); const card=document.getElementById('refCard');
-  let phRows=''; for(const r of REF){ phRows+='<tr><td>'+r.short+'</td><td>'+r.formal+'</td><td>'+r.cls+'</td><td>'+r.source+'</td><td>'+r.mw+' g/mol</td></tr>'; }
-  let recRows=''; for(const id in RECIPES){ const rec=RECIPES[id]; recRows+='<tr><td>'+rec.label+'</td><td>'+id+'</td><td>'+Object.keys(rec.cost).map(k=>k+': '+rec.cost[k]).join(', ')+'</td></tr>'; }
-  card.innerHTML = '<h3>ref</h3><div class="mini">分子量影響費洛蒙消散半衰期（≥60s於 1×）。</div>'+
-    '<table><thead><tr><th>簡名</th><th>正式名</th><th>類別</th><th>來源腺體</th><th>MW</th></tr></thead><tbody>'+phRows+'</tbody></table>'+
-    '<h4>配方</h4><table><thead><tr><th>費洛蒙</th><th>ID</th><th>材料</th></tr></thead><tbody>'+recRows+'</tbody></table>'+
-    '<div style="text-align:right;margin-top:8px"><button onclick="closeRef()">關閉</button></div>';
-  modal.style.display='grid';
-}
-function closeRef(){ document.getElementById('refModal').style.display='none'; } window.closeRef=closeRef;
-
-/*********** View & inputs ***********/
-function clampView(){ const rect=canvas.getBoundingClientRect(); const vw=rect.width/(window.devicePixelRatio||1)/viewScale; const vh=rect.height/(window.devicePixelRatio||1)/viewScale; viewX=Math.max(0, Math.min(WORLD_W - vw, viewX)); viewY=Math.max(0, Math.min(WORLD_H - vh, viewY)); }
-document.getElementById('btnZoomIn').onclick=function(){ const rect=canvas.getBoundingClientRect(); const cx=rect.width/2, cy=rect.height/2; zoomAround(cx,cy,1.1); };
-document.getElementById('btnZoomOut').onclick=function(){ const rect=canvas.getBoundingClientRect(); const cx=rect.width/2, cy=rect.height/2; zoomAround(cx,cy,0.9); };
-document.getElementById('btnZoomReset').onclick=function(){ viewScale=1; clampView(); };
-function zoomAround(cx,cy,factor){ const rect=canvas.getBoundingClientRect(); const dpr=window.devicePixelRatio||1; const mx=(cx-rect.left)/dpr; const my=(cy-rect.top)/dpr; const worldX = viewX + mx / viewScale; const worldY = viewY + my / viewScale; const newScale = Math.min(4, Math.max(0.5, viewScale*factor)); if(newScale===viewScale) return; viewX = worldX - (mx / newScale); viewY = worldY - (my / newScale); viewScale = newScale; clampView(); }
-const panelClock=document.getElementById('clock'); const cclock=panelClock.getContext('2d');
-let clockAngMin=0, clockAngHour=0;
-function drawClock(dt){ // simulate hand speeds based on timeScale
-  const speed = timeScale; // 1..100
-  clockAngMin = (clockAngMin + dt*speed*2*Math.PI/5) % (2*Math.PI); // fast spin
-  clockAngHour = (clockAngHour + dt*speed*2*Math.PI/40) % (2*Math.PI);
-  const w=panelClock.width, h=panelClock.height; cclock.setTransform(1,0,0,1,0,0); cclock.clearRect(0,0,w,h);
-  cclock.translate(w/2, h/2);
-  cclock.fillStyle="#0c1020"; cclock.strokeStyle="#2b3246"; cclock.lineWidth=2; cclock.beginPath(); cclock.arc(0,0,56,0,Math.PI*2); cclock.fill(); cclock.stroke();
-  cclock.strokeStyle="#9aa4b2";
-  for(let i=0;i<12;i++){ const a=i*Math.PI/6; cclock.beginPath(); cclock.moveTo(Math.cos(a)*44, Math.sin(a)*44); cclock.lineTo(Math.cos(a)*52, Math.sin(a)*52); cclock.stroke(); }
-  // hour hand
-  cclock.strokeStyle="#77e4a0"; cclock.lineWidth=4; cclock.beginPath(); cclock.moveTo(0,0); cclock.lineTo(Math.cos(clockAngHour)*28, Math.sin(clockAngHour)*28); cclock.stroke();
-  // minute hand
-  cclock.strokeStyle="#ffd36e"; cclock.lineWidth=3; cclock.beginPath(); cclock.moveTo(0,0); cclock.lineTo(Math.cos(clockAngMin)*42, Math.sin(clockAngMin)*42); cclock.stroke();
-}
-document.getElementById('speedUp').onclick=function(){ timeScale=Math.min(100, timeScale+1); document.getElementById('speedLabel').textContent=timeScale.toFixed(0)+'×'; };
-document.getElementById('speedDown').onclick=function(){ timeScale=Math.max(1, timeScale-1); document.getElementById('speedLabel').textContent=timeScale.toFixed(0)+'×'; };
-document.getElementById('btnRestart').onclick=function(){ resetGame(); };
-document.getElementById('levelSel').onchange=function(e){ level=parseInt(e.target.value,10); resetGame(); };
-document.getElementById('btnRef').onclick=function(){ openRef(); };
-
-/*********** Targets (Lv2) ***********/
-function stepTargets(dt){
-  for(let y=0;y<H;y++){ for(let x=0;x<W;x++){
-    if(grid[idx(x,y)].type!==T_TARGET) continue;
-    let me=0, rv=0;
-    for(const a of ants){ if(Math.hypot(a.x-(x*TILE+TILE/2), a.y-(y*TILE+TILE/2))<18) me++; }
-    for(const a of antsRival){ if(Math.hypot(a.x-(x*TILE+TILE/2), a.y-(y*TILE+TILE/2))<18) rv++; }
-    const diff = me - rv;
-    grid[idx(x,y)].control = clamp((grid[idx(x,y)].control||0) + diff*dt*0.5, -10, 10);
-    if(grid[idx(x,y)].control>=10) grid[idx(x,y)].owner='me';
-    else if(grid[idx(x,y)].control<=-10) grid[idx(x,y)].owner='rv';
-  } } 
-}
-
-/*********** Next actions ***********/
-let nextReady=false;
-function showNextAction(label, btnText, showEnemyBtn){
-  nextReady=true;
-  const box=document.getElementById('nextActions'); box.style.display='flex';
-  document.getElementById('nextLabel').textContent=label||'';
-  const btn=document.getElementById('btnNext');
-  if(btnText){ btn.style.display='inline-block'; btn.textContent=btnText; } else { btn.style.display='none'; }
-  const be=document.getElementById('btnAddEnemy');
-  if(showEnemyBtn){ be.style.display='inline-block'; be.onclick=function(){ enemies.push(makeEnemy(choice(['spider','gecko','roach']))); hideNextAction(); }; }
-  else { be.style.display='none'; }
-}
-function hideNextAction(){ const box=document.getElementById('nextActions'); if(!box) return; box.style.display='none'; document.getElementById('btnNext').style.display='none'; document.getElementById('btnAddEnemy').style.display='none'; nextReady=false; }
-
-/*********** Main loop ***********/
-function resetGame(){
-  ants=[]; antsRival=[]; inventory={}; mats={}; scoreMe=0; scoreRival=0; carrying=0; unlocked=Object.keys(RECIPES); selectedPh='m4mp2c'; MATERIALS.forEach(k=>mats[k]=0);
-  targets=[]; enemies=[]; nextReady=false; hideNextAction();
-  baseRandomMap(); if(level===1||level===3||level===4) placeNestsCorners(); else placeNestsRandom();
-  if(level===1) scatterFood(['sugar','peanut','fish'], 22);
-  if(level===2) { scatterFood(['resin','citrus','oil'], 18); spawnTargets(4); }
-  if(level===3) { scatterFood(['berry','wax','chitin'], 18); enemies=[makeEnemy('spider'), makeEnemy('spider'), makeEnemy('gecko'), makeEnemy('roach')]; }
-  if(level===4) scatterFood(['resin','citrus','oil'], 18);
-  setGoal(level===1?'Lv1：搬回顆粒數量要超過對手。': level===2?'Lv2：限時佔領控制點。': level===3?'Lv3：敵人可被擊敗轉為食物。':'Lv4：吸引＋禁止導引示意。');
-  showTimer = (level!==1); timeLeft = showTimer? (level===2?160:150) : 0; colonyCap = (level===1?30:level===2?60:80); colonyMax=(level===1?500:Infinity);
-  for(let i=0;i<10;i++) ants.push(spawnAnt('me')); for(let i=0;i<50;i++) antsRival.push(spawnAnt('rv'));
-  buildCraftSel(); refreshInv(); refreshMats(); resizeCanvas(); clampView(); draw(); updateHud();
-}
-let _last=performance.now();
-function loop(now){ let dt=(now-_last)/1000; _last=now; // real seconds
-  step(dt*timeScale); draw(); drawClock(dt); requestAnimationFrame(loop);
-}
-function step(dt){
-  stepWeather(dt);
-  if(showTimer){ timeLeft=Math.max(0,timeLeft-dt); const t=document.getElementById('timerText'); if(t) t.textContent=Math.ceil(timeLeft); }
-  stepPher(dt);
-  const want=desiredPopulation(); if(ants.length < want){ spawnBudget += dt * 10; while(spawnBudget>=1 && ants.length<want){ ants.push(spawnAnt('me')); spawnBudget-=1; } }
-  if(antsRival.length < rivalSpawn){ if(Math.random()<0.4*dt) antsRival.push(spawnAnt('rv')); }
-  for(const a of ants) stepAnt(a, dt);
-  for(const a of antsRival) stepAnt(a, dt);
-  if(level===2){ stepTargets(dt); }
-  if(level>=3){ stepEnemies(dt); }
-  updateHud();
-}
-
-/*********** Drawing ***********/
-function groundColor(t){ if(t===T_WATER) return '#0a1830'; if(t===T_WALL) return '#0a0a10'; if(t===T_TARGET) return '#0c101a'; return '#0c101a'; }
-function drawTarget(x,y){
-  const cx=x*TILE+TILE/2, cy=y*TILE+TILE/2; const c=grid[idx(x,y)];
-  ctx.lineWidth=2; let col='#999'; if(c.owner==='me') col='#77e4a0'; else if(c.owner==='rv') col='#cfd3da88';
-  ctx.strokeStyle=col; ctx.beginPath(); ctx.arc(cx,cy,6,0,Math.PI*2); ctx.stroke(); ctx.beginPath(); ctx.arc(cx,cy,10,0,Math.PI*2); ctx.stroke();
-}
-function drawEnemy(e){ if(!e.alive) return; ctx.save(); ctx.translate(e.x, e.y); const s=e.scale;
-  if(e.kind==='spider'){ ctx.strokeStyle='#ff8bd1'; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(0,0,6*s,0,Math.PI*2); ctx.stroke(); for(let i=0;i<4;i++){ const a=i*Math.PI/4 + Math.PI/8; ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(Math.cos(a)*10*s, Math.sin(a)*10*s); ctx.stroke(); ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(-Math.cos(a)*10*s, -Math.sin(a)*10*s); ctx.stroke(); } }
-  else if(e.kind==='gecko'){ ctx.strokeStyle='#a7ff8a'; ctx.lineWidth=2; ctx.beginPath(); ctx.ellipse(0,0,8*s,4*s,0,0,Math.PI*2); ctx.stroke(); }
-  else { ctx.strokeStyle='#ffd36e'; ctx.lineWidth=2; ctx.beginPath(); ctx.ellipse(0,0,7*s,3*s,0,0,Math.PI*2); ctx.stroke(); ctx.beginPath(); ctx.moveTo(-6*s,0); ctx.lineTo(6*s,0); ctx.stroke(); }
-  ctx.restore(); }
 function draw(){
   const dpr=window.devicePixelRatio||1; ctx.setTransform(1,0,0,1,0,0); ctx.clearRect(0,0,canvas.width,canvas.height); ctx.scale(dpr,dpr); ctx.save(); ctx.scale(viewScale,viewScale); ctx.translate(-viewX,-viewY);
-  ctx.fillStyle=groundColor(T_EMPTY); ctx.fillRect(0,0,WORLD_W,WORLD_H);
+  ctx.fillStyle=groundColor(0); ctx.fillRect(0,0,WORLD_W,WORLD_H);
   for(let y=0;y<H;y++){ for(let x=0;x<W;x++){
-    const c=grid[idx(x,y)]; const col=groundColor(c.type); ctx.fillStyle=col; ctx.fillRect(x*TILE,y*TILE,TILE,TILE);
-    if(c.type===T_TARGET){ drawTarget(x,y); }
-    // pheromones
-    for(const k in c.pherMe){ ctx.fillStyle=PH[k].color; ctx.globalAlpha=Math.min(0.5,c.pherMe[k]); ctx.fillRect(x*TILE,y*TILE,TILE,TILE); ctx.globalAlpha=1; }
-    for(const k in c.pherRv){ ctx.fillStyle="#cfd3da44"; ctx.globalAlpha=Math.min(0.5,c.pherRv[k]); ctx.fillRect(x*TILE,y*TILE,TILE,TILE); ctx.globalAlpha=1; }
-    if(c.type===T_FOOD){ drawFood(x,y,c.food); }
+    const c=grid[idx(x,y)]; if(c.type===T_WATER){ ctx.fillStyle=groundColor(T_WATER); ctx.fillRect(x*TILE,y*TILE,TILE,TILE); }
+    for(const key in c.pherMe){ const e=c.pherMe[key]; const a=Math.min(0.5, e.s*0.6); if(a>0.01){ ctx.globalAlpha=a; ctx.fillStyle=PH[key]?PH[key].color:'#68a0ff'; ctx.fillRect(x*TILE,y*TILE,TILE,TILE); ctx.globalAlpha=1; } }
+    for(const key in c.pherRv){ const e=c.pherRv[key]; const a=Math.min(0.35, e.s*0.6); if(a>0.01){ ctx.globalAlpha=a; ctx.fillStyle="#cfd3da44"; ctx.fillRect(x*TILE,y*TILE,TILE,TILE); ctx.globalAlpha=1; } }
+    if(c.type===T_FOOD) drawFood(x,y,c.food);
   } }
-  // nests
-  for(let y=0;y<H;y++){ for(let x=0;x<W;x++){ const t=grid[idx(x,y)].type; if(t===T_NEST_ME){ ctx.fillStyle='#77e4a0'; ctx.fillRect(x*TILE+2,y*TILE+2,TILE-4,TILE-4);} else if(t===T_NEST_RIVAL){ ctx.fillStyle='#cfd3da44'; ctx.fillRect(x*TILE+2,y*TILE+2,TILE-4,TILE-4);} } }
-  // ants
-  function drawAnt(a, sprites){ const phase=(Math.floor((performance.now()/120 + a.x*0.01)%2))?1:0; const sidx=(Math.cos(a.aim)>=0?0:2)+phase; const off=sprites[sidx]; ctx.drawImage(off, a.x-ANT_W/2, a.y-ANT_H/2, ANT_W, ANT_H); }
-  for(const a of ants) drawAnt(a, frames.antsMe); for(const a of antsRival) drawAnt(a, frames.antsRv);
-  enemies.forEach(drawEnemy);
+  for(let y=0;y<H;y++){ for(let x=0;x<W;x++){ const t=grid[idx(x,y)].type; if(t===T_NEST_ME){ ctx.fillStyle='#77e4a0'; rr(ctx,x*TILE+2,y*TILE+2,TILE-4,TILE-4,4); } else if(t===T_NEST_RIVAL){ ctx.fillStyle='#cfd3da66'; rr(ctx,x*TILE+2,y*TILE+2,TILE-4,TILE-4,4);} } }
+  ctx.fillStyle='#9ffcac'; for(const a of ants){ ctx.beginPath(); ctx.arc(a.x,a.y,2,0,2*PI); ctx.fill(); }
+  ctx.fillStyle='#cfd3da88'; for(const a of antsRival){ ctx.beginPath(); ctx.arc(a.x,a.y,2,0,2*PI); ctx.fill(); }
   ctx.restore();
 }
 
-/*********** Boot ***********/
-(function(){ try{ resizeCanvas(); level=1; resetGame(); requestAnimationFrame(loop); } catch(err){ const box=document.getElementById('errorOverlay'); const pre=document.getElementById('errorText'); box.style.display='block'; pre.textContent=String(err && err.stack || err); console.error(err); } })();
+function refreshMats(){
+  const row=document.getElementById('matRow'); row.innerHTML='';
+  const sel=document.getElementById('craftSel').value;
+  const need = (RECIPES[sel] && RECIPES[sel].cost) || {};
+  for(const k of MATERIALS){
+    const d=document.createElement('div'); d.className='mini mat'+(need[k]? ' hi':'');
+    d.textContent=k+': '+(mats[k]||0)+' '+(need[k]?`(需${need[k]})`:'');
+    row.appendChild(d);
+  }
+}
+function refreshInv(){
+  const list=document.getElementById('invList'); list.innerHTML='';
+  for(const id of Object.keys(RECIPES)){
+    const btn=document.createElement('button'); btn.textContent=RECIPES[id].label;
+    btn.onclick=function(){ selectedPh=id; document.getElementById('craftSel').value=id; refreshMats(); };
+    list.appendChild(btn);
+    const b=document.createElement('span'); b.className='mini'; b.textContent=(inventory[id]||0); list.appendChild(b);
+  }
+}
+function buildCraftSel(){
+  const sel=document.getElementById('craftSel'); sel.innerHTML='';
+  for(const id of Object.keys(RECIPES)){ const o=document.createElement('option'); o.value=id; o.textContent=RECIPES[id].label; sel.appendChild(o); }
+  sel.value=selectedPh;
+  sel.onchange = ()=>{ selectedPh = sel.value; refreshMats(); };
+}
+
+document.getElementById('btnCraft').onclick=function(){
+  const id=document.getElementById('craftSel').value;
+  const need=RECIPES[id].cost;
+  for(const k in need){ if((mats[k]||0)<need[k]) return; }
+  for(const k in need) mats[k]-=need[k];
+  inventory[id]=(inventory[id]||0)+1;
+  refreshInv(); refreshMats();
+};
+
+function countFoodFrags(){
+  let frag=0, cells=0; for(let i=0;i<grid.length;i++){ const c=grid[i]; if(c.type===T_FOOD && c.food && Array.isArray(c.food.frags)){ frag+=c.food.frags.length; cells++; } }
+  return {frag, cells};
+}
+function updateOverview(){
+  document.getElementById('meAnts').textContent = ants.length;
+  document.getElementById('rvAnts').textContent = antsRival.length;
+  document.getElementById('meScore').textContent = scoreMe;
+  document.getElementById('rvScore').textContent = scoreRival;
+  const {frag, cells} = countFoodFrags();
+  document.getElementById('fragCount').textContent = String(frag);
+  document.getElementById('proteinMe').textContent = String(proteinMe);
+  document.getElementById('proteinRv').textContent = String(proteinRv);
+  const btn = document.getElementById('btnMoreFood'); btn.style.display = (cells===0)? 'inline-block':'none';
+}
+
+/*** dashboards (60×60) ***/
+const cWx=document.getElementById('wxClock').getContext('2d');
+const cHum=document.getElementById('humGauge').getContext('2d');
+const cSpd=document.getElementById('spdClock').getContext('2d');
+const cZoom=document.getElementById('zoomGauge').getContext('2d');
+const speedSlider=document.getElementById('speedSlider');
+let angSec=0, angMin=0, angHour=0;
+function drawWxClock(){
+  const w=60,h=60,o=cWx; o.setTransform(1,0,0,1,0,0); o.clearRect(0,0,w,h); o.translate(w/2,h/2);
+  o.strokeStyle="#2b3246"; o.lineWidth=1.5; o.beginPath(); o.arc(0,0,26,0,2*PI); o.stroke();
+  o.strokeStyle="#3a415a"; for(let i=0;i<12;i++){ const a=i*PI/6; o.beginPath(); o.moveTo(Math.cos(a)*22, Math.sin(a)*22); o.lineTo(Math.cos(a)*26, Math.sin(a)*26); o.stroke(); }
+  const angIn = (wx.windDir + 180) * PI/180;
+  o.fillStyle="#9aa4b2"; o.beginPath(); o.arc(Math.cos(angIn)*24, Math.sin(angIn)*24, 2.2, 0, 2*PI); o.fill();
+  o.fillStyle="#cbd3e3"; o.font="bold 12px ui-sans-serif"; o.textAlign="center"; o.textBaseline="middle"; o.fillText(wx.wind.toFixed(1), 0, 0);
+}
+function drawHum(){
+  const w=60,h=60,o=cHum; o.setTransform(1,0,0,1,0,0); o.clearRect(0,0,w,h); o.translate(w/2,h/2);
+  const start=PI*7/6, end=PI*11/6;
+  o.strokeStyle="#2b3246"; o.lineWidth=8; o.globalAlpha=0.35; o.beginPath(); o.arc(0,0,22,start,end); o.stroke();
+  const t=Math.max(0,Math.min(1, (wx.humidIdx/9))); o.globalAlpha=0.75; o.strokeStyle="#6e7890"; o.beginPath(); o.arc(0,0,22,start, start + (end-start)*t); o.stroke(); o.globalAlpha=1;
+  const perc = Math.round(t*100);
+  o.fillStyle="#cbd3e3"; o.font="bold 12px ui-sans-serif"; o.textAlign="center"; o.textBaseline="middle"; o.fillText(perc+'%', 0, 0);
+}
+function drawSpd(){
+  const w=60,h=60,o=cSpd; o.setTransform(1,0,0,1,0,0); o.clearRect(0,0,w,h); o.translate(w/2,h/2);
+  o.strokeStyle="#2b3246"; o.lineWidth=1.5; o.beginPath(); o.arc(0,0,26,0,2*PI); o.stroke();
+  if(timeScale>1) hasAccelerated=true;
+  let base;
+  if(hasAccelerated){ base = new Date(baseTaipei.getTime() + simElapsed*1000); }
+  else { base = taipeiNowDate(); }
+  angSec = (base.getSeconds()/60)*2*PI;
+  angMin = ((base.getMinutes() + base.getSeconds()/60)/60)*2*PI;
+  angHour = (((base.getHours()%12) + base.getMinutes()/60)/12)*2*PI;
+  o.strokeStyle="#77e4a0"; o.lineWidth=3; o.beginPath(); o.moveTo(0,0); o.lineTo(Math.cos(angHour)*14, Math.sin(angHour)*14); o.stroke();
+  o.strokeStyle="#ffd36e"; o.lineWidth=2; o.beginPath(); o.moveTo(0,0); o.lineTo(Math.cos(angMin)*20, Math.sin(angMin)*20); o.stroke();
+  o.strokeStyle="#e8eefc"; o.lineWidth=1; o.beginPath(); o.moveTo(0,0); o.lineTo(Math.cos(angSec)*22, Math.sin(angSec)*22); o.stroke();
+  cSpd.canvas.onclick = ()=>{ timeScale=1; speedSlider.value='1'; viewScale=1; viewX=0; viewY=0; hasAccelerated=false; simElapsed=0; baseTaipei=taipeiNowDate(); };
+  const total = Math.floor(simElapsed);
+  const dd = Math.floor(total/86400); const hh = Math.floor((total%86400)/3600); const mm = Math.floor((total%3600)/60); const ss = total%60;
+  document.getElementById('accumTime').textContent = String(dd).padStart(2,'0')+':'+String(hh).padStart(2,'0')+':'+String(mm).padStart(2,'0')+':'+String(ss).padStart(2,'0');
+}
+function drawZoom(){
+  const w=60,h=60,o=cZoom; o.setTransform(1,0,0,1,0,0); o.clearRect(0,0,w,h); o.translate(w/2,h/2);
+  o.strokeStyle="#2b3246"; o.lineWidth=1.5; o.beginPath(); o.arc(0,0,26,0,2*PI); o.stroke();
+  const k = clamp((viewScale-0.5)/(4-0.5), 0, 1); o.fillStyle="#9aa4b2"; o.globalAlpha=0.25+0.5*k; o.beginPath(); o.arc(0,0, 26*k + 4, 0, 2*PI); o.fill(); o.globalAlpha=1; 
+  o.fillStyle="#cbd3e3"; o.font="bold 12px ui-sans-serif"; o.textAlign="center"; o.textBaseline="middle"; o.fillText("1:1",0,0);
+  cZoom.canvas.onclick = ()=>{ viewScale=1; viewX=0; viewY=0; };
+}
+speedSlider.addEventListener('input', e=>{ timeScale=Number(e.target.value)||1; });
+
+document.getElementById('btnRestart').onclick=function(){ resetGame(); };
+document.getElementById('levelSel').onchange=function(e){ level=parseInt(e.target.value,10); resetGame(); };
+document.getElementById('btnMoreFood').onclick=function(){
+  scatterFood(['fish','peanut','cater','resin','citrus','oil','berry','wax','chitin'], Math.max(1, Math.floor(initialFoodCount/2)));
+};
+
+canvas.addEventListener('mousedown', function(e){
+  if(e.button!==0) return;
+  const rect=canvas.getBoundingClientRect(); const dpr=window.devicePixelRatio||1;
+  const wxp = (e.clientX-rect.left)/dpr/viewScale + viewX; const wyp = (e.clientY-rect.top )/dpr/viewScale + viewY;
+  const gx=Math.floor(wxp/TILE), gy=Math.floor(wyp/TILE);
+  if(!inBounds(gx,gy)) return;
+  const dir = Math.atan2(wyp - (gy*TILE+TILE/2), wxp - (gx*TILE+TILE/2));
+  placePher(gx,gy, selectedPh, 1.0, 'me', Math.cos(dir), Math.sin(dir));
+});
+
+function openRef(){
+  document.getElementById('refModal').style.display='grid';
+  const phTB=document.querySelector('#refPhTable tbody'); phTB.innerHTML='';
+  for(const r of REF){ const tr=document.createElement('tr');
+    tr.innerHTML = `<td>${r.label}</td><td><code class="k">${r.id}</code></td><td>${r.cls}</td><td>${r.mw}</td><td><span style="display:inline-block;width:12px;height:12px;background:${r.color};border:1px solid #2b3246;border-radius:3px"></span></td><td>${r.note||''}</td>`; phTB.appendChild(tr); }
+  const rcTB=document.querySelector('#refRecipeTable tbody'); rcTB.innerHTML='';
+  for(const id in RECIPES){ const r=RECIPES[id]; const parts=[]; for(const k in r.cost){ parts.push(`${k}×${r.cost[k]}`); } const tr=document.createElement('tr'); tr.innerHTML = `<td>${r.label}</td><td>${parts.join('、')}</td>`; rcTB.appendChild(tr); }
+  const fdTB=document.querySelector('#refFoodTable tbody'); fdTB.innerHTML='';
+  for(const key in FOOD_BASE){ const f=FOOD_BASE[key]; const parts=[]; for(const k in f.base){ parts.push(`${k}×${f.base[k]}`); } const tr=document.createElement('tr'); tr.innerHTML = `<td>${f.label}</td><td>${f.art}</td><td>${parts.join('、')}</td>`; fdTB.appendChild(tr); }
+}
+document.getElementById('btnRef').onclick=openRef;
+document.getElementById('refClose').onclick=function(){ document.getElementById('refModal').style.display='none'; };
+
+function resetGame(){
+  ants=[]; antsRival=[]; mats={}; inventory={}; scoreMe=0; scoreRival=0; proteinMe=0; proteinRv=0;
+  hasAccelerated=false; simElapsed=0; baseTaipei=taipeiNowDate();
+  baseRandomMap(); initialFoodCount = 22; scatterFood(['fish','peanut','cater','resin','citrus','oil','berry','wax','chitin'], initialFoodCount);
+  for(let i=0;i<10;i++) ants.push(spawnAnt('me'));
+  for(let i=0;i<10;i++) antsRival.push(spawnAnt('rv'));
+  buildCraftSel(); refreshMats(); refreshInv(); resizeCanvas(); updateOverview();
+}
+let _last=performance.now();
+function loop(now){ const dt=(now-_last)/1000; _last=now;
+  // 累積時間：永遠累加 dt*timeScale（未加速時即「真實經過時間」的近似值）
+  simElapsed += dt*timeScale;
+  const sdt = dt*timeScale;
+  try{
+    stepWeather(sdt); stepPher(sdt);
+    for(const a of ants) stepAnt(a,sdt); for(const a of antsRival) stepAnt(a,sdt);
+    autoRecruit();
+    draw(); updateOverview(); drawWxClock(); drawHum(); drawSpd(); drawZoom();
+  }catch(err){ reportError(err); }
+  requestAnimationFrame(loop);
+}
+(function(){ try{ resetGame(); requestAnimationFrame(loop); } catch(err){ reportError(err); } })();
 </script>
 </body>
 </html>
