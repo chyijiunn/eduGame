@@ -3,134 +3,153 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>模式螞蟻費洛蒙策略遊戲 v0.7.4.1</title>
+<title>模式螞蟻 v0.7.5r（0.741 版面 + 0.75 規則）</title>
 <style>
-  :root { --bg:#0f1115; --panel:#151922; --ink:#e8eefc; --muted:#9aa4b2; --accent:#77e4a0; --danger:#ff7a7a; --warn:#ffd36e; --hi:#ffffff; }
-  html,body{height:100%; margin:0; background:var(--bg); color:var(--ink); font-family: ui-sans-serif, system-ui, -apple-system, PingFangTC, "Noto Sans TC", Segoe UI, Roboto, Helvetica, Arial;}
-  #wrap{display:grid; grid-template-columns: 1fr 320px; gap:8px; height:100vh; padding:8px; box-sizing:border-box;}
-  #stage{position:relative; width:100%; height:100%; overflow:hidden}
-  #canvas{position:absolute; inset:0; background:#0b0d12; border:1px solid #22283a; border-radius:12px; width:100%; height:100%; display:block; image-rendering:pixelated; cursor:crosshair}
-  #panel{background:var(--panel); border-radius:12px; padding:8px; overflow:auto; display:grid; gap:8px}
-  .slot{background:#101625; border:1px solid #2b3246; border-radius:10px; padding:8px; display:flex; align-items:center; gap:8px; justify-content:space-between}
-  .col{display:flex; flex-direction:column; gap:8px; width:100%}
-  .row{display:flex; gap:8px; align-items:center; flex-wrap:wrap}
-  .between{justify-content:space-between}
-  button,select,input[type=range]{background:#23293a; color:var(--ink); border:1px solid #2b3246; border-radius:10px; padding:6px 10px; cursor:pointer}
-  input[type=range]{-webkit-appearance: none; width:240px; height:8px; padding:0}
-  input[type=range]::-webkit-slider-thumb{ -webkit-appearance:none; width:14px; height:14px; background:#77e4a0; border-radius:50% }
+  :root { --bg:#0f1115; --panel:#141923; --ink:#e8eefc; --muted:#9aa4b2; --accent:#77e4a0; --gray:#cfd3da; }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);font-family: ui-sans-serif, system-ui, -apple-system, "Noto Sans TC", Segoe UI, Roboto, Helvetica, Arial;}
+  #wrap{display:grid;grid-template-columns:1fr 320px;gap:8px;height:100vh;padding:8px}
+  #stage{position:relative;overflow:hidden;border-radius:12px}
+  #canvas{position:absolute;inset:0;background:#0b0d12;display:block;width:100%;height:100%;image-rendering:pixelated}
+  #panel{display:grid;gap:10px;overflow:auto}
+  /* top bar */
+  #topbar{display:grid;grid-template-columns: 1fr 1fr;gap:8px;align-items:start}
+  #levelBox{display:flex;flex-direction:column;gap:4px}
+  #levelBox .title{font-weight:700}
+  #levelBox .lvl{font-size:12px;color:var(--muted)}
+  #actionBox{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+  button,select,input[type=range]{background:#1e2433;color:var(--ink);border:1px solid #273049;border-radius:10px;padding:6px 10px;cursor:pointer}
   button:hover{filter:brightness(1.08)}
-  .mini{font-size:12px; color:var(--muted)}
-  .label{font-size:12px; color:#cbd3e3; text-align:center}
-  table{border-collapse:collapse; font-size:13px}
-  th,td{border-bottom:1px solid #2b3246; padding:4px 6px; text-align:left; vertical-align:top}
-  #dash4{display:grid; grid-template-columns: repeat(4, 1fr); gap:0; width:100%}
-  .card{background:#0e1424; border:1px solid #2b3246; border-radius:10px; padding:4px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px}
-  .stack{display:flex; flex-direction:column; gap:4px; align-items:center; justify-content:center}
-  canvas.mini{background:#0c1020; border:1px solid #2b3246; border-radius:10px}
-  #errorOverlay{position:fixed; right:12px; bottom:12px; display:none; z-index:9999; background:#1d2233; color:#ffd1d1; border:1px solid #b44; border-radius:12px; padding:12px; box-shadow:0 6px 30px #0008; max-width:46vw}
-  #errorOverlay pre{white-space:pre-wrap; font-family:ui-monospace, SFMono-Regular, Menlo, monospace; font-size:12px; color:#ffd1d1}
-  #refModal{position:fixed; inset:0; display:none; place-items:center; background:#0008; z-index:9998}
-  #refCard{width:min(1040px,94vw); height:min(86vh,820px); background:#111522; border:1px solid #2b3246; border-radius:14px; overflow:auto; padding:16px}
-  #refClose{position:sticky; top:0; display:inline-block; margin-left:auto; background:#23293a}
-  code.k{background:#0c1020; padding:0 6px; border-radius:6px; border:1px solid #2b3246}
-  #top2{display:grid; grid-template-columns: 1fr 1fr; gap:6px}
-  .mat{padding:2px 6px; border-radius:6px; border:2px solid #2b3246; background:#0c1020}
-  .mat.hi{font-weight:800; color:#ffffff}
-  .mono{font-family:ui-monospace, SFMono-Regular, Menlo, monospace}
+  input[type=range]{-webkit-appearance:none;width:100%;height:8px;padding:0}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--accent)}
+  .mini{font-size:12px;color:var(--muted)}
+  .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .col{display:flex;flex-direction:column;gap:6px}
+  /* four gauges in one row, no outer frames */
+  #gauges{display:grid;grid-template-columns:repeat(4,1fr);gap:0}
+  .gCol{display:flex;flex-direction:column;align-items:center;gap:4px}
+  .gLabel{font-size:12px;color:#cbd3e3}
+  canvas.g{background:#0c1020;border-radius:10px}
+  /* slider area */
+  #speedRow{display:flex;align-items:center;gap:8px;justify-content:center}
+  /* info tables compact */
+  table{border-collapse:collapse;font-size:13px}
+  th,td{border-bottom:1px solid #2a3145;padding:4px 6px;text-align:left}
+  /* material board */
+  .matItem{padding:2px 6px;background:#101525;border:2px solid #253150;border-radius:8px}
+  .matItem.hi{font-weight:900;color:#fff}
+  .phBtn.selected{outline:2px solid #fff;font-weight:800}
+  /* ref modal */
+  #refModal{position:fixed;inset:0;display:none;place-items:center;background:#0008;z-index:9998}
+  #refCard{width:min(1040px,94vw);height:min(86vh,820px);background:#111522;border-radius:12px;overflow:auto;padding:16px}
+  #refClose{position:sticky;top:0;margin-left:auto}
+  code.k{background:#0c1020;border:1px solid #2a3145;border-radius:6px;padding:0 6px}
+  /* error overlay */
+  #errorOverlay{position:fixed;right:12px;bottom:12px;display:none;background:#1d2233;color:#ffd1d1;border:1px solid #b44;border-radius:12px;padding:12px;box-shadow:0 6px 30px #0008;z-index:9999;max-width:46vw}
+  #errorOverlay pre{white-space:pre-wrap;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px}
   @media (orientation:portrait){
-    #wrap{grid-template-columns: 1fr; grid-template-rows: 1fr auto}
+    #wrap{grid-template-columns:1fr;grid-template-rows:1fr auto}
     #panel{order:2}
-    #stage{order:1; height:60vh}
-    #dash4{order:99}
+    #stage{order:1;height:60vh}
   }
 </style>
 </head>
 <body>
-  <div id="wrap">
-    <div id="stage"><canvas id="canvas"></canvas></div>
-    <div id="panel">
-      <div id="top2">
-        <div class="slot" style="gap:6px; width:100%">
-          <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:6px; width:100%">
-            <div class="col" style="align-items:center">
-              <div><b>關卡</b></div>
-              <select id="levelSel"><option value="1">Lv1</option><option value="2">Lv2</option><option value="3">Lv3</option><option value="4">Lv4</option></select>
-            </div>
-            <button id="btnRestart">reset</button>
-            <button id="btnRef">ref</button>
-          </div>
-        </div>
-        <div class="slot">
-          <table style="width:auto"><thead><tr><th></th><th>螞蟻</th><th>分</th></tr></thead>
-            <tbody>
-              <tr><td>我</td><td id="meAnts">0</td><td id="meScore">0</td></tr>
-              <tr><td>敵</td><td id="rvAnts">0</td><td id="rvScore">0</td></tr>
-            </tbody>
-          </table>
-        </div>
+<div id="wrap">
+  <div id="stage"><canvas id="canvas"></canvas></div>
+  <div id="panel">
+    <div id="topbar">
+      <div id="levelBox">
+        <div class="title">關卡</div>
+        <div class="lvl"><select id="levelSel"><option value="1">Lv1</option><option value="2">Lv2</option><option value="3">Lv3</option><option value="4">Lv4</option></select></div>
       </div>
-
-      <div class="col">
-        <div id="dash4">
-          <div class="card stack"><div class="label">風速</div><canvas id="wxClock" class="mini" width="60" height="60"></canvas></div>
-          <div class="card stack"><div class="label">溼度</div><canvas id="humGauge" class="mini" width="60" height="60"></canvas></div>
-          <div class="card stack"><div class="label">時間</div><canvas id="spdClock" class="mini" width="60" height="60"></canvas></div>
-          <div class="card stack"><div class="label">視窗</div><canvas id="zoomGauge" class="mini" width="60" height="60"></canvas></div>
-        </div>
-        <div class="row" style="justify-content:center">
-          <span class="mini">1×</span>
-          <input id="speedSlider" type="range" min="1" max="100" value="1">
-          <span class="mini">100×</span>
-        </div>
-        <div class="mini" style="text-align:center">累積時間：<span id="accumTime" class="mono">00:00:00:00</span></div>
+      <div id="actionBox">
+        <button id="btnRestart">reset</button>
+        <button id="btnRef">ref</button>
+        <div></div>
       </div>
+    </div>
 
-      <div class="slot" style="display:grid; grid-template-columns: 1fr 1fr; gap:8px">
-        <div class="col">
-          <b>材料</b>
-          <div id="matRow" class="row"></div>
-          <div class="mini">蛋白質（我）<span id="proteinMe">0</span>／（敵）<span id="proteinRv">0</span></div>
-          <div class="row between">
-            <span class="row"><b>費洛蒙</b> <select id="craftSel"></select></span>
-            <button id="btnCraft">合成 +1</button>
-          </div>
-        </div>
-        <div class="col">
-          <b>食物碎塊</b>
-          <div class="row between">
-            <div class="mini">目前數量：<span id="fragCount">—</span></div>
-            <button id="btnMoreFood" style="display:none">灑食物</button>
-          </div>
-          <b>庫存</b>
-          <div id="invList" class="row"></div>
-        </div>
-      </div>
+    <!-- four gauges row -->
+    <div class="row" style="justify-content:space-between;padding:0 2px">
+      <div class="gCol"><div class="gLabel">風速</div><canvas id="gWind" class="g" width="60" height="60"></canvas></div>
+      <div class="gCol"><div class="gLabel">溼度</div><canvas id="gHum" class="g" width="60" height="60"></canvas></div>
+      <div class="gCol"><div class="gLabel">時間</div><canvas id="gTime" class="g" width="60" height="60"></canvas></div>
+      <div class="gCol"><div class="gLabel">視窗</div><canvas id="gZoom" class="g" width="60" height="60"></canvas></div>
+    </div>
+    <div id="speedRow">
+      <span class="mini">1×</span>
+      <input id="speedSlider" type="range" min="1" max="100" value="1" />
+      <span class="mini">100×</span>
+    </div>
+    <div class="mini" style="text-align:center">累積時間：<span id="accumTime">00:00:00:00</span></div>
 
-      <div id="refModal"><div id="refCard">
-        <div class="row" style="justify-content:flex-end"><button id="refClose">關閉</button></div>
-        <h2>參考（ref）</h2>
-        <p class="mini">費洛蒙功能表、合成配方、各種食物材料含量。</p>
-        <h3>費洛蒙功能表</h3>
-        <table id="refPhTable"><thead><tr><th>遊戲名</th><th>正式/學名</th><th>類型</th><th>分子量估</th><th>顏色</th><th>說明</th></tr></thead><tbody></tbody></table>
-        <h3>費洛蒙合成配方</h3>
-        <table id="refRecipeTable"><thead><tr><th>遊戲名</th><th>配方（材料→數量）</th></tr></thead><tbody></tbody></table>
-        <h3>各種食物的材料含量（基礎 1×）</h3>
-        <table id="refFoodTable"><thead><tr><th>食物</th><th>外觀</th><th>基礎材料</th></tr></thead><tbody></tbody></table>
-      </div></div>
+    <!-- enemy/me table -->
+    <table style="margin-top:6px">
+      <thead><tr><th></th><th>螞蟻</th><th>分</th></tr></thead>
+      <tbody>
+        <tr><td>我</td><td id="meAnts">0</td><td id="meScore">0</td></tr>
+        <tr><td>敵</td><td id="rvAnts">0</td><td id="rvScore">0</td></tr>
+      </tbody>
+    </table>
 
+    <!-- materials & inventory -->
+    <div class="row" style="justify-content:space-between;margin-top:4px">
+      <b>材料</b>
+      <div class="mini">蛋白質（我）<span id="proteinMe">0</span>／（敵）<span id="proteinRv">0</span></div>
+    </div>
+    <div id="matRow" class="row"></div>
+    <div class="row" style="justify-content:space-between;margin-top:4px">
+      <span class="row"><b>費洛蒙</b>&nbsp;<select id="craftSel"></select></span>
+      <button id="btnCraft">合成 +1</button>
+    </div>
+
+    <div class="row" style="justify-content:space-between;margin-top:8px">
+      <b>食物碎塊</b>
+      <div class="mini">目前數量：<span id="fragCount">—</span></div>
+      <button id="btnMoreFood" style="display:none">灑食物</button>
+    </div>
+    <div class="col">
+      <b>庫存</b>
+      <div id="invList" class="row"></div>
     </div>
   </div>
+</div>
 
-  <div id="errorOverlay"><b>⚠️ 腳本錯誤</b><pre id="errorText"></pre></div>
+<!-- ref modal -->
+<div id="refModal"><div id="refCard">
+  <div style="display:flex;justify-content:flex-end"><button id="refClose">關閉</button></div>
+  <h2>參考（ref）</h2>
+  <p class="mini">費洛蒙功能表、合成配方、各種食物材料含量。</p>
+  <h3>費洛蒙功能表</h3>
+  <table id="refPhTable"><thead><tr><th>遊戲名</th><th>正式/學名</th><th>類型</th><th>分子量估</th><th>顏色</th><th>說明</th></tr></thead><tbody></tbody></table>
+  <h3>費洛蒙合成配方</h3>
+  <table id="refRecipeTable"><thead><tr><th>遊戲名</th><th>配方（材料→數量）</th></tr></thead><tbody></tbody></table>
+  <h3>各種食物的材料含量（基礎 1×）</h3>
+  <table id="refFoodTable"><thead><tr><th>食物</th><th>外觀</th><th>基礎材料</th></tr></thead><tbody></tbody></table>
+</div></div>
+
+<div id="errorOverlay"><b>⚠️ 腳本錯誤</b><pre id="errorText"></pre></div>
 
 <script>
-'use strict';
-function reportError(err){ try{ const box=document.getElementById('errorOverlay'); const pre=document.getElementById('errorText'); box.style.display='block'; pre.textContent=String(err && err.stack || err); console.error(err);}catch(_){ } }
-const PI=Math.PI; function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
-function randInt(a,b){ return Math.floor(Math.random()*(b-a+1))+a; } function choice(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
-function rr(o,x,y,w,h,r){ if(o.roundRect){ o.beginPath(); o.roundRect(x,y,w,h,r); o.fill(); o.stroke(); return; } r=Math.min(r,w/2,h/2); o.beginPath(); o.moveTo(x+r,y); o.arcTo(x+w,y,x+w,y+h,r); o.arcTo(x+w,y+h,x,y+h,r); o.arcTo(x,y+h,x,y,r); o.arcTo(x,y,x+w,y,r); o.closePath(); o.fill(); o.stroke(); }
+"use strict";
+window.addEventListener('error', (e)=>{
+  const box=document.getElementById('errorOverlay'); const pre=document.getElementById('errorText');
+  if(box){ box.style.display='block'; pre.textContent=String(e.error && e.error.stack || e.message || e); }
+});
+
+(function(){
+try{
+// ---------- 小工具 ----------
+const PI=Math.PI;
+const TAU=2*Math.PI;
+function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
+function randInt(a,b){ return Math.floor(Math.random()*(b-a+1))+a; }
+function choice(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+function rr(o,x,y,w,h,r){ if(o.roundRect){ o.beginPath(); o.roundRect(x,y,w,h,r); o.fill(); return; } r=Math.min(r,w/2,h/2); o.beginPath(); o.moveTo(x+r,y); o.arcTo(x+w,y,x+w,y+h,r); o.arcTo(x+w,y+h,x,y+h,r); o.arcTo(x,y+h,x,y,r); o.arcTo(x,y,x+w,y,r); o.closePath(); o.fill(); }
 function clone(obj){ try{ return JSON.parse(JSON.stringify(obj)); }catch(_){ return null; }}
 
+// ---------- ref/配方/食物 ----------
 const REF=[
   {id:'m4mp2c',label:'吡咯酸甲酯',cls:'trail',mw:169,color:'#9bf',note:'路徑/食物跟隨'},
   {id:'edp',label:'乙基二甲基吡嗪',cls:'trail',mw:136,color:'#8cf',note:'路徑/食物跟隨'},
@@ -141,7 +160,7 @@ const REF=[
 ];
 const MATERIALS=['C','O','N','R','T','Ald','Acid','HC','LAC'];
 const RECIPES={m4mp2c:{label:'吡咯酸甲酯',cost:{C:1,O:1,N:1}}, edp:{label:'乙基二甲基吡嗪',cost:{N:2,R:1,C:1}}, faranal:{label:'Faranal',cost:{T:2,Ald:1,HC:1}}, mono1:{label:'Monomorine I',cost:{N:1,R:1,HC:1}}, noentry:{label:'禁止混合物',cost:{Ald:1,Acid:1,HC:1}}, formic:{label:'蟻酸',cost:{Acid:2}}};
-const PH={}; for(const r of REF){ PH[r.id]={type:r.cls,color:r.color,halfLife:3600,label:r.label,note:r.note,mw:r.mw}; } // 1h 半衰期
+const PH={}; for(const r of REF){ PH[r.id]={type:r.cls,color:r.color,halfLife:300,label:r.label,note:r.note,mw:r.mw}; }
 
 const FOOD_BASE={
   fish:   {label:'魚',     base:{N:2,C:1},    art:'fish'},
@@ -155,23 +174,23 @@ const FOOD_BASE={
   chitin: {label:'甲殼',   base:{N:1,Acid:1,R:1}, art:'chitin'}
 };
 
-const TILE=16; let W=64, H=48; const WORLD_W=W*TILE, WORLD_H=H*TILE;
+// ---------- 世界/格網 ----------
+const TILE=16; let W=64, H=48; let WORLD_W=W*TILE, WORLD_H=H*TILE;
 const T_EMPTY=0, T_WATER=1, T_FOOD=2, T_NEST_ME=3, T_NEST_RIVAL=4;
-let level=1, timeScale=1.0, maxAnts=500;
+let level=1, timeScale=1.0, maxAnts=10000;
+
 const canvas=document.getElementById('canvas'); const ctx=canvas.getContext('2d');
-function resizeCanvas(){ const rect=canvas.getBoundingClientRect(); const dpr=window.devicePixelRatio||1; canvas.width=Math.max(1, Math.floor(rect.width*dpr)); canvas.height=Math.max(1, Math.floor(rect.height*dpr)); }
-window.addEventListener('resize', resizeCanvas); resizeCanvas();
+function resizeCanvas(){ const rect=canvas.getBoundingClientRect(); const dpr=window.devicePixelRatio||1; canvas.width=Math.max(1, rect.width*dpr); canvas.height=Math.max(1, rect.height*dpr); }
+window.addEventListener('resize', ()=>{ resizeCanvas(); draw(); });
+resizeCanvas();
+
 function inBounds(x,y){ return x>=0&&y>=0&&x<W&&y<H; } function idx(x,y){ return y*W+x; }
 
 let grid=[], ants=[], antsRival=[], scoreMe=0, scoreRival=0, mats={}, inventory={}, selectedPh='m4mp2c';
 let proteinMe=0, proteinRv=0;
 let viewScale=1.0, viewX=0, viewY=0;
-let wx={wind:1.2, windDir:0, humidIdx:3, raining:false, tDir:0};
-
-// time model
-let hasAccelerated=false;
-let simElapsed = 0;          // 累積的模擬秒數（含快轉）
-let baseTaipei = null;       // 遊戲開始的台北時間
+let wx={wind:1.0, windDir:0, humidIdx:3, raining:false, tDir:0};
+let hasAccelerated=false, simElapsed=0, baseTaipei=null;
 
 function taipeiNowDate(){
   const fmt = new Intl.DateTimeFormat('zh-TW',{timeZone:'Asia/Taipei', hour12:false, year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', second:'2-digit'});
@@ -180,14 +199,14 @@ function taipeiNowDate(){
   return new Date(get('year'), get('month')-1, get('day'), get('hour'), get('minute'), get('second'));
 }
 
-let initialFoodCount = 22;
-
+// 平移縮放
 let isPanning=false, panStart={x:0,y:0}, viewStart={x:0,y:0};
-canvas.addEventListener('mousedown', e=>{ if(e.button!==1) { isPanning=true; } panStart={x:e.clientX,y:e.clientY}; viewStart={x:viewX,y:viewY}; });
+canvas.addEventListener('mousedown', e=>{ isPanning=true; panStart={x:e.clientX,y:e.clientY}; viewStart={x:viewX,y:viewY}; });
 window.addEventListener('mouseup', ()=>{ isPanning=false; });
-window.addEventListener('mousemove', e=>{ if(!isPanning) return; const dpr=window.devicePixelRatio||1; const dx=(e.clientX-panStart.x)/dpr/viewScale; const dy=(e.clientY-panStart.y)/dpr/viewScale; viewX = clamp(viewStart.x - dx, 0, WORLD_W-canvas.width/(dpr*viewScale)); viewY = clamp(viewStart.y - dy, 0, WORLD_H-canvas.height/(dpr*viewScale)); });
+window.addEventListener('mousemove', e=>{ if(!isPanning) return; const dpr=window.devicePixelRatio||1; const dx=(e.clientX-panStart.x)/dpr/viewScale; const dy=(e.clientY-panStart.y)/dpr/viewScale; viewX = clamp(viewStart.x - dx, 0, Math.max(0, WORLD_W-canvas.width/(dpr*viewScale))); viewY = clamp(viewStart.y - dy, 0, Math.max(0, WORLD_H-canvas.height/(dpr*viewScale))); });
 canvas.addEventListener('wheel', e=>{ e.preventDefault(); const rect=canvas.getBoundingClientRect(); const dpr=window.devicePixelRatio||1; const mx=(e.clientX-rect.left)/dpr; const my=(e.clientY-rect.top)/dpr; const wxp=mx/viewScale + viewX; const wyp=my/viewScale + viewY; const s = Math.exp(-e.deltaY*0.001); const ns = clamp(viewScale*s, 0.5, 4); viewScale=ns; viewX=clamp(wxp - mx/viewScale,0,Math.max(0,WORLD_W-canvas.width/(dpr*viewScale))); viewY=clamp(wyp - my/viewScale,0,Math.max(0,WORLD_H-canvas.height/(dpr*viewScale))); }, {passive:false});
 
+// 地圖
 function baseRandomMap(){
   grid=new Array(W*H).fill(0).map(()=>({type:T_EMPTY, pherMe:{}, pherRv:{}, food:null}));
   const pools = randInt(2,4);
@@ -200,12 +219,13 @@ function baseRandomMap(){
 }
 function scaleYield(base, size){ const out={}; for(const k in base){ out[k]=Math.max(1, Math.round(base[k]*size)); } return out; }
 function makeFood(kind, size){
-  const spec=FOOD_BASE[kind]||FOOD_BASE.peanut; const frags=[]; const n=Math.max(3, Math.round(3+size));
+  const spec=FOOD_BASE[kind]||FOOD_BASE.peanut; const frags=[]; const n=Math.max(4, Math.round(3+size*1.5));
   for(let i=0;i<n;i++){ const r = (Math.random()*3 + 1.5) * (0.7 + 0.3*size); const ox=(Math.random()*0.6-0.3)*(TILE-6)*size*0.4, oy=(Math.random()*0.6-0.3)*(TILE-6)*size*0.4; frags.push({ox,oy,r}); }
-  return {type:kind, label:spec.label, art:spec.art, size, frags, yield:scaleYield(spec.base,size)};
+  return {type:kind, label:spec.label, art:spec.art, size, frags, yield:scaleYield(spec.base,size), amount:50};
 }
 function scatterFood(list,count){ for(let i=0;i<count;i++){ const x=randInt(2,W-3), y=randInt(2,H-3); if(grid[idx(x,y)].type===T_EMPTY){ const kind=choice(list); const size=randInt(1,5); grid[idx(x,y)].type=T_FOOD; grid[idx(x,y)].food=makeFood(kind,size); } else i--; } }
 
+// 天氣 & 費洛蒙
 function stepWeather(dt){
   const mean=1.2, k=0.9;
   wx.wind = clamp(wx.wind + (mean - wx.wind)*k*dt + (Math.random()-0.5)*0.6*dt, 0, 4.0);
@@ -213,25 +233,25 @@ function stepWeather(dt){
   if(Math.random()<0.02*dt){ wx.humidIdx = clamp(wx.humidIdx + (Math.random()<0.5?-1:1), 0, 9); }
   wx.raining = (wx.humidIdx>=9 && wx.wind>3.2);
 }
-
-function ensureEntry(bucket, key){ return bucket[key]||(bucket[key]={s:0,vx:0,vy:0}); }
-function placePher(gx,gy,key,amt,team,vx,vy){
+function ensureEntry(bucket, key, hl){ return bucket[key]||(bucket[key]={s:0,vx:0,vy:0,hl:hl||300}); }
+function placePher(gx,gy,key,amt,team,vx,vy,hl){
   if(!inBounds(gx,gy)) return; const c=grid[idx(gx,gy)]; if(c.type===T_WATER) return;
-  const bucket = (team==='rv')? c.pherRv : c.pherMe; const e = ensureEntry(bucket, key);
+  const bucket = (team==='rv')? c.pherRv : c.pherMe; const e = ensureEntry(bucket, key, hl||300);
+  const total = e.s + amt; if(total>0){ e.hl = (e.hl*e.s + (hl||300)*amt)/total; }
   e.s += amt; e.vx += (vx||0)*amt; e.vy += (vy||0)*amt;
 }
 function stepPher(dt){
   const windRad = wx.windDir*Math.PI/180; const wxvx=Math.cos(windRad), wxvy=Math.sin(windRad);
   const diffBase = 0.06 * dt; const advBase = 0.05 * dt * (wx.wind/4);
   const rainWash = wx.raining ? Math.exp(-dt*0.6) : 1;
-  const addMe = new Array(W*H), addRv = new Array(W*H);
-  for(let i=0;i<grid.length;i++){ addMe[i]={}; addRv[i]={}; }
+  const addMe = new Array(W*H), addRv = new Array(W*H); for(let i=0;i<grid.length;i++){ addMe[i]={}; addRv[i]={}; }
   function processBucket(src, add){
     for(let y=0;y<H;y++){ for(let x=0;x<W;x++){
       const cell=grid[idx(x,y)]; const p=(src==='me')?cell.pherMe:cell.pherRv;
       for(const key in p){
         const ph=p[key]; let s=ph.s; if(s<=0) continue;
-        const half = 3600; // 固定 1h 半衰期
+        // 0.75：自然 5 分鐘半衰；人工（玩家點放）25 分鐘半衰，已透過 hl 設定帶入
+        const half = Math.max(60, ph.hl||300);
         const lambda=Math.LN2/half;
         s = s*Math.exp(-lambda*dt) * rainWash; if(s<0.01) continue;
         const dirs=[[1,0],[-1,0],[0,1],[0,-1]]; let remain=s;
@@ -243,11 +263,13 @@ function stepPher(dt){
           const flow = Math.min(remain*0.5, diffBase * s * bias);
           if(flow>0){
             remain -= flow;
-            const acc = add[idx(nx,ny)][key] || (add[idx(nx,ny)][key]={s:0,vx:0,vy:0});
+            const acc = add[idx(nx,ny)][key] || (add[idx(nx,ny)][key]={s:0,vx:0,vy:0,hl:half});
+            acc.hl = (acc.hl*acc.s + half*flow)/Math.max(1e-6, (acc.s+flow));
             acc.s += flow; acc.vx += ph.vx*(flow/s) + dxn*flow*0.15 + wxvx*flow*advBase; acc.vy += ph.vy*(flow/s) + dyn*flow*0.15 + wxvy*flow*advBase;
           }
         }
-        const here = add[idx(x,y)][key] || (add[idx(x,y)][key]={s:0,vx:0,vy:0});
+        const here = add[idx(x,y)][key] || (add[idx(x,y)][key]={s:0,vx:0,vy:0,hl:half});
+        here.hl = (here.hl*here.s + half*remain)/Math.max(1e-6, (here.s+remain));
         here.s += remain; const denom=Math.max(1e-6, ph.s); here.vx += ph.vx*(remain/denom); here.vy += ph.vy*(remain/denom);
       }
     }}
@@ -256,6 +278,7 @@ function stepPher(dt){
   for(let i=0;i<grid.length;i++){ grid[i].pherMe=addMe[i]; grid[i].pherRv=addRv[i]; }
 }
 
+// 感測向量 + 就近物件吸引
 function senseVector(gx,gy,team){
   if(!inBounds(gx,gy)) return {vx:0,vy:0,mag:0};
   const bucket = (team==='rv')? grid[idx(gx,gy)].pherRv : grid[idx(gx,gy)].pherMe;
@@ -282,9 +305,10 @@ function nearestObjectVector(gx,gy){
   const len=Math.sqrt(bestD2)||1e-6; return {vx:bestDX/len, vy:bestDY/len, mag:1/len};
 }
 
+// 巢穴/生物
 function findNest(team){ for(let y=0;y<H;y++){ for(let x=0;x<W;x++){ const t=grid[idx(x,y)].type; if(team==='me'&&t===T_NEST_ME) return {x,y}; if(team==='rv'&&t===T_NEST_RIVAL) return {x,y}; } } return {x:1,y:1}; }
 function spawnAnt(team){
-  const n=findNest(team); const px=n.x*TILE+TILE/2, py=n.y*TILE+TILE/2; 
+  const n=findNest(team); const px=n.x*TILE+TILE/2, py=n.y*TILE+TILE/2;
   const sector = Math.floor(Math.random()*8); const baseAng = sector*(PI/4) + (Math.random()-0.5)*(PI/12);
   return {team, x:px, y:py, aim:baseAng, speed:26+Math.random()*10, carry:false, state:'foraging', load:null, hp:3, phCharge:4, phMax:6, dropCooldown:0, since:0, stuckT:0, stuckOriginX:px, stuckOriginY:py, inWater:false, speedFactor:1, age:0};
 }
@@ -293,9 +317,11 @@ function stepAnt(a, dt){
   const gx=Math.floor(a.x/TILE), gy=Math.floor(a.y/TILE);
   const vec = senseVector(gx,gy,a.team);
   const near = nearestObjectVector(gx,gy);
+  a.aim += (Math.random()-0.5)*0.08;
+
   let biasVX=0, biasVY=0;
   if(a.state==='foraging' && a.age<6 && vec.mag<0.1){
-    const nest=findNest(a.team); const vx=(a.x-(nest.x*TILE+TILE/2)), vy=(a.y-(nest.y*TILE+TILE/2)); const len=Math.hypot(vx,vy)||1; biasVX=vx/len; biasVY=vy/len;
+    const n0=findNest(a.team); const vx=(a.x-(n0.x*TILE+TILE/2)), vy=(a.y-(n0.y*TILE+TILE/2)); const len=Math.hypot(vx,vy)||1; biasVX=vx/len; biasVY=vy/len;
   }
   const nest=findNest(a.team);
   let steerVX, steerVY;
@@ -305,13 +331,15 @@ function stepAnt(a, dt){
     steerVX = toVX*1.6 + 0.2*vec.vx;
     steerVY = toVY*1.6 + 0.2*vec.vy;
   } else {
-    steerVX = vec.vx + 0.8*near.vx + 0.6*biasVX;
-    steerVY = vec.vy + 0.8*near.vy + 0.6*biasVY;
+    steerVX = vec.vx + 0.9*near.vx + 0.5*biasVX;
+    steerVY = vec.vy + 0.9*near.vy + 0.5*biasVY;
   }
   const steerMag = Math.hypot(steerVX,steerVY);
   if(steerMag>0.02){ const dir = Math.atan2(steerVY, steerVX); const turn = ((dir - a.aim + PI*3)%(PI*2))-PI; a.aim += clamp(turn, -0.25, 0.25) * 0.65; a.since = 0; }
   else if(a.since > (a.state==='carrying'? 12 : 4)){ a.since = 0; if(a.state!=='carrying') a.aim += (Math.random()-0.5)*PI; }
-  if(a.state==='carrying'){ if(a.dropCooldown<=0 && a.phCharge>0){ const dirToNest=Math.atan2(nest.y*TILE+TILE/2 - a.y, nest.x*TILE+TILE/2 - a.x); placePher(gx,gy,'m4mp2c', 0.7, a.team, Math.cos(dirToNest), Math.sin(dirToNest)); a.phCharge--; a.dropCooldown=0.2; } else a.dropCooldown=Math.max(0,a.dropCooldown-dt); }
+
+  if(a.state==='carrying'){ if(a.dropCooldown<=0 && a.phCharge>0){ const dirToNest=Math.atan2(nest.y*TILE+TILE/2 - a.y, nest.x*TILE+TILE/2 - a.x); placePher(gx,gy,'m4mp2c', 0.7, a.team, Math.cos(dirToNest), Math.sin(dirToNest), 300); a.phCharge--; a.dropCooldown=0.2; } else a.dropCooldown=Math.max(0,a.dropCooldown-dt); }
+
   let sp=a.speed*dt*a.speedFactor; let nx=a.x+Math.cos(a.aim)*sp, ny=a.y+Math.sin(a.aim)*sp; let cgx=Math.floor(nx/TILE), cgy=Math.floor(ny/TILE);
   if(!inBounds(cgx,cgy) || grid[idx(cgx,cgy)].type===T_WATER){ a.aim += (Math.random()-0.5)*PI; } else { a.x=nx; a.y=ny; }
   const dx=a.x - a.stuckOriginX, dy=a.y - a.stuckOriginY; const nearRadius = 0.75*TILE;
@@ -320,26 +348,27 @@ function stepAnt(a, dt){
   const cg=grid[idx(Math.floor(a.x/TILE), Math.floor(a.y/TILE))];
   if(a.inWater){ if(cg.type!==T_WATER){ let nearD2=1e12; for(let y=gy-6;y<=gy+6;y++){ for(let x=gx-6;x<=gx+6;x++){ if(!inBounds(x,y)) continue; if(grid[idx(x,y)].type!==T_WATER) continue; const wxp=x*TILE+TILE/2, wyp=y*TILE+TILE/2; const dd=(wxp-a.x)**2+(wyp-a.y)**2; if(dd<nearD2) nearD2=dd; }} if(Math.sqrt(nearD2) > 2*TILE){ a.inWater=false; a.speedFactor=1.0; a.stuckT=0; a.stuckOriginX=a.x; a.stuckOriginY=a.y; } } }
   const cell=grid[idx(Math.floor(a.x/TILE), Math.floor(a.y/TILE))];
-  if(a.state==='foraging' && cell.type===T_FOOD && cell.food && Array.isArray(cell.food.frags) && cell.food.frags.length){
+  if(a.state==='foraging' && cell.type===T_FOOD && cell.food && Array.isArray(cell.food.frags) && cell.food.amount>0){
     a.state='carrying'; a.carry=true; a.load=clone(cell.food.yield);
-    placePher(gx,gy,'m4mp2c', 0.9, a.team, 0, 0);
-    cell.food.frags.sort((u,v)=>u.r-v.r); cell.food.frags.shift();
-    if(!cell.food.frags.length){ cell.type=T_EMPTY; cell.food=null; placePher(gx,gy,'noentry', 1.2, a.team, 0,0); }
+    cell.food.amount = Math.max(0, cell.food.amount - 2); // 0.75：每摘一次 -2
+    if(cell.food.frags.length){ cell.food.frags.sort((u,v)=>u.r-v.r); cell.food.frags.shift(); } // 直接碎塊化
+    // 路徑費洛蒙（自然半衰 5min）
+    placePher(gx,gy,'m4mp2c', 0.9, a.team, 0, 0, 300);
+    if(cell.food.amount<=0 || cell.food.frags.length===0){ cell.type=T_EMPTY; cell.food=null; placePher(gx,gy,'noentry', 1.2, a.team, 0,0, 300); }
   }
-  const nestGX = nest.x, nestGY = nest.y;
-  if(a.state==='carrying' && Math.floor(a.x/TILE)===nestGX && Math.floor(a.y/TILE)===nestGY){
+  const nst=findNest(a.team);
+  if(a.state==='carrying' && Math.floor(a.x/TILE)===nst.x && Math.floor(a.y/TILE)===nst.y){
     a.state='foraging'; a.carry=false;
-    if(a.team==='me'){ 
-      scoreMe++; 
+    if(a.team==='me'){
+      scoreMe++;
       if(a.load){ for(const k in a.load){ mats[k]=(mats[k]||0)+(a.load[k]||0); } proteinMe += (a.load.N||0); }
       refreshMats(); refreshInv();
-    } else {
+    }else{
       scoreRival++; if(a.load){ proteinRv += (a.load.N||0); }
     }
     a.load=null; a.phCharge=a.phMax;
   }
 }
-
 function autoRecruit(){
   const desiredMe = Math.min(maxAnts, 10 + proteinMe);
   while(ants.length < desiredMe){ ants.push(spawnAnt('me')); }
@@ -347,31 +376,32 @@ function autoRecruit(){
   while(antsRival.length < desiredRv){ antsRival.push(spawnAnt('rv')); }
 }
 
+// ---------- 繪圖 ----------
 function groundColor(t){ if(t===T_WATER) return '#0a1830'; return '#0c101a'; }
-function drawFoodArt(cx,cy,size,art){
-  const s=size*2.2; const o=ctx; o.save(); o.translate(cx,cy);
-  if(art==='fish'){ o.fillStyle='#88b7ff'; o.strokeStyle='#ffffff66'; o.lineWidth=1; o.beginPath(); o.ellipse(0,0,4*s,2*s,0,0,2*PI); o.fill(); o.stroke(); o.beginPath(); o.moveTo(4*s,0); o.lineTo(6*s,1.5*s); o.lineTo(6*s,-1.5*s); o.closePath(); o.fill(); o.stroke(); o.beginPath(); o.ellipse(-1.5*s,-1.2*s,1.2*s,0.6*s,0.6,0,2*PI); o.fill(); o.stroke(); }
-  else if(art==='nut'){ o.fillStyle='#caa86d'; o.strokeStyle='#ffffff55'; o.lineWidth=1; o.beginPath(); o.ellipse(0,0,3.2*s,2.6*s,0,0,2*PI); o.fill(); o.stroke(); o.beginPath(); o.moveTo(-2.2*s,0); o.quadraticCurveTo(0,-1.8*s,2.2*s,0); o.quadraticCurveTo(0,1.8*s,-2.2*s,0); o.stroke(); }
-  else if(art==='cater'){ o.fillStyle='#77e4a0'; o.strokeStyle='#ffffff55'; o.lineWidth=1; for(let i=-3;i<=3;i++){ o.beginPath(); o.ellipse(i*1.6*s,0,1.4*s,1.1*s,0,0,2*PI); o.fill(); o.stroke(); } o.fillStyle='#e8eefcaa'; o.beginPath(); o.arc(3.2*s,-0.6*s,0.5*s,0,2*PI); o.fill(); }
-  else if(art==='resin'){ o.fillStyle='#f6c84a'; o.strokeStyle='#ffffff55'; o.lineWidth=1; o.beginPath(); o.ellipse(0,0,2.8*s,2.2*s,0.3,0,2*PI); o.fill(); o.stroke(); }
-  else if(art==='citrus'){ o.fillStyle='#ffa94d'; o.strokeStyle='#ffffff55'; o.beginPath(); o.ellipse(0,0,3*s,3*s,0,0,2*PI); o.fill(); o.stroke(); o.strokeStyle='#ffffff22'; for(let i=0;i<6;i++){ o.beginPath(); o.moveTo(0,0); const a=i*PI/3; o.lineTo(Math.cos(a)*3*s, Math.sin(a)*3*s); o.stroke(); } }
-  else if(art==='oil'){ o.fillStyle='#c7ffd1'; o.strokeStyle='#ffffff55'; o.beginPath(); o.ellipse(0,0,3*s,2.2*s,0.4,0,2*PI); o.fill(); o.stroke(); }
-  else if(art==='berry'){ o.fillStyle='#ff7aa8'; o.strokeStyle='#ffffff55'; o.beginPath(); o.ellipse(0,0,2.6*s,2.6*s,0,0,2*PI); o.fill(); o.stroke(); }
+function drawFoodArt(o, size, art){
+  const s=size*2.2;
+  if(art==='fish'){ o.fillStyle='#88b7ff'; o.strokeStyle='#ffffff66'; o.lineWidth=1; o.beginPath(); o.ellipse(0,0,4*s,2*s,0,0,TAU); o.fill(); o.stroke(); o.beginPath(); o.moveTo(4*s,0); o.lineTo(6*s,1.5*s); o.lineTo(6*s,-1.5*s); o.closePath(); o.fill(); o.stroke(); }
+  else if(art==='nut'){ o.fillStyle='#caa86d'; o.strokeStyle='#ffffff55'; o.lineWidth=1; o.beginPath(); o.ellipse(0,0,3.2*s,2.6*s,0,0,TAU); o.fill(); o.stroke(); }
+  else if(art==='cater'){ o.fillStyle='#77e4a0'; o.strokeStyle='#ffffff55'; o.lineWidth=1; for(let i=-3;i<=3;i++){ o.beginPath(); o.ellipse(i*1.6*s,0,1.4*s,1.1*s,0,0,TAU); o.fill(); o.stroke(); } }
+  else if(art==='resin'){ o.fillStyle='#f6c84a'; o.strokeStyle='#ffffff55'; o.lineWidth=1; o.beginPath(); o.ellipse(0,0,2.8*s,2.2*s,0.3,0,TAU); o.fill(); o.stroke(); }
+  else if(art==='citrus'){ o.fillStyle='#ffa94d'; o.strokeStyle='#ffffff55'; o.beginPath(); o.ellipse(0,0,3*s,3*s,0,0,TAU); o.fill(); o.stroke(); }
+  else if(art==='oil'){ o.fillStyle='#c7ffd1'; o.strokeStyle='#ffffff55'; o.beginPath(); o.ellipse(0,0,3*s,2.2*s,0.4,0,TAU); o.fill(); o.stroke(); }
+  else if(art==='berry'){ o.fillStyle='#ff7aa8'; o.strokeStyle='#ffffff55'; o.beginPath(); o.ellipse(0,0,2.6*s,2.6*s,0,0,TAU); o.fill(); o.stroke(); }
   else if(art==='wax'){ o.fillStyle='#ffd36e'; o.strokeStyle='#ffffff55'; o.beginPath(); o.rect(-2.6*s,-2.2*s,5.2*s,4.4*s); o.fill(); o.stroke(); }
-  else if(art==='chitin'){ o.fillStyle='#b9d4ff'; o.strokeStyle='#ffffff55'; o.beginPath(); o.ellipse(0,0,3*s,2.2*s,0.2,0,2*PI); o.fill(); o.stroke(); }
-  else { o.fillStyle='#ddd'; o.beginPath(); o.ellipse(0,0,2.6*s,2.2*s,0,0,2*PI); o.fill(); }
-  o.restore();
+  else if(art==='chitin'){ o.fillStyle='#b9d4ff'; o.strokeStyle='#ffffff55'; o.beginPath(); o.ellipse(0,0,3*s,2.2*s,0.2,0,TAU); o.fill(); o.stroke(); }
+  else { o.fillStyle='#ddd'; o.beginPath(); o.ellipse(0,0,2.6*s,2.2*s,0,0,TAU); o.fill(); }
 }
 function drawFood(x,y,food){
   const cx=x*TILE+TILE/2, cy=y*TILE+TILE/2;
   for(const f of food.frags){
-    ctx.save(); ctx.translate(cx+f.ox, cy+f.oy); ctx.globalAlpha=0.96;
-    drawFoodArt(0,0, Math.max(0.6, f.r/4), food.art);
+    ctx.save(); ctx.translate(cx+f.ox, cy+f.oy); ctx.globalAlpha=0.97;
+    drawFoodArt(ctx, Math.max(0.6, f.r/4), food.art);
     ctx.restore();
   }
 }
 function draw(){
-  const dpr=window.devicePixelRatio||1; ctx.setTransform(1,0,0,1,0,0); ctx.clearRect(0,0,canvas.width,canvas.height); ctx.scale(dpr,dpr); ctx.save(); ctx.scale(viewScale,viewScale); ctx.translate(-viewX,-viewY);
+  const dpr=window.devicePixelRatio||1; ctx.setTransform(1,0,0,1,0,0); ctx.clearRect(0,0,canvas.width,canvas.height); ctx.scale(dpr,dpr);
+  ctx.save(); ctx.scale(viewScale,viewScale); ctx.translate(-viewX,-viewY);
   ctx.fillStyle=groundColor(0); ctx.fillRect(0,0,WORLD_W,WORLD_H);
   for(let y=0;y<H;y++){ for(let x=0;x<W;x++){
     const c=grid[idx(x,y)]; if(c.type===T_WATER){ ctx.fillStyle=groundColor(T_WATER); ctx.fillRect(x*TILE,y*TILE,TILE,TILE); }
@@ -380,17 +410,66 @@ function draw(){
     if(c.type===T_FOOD) drawFood(x,y,c.food);
   } }
   for(let y=0;y<H;y++){ for(let x=0;x<W;x++){ const t=grid[idx(x,y)].type; if(t===T_NEST_ME){ ctx.fillStyle='#77e4a0'; rr(ctx,x*TILE+2,y*TILE+2,TILE-4,TILE-4,4); } else if(t===T_NEST_RIVAL){ ctx.fillStyle='#cfd3da66'; rr(ctx,x*TILE+2,y*TILE+2,TILE-4,TILE-4,4);} } }
-  ctx.fillStyle='#9ffcac'; for(const a of ants){ ctx.beginPath(); ctx.arc(a.x,a.y,2,0,2*PI); ctx.fill(); }
-  ctx.fillStyle='#cfd3da88'; for(const a of antsRival){ ctx.beginPath(); ctx.arc(a.x,a.y,2,0,2*PI); ctx.fill(); }
+  // ants
+  ctx.fillStyle='#9ffcac'; for(const a of ants){ ctx.beginPath(); ctx.arc(a.x,a.y,2,0,TAU); ctx.fill(); }
+  ctx.fillStyle='#cfd3da88'; for(const a of antsRival){ ctx.beginPath(); ctx.arc(a.x,a.y,2,0,TAU); ctx.fill(); }
   ctx.restore();
 }
 
+// ---------- UI/儀表 ----------
+const gWind = document.getElementById('gWind').getContext('2d');
+const gHum  = document.getElementById('gHum').getContext('2d');
+const gTime = document.getElementById('gTime').getContext('2d');
+const gZoom = document.getElementById('gZoom').getContext('2d');
+const speedSlider = document.getElementById('speedSlider');
+
+function drawWind(){
+  const o=gWind, w=60,h=60; o.setTransform(1,0,0,1,0,0); o.clearRect(0,0,w,h); o.translate(w/2,h/2);
+  o.strokeStyle="#2b3246"; o.lineWidth=1.2; o.beginPath(); o.arc(0,0,26,0,TAU); o.stroke();
+  o.strokeStyle="#3a415a"; for(let i=0;i<12;i++){ const a=i*PI/6; o.beginPath(); o.moveTo(Math.cos(a)*22, Math.sin(a)*22); o.lineTo(Math.cos(a)*26, Math.sin(a)*26); o.stroke(); }
+  const angIn = (wx.windDir + 180) * PI/180;
+  o.fillStyle="#9aa4b2"; o.beginPath(); o.arc(Math.cos(angIn)*24, Math.sin(angIn)*24, 2.2, 0, TAU); o.fill();
+  o.fillStyle="#cbd3e3"; o.font="bold 12px ui-sans-serif"; o.textAlign="center"; o.textBaseline="middle"; o.fillText(wx.wind.toFixed(1), 0, 0);
+}
+function drawHum(){
+  const o=gHum, w=60,h=60; o.setTransform(1,0,0,1,0,0); o.clearRect(0,0,w,h); o.translate(w/2,h/2);
+  const start=PI*7/6, end=PI*11/6;
+  o.strokeStyle="#2b3246"; o.lineWidth=8; o.globalAlpha=0.35; o.beginPath(); o.arc(0,0,22,start,end); o.stroke();
+  const t = clamp(wx.humidIdx/9, 0, 1); o.globalAlpha=0.75; o.strokeStyle="#6e7890"; o.beginPath(); o.arc(0,0,22,start, start + (end-start)*t); o.stroke(); o.globalAlpha=1;
+  const perc=Math.round(t*100); o.fillStyle="#cbd3e3"; o.font="bold 12px ui-sans-serif"; o.textAlign="center"; o.textBaseline="middle"; o.fillText(perc+'%', 0, 0);
+}
+function taipeiNowDate2(){ return taipeiNowDate(); }
+function drawTime(){
+  if(baseTaipei===null) baseTaipei=taipeiNowDate2();
+  const o=gTime, w=60,h=60; o.setTransform(1,0,0,1,0,0); o.clearRect(0,0,w,h); o.translate(w/2,h/2);
+  o.strokeStyle="#2b3246"; o.lineWidth=1.2; o.beginPath(); o.arc(0,0,26,0,TAU); o.stroke();
+  if(timeScale>1) hasAccelerated=true;
+  let base;
+  if(hasAccelerated){ base = new Date(baseTaipei.getTime() + simElapsed*1000); } else { base = taipeiNowDate2(); }
+  const s=base.getSeconds(), m=base.getMinutes(), h0=base.getHours();
+  const angSec = (s/60)*TAU, angMin=((m + s/60)/60)*TAU, angHour=(((h0%12)+m/60)/12)*TAU;
+  o.strokeStyle="#77e4a0"; o.lineWidth=3; o.beginPath(); o.moveTo(0,0); o.lineTo(Math.cos(angHour)*14, Math.sin(angHour)*14); o.stroke();
+  o.strokeStyle="#ffd36e"; o.lineWidth=2; o.beginPath(); o.moveTo(0,0); o.lineTo(Math.cos(angMin)*20, Math.sin(angMin)*20); o.stroke();
+  o.strokeStyle="#e8eefc"; o.lineWidth=1; o.beginPath(); o.moveTo(0,0); o.lineTo(Math.cos(angSec)*22, Math.sin(angSec)*22); o.stroke();
+  gTime.canvas.onclick = ()=>{ timeScale=1; speedSlider.value='1'; viewScale=1; viewX=0; viewY=0; hasAccelerated=false; simElapsed=0; baseTaipei=taipeiNowDate2(); };
+  const total = Math.floor(simElapsed); const dd = Math.floor(total/86400); const hh = Math.floor((total%86400)/3600); const mm = Math.floor((total%3600)/60); const ss = total%60;
+  document.getElementById('accumTime').textContent = String(dd).padStart(2,'0')+':'+String(hh).padStart(2,'0')+':'+String(mm).padStart(2,'0')+':'+String(ss).padStart(2,'0');
+}
+function drawZoom(){
+  const o=gZoom, w=60,h=60; o.setTransform(1,0,0,1,0,0); o.clearRect(0,0,w,h); o.translate(w/2,h/2);
+  o.strokeStyle="#2b3246"; o.lineWidth=1.2; o.beginPath(); o.arc(0,0,26,0,TAU); o.stroke();
+  const k = clamp((viewScale-0.5)/(4-0.5), 0, 1); o.fillStyle="#9aa4b2"; o.globalAlpha=0.25+0.5*k; o.beginPath(); o.arc(0,0, 26*k + 4, 0, TAU); o.fill(); o.globalAlpha=1;
+  o.fillStyle="#cbd3e3"; o.font="bold 12px ui-sans-serif"; o.textAlign="center"; o.textBaseline="middle"; o.fillText("1:1",0,0);
+  gZoom.canvas.onclick = ()=>{ viewScale=1; viewX=0; viewY=0; };
+}
+
+// UI 資料
 function refreshMats(){
   const row=document.getElementById('matRow'); row.innerHTML='';
   const sel=document.getElementById('craftSel').value;
-  const need = (RECIPES[sel] && RECIPES[sel].cost) || {};
+  const need=(RECIPES[sel] && RECIPES[sel].cost)||{};
   for(const k of MATERIALS){
-    const d=document.createElement('div'); d.className='mini mat'+(need[k]? ' hi':'');
+    const d=document.createElement('div'); d.className='mini matItem'+(need[k]?' hi':'');
     d.textContent=k+': '+(mats[k]||0)+' '+(need[k]?`(需${need[k]})`:'');
     row.appendChild(d);
   }
@@ -398,8 +477,9 @@ function refreshMats(){
 function refreshInv(){
   const list=document.getElementById('invList'); list.innerHTML='';
   for(const id of Object.keys(RECIPES)){
-    const btn=document.createElement('button'); btn.textContent=RECIPES[id].label;
-    btn.onclick=function(){ selectedPh=id; document.getElementById('craftSel').value=id; refreshMats(); };
+    const btn=document.createElement('button'); btn.textContent=RECIPES[id].label; btn.className='phBtn';
+    btn.onclick=function(){ selectedPh=id; document.getElementById('craftSel').value=id; refreshMats(); refreshInv(); };
+    if(selectedPh===id) btn.classList.add('selected');
     list.appendChild(btn);
     const b=document.createElement('span'); b.className='mini'; b.textContent=(inventory[id]||0); list.appendChild(b);
   }
@@ -407,136 +487,96 @@ function refreshInv(){
 function buildCraftSel(){
   const sel=document.getElementById('craftSel'); sel.innerHTML='';
   for(const id of Object.keys(RECIPES)){ const o=document.createElement('option'); o.value=id; o.textContent=RECIPES[id].label; sel.appendChild(o); }
-  sel.value=selectedPh;
-  sel.onchange = ()=>{ selectedPh = sel.value; refreshMats(); };
+  sel.value=selectedPh; sel.onchange=()=>{ selectedPh=sel.value; refreshMats(); refreshInv(); };
 }
-
 document.getElementById('btnCraft').onclick=function(){
-  const id=document.getElementById('craftSel').value;
-  const need=RECIPES[id].cost;
+  const id=document.getElementById('craftSel').value; const need=RECIPES[id].cost;
   for(const k in need){ if((mats[k]||0)<need[k]) return; }
   for(const k in need) mats[k]-=need[k];
-  inventory[id]=(inventory[id]||0)+1;
-  refreshInv(); refreshMats();
+  inventory[id]=(inventory[id]||0)+1; refreshInv(); refreshMats();
 };
-
-function countFoodFrags(){
-  let frag=0, cells=0; for(let i=0;i<grid.length;i++){ const c=grid[i]; if(c.type===T_FOOD && c.food && Array.isArray(c.food.frags)){ frag+=c.food.frags.length; cells++; } }
-  return {frag, cells};
-}
+function countFoodFrags(){ let frag=0,cells=0; for(let i=0;i<grid.length;i++){ const c=grid[i]; if(c.type===T_FOOD && c.food && Array.isArray(c.food.frags)){ frag+=c.food.frags.length; cells++; } } return {frag,cells}; }
 function updateOverview(){
   document.getElementById('meAnts').textContent = ants.length;
   document.getElementById('rvAnts').textContent = antsRival.length;
   document.getElementById('meScore').textContent = scoreMe;
   document.getElementById('rvScore').textContent = scoreRival;
-  const {frag, cells} = countFoodFrags();
-  document.getElementById('fragCount').textContent = String(frag);
-  document.getElementById('proteinMe').textContent = String(proteinMe);
-  document.getElementById('proteinRv').textContent = String(proteinRv);
-  const btn = document.getElementById('btnMoreFood'); btn.style.display = (cells===0)? 'inline-block':'none';
+  const {frag,cells}=countFoodFrags();
+  document.getElementById('fragCount').textContent=String(frag);
+  document.getElementById('proteinMe').textContent=String(proteinMe);
+  document.getElementById('proteinRv').textContent=String(proteinRv);
+  const btn=document.getElementById('btnMoreFood'); btn.style.display=(cells===0)?'inline-block':'none';
 }
 
-/*** dashboards (60×60) ***/
-const cWx=document.getElementById('wxClock').getContext('2d');
-const cHum=document.getElementById('humGauge').getContext('2d');
-const cSpd=document.getElementById('spdClock').getContext('2d');
-const cZoom=document.getElementById('zoomGauge').getContext('2d');
-const speedSlider=document.getElementById('speedSlider');
-let angSec=0, angMin=0, angHour=0;
-function drawWxClock(){
-  const w=60,h=60,o=cWx; o.setTransform(1,0,0,1,0,0); o.clearRect(0,0,w,h); o.translate(w/2,h/2);
-  o.strokeStyle="#2b3246"; o.lineWidth=1.5; o.beginPath(); o.arc(0,0,26,0,2*PI); o.stroke();
-  o.strokeStyle="#3a415a"; for(let i=0;i<12;i++){ const a=i*PI/6; o.beginPath(); o.moveTo(Math.cos(a)*22, Math.sin(a)*22); o.lineTo(Math.cos(a)*26, Math.sin(a)*26); o.stroke(); }
-  const angIn = (wx.windDir + 180) * PI/180;
-  o.fillStyle="#9aa4b2"; o.beginPath(); o.arc(Math.cos(angIn)*24, Math.sin(angIn)*24, 2.2, 0, 2*PI); o.fill();
-  o.fillStyle="#cbd3e3"; o.font="bold 12px ui-sans-serif"; o.textAlign="center"; o.textBaseline="middle"; o.fillText(wx.wind.toFixed(1), 0, 0);
-}
-function drawHum(){
-  const w=60,h=60,o=cHum; o.setTransform(1,0,0,1,0,0); o.clearRect(0,0,w,h); o.translate(w/2,h/2);
-  const start=PI*7/6, end=PI*11/6;
-  o.strokeStyle="#2b3246"; o.lineWidth=8; o.globalAlpha=0.35; o.beginPath(); o.arc(0,0,22,start,end); o.stroke();
-  const t=Math.max(0,Math.min(1, (wx.humidIdx/9))); o.globalAlpha=0.75; o.strokeStyle="#6e7890"; o.beginPath(); o.arc(0,0,22,start, start + (end-start)*t); o.stroke(); o.globalAlpha=1;
-  const perc = Math.round(t*100);
-  o.fillStyle="#cbd3e3"; o.font="bold 12px ui-sans-serif"; o.textAlign="center"; o.textBaseline="middle"; o.fillText(perc+'%', 0, 0);
-}
-function drawSpd(){
-  const w=60,h=60,o=cSpd; o.setTransform(1,0,0,1,0,0); o.clearRect(0,0,w,h); o.translate(w/2,h/2);
-  o.strokeStyle="#2b3246"; o.lineWidth=1.5; o.beginPath(); o.arc(0,0,26,0,2*PI); o.stroke();
-  if(timeScale>1) hasAccelerated=true;
-  let base;
-  if(hasAccelerated){ base = new Date(baseTaipei.getTime() + simElapsed*1000); }
-  else { base = taipeiNowDate(); }
-  angSec = (base.getSeconds()/60)*2*PI;
-  angMin = ((base.getMinutes() + base.getSeconds()/60)/60)*2*PI;
-  angHour = (((base.getHours()%12) + base.getMinutes()/60)/12)*2*PI;
-  o.strokeStyle="#77e4a0"; o.lineWidth=3; o.beginPath(); o.moveTo(0,0); o.lineTo(Math.cos(angHour)*14, Math.sin(angHour)*14); o.stroke();
-  o.strokeStyle="#ffd36e"; o.lineWidth=2; o.beginPath(); o.moveTo(0,0); o.lineTo(Math.cos(angMin)*20, Math.sin(angMin)*20); o.stroke();
-  o.strokeStyle="#e8eefc"; o.lineWidth=1; o.beginPath(); o.moveTo(0,0); o.lineTo(Math.cos(angSec)*22, Math.sin(angSec)*22); o.stroke();
-  cSpd.canvas.onclick = ()=>{ timeScale=1; speedSlider.value='1'; viewScale=1; viewX=0; viewY=0; hasAccelerated=false; simElapsed=0; baseTaipei=taipeiNowDate(); };
-  const total = Math.floor(simElapsed);
-  const dd = Math.floor(total/86400); const hh = Math.floor((total%86400)/3600); const mm = Math.floor((total%3600)/60); const ss = total%60;
-  document.getElementById('accumTime').textContent = String(dd).padStart(2,'0')+':'+String(hh).padStart(2,'0')+':'+String(mm).padStart(2,'0')+':'+String(ss).padStart(2,'0');
-}
-function drawZoom(){
-  const w=60,h=60,o=cZoom; o.setTransform(1,0,0,1,0,0); o.clearRect(0,0,w,h); o.translate(w/2,h/2);
-  o.strokeStyle="#2b3246"; o.lineWidth=1.5; o.beginPath(); o.arc(0,0,26,0,2*PI); o.stroke();
-  const k = clamp((viewScale-0.5)/(4-0.5), 0, 1); o.fillStyle="#9aa4b2"; o.globalAlpha=0.25+0.5*k; o.beginPath(); o.arc(0,0, 26*k + 4, 0, 2*PI); o.fill(); o.globalAlpha=1; 
-  o.fillStyle="#cbd3e3"; o.font="bold 12px ui-sans-serif"; o.textAlign="center"; o.textBaseline="middle"; o.fillText("1:1",0,0);
-  cZoom.canvas.onclick = ()=>{ viewScale=1; viewX=0; viewY=0; };
-}
-speedSlider.addEventListener('input', e=>{ timeScale=Number(e.target.value)||1; });
-
-document.getElementById('btnRestart').onclick=function(){ resetGame(); };
-document.getElementById('levelSel').onchange=function(e){ level=parseInt(e.target.value,10); resetGame(); };
-document.getElementById('btnMoreFood').onclick=function(){
-  scatterFood(['fish','peanut','cater','resin','citrus','oil','berry','wax','chitin'], Math.max(1, Math.floor(initialFoodCount/2)));
-};
-
-canvas.addEventListener('mousedown', function(e){
-  if(e.button!==0) return;
-  const rect=canvas.getBoundingClientRect(); const dpr=window.devicePixelRatio||1;
-  const wxp = (e.clientX-rect.left)/dpr/viewScale + viewX; const wyp = (e.clientY-rect.top )/dpr/viewScale + viewY;
-  const gx=Math.floor(wxp/TILE), gy=Math.floor(wyp/TILE);
-  if(!inBounds(gx,gy)) return;
-  const dir = Math.atan2(wyp - (gy*TILE+TILE/2), wxp - (gx*TILE+TILE/2));
-  placePher(gx,gy, selectedPh, 1.0, 'me', Math.cos(dir), Math.sin(dir));
-});
-
+// 互動
+document.getElementById('btnRestart').onclick=()=>resetGame();
+document.getElementById('levelSel').onchange=(e)=>{ level=parseInt(e.target.value,10); resetGame(); };
+document.getElementById('btnMoreFood').onclick=()=>scatterFood(Object.keys(FOOD_BASE), Math.max(1, Math.floor(initialFoodCount/2)));
+document.getElementById('btnRef').onclick=openRef; document.getElementById('refClose').onclick=()=>document.getElementById('refModal').style.display='none';
 function openRef(){
   document.getElementById('refModal').style.display='grid';
   const phTB=document.querySelector('#refPhTable tbody'); phTB.innerHTML='';
-  for(const r of REF){ const tr=document.createElement('tr');
-    tr.innerHTML = `<td>${r.label}</td><td><code class="k">${r.id}</code></td><td>${r.cls}</td><td>${r.mw}</td><td><span style="display:inline-block;width:12px;height:12px;background:${r.color};border:1px solid #2b3246;border-radius:3px"></span></td><td>${r.note||''}</td>`; phTB.appendChild(tr); }
+  for(const r of REF){ const tr=document.createElement('tr'); tr.innerHTML = `<td>${r.label}</td><td><code class="k">${r.id}</code></td><td>${r.cls}</td><td>${r.mw}</td><td><span style="display:inline-block;width:12px;height:12px;background:${r.color};border:1px solid #2b3246;border-radius:3px"></span></td><td>${r.note||''}</td>`; phTB.appendChild(tr); }
   const rcTB=document.querySelector('#refRecipeTable tbody'); rcTB.innerHTML='';
   for(const id in RECIPES){ const r=RECIPES[id]; const parts=[]; for(const k in r.cost){ parts.push(`${k}×${r.cost[k]}`); } const tr=document.createElement('tr'); tr.innerHTML = `<td>${r.label}</td><td>${parts.join('、')}</td>`; rcTB.appendChild(tr); }
   const fdTB=document.querySelector('#refFoodTable tbody'); fdTB.innerHTML='';
   for(const key in FOOD_BASE){ const f=FOOD_BASE[key]; const parts=[]; for(const k in f.base){ parts.push(`${k}×${f.base[k]}`); } const tr=document.createElement('tr'); tr.innerHTML = `<td>${f.label}</td><td>${f.art}</td><td>${parts.join('、')}</td>`; fdTB.appendChild(tr); }
 }
-document.getElementById('btnRef').onclick=openRef;
-document.getElementById('refClose').onclick=function(){ document.getElementById('refModal').style.display='none'; };
 
+// 點擊放置「人工合成」費洛蒙（半衰期 25 分鐘）
+canvas.addEventListener('mousedown', function(e){
+  if(e.button!==0) return;
+  const rect=canvas.getBoundingClientRect(); const dpr=window.devicePixelRatio||1;
+  const wxp=(e.clientX-rect.left)/dpr/viewScale + viewX; const wyp=(e.clientY-rect.top)/dpr/viewScale + viewY;
+  const gx=Math.floor(wxp/TILE), gy=Math.floor(wyp/TILE); if(!inBounds(gx,gy)) return;
+  if((inventory[selectedPh]||0) <= 0) return;
+  // 25 分鐘半衰（1500 秒）
+  const dir = Math.atan2(wyp - (gy*TILE+TILE/2), wxp - (gx*TILE+TILE/2));
+  placePher(gx,gy, selectedPh, 1.0, 'me', Math.cos(dir), Math.sin(dir), 1500);
+  inventory[selectedPh]--; refreshInv(); // 0.75：施放一次 -1
+});
+
+// ---------- 遊戲啟動 ----------
+let initialFoodCount = 28;
 function resetGame(){
   ants=[]; antsRival=[]; mats={}; inventory={}; scoreMe=0; scoreRival=0; proteinMe=0; proteinRv=0;
   hasAccelerated=false; simElapsed=0; baseTaipei=taipeiNowDate();
-  baseRandomMap(); initialFoodCount = 22; scatterFood(['fish','peanut','cater','resin','citrus','oil','berry','wax','chitin'], initialFoodCount);
+  baseRandomMap(); scatterFood(Object.keys(FOOD_BASE), initialFoodCount);
   for(let i=0;i<10;i++) ants.push(spawnAnt('me'));
   for(let i=0;i<10;i++) antsRival.push(spawnAnt('rv'));
   buildCraftSel(); refreshMats(); refreshInv(); resizeCanvas(); updateOverview();
+  drawWind(); drawHum(); drawTime(); drawZoom();
+  draw();
 }
+
+// 迴圈
 let _last=performance.now();
-function loop(now){ const dt=(now-_last)/1000; _last=now;
-  // 累積時間：永遠累加 dt*timeScale（未加速時即「真實經過時間」的近似值）
+function loop(now){
+  const dt=(now-_last)/1000; _last=now;
   simElapsed += dt*timeScale;
-  const sdt = dt*timeScale;
+  const sdt=dt*timeScale;
   try{
     stepWeather(sdt); stepPher(sdt);
     for(const a of ants) stepAnt(a,sdt); for(const a of antsRival) stepAnt(a,sdt);
     autoRecruit();
-    draw(); updateOverview(); drawWxClock(); drawHum(); drawSpd(); drawZoom();
-  }catch(err){ reportError(err); }
+    draw(); updateOverview(); drawWind(); drawHum(); drawTime(); drawZoom();
+  }catch(err){
+    const box=document.getElementById('errorOverlay'); const pre=document.getElementById('errorText'); if(box){ box.style.display='block'; pre.textContent=String(err && err.stack || err); }
+    console.error(err);
+  }
   requestAnimationFrame(loop);
 }
-(function(){ try{ resetGame(); requestAnimationFrame(loop); } catch(err){ reportError(err); } })();
+const speedSliderEl=document.getElementById('speedSlider');
+speedSliderEl.addEventListener('input', e=>{ timeScale=Number(e.target.value)||1; });
+
+resetGame();
+requestAnimationFrame(loop);
+
+}catch(err){
+  const box=document.getElementById('errorOverlay'); const pre=document.getElementById('errorText'); if(box){ box.style.display='block'; pre.textContent=String(err && err.stack || err); }
+  console.error(err);
+}
+})(); // IIFE
 </script>
 </body>
 </html>
