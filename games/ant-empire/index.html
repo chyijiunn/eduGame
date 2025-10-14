@@ -1,616 +1,525 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>模式螞蟻 v0.7.6（0.741 版面 + 0.75/0.76 規則）</title>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>模式螞蟻 v0.89c</title>
 <style>
-  :root { --bg:#0f1115; --panel:#141923; --ink:#e8eefc; --muted:#9aa4b2; --accent:#77e4a0; --gray:#cfd3da; }
-  *{box-sizing:border-box}
-  html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);font-family: ui-sans-serif, system-ui, -apple-system, "Noto Sans TC", Segoe UI, Roboto, Helvetica, Arial;}
-  #wrap{display:grid;grid-template-columns:1fr 320px;gap:8px;height:100vh;padding:8px}
-  #stage{position:relative;overflow:hidden;border-radius:12px}
-  #canvas{position:absolute;inset:0;background:#0b0d12;display:block;width:100%;height:100%;image-rendering:pixelated;cursor:crosshair}
-  #panel{display:grid;gap:10px;overflow:auto}
-
-  /* top bar: lv / reset / ref on one row equal width */
-  #topbar{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;align-items:stretch}
-  .tItem{display:flex;gap:6px;align-items:center;justify-content:center;background:#1a2030;border:1px solid #273049;border-radius:10px;padding:6px}
-  .tItem b{margin-right:4px}
-  button,select,input[type=range]{background:#1e2433;color:var(--ink);border:1px solid #273049;border-radius:10px;padding:6px 10px;cursor:pointer}
-  button:hover{filter:brightness(1.08)}
-  input[type=range]{-webkit-appearance:none;width:100%;height:8px;padding:0}
-  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--accent)}
-  .mini{font-size:12px;color:var(--muted)}
-  .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-  .col{display:flex;flex-direction:column;gap:6px}
-
-  /* four gauges in one row */
-  #gauges{display:grid;grid-template-columns:repeat(4,1fr);gap:0}
-  .gCol{display:flex;flex-direction:column;align-items:center;gap:4px}
-  .gLabel{font-size:12px;color:#cbd3e3}
-  canvas.g{background:#0c1020;border-radius:10px}
-
-  #speedRow{display:flex;align-items:center;gap:8px;justify-content:center}
-  table{border-collapse:collapse;font-size:13px}
-  th,td{border-bottom:1px solid #2a3145;padding:4px 6px;text-align:left}
-
-  .matItem{padding:2px 6px;background:#101525;border:2px solid #253150;border-radius:8px}
-  .matItem.hi{font-weight:900;color:#fff}
-  .phBtn.selected{outline:2px solid #fff;font-weight:800}
-
-  /* ref modal - font larger */
-  #refModal{position:fixed;inset:0;display:none;place-items:center;background:#0008;z-index:9998}
-  #refCard{width:min(1040px,94vw);height:min(86vh,820px);background:#111522;border-radius:12px;overflow:auto;padding:16px}
-  #refClose{position:sticky;top:0;margin-left:auto}
-  #refCard h2{font-size:1.75rem} /* +2 級 */
-  #refCard h3{font-size:1.25rem}
-  #refCard table{font-size:1rem}
-  code.k{background:#0c1020;border:1px solid #2a3145;border-radius:6px;padding:0 6px}
-
-  /* error overlay */
-  #errorOverlay{position:fixed;right:12px;bottom:12px;display:none;background:#1d2233;color:#ffd1d1;border:1px solid #b44;border-radius:12px;padding:12px;box-shadow:0 6px 30px #0008;z-index:9999;max-width:46vw}
-  #errorOverlay pre{white-space:pre-wrap;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px}
-
-  @media (orientation:portrait){
-    #wrap{grid-template-columns:1fr;grid-template-rows:1fr auto}
-    #panel{order:2}
-    #stage{order:1;height:60vh}
-  }
+:root{--bg:#0f1115;--ink:#e8eefc;--muted:#9aa4b2;--panel:#111523;--line:#283048;--accent:#77e4a0}
+*{box-sizing:border-box}html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);
+font-family:ui-sans-serif,system-ui,-apple-system,"Noto Sans TC",Segoe UI,Roboto,Helvetica,Arial}
+#wrap{display:grid;grid-template-columns:minmax(0,1fr) 280px;gap:8px;height:100vh;padding:8px}
+#stage{position:relative;overflow:hidden;border-radius:12px;background:#0b0d12}
+#cv{position:absolute;inset:0;display:block;width:100%;height:100%;background:#0b0d12;cursor:grab}
+#svg{position:absolute;inset:0;pointer-events:none}
+#panel{display:grid;gap:8px;overflow:auto}
+.sec{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:space-between}
+button,select,input[type=range]{background:#1b2132;color:var(--ink);border:1px solid var(--line);
+border-radius:10px;padding:6px 10px;cursor:pointer;font-size:16px}
+.mini{font-size:13px;color:var(--muted)}
+.gwrap{display:flex;gap:6px;align-items:center;justify-content:space-between}
+.gcol{display:flex;flex-direction:column;align-items:center;gap:2px}
+.gcol b{font-size:14px}
+canvas.g{width:60px;height:60px;background:#0c1020;border-radius:10px}
+/* 我方顏色 */
+.antMe .antBody{fill:#9ffcac;stroke:#0006;stroke-width:.6}
+.antMe .leg{stroke:#91d9b1;stroke-width:.7;stroke-linecap:round;transform-box:fill-box;transform-origin:center}
+/* 敵方灰白 */
+.antEn .antBody{fill:#d7dbe3;stroke:#0006;stroke-width:.6}
+.antEn .leg{stroke:#cfd3da;stroke-width:.7;stroke-linecap:round;transform-box:fill-box;transform-origin:center}
+@keyframes legA{0%{transform:rotate(18deg)}50%{transform:rotate(-18deg)}100%{transform:rotate(18deg)}}
+@keyframes legB{0%{transform:rotate(-18deg)}50%{transform:rotate(18deg)}100%{transform:rotate(-18deg)}}
+#err{position:fixed;right:12px;bottom:12px;display:none;background:#1d2233;color:#ffd1d1;border:1px solid #b44;border-radius:12px;padding:10px;box-shadow:0 6px 30px #0008;z-index:9999;max-width:55vw}
+#err pre{white-space:pre-wrap;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;margin:6px 0 0}
+#refModal{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:9998}
+#refCard{width:min(880px,90vw);max-height:85vh;overflow:auto;background:#0e1322;border:1px solid #2a334a;border-radius:12px;padding:16px}
+#refCard h2{margin:6px 0 10px} #refCard table{width:100%;border-collapse:collapse} #refCard td,#refCard th{border:1px solid #2a334a;padding:6px}
 </style>
 </head>
 <body>
 <div id="wrap">
-  <div id="stage"><canvas id="canvas"></canvas></div>
+  <div id="stage">
+    <canvas id="cv"></canvas>
+    <svg id="svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid slice">
+      <defs>
+        <!-- 我方螞蟻 -->
+        <g id="antSpriteMe" class="antMe">
+          <ellipse class="antBody" cx="0" cy="0" rx="3.4" ry="2.5"></ellipse>
+          <ellipse class="antBody" cx="-5.6" cy="0" rx="2.4" ry="1.8"></ellipse>
+          <ellipse class="antBody" cx="-9.3" cy="0" rx="1.7" ry="1.3"></ellipse>
+          <g class="leg" style="animation:legA var(--legdur,0.6s) linear infinite">
+            <polyline points="-5.6,-0.6 -7.6,-2.0 -9.6,-3.0" fill="none"></polyline>
+            <polyline points="-3.4,-0.8 -5.4,-2.4 -7.4,-3.2" fill="none"></polyline>
+            <polyline points="-1.2,-0.3 -3.0,-1.8 -4.8,-2.6" fill="none"></polyline>
+          </g>
+          <g class="leg" style="animation:legB var(--legdur,0.6s) linear infinite">
+            <polyline points="-5.6,0.6 -7.6,2.0 -9.6,3.0" fill="none"></polyline>
+            <polyline points="-3.4,0.8 -5.4,2.4 -7.4,3.2" fill="none"></polyline>
+            <polyline points="-1.2,0.3 -3.0,1.8 -4.8,2.6" fill="none"></polyline>
+          </g>
+          <polyline class="leg" points="-10.5,-0.2 -12.4,-1.6 -13.6,-2.0" fill="none"></polyline>
+          <polyline class="leg" points="-10.5,0.2 -12.4,1.6 -13.6,2.0" fill="none"></polyline>
+        </g>
+        <!-- 敵方螞蟻（灰白） -->
+        <g id="antSpriteEn" class="antEn">
+          <ellipse class="antBody" cx="0" cy="0" rx="3.4" ry="2.5"></ellipse>
+          <ellipse class="antBody" cx="-5.6" cy="0" rx="2.4" ry="1.8"></ellipse>
+          <ellipse class="antBody" cx="-9.3" cy="0" rx="1.7" ry="1.3"></ellipse>
+          <g class="leg" style="animation:legA var(--legdur,0.6s) linear infinite">
+            <polyline points="-5.6,-0.6 -7.6,-2.0 -9.6,-3.0" fill="none"></polyline>
+            <polyline points="-3.4,-0.8 -5.4,-2.4 -7.4,-3.2" fill="none"></polyline>
+            <polyline points="-1.2,-0.3 -3.0,-1.8 -4.8,-2.6" fill="none"></polyline>
+          </g>
+          <g class="leg" style="animation:legB var(--legdur,0.6s) linear infinite">
+            <polyline points="-5.6,0.6 -7.6,2.0 -9.6,3.0" fill="none"></polyline>
+            <polyline points="-3.4,0.8 -5.4,2.4 -7.4,3.2" fill="none"></polyline>
+            <polyline points="-1.2,0.3 -3.0,1.8 -4.8,2.6" fill="none"></polyline>
+          </g>
+          <polyline class="leg" points="-10.5,-0.2 -12.4,-1.6 -13.6,-2.0" fill="none"></polyline>
+          <polyline class="leg" points="-10.5,0.2 -12.4,1.6 -13.6,2.0" fill="none"></polyline>
+        </g>
+      </defs>
+      <g id="antsMe"></g>
+      <g id="antsEn"></g>
+    </svg>
+  </div>
   <div id="panel">
-    <!-- Top bar -->
-    <div id="topbar">
-      <div class="tItem">
-        <b>關卡</b>
-        <select id="levelSel"><option value="1">Lv1</option><option value="2">Lv2</option><option value="3">Lv3</option><option value="4">Lv4</option></select>
+    <div class="sec row">
+      <div style="flex:1;text-align:center"><b>關卡</b><div><select id="lv"><option value="1">Lv1</option></select></div></div>
+      <div style="flex:1;text-align:center"><button id="reset">reset</button></div>
+      <div style="flex:1;text-align:center"><button id="ref">ref</button></div>
+    </div>
+    <div class="sec">
+      <div class="gwrap">
+        <div class="gcol"><b>風速</b><canvas class="g" id="gWind" width="60" height="60"></canvas></div>
+        <div class="gcol"><b>溼度</b><canvas class="g" id="gHum" width="60" height="60"></canvas></div>
+        <div class="gcol"><b>時間</b><canvas class="g" id="gTime" width="60" height="60"></canvas></div>
+        <div class="gcol"><b>視窗</b><canvas class="g" id="gZoom" width="60" height="60" title="點擊切換全景/1:1"></canvas></div>
       </div>
-      <button id="btnRestart" class="tItem" style="justify-content:center">reset</button>
-      <button id="btnRef" class="tItem" style="justify-content:center">ref</button>
+      <div class="row" style="margin-top:6px">
+        <span class="mini">1×</span>
+        <input id="spd" type="range" min="1" max="100" value="1" style="flex:1"/>
+        <span class="mini">100×</span>
+      </div>
+      <div class="mini" style="text-align:center;margin-top:2px">累積時間：<span id="acc">00:00:00:00</span></div>
     </div>
-
-    <!-- four gauges row -->
-    <div class="row" style="justify-content:space-between;padding:0 2px">
-      <div class="gCol"><div class="gLabel">風速</div><canvas id="gWind" class="g" width="60" height="60"></canvas></div>
-      <div class="gCol"><div class="gLabel">溼度</div><canvas id="gHum" class="g" width="60" height="60"></canvas></div>
-      <div class="gCol"><div class="gLabel">時間</div><canvas id="gTime" class="g" width="60" height="60"></canvas></div>
-      <div class="gCol"><div class="gLabel">視窗</div><canvas id="gZoom" class="g" width="60" height="60"></canvas></div>
+    <div class="sec">
+      <table style="width:100%;border-collapse:collapse">
+        <thead><tr><th></th><th>螞蟻</th><th>分</th></tr></thead>
+        <tbody>
+          <tr><td>我</td><td id="meA">0</td><td id="meS">0</td></tr>
+          <tr><td>敵</td><td id="enA">0</td><td id="enS">0</td></tr>
+        </tbody>
+      </table>
+      <div class="row" style="margin-top:6px">
+        <button id="btnScatter" title="當場上沒有食物時顯示">灑食物</button>
+        <button id="btnPlace">放置食物</button>
+        <span id="placeHint" class="mini">（點地圖放一個食物）</span>
+      </div>
     </div>
-    <div id="speedRow">
-      <span class="mini">1×</span>
-      <input id="speedSlider" type="range" min="1" max="100" value="1" />
-      <span class="mini">100×</span>
-    </div>
-    <div class="mini" style="text-align:center">累積時間：<span id="accumTime">00:00:00:00</span></div>
-
-    <table style="margin-top:6px">
-      <thead><tr><th></th><th>螞蟻</th><th>分</th></tr></thead>
-      <tbody>
-        <tr><td>我</td><td id="meAnts">0</td><td id="meScore">0</td></tr>
-        <tr><td>敵</td><td id="rvAnts">0</td><td id="rvScore">0</td></tr>
-      </tbody>
-    </table>
-
-    <div class="row" style="justify-content:space-between;margin-top:4px">
-      <b>材料</b>
-      <div class="mini">蛋白質（我）<span id="proteinMe">0</span>／（敵）<span id="proteinRv">0</span></div>
-    </div>
-    <div id="matRow" class="row"></div>
-    <div class="row" style="justify-content:space-between;margin-top:4px">
-      <span class="row"><b>費洛蒙</b>&nbsp;<select id="craftSel"></select></span>
-      <button id="btnCraft">合成 +1</button>
-    </div>
-
-    <div class="row" style="justify-content:space-between;margin-top:8px">
-      <b>食物碎塊</b>
-      <div class="mini">目前數量：<span id="fragCount">—</span></div>
-      <button id="btnMoreFood" style="display:none">灑食物</button>
-    </div>
-    <div class="col">
-      <b>庫存</b>
-      <div id="invList" class="row"></div>
+    <div class="sec">
+      <div class="row">
+        <b>材料</b>
+        <div class="mini">C:<span id="mC">0</span> H:<span id="mH">0</span> O:<span id="mO">0</span> N:<span id="mN">0</span></div>
+      </div>
+      <div id="needs" class="row" style="margin-top:4px"></div>
+      <div class="row" style="margin-top:6px">
+        <select id="craft"></select>
+        <div>
+          <button id="btnCraft">生成</button>
+          <button id="btnCraft10">生成×10</button>
+        </div>
+      </div>
+      <div id="inv" class="row mini" style="margin-top:6px"></div>
     </div>
   </div>
 </div>
 
-<!-- ref modal -->
-<div id="refModal"><div id="refCard">
-  <div style="display:flex;justify-content:flex-end"><button id="refClose">關閉</button></div>
-  <h2>參考（ref）</h2>
-  <p class="mini" style="font-size:1rem">費洛蒙功能表（含合成配方）、各種食物材料含量。</p>
-  <h3>費洛蒙功能表（含配方）</h3>
-  <table id="refPhTable"><thead><tr><th>遊戲名</th><th>正式/學名</th><th>類型</th><th>分子量估</th><th>顏色</th><th>合成配方</th><th>說明</th></tr></thead><tbody></tbody></table>
-  <h3>各種食物的材料含量（基礎 1×）</h3>
-  <table id="refFoodTable"><thead><tr><th>食物</th><th>外觀</th><th>基礎材料</th></tr></thead><tbody></tbody></table>
-</div></div>
+<div id="refModal">
+  <div id="refCard">
+    <div class="row" style="justify-content:space-between;align-items:center">
+      <h2 style="margin:0">Ref — 法老蟻費洛蒙系統（概念性模型）</h2>
+      <button onclick="document.getElementById('refModal').style.display='none'">關閉</button>
+    </div>
+    <h3>三種覓食途徑費洛蒙</h3>
+    <table>
+      <thead><tr><th>名稱</th><th>持續時間（無風）</th><th>功能</th><th>顏色（顯示）</th></tr></thead>
+      <tbody>
+        <tr><td>Faranal</td><td>約 5 小時</td><td>主導航／回巢骨幹，含<strong>向量</strong>與<strong>食物剩餘次數</strong></td><td>淡黃 α0.9</td></tr>
+        <tr><td>Monomorine</td><td>約 30 分</td><td>發現食物時快速招募，含<strong>食物座標</strong></td><td>淡橘 α0.9</td></tr>
+        <tr><td>No-entry blend</td><td>約 1 小時</td><td>剪枝／禁止，標示資源枯竭或錯路</td><td>紅 α0.9</td></tr>
+      </tbody>
+    </table>
+    <h3>費洛蒙合成材料（簡化為元素）</h3>
+    <table>
+      <thead><tr><th>目標</th><th>需要</th></tr></thead>
+      <tbody>
+        <tr><td>Faranal</td><td>C×6, H×10, O×1</td></tr>
+        <tr><td>Monomorine</td><td>C×6, H×13, N×1</td></tr>
+        <tr><td>No-entry</td><td>C×4, H×8, O×2</td></tr>
+        <tr><td>螞蟻個體</td><td>C×60, H×120, O×30, N×20</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
 
-<div id="errorOverlay"><b>⚠️ 腳本錯誤</b><pre id="errorText"></pre></div>
+<div id="err"><b>⚠️ 腳本錯誤</b><pre id="errTxt"></pre></div>
 
 <script>
 "use strict";
-window.addEventListener('error', (e)=>{
-  const box=document.getElementById('errorOverlay'); const pre=document.getElementById('errorText');
-  if(box){ box.style.display='block'; pre.textContent=String(e.error && e.error.stack || e.message || e); }
-});
+window.addEventListener('error', e=>{ const b=document.getElementById('err'); const p=document.getElementById('errTxt'); b.style.display='block'; p.textContent=(e.message||'')+"\\n"+(e.filename||'')+':'+(e.lineno||'')+':'+(e.colno||''); });
 
 (function(){
-try{
-// ---------- utils ----------
-const PI=Math.PI, TAU=PI*2;
-function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
-function randInt(a,b){ return Math.floor(Math.random()*(b-a+1))+a; }
-function choice(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
-function rr(o,x,y,w,h,r){ if(o.roundRect){ o.beginPath(); o.roundRect(x,y,w,h,r); o.fill(); return; } r=Math.min(r,w/2,h/2); o.beginPath(); o.moveTo(x+r,y); o.arcTo(x+w,y,x+w,y+h,r); o.arcTo(x+w,y+h,x,y+h,r); o.arcTo(x,y+h,x,y,r); o.arcTo(x,y,x+w,y,r); o.closePath(); o.fill(); }
-function clone(obj){ try{ return JSON.parse(JSON.stringify(obj)); }catch(_){ return null; }}
+const TILE=16, W=160, H=96, WW=W*TILE, HH=H*TILE;
+const T_EMPTY=0,T_WATER=1,T_FOOD=2,T_NEST_ME=3,T_NEST_EN=4;
+const idx=(x,y)=>y*W+x, inB=(x,y)=>x>=0&&y>=0&&x<W&&y<H, clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const rint=(a,b)=>Math.floor(Math.random()*(b-a+1))+a;
 
-// ---------- ref / materials / recipes ----------
-const REF=[
-  {id:'m4mp2c',label:'吡咯酸甲酯',cls:'trail',mw:169,color:'#9bf',note:'路徑/食物跟隨'},
-  {id:'edp',label:'乙基二甲基吡嗪',cls:'trail',mw:136,color:'#8cf',note:'路徑/食物跟隨'},
-  {id:'faranal',label:'Faranal',cls:'trail',mw:208,color:'#6fa',note:'路徑/遠距跟隨'},
-  {id:'mono1',label:'Monomorine I',cls:'recruit',mw:195,color:'#dff76a',note:'招募/集結'},
-  {id:'noentry',label:'禁止混合物',cls:'ban',mw:160,color:'#f77',note:'避免重複前往'},
-  {id:'formic',label:'蟻酸',cls:'acid',mw:46,color:'#f55',note:'攻擊/警戒'}
-];
-const MATERIALS=['C','O','N','R','T','Ald','Acid','HC']; // 0.76：移除 LAC
-const RECIPES={
-  m4mp2c:{label:'吡咯酸甲酯',cost:{C:1,O:1,N:1}},
-  edp:{label:'乙基二甲基吡嗪',cost:{N:2,R:1,C:1}},
-  faranal:{label:'Faranal',cost:{T:2,Ald:1,HC:1}},
-  mono1:{label:'Monomorine I',cost:{N:1,R:1,HC:1}},
-  noentry:{label:'禁止混合物',cost:{Ald:1,Acid:1,HC:1}},
-  formic:{label:'蟻酸',cost:{Acid:2}}
-};
-const PH={}; for(const r of REF){ PH[r.id]={type:r.cls,color:r.color,label:r.label,note:r.note,mw:r.mw}; }
+const cv=document.getElementById('cv'), cx=cv.getContext('2d');
+const svg=document.getElementById('svg'), gMe=document.getElementById('antsMe'), gEn=document.getElementById('antsEn');
 
-const FOOD_BASE={
-  fish:   {label:'魚',     base:{N:2,C:1},    art:'fish'},
-  peanut: {label:'堅果',   base:{C:2,R:1},    art:'nut'},
-  cater:  {label:'毛毛蟲', base:{N:2,HC:1},   art:'cater'},
-  resin:  {label:'樹脂',   base:{T:2,C:1},    art:'resin'},
-  citrus: {label:'柑橘',   base:{Ald:1,O:1,R:1}, art:'citrus'},
-  oil:    {label:'油脂',   base:{HC:2,C:1},   art:'oil'},
-  berry:  {label:'漿果',   base:{Acid:2,O:1}, art:'berry'},
-  wax:    {label:'蜂蠟',   base:{HC:2},       art:'wax'},
-  chitin: {label:'甲殼',   base:{N:1,Acid:1,R:1}, art:'chitin'}
-};
+// camera
+const cam={x:0,y:0,s:1};
+function fit(){ const r=cv.getBoundingClientRect(); const d=window.devicePixelRatio||1; cv.width=Math.max(1,Math.floor(r.width*d)); cv.height=Math.max(1,Math.floor(r.height*d)); }
+window.addEventListener('resize', ()=>{ fit(); draw(); updateView(); });
+function updateView(){ const d=window.devicePixelRatio||1; const w=cv.width/d, h=cv.height/d; svg.setAttribute('viewBox','0 0 '+w+' '+h); }
+function worldToScreen(x,y){ return {x:(x-cam.x)*cam.s, y:(y-cam.y)*cam.s}; }
+function screenToWorld(x,y){ return {x:x/cam.s+cam.x, y:y/cam.s+cam.y}; }
 
-// ---------- world ----------
-const TILE=16; let W=64, H=48; let WORLD_W=W*TILE, WORLD_H=H*TILE;
-const T_EMPTY=0, T_WATER=1, T_FOOD=2, T_NEST_ME=3, T_NEST_RIVAL=4;
-let level=1, timeScale=1.0, maxAnts=10000;
+// drag & wheel
+let dragging=false, lastM=null, placeFoodMode=false;
+cv.addEventListener('mousedown',e=>{ dragging=true; lastM={x:e.clientX,y:e.clientY}; cv.style.cursor='grabbing'; });
+window.addEventListener('mouseup',()=>{ dragging=false; cv.style.cursor='grab'; });
+window.addEventListener('mousemove',e=>{ if(!dragging) return; const dx=(e.clientX-lastM.x)/cam.s, dy=(e.clientY-lastM.y)/cam.s; cam.x-=dx; cam.y-=dy; lastM={x:e.clientX,y:e.clientY}; });
+cv.addEventListener('wheel',e=>{ e.preventDefault(); const rect=cv.getBoundingClientRect(); const x=(e.clientX-rect.left); const y=(e.clientY-rect.top); const pt=screenToWorld(x,y); const k=Math.exp(-e.deltaY*0.0015); const ns=clamp(cam.s*k, 0.2, 6); cam.x=pt.x-(pt.x-cam.x)*cam.s/ns; cam.y=pt.y-(pt.y-cam.y)*cam.s/ns; cam.s=ns; },{passive:false});
+let zoomAll=false;
+function fitAll(){ const d=window.devicePixelRatio||1; const w=cv.width/d, h=cv.height/d; const sx=w/WW, sy=h/HH; const s=Math.min(sx,sy); cam.s=s; cam.x=0; cam.y=0; }
+function fit1(){ cam.s=1; cam.x=0; cam.y=0; }
 
-const canvas=document.getElementById('canvas'); const ctx=canvas.getContext('2d');
-function resizeCanvas(){ const rect=canvas.getBoundingClientRect(); const dpr=window.devicePixelRatio||1; canvas.width=Math.max(1, Math.floor(rect.width*dpr)); canvas.height=Math.max(1, Math.floor(rect.height*dpr)); }
-window.addEventListener('resize', ()=>{ resizeCanvas(); draw(); });
-resizeCanvas();
+// REF & recipes (alpha=0.9)
+const REF=[{id:'faranal',life:5*3600,color:'rgba(255,243,166,0.9)'},{id:'monomorine',life:30*60,color:'rgba(255,178,102,0.9)'},{id:'noentry',life:60*60,color:'rgba(255,64,64,0.9)'}];
+const REC={faranal:{label:'Faranal',cost:{C:6,H:10,O:1}},monomorine:{label:'Monomorine',cost:{C:6,H:13,N:1}},noentry:{label:'No-entry',cost:{C:4,H:8,O:2}},ant:{label:'螞蟻',cost:{C:60,H:120,O:30,N:20}}};
+const PH={}; REF.forEach(r=>PH[r.id]={life:r.life,color:r.color});
 
-function inBounds(x,y){ return x>=0&&y>=0&&x<W&&y<H; } function idx(x,y){ return y*W+x; }
-
-let grid=[], ants=[], antsRival=[], scoreMe=0, scoreRival=0, mats={}, inventory={}, selectedPh='m4mp2c';
-let proteinMe=0, proteinRv=0;
-let viewScale=1.0, viewX=0, viewY=0;
-
-let wx={wind:1.5, windDir:0, humidIdx:3, raining:false, tDir:0, targetWind:1.5, humPerc:40};
-let hasAccelerated=false, simElapsed=0, baseTaipei=null;
-
-function taipeiNowDate(){
-  const fmt = new Intl.DateTimeFormat('zh-TW',{timeZone:'Asia/Taipei', hour12:false, year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', second:'2-digit'});
-  const parts = fmt.formatToParts(new Date());
-  const get = t => Number(parts.find(p=>p.type==t).value);
-  return new Date(get('year'), get('month')-1, get('day'), get('hour'), get('minute'), get('second'));
-}
-
-// panning/zoom
-let isPanning=false, panStart={x:0,y:0}, viewStart={x:0,y:0};
-canvas.addEventListener('mousedown', e=>{ isPanning=true; panStart={x:e.clientX,y:e.clientY}; viewStart={x:viewX,y:viewY}; });
-window.addEventListener('mouseup', ()=>{ isPanning=false; });
-window.addEventListener('mousemove', e=>{ if(!isPanning) return; const dpr=window.devicePixelRatio||1; const dx=(e.clientX-panStart.x)/dpr/viewScale; const dy=(e.clientY-panStart.y)/dpr/viewScale; viewX = clamp(viewStart.x - dx, 0, Math.max(0, WORLD_W-canvas.width/(dpr*viewScale))); viewY = clamp(viewStart.y - dy, 0, Math.max(0, WORLD_H-canvas.height/(dpr*viewScale))); });
-canvas.addEventListener('wheel', e=>{ e.preventDefault(); const rect=canvas.getBoundingClientRect(); const dpr=window.devicePixelRatio||1; const mx=(e.clientX-rect.left)/dpr; const my=(e.clientY-rect.top)/dpr; const wxp=mx/viewScale + viewX; const wyp=my/viewScale + viewY; const s = Math.exp(-e.deltaY*0.001); const ns = clamp(viewScale*s, 0.5, 4); viewScale=ns; viewX=clamp(wxp - mx/viewScale,0,Math.max(0,WORLD_W-canvas.width/(dpr*viewScale))); viewY=clamp(wyp - my/viewScale,0,Math.max(0,WORLD_H-canvas.height/(dpr*viewScale))); }, {passive:false});
+let mats={C:0,H:0,O:0,N:0}, inv={faranal:2,monomorine:2,noentry:1};
+let grid=[], antsMe=[], antsEn=[], foods=[], scoreMe=0, scoreEn=0;
+let weather={wind:1.8,dir:0,hum:55};
+let sim=0, tscale=1;
 
 // map
-function baseRandomMap(){
-  grid=new Array(W*H).fill(0).map(()=>({type:T_EMPTY, pherMe:{}, pherRv:{}, food:null}));
-  const pools = randInt(2,4);
-  for(let i=0;i<pools;i++){
-    const cx=randInt(6, W-7), cy=randInt(6, H-7), r = randInt(4,8);
-    for(let y=cy-r-1; y<=cy+r+1; y++){ for(let x=cx-r-1; x<=cx+r+1; x++){
-      if(!inBounds(x,y)) continue; const dx=x-cx, dy=y-cy; const d=Math.sqrt(dx*dx+dy*dy) + (Math.random()*0.8-0.4); if(d<r) grid[idx(x,y)].type=T_WATER;
-    }}}
-  grid[idx(2,2)].type=T_NEST_ME; grid[idx(W-3,H-3)].type=T_NEST_RIVAL;
+function cell(){ return {type:T_EMPTY, pher:{}, food:null, kind:null}; }
+function riverNet(){
+  let x=rint(4,W-5), y=1, dir=Math.PI/2, width=2;
+  for(let i=0;i<W*1.6;i++){
+    const gx=Math.floor(x), gy=Math.floor(y);
+    if(inB(gx,gy)){ for(let oy=-Math.floor(width/2);oy<=Math.floor(width/2);oy++){ const yy=gy+oy; if(inB(gx,yy)) grid[idx(gx,yy)].type=T_WATER; } }
+    if(i%28===0){ const bx=gx+rint(-2,2), by=gy+rint(-2,2); if(inB(bx,by)) grid[idx(bx,by)].type=T_EMPTY; }
+    if(Math.random()<0.05){
+      const d2=dir+(Math.random()<0.5?-1:1)*(0.6+Math.random()*0.6); let sx=x, sy=y;
+      for(let k=0;k<18;k++){ sx+=Math.cos(d2)*1.0; sy+=Math.sin(d2)*0.8; const gx2=Math.floor(sx), gy2=Math.floor(sy);
+        if(!inB(gx2,gy2)) break; grid[idx(gx2,gy2)].type=T_WATER; if(k%18===0){ const bx2=gx2+rint(-1,1), by2=gy2+rint(-1,1); if(inB(bx2,by2)) grid[idx(bx2,by2)].type=T_EMPTY; } }
+    }
+    dir+=(Math.random()-0.5)*0.4; width=clamp(width+(Math.random()<0.5?-1:1),1,3);
+    x+=Math.cos(dir)*1.1; y+=Math.sin(dir)*0.9;
+    if(!inB(Math.floor(x),Math.floor(y))) break;
+  }
 }
-function scaleYield(base, size){ const out={}; for(const k in base){ out[k]=Math.max(1, Math.round(base[k]*size)); } return out; }
-function makeFood(kind, size){
-  const spec=FOOD_BASE[kind]||FOOD_BASE.peanut; const frags=[]; const n=Math.max(4, Math.round(3+size*1.5));
-  for(let i=0;i<n;i++){ const r = (Math.random()*3 + 1.5) * (0.7 + 0.3*size); const ox=(Math.random()*0.6-0.3)*(TILE-6)*size*0.4, oy=(Math.random()*0.6-0.3)*(TILE-6)*size*0.4; frags.push({ox,oy,r}); }
-  return {type:kind, label:spec.label, art:spec.art, size, frags, yield:scaleYield(spec.base,size), amount:50};
+function initMap(){
+  grid=new Array(W*H); for(let i=0;i<grid.length;i++) grid[i]=cell();
+  riverNet();
+  grid[idx(4,4)].type=T_NEST_ME; grid[idx(W-5,H-5)].type=T_NEST_EN;
+  placeFoods( Math.floor(W*H*0.0012) );
 }
-function scatterFood(list,count){ for(let i=0;i<count;i++){ const x=randInt(2,W-3), y=randInt(2,H-3); if(grid[idx(x,y)].type===T_EMPTY){ const kind=choice(list); const size=randInt(1,5); grid[idx(x,y)].type=T_FOOD; grid[idx(x,y)].food=makeFood(kind,size); } else i--; } }
-
-// weather with distribution + diurnal humidity
-function sampleWindSpeed(){
-  const r=Math.random();
-  if(r<0.67){ return 1 + Math.random()*2; }       // 1~3 (67%)
-  if(r<0.97){ return 3 + Math.random()*3; }       // 3~6 (30%)
-  return 6 + Math.random()*4;                     // 6~10 (3%)
+function isLand(x,y){ return inB(x,y) && grid[idx(x,y)].type!==T_WATER; }
+const FOODK=['fish','peanut','cater','resin','citrus','beetle'];
+function addFoodAt(x,y,cap,kind){
+  const gx=Math.floor(x), gy=Math.floor(y);
+  if(!inB(gx,gy) || !isLand(gx,gy)) return false;
+  if(grid[idx(gx,gy)].type!==T_EMPTY) return false;
+  grid[idx(gx,gy)].type=T_FOOD; grid[idx(gx,gy)].food={times:cap}; grid[idx(gx,gy)].kind=kind;
+  foods.push({x:gx,y:gy,cap,kind}); return true;
 }
-function targetHumidityPercent(hour){
-  const h=hour + 0; const rad = (h-12)/12 * Math.PI;
-  const base = 55 - 25*Math.cos(rad); // between ~30..80
-  return clamp(base, 20, 95);
+function placeFoods(n){
+  foods.length=0;
+  let tries=0;
+  while(foods.length<n && tries<n*200){
+    tries++;
+    const x=rint(6,W-7), y=rint(6,H-7);
+    if(!isLand(x,y)) continue;
+    if(grid[idx(x,y)].type!==T_EMPTY) continue;
+    if(Math.hypot(x-4,y-4)<8 || Math.hypot(x-(W-5),y-(H-5))<8) continue;
+    const cap=rint(6,20), kind=FOODK[rint(0,FOODK.length-1)];
+    addFoodAt(x,y,cap,kind);
+  }
 }
-function stepWeather(dt){
-  // update target wind every ~5s
-  wx.tDir = (wx.tDir||0) + dt;
-  if(wx.tDir>=5){ wx.targetWind = sampleWindSpeed(); wx.windDir = (wx.windDir + (Math.random()*300 - 150)) % 360; wx.tDir=0; }
-  // ease to target + small noise
-  const ease=0.8*dt; wx.wind = clamp(wx.wind + (wx.targetWind - wx.wind)*ease + (Math.random()-0.5)*0.2*dt, 0, 10);
-
-  // humidity trend toward diurnal target with ±10% random walk
-  const now = hasAccelerated ? new Date(baseTaipei.getTime()+simElapsed*1000) : taipeiNowDate();
-  const tgt = targetHumidityPercent(now.getHours());
-  const drift = (tgt - wx.humPerc) * 0.15 * dt; // bias toward target
-  const jitter = (Math.random()-0.5) * 10 * dt; // ±10% per sec max
-  wx.humPerc = clamp(wx.humPerc + drift + jitter, 10, 95);
-  wx.humidIdx = Math.round(wx.humPerc/10); // 0..9
-
-  wx.raining = (wx.humPerc>85 && wx.wind>6.0);
-}
+function foodCount(){ let c=0; for(let i=0;i<grid.length;i++) if(grid[i].type===T_FOOD) c++; return c; }
 
 // pheromones
-function ensureEntry(bucket, key, hl){ return bucket[key]||(bucket[key]={s:0,vx:0,vy:0,hl:hl||1800}); } // default 30min
-function placePher(gx,gy,key,amt,team,vx,vy,hl){
-  if(!inBounds(gx,gy)) return; const c=grid[idx(gx,gy)]; if(c.type===T_WATER) return;
-  const bucket = (team==='rv')? c.pherRv : c.pherMe; const e = ensureEntry(bucket, key, hl);
-  const total = e.s + amt; if(total>0 && hl){ e.hl = (e.hl*e.s + hl*amt)/total; }
-  e.s += amt; e.vx += (vx||0)*amt; e.vy += (vy||0)*amt;
+function ensureP(b,k){ return b[k]||(b[k]={s:0,s0:0,vx:0,vy:0,tx:null,ty:null,qty:null}); }
+function placeP(gx,gy,id,amt,vx,vy,tx,ty,qty){
+  if(!inB(gx,gy)) return; if(grid[idx(gx,gy)].type===T_WATER) return;
+  const e=ensureP(grid[idx(gx,gy)].pher,id);
+  if(id==='faranal'){ e.s=amt; e.s0=Math.max(e.s0,amt); e.vx=vx||0; e.vy=vy||0; e.tx=(tx==null?e.tx:tx); e.ty=(ty==null?e.ty:ty); e.qty=(qty==null?e.qty:qty); }
+  else { e.s+=amt; e.s0=Math.max(e.s0,e.s); e.vx+=vx||0; e.vy+=vy||0; if(id==='monomorine'){ e.tx=(tx==null?e.tx:tx); e.ty=(ty==null?e.ty:ty);} }
 }
+function halfLife(id){ const base=(PH[id]?.life)||1800; const T=base/Math.max(1,weather.wind); return T/2; }
 function stepPher(dt){
-  const windRad = wx.windDir*Math.PI/180; const wxvx=Math.cos(windRad), wxvy=Math.sin(windRad);
-  const diffBase = 0.06 * dt; const advBase = 0.08 * dt * (wx.wind/10);
-  const rainWash = wx.raining ? Math.exp(-dt*0.6) : 1;
-  const addMe = new Array(W*H), addRv = new Array(W*H); for(let i=0;i<grid.length;i++){ addMe[i]={}; addRv[i]={}; }
-  function processBucket(src, add){
-    for(let y=0;y<H;y++){ for(let x=0;x<W;x++){
-      const cell=grid[idx(x,y)]; const p=(src==='me')?cell.pherMe:cell.pherRv;
-      for(const key in p){
-        const ph=p[key]; let s=ph.s; if(s<=0) continue;
-        const half = Math.max(60, ph.hl||1800);
-        const lambda=Math.LN2/half;
-        s = s*Math.exp(-lambda*dt) * rainWash; if(s<0.01) continue;
-        const dirs=[[1,0],[-1,0],[0,1],[0,-1]]; let remain=s;
-        for(const d of dirs){
-          const nx=x+d[0], ny=y+d[1]; if(!inBounds(nx,ny)) continue; if(grid[idx(nx,ny)].type===T_WATER) continue;
-          const len=Math.hypot(d[0],d[1])||1, dxn=d[0]/len, dyn=d[1]/len;
-          const windAlign = Math.max(-1, Math.min(1, dxn*wxvx + dyn*wxvy));
-          const bias = 1 + 0.6*windAlign*(wx.wind/10);
-          const flow = Math.min(remain*0.5, diffBase * s * bias);
-          if(flow>0){
-            remain -= flow;
-            const acc = add[idx(nx,ny)][key] || (add[idx(nx,ny)][key]={s:0,vx:0,vy:0,hl:half});
-            acc.hl = (acc.hl*acc.s + half*flow)/Math.max(1e-6, (acc.s+flow));
-            acc.s += flow; acc.vx += ph.vx*(flow/s) + dxn*flow*0.15 + wxvx*flow*advBase; acc.vy += ph.vy*(flow/s) + dyn*flow*0.15 + wxvy*flow*advBase;
-          }
-        }
-        const here = add[idx(x,y)][key] || (add[idx(x,y)][key]={s:0,vx:0,vy:0,hl:half});
-        here.hl = (here.hl*here.s + half*remain)/Math.max(1e-6, (here.s+remain));
-        here.s += remain; const denom=Math.max(1e-6, ph.s); here.vx += ph.vx*(remain/denom); here.vy += ph.vy*(remain/denom);
-      }
-    }}
+  for(let i=0;i<grid.length;i++){
+    const p=grid[i].pher; for(const k in p){ const e=p[k]; const hl=halfLife(k); const f=Math.pow(0.5, dt/Math.max(1e-6,hl)); e.s*=f; if(e.s<0.004) delete p[k]; }
   }
-  processBucket('me', addMe); processBucket('rv', addRv);
-  for(let i=0;i<grid.length;i++){ grid[i].pherMe=addMe[i]; grid[i].pherRv=addRv[i]; }
 }
 
-// sensing
-function senseVector(gx,gy,team){
-  if(!inBounds(gx,gy)) return {vx:0,vy:0,mag:0};
-  const bucket = (team==='rv')? grid[idx(gx,gy)].pherRv : grid[idx(gx,gy)].pherMe;
-  let vx=0, vy=0, mag=0;
-  for(const key in bucket){
-    const e=bucket[key]; const type=(PH[key]&&PH[key].type)||'trail';
-    const sign = (type==='trail'||type==='recruit')? +1 : -1;
-    vx += sign * e.vx; vy += sign * e.vy; mag += e.s;
-  }
-  return {vx,vy,mag:mag};
-}
-function nearestObjectVector(gx,gy){
-  let bestD2=1e9, bestDX=0, bestDY=0;
-  for(let y=gy-2; y<=gy+2; y++){ for(let x=gx-2; x<=gx+2; x++){
-    if(!inBounds(x,y)) continue; const c=grid[idx(x,y)];
-    if(c.type===T_FOOD || c.type===T_NEST_ME || c.type===T_NEST_RIVAL){
-      const dx=x-gx, dy=y-gy; const d2=dx*dx+dy*dy; if(d2<bestD2){ bestD2=d2; bestDX=dx; bestDY=dy; }
-    } else {
-      let s=0; for(const k in c.pherMe){ s += (c.pherMe[k] && c.pherMe[k].s)||0; } for(const k in c.pherRv){ s += (c.pherRv[k] && c.pherRv[k].s)||0; }
-      if(s>0.6){ const dx=x-gx, dy=y-gy; const d2=dx*dx+dy*dy; if(d2<bestD2){ bestD2=d2; bestDX=dx; bestDY=dy; } }
-    }
-  }}
-  if(bestD2>(1.5*1.5)) return {vx:0,vy:0,mag:0};
-  const len=Math.sqrt(bestD2)||1e-6; return {vx:bestDX/len, vy:bestDY/len, mag:1/len};
-}
-
-// nests/ants
-function findNest(team){ for(let y=0;y<H;y++){ for(let x=0;x<W;x++){ const t=grid[idx(x,y)].type; if(team==='me'&&t===T_NEST_ME) return {x,y}; if(team==='rv'&&t===T_NEST_RIVAL) return {x,y}; } } return {x:1,y:1}; }
+// ants
+function nest(team){ return team==='en'? {x:W-5,y:H-5} : {x:4,y:4}; }
 function spawnAnt(team){
-  const n=findNest(team); const px=n.x*TILE+TILE/2, py=n.y*TILE+TILE/2;
-  const sector = Math.floor(Math.random()*8); const baseAng = sector*(Math.PI/4) + (Math.random()-0.5)*(Math.PI/12);
-  return {team, x:px, y:py, aim:baseAng, speed:26+Math.random()*10, carry:false, state:'foraging', load:null, hp:3, phCharge:4, phMax:6, dropCooldown:0, since:0, stuckT:0, stuckOriginX:px, stuckOriginY:py, inWater:false, speedFactor:1, age:0};
+  const n=nest(team), px=n.x*TILE+TILE/2, py=n.y*TILE+TILE/2;
+  return {x:px,y:py,aim:Math.random()*Math.PI*2,speed:26+Math.random()*8,state:'forage',drop:0,target:null,team,stuck:0};
 }
-function stepAnt(a, dt){
-  a.age += dt; a.since += dt*a.speed;
-  const gx=Math.floor(a.x/TILE), gy=Math.floor(a.y/TILE);
-  const vec = senseVector(gx,gy,a.team);
-  const near = nearestObjectVector(gx,gy);
-  a.aim += (Math.random()-0.5)*0.08;
-
-  let biasVX=0, biasVY=0;
-  if(a.state==='foraging' && a.age<6 && vec.mag<0.1){
-    const n0=findNest(a.team); const vx=(a.x-(n0.x*TILE+TILE/2)), vy=(a.y-(n0.y*TILE+TILE/2)); const len=Math.hypot(vx,vy)||1; biasVX=vx/len; biasVY=vy/len;
-  }
-  const nest=findNest(a.team);
-  let steerVX, steerVY;
-  if(a.state==='carrying'){
-    const dirToNest = Math.atan2(nest.y*TILE+TILE/2 - a.y, nest.x*TILE+TILE/2 - a.x);
-    const toVX = Math.cos(dirToNest), toVY = Math.sin(dirToNest);
-    steerVX = toVX*1.6 + 0.2*vec.vx;
-    steerVY = toVY*1.6 + 0.2*vec.vy;
-  } else {
-    steerVX = vec.vx + 0.9*near.vx + 0.5*biasVX;
-    steerVY = vec.vy + 0.9*near.vy + 0.5*biasVY;
-  }
-  const steerMag = Math.hypot(steerVX,steerVY);
-  if(steerMag>0.02){ const dir = Math.atan2(steerVY, steerVX); const turn = ((dir - a.aim + Math.PI*3)%(Math.PI*2))-Math.PI; a.aim += clamp(turn, -0.25, 0.25) * 0.65; a.since = 0; }
-  else if(a.since > (a.state==='carrying'? 12 : 4)){ a.since = 0; if(a.state!=='carrying') a.aim += (Math.random()-0.5)*Math.PI; }
-
-  // trail drops while carrying (natural 30min half-life)
-  if(a.state==='carrying'){ if(a.dropCooldown<=0 && a.phCharge>0){ const dirToNest=Math.atan2(nest.y*TILE+TILE/2 - a.y, nest.x*TILE+TILE/2 - a.x); placePher(gx,gy,'m4mp2c', 0.7, a.team, Math.cos(dirToNest), Math.sin(dirToNest), 1800); a.phCharge--; a.dropCooldown=0.2; } else a.dropCooldown=Math.max(0,a.dropCooldown-dt); }
-
-  let sp=a.speed*dt*a.speedFactor; let nx=a.x+Math.cos(a.aim)*sp, ny=a.y+Math.sin(a.aim)*sp; let cgx=Math.floor(nx/TILE), cgy=Math.floor(ny/TILE);
-  if(!inBounds(cgx,cgy) || grid[idx(cgx,cgy)].type===T_WATER){ a.aim += (Math.random()-0.5)*Math.PI; } else { a.x=nx; a.y=ny; }
-  const dx=a.x - a.stuckOriginX, dy=a.y - a.stuckOriginY; const nearRadius = 0.75*TILE;
-  if(dx*dx+dy*dy > nearRadius*nearRadius){ a.stuckOriginX=a.x; a.stuckOriginY=a.y; a.stuckT=0; }
-  else { a.stuckT += dt; if(a.stuckT>=60 && !a.inWater){ let best=null, bestD2=1e12; for(let y=gy-6;y<=gy+6;y++){ for(let x=gx-6;x<=gx+6;x++){ if(!inBounds(x,y)) continue; if(grid[idx(x,y)].type!==T_WATER) continue; const wxp=x*TILE+TILE/2, wyp=y*TILE+TILE/2; const dd=(wxp-a.x)**2+(wyp-a.y)**2; if(dd<bestD2){ bestD2=dd; best={x:wxp,y:wyp}; } }} if(best){ a.x=best.x; a.y=best.y; } a.inWater=true; a.speedFactor=0.1; } }
-  const cg=grid[idx(Math.floor(a.x/TILE), Math.floor(a.y/TILE))];
-  if(a.inWater){ if(cg.type!==T_WATER){ let nearD2=1e12; for(let y=gy-6;y<=gy+6;y++){ for(let x=gx-6;x<=gx+6;x++){ if(!inBounds(x,y)) continue; if(grid[idx(x,y)].type!==T_WATER) continue; const wxp=x*TILE+TILE/2, wyp=y*TILE+TILE/2; const dd=(wxp-a.x)**2+(wyp-a.y)**2; if(dd<nearD2) nearD2=dd; }} if(Math.sqrt(nearD2) > 2*TILE){ a.inWater=false; a.speedFactor=1.0; a.stuckT=0; a.stuckOriginX=a.x; a.stuckOriginY=a.y; } } }
-  const cell=grid[idx(Math.floor(a.x/TILE), Math.floor(a.y/TILE))];
-  if(a.state==='foraging' && cell.type===T_FOOD && cell.food && Array.isArray(cell.food.frags) && cell.food.amount>0){
-    a.state='carrying'; a.carry=true; a.load=clone(cell.food.yield);
-    cell.food.amount = Math.max(0, cell.food.amount - 2);
-    if(cell.food.frags.length){ cell.food.frags.sort((u,v)=>u.r-v.r); cell.food.frags.shift(); }
-    placePher(gx,gy,'m4mp2c', 0.9, a.team, 0, 0, 1800);
-    if(cell.food.amount<=0 || cell.food.frags.length===0){ cell.type=T_EMPTY; cell.food=null; placePher(gx,gy,'noentry', 1.2, a.team, 0,0, 1800); }
-  }
-  const nst=findNest(a.team);
-  if(a.state==='carrying' && Math.floor(a.x/TILE)===nst.x && Math.floor(a.y/TILE)===nst.y){
-    a.state='foraging'; a.carry=false;
-    if(a.team==='me'){
-      scoreMe++;
-      if(a.load){ for(const k in a.load){ mats[k]=(mats[k]||0)+(a.load[k]||0); } proteinMe += (a.load.N||0); }
-      refreshMats(); refreshInv();
-    }else{
-      scoreRival++; if(a.load){ proteinRv += (a.load.N||0); }
+function sense(gx,gy,ax,ay,st){
+  if(!inB(gx,gy)) return {vx:0,vy:0,mag:0}; const p=grid[idx(gx,gy)].pher; let vx=0,vy=0,mag=0;
+  for(const k in p){
+    const e=p[k];
+    if(k==='faranal' && e.tx!=null && e.ty!=null && st==='forage'){
+      const dx=e.tx*TILE+TILE/2-ax, dy=e.ty*TILE+TILE/2-ay, L=Math.hypot(dx,dy)||1;
+      vx+=(dx/L)*Math.max(0.6,e.s)*2.2; vy+=(dy/L)*Math.max(0.6,e.s)*2.2; mag+=e.s; continue;
     }
-    a.load=null; a.phCharge=a.phMax;
+    const sgn=(k==='noentry')?-1:1; vx+=sgn*e.vx*1.2; vy+=sgn*e.vy*1.2; mag+=e.s;
   }
-}
-function autoRecruit(){
-  const desiredMe = Math.min(maxAnts, 10 + proteinMe);
-  while(ants.length < desiredMe){ ants.push(spawnAnt('me')); }
-  const desiredRv = Math.min(maxAnts, 10 + proteinRv);
-  while(antsRival.length < desiredRv){ antsRival.push(spawnAnt('rv')); }
+  return {vx,vy,mag};
 }
 
-// drawing
-function groundColor(t){ if(t===T_WATER) return '#0a1830'; return '#0c101a'; }
-function drawFoodArt(o, size, art){
-  const s=size*2.2;
-  if(art==='fish'){ o.fillStyle='#88b7ff'; o.strokeStyle='#ffffff66'; o.lineWidth=1; o.beginPath(); o.ellipse(0,0,4*s,2*s,0,0,TAU); o.fill(); o.stroke(); o.beginPath(); o.moveTo(4*s,0); o.lineTo(6*s,1.5*s); o.lineTo(6*s,-1.5*s); o.closePath(); o.fill(); o.stroke(); }
-  else if(art==='nut'){ o.fillStyle='#caa86d'; o.strokeStyle='#ffffff55'; o.lineWidth=1; o.beginPath(); o.ellipse(0,0,3.2*s,2.6*s,0,0,TAU); o.fill(); o.stroke(); }
-  else if(art==='cater'){ o.fillStyle='#77e4a0'; o.strokeStyle='#ffffff55'; o.lineWidth=1; for(let i=-3;i<=3;i++){ o.beginPath(); o.ellipse(i*1.6*s,0,1.4*s,1.1*s,0,0,TAU); o.fill(); o.stroke(); } }
-  else if(art==='resin'){ o.fillStyle='#f6c84a'; o.strokeStyle='#ffffff55'; o.lineWidth=1; o.beginPath(); o.ellipse(0,0,2.8*s,2.2*s,0.3,0,TAU); o.fill(); o.stroke(); }
-  else if(art==='citrus'){ o.fillStyle='#ffa94d'; o.strokeStyle='#ffffff55'; o.beginPath(); o.ellipse(0,0,3*s,3*s,0,0,TAU); o.fill(); o.stroke(); }
-  else if(art==='oil'){ o.fillStyle='#c7ffd1'; o.strokeStyle='#ffffff55'; o.beginPath(); o.ellipse(0,0,3*s,2.2*s,0.4,0,TAU); o.fill(); o.stroke(); }
-  else if(art==='berry'){ o.fillStyle='#ff7aa8'; o.strokeStyle='#ffffff55'; o.beginPath(); o.ellipse(0,0,2.6*s,2.6*s,0,0,TAU); o.fill(); o.stroke(); }
-  else if(art==='wax'){ o.fillStyle='#ffd36e'; o.strokeStyle='#ffffff55'; o.beginPath(); o.rect(-2.6*s,-2.2*s,5.2*s,4.4*s); o.fill(); o.stroke(); }
-  else if(art==='chitin'){ o.fillStyle='#b9d4ff'; o.strokeStyle='#ffffff55'; o.beginPath(); o.ellipse(0,0,3*s,2.2*s,0.2,0,TAU); o.fill(); o.stroke(); }
-  else { o.fillStyle='#ddd'; o.beginPath(); o.ellipse(0,0,2.6*s,2.2*s,0,0,TAU); o.fill(); }
+// clamp + bounce (無環接)
+function clampBounce(a){
+  let bounced=false;
+  if(a.x<0){ a.x=0; a.aim = Math.PI - a.aim; bounced=true; }
+  if(a.x>=WW){ a.x=WW-1e-3; a.aim = Math.PI - a.aim; bounced=true; }
+  if(a.y<0){ a.y=0; a.aim = -a.aim; bounced=true; }
+  if(a.y>=HH){ a.y=HH-1e-3; a.aim = -a.aim; bounced=true; }
+  if(bounced) a.aim += (Math.random()-0.5)*0.4;
 }
-function drawFood(x,y,food){
-  const cx=x*TILE+TILE/2, cy=y*TILE+TILE/2;
-  for(const f of food.frags){
-    ctx.save(); ctx.translate(cx+f.ox, cy+f.oy); ctx.globalAlpha=0.97;
-    drawFoodArt(ctx, Math.max(0.6, f.r/4), food.art);
-    ctx.restore();
+
+function stepAnt(a,dt){
+  const gx=Math.floor(a.x/TILE), gy=Math.floor(a.y/TILE);
+  const vec=sense(gx,gy,a.x,a.y,a.state);
+  const n=nest(a.team);
+  let sVX=(vec.mag>0.02? vec.vx:0), sVY=(vec.mag>0.02? vec.vy:0);
+
+  if(a.state==='carry'){
+    const dn=Math.atan2(n.y*TILE+TILE/2-a.y, n.x*TILE+TILE/2-a.x);
+    sVX+=Math.cos(dn)*3.0; sVY+=Math.sin(dn)*3.0;
+    if(a.drop<=0 && a.target){
+      const fx=a.target.gx, fy=a.target.gy;
+      const ang=Math.atan2(fy*TILE+TILE/2-a.y, fx*TILE+TILE/2-a.x);
+      placeP(gx,gy,'faranal',1.2,Math.cos(ang),Math.sin(ang),fx,fy,a.target.qty);
+      a.drop=0.12;
+    } else a.drop-=dt;
+  }
+
+  if(sVX!==0 || sVY!==0){
+    let turn=((Math.atan2(sVY, sVX) - a.aim + Math.PI*3)%(Math.PI*2))-Math.PI;
+    a.aim += turn;
+  }else if(Math.random()<0.01){
+    a.aim += (Math.random()-0.5)*Math.PI*2;
+  }
+
+  const sp=a.speed*dt;
+  let nx=a.x+Math.cos(a.aim)*sp, ny=a.y+Math.sin(a.aim)*sp;
+
+  let cNext=null;
+  if(nx>=0 && nx<WW && ny>=0 && ny<HH){
+    cNext = grid[idx(Math.floor(nx/TILE),Math.floor(ny/TILE))];
+  }
+  if(cNext && cNext.type===T_WATER){
+    if(a.stuck>3){
+      nx=a.x+Math.cos(a.aim)*sp*0.2; ny=a.y+Math.sin(a.aim)*sp*0.2;
+    }else{
+      a.stuck+=dt; a.aim += (Math.random()<0.5?1:-1)*Math.PI/2; return;
+    }
+  }else{
+    a.stuck=Math.max(0,a.stuck-dt*0.5);
+  }
+
+  a.x=nx; a.y=ny;
+  clampBounce(a);
+
+  const cgx=Math.floor(a.x/TILE), cgy=Math.floor(a.y/TILE);
+  const c= inB(cgx,cgy) ? grid[idx(cgx,cgy)] : null;
+  if(c && a.state==='forage' && c.type===T_FOOD && c.food && c.food.times>0){
+    a.state='carry'; a.target={gx:cgx,gy:cgy,qty:c.food.times};
+    c.food.times--; if(c.food.times<=0){ c.type=T_EMPTY; c.food=null; c.kind=null; placeP(a.target.gx,a.target.gy,'noentry',2,0,0,null,null,null); }
+    mats.C+=3; mats.H+=5; mats.O+=1; mats.N+=1; refreshMats();
+    for(let oy=-1;oy<=1;oy++) for(let ox=-1;ox<=1;ox++){ const gx2=a.target.gx+ox, gy2=a.target.gy+oy; if(inB(gx2,gy2)) placeP(gx2,gy2,'monomorine',1.0,0,0,gx2,gy2,null); }
+  }
+  const nestPos=nest(a.team);
+  if(a.state==='carry' && Math.floor(a.x/TILE)===nestPos.x && Math.floor(a.y/TILE)===nestPos.y){
+    a.state='forage'; a.target=null; if(a.team==='en') scoreEn++; else scoreMe++;
   }
 }
+
+// draw
+function drawHouse(o,x,y,s,fill){ o.save(); o.translate(x,y); o.fillStyle=fill; o.strokeStyle="#0006"; o.lineWidth=1; o.beginPath(); o.rect(-s*0.6,-s*0.3,s*1.2,s*0.9); o.fill(); o.stroke(); o.beginPath(); o.moveTo(-s*0.8,-s*0.3); o.lineTo(0,-s*0.9); o.lineTo(s*0.8,-s*0.3); o.closePath(); o.fill(); o.stroke(); o.restore(); }
+
+function syncGroup(group,list,isEnemy){
+  const spriteUnits=14;                  // 圖稿寬度單位
+  const targetWorldPx=TILE*0.7;          // 1:1 視野下的期望寬度
+  const pxOnScreen = cam.s * targetWorldPx;
+  const scale = Math.max(0.08, pxOnScreen / spriteUnits);
+
+  while(group.children.length<list.length){ const u=document.createElementNS('http://www.w3.org/2000/svg','use'); u.setAttributeNS('http://www.w3.org/1999/xlink','href', isEnemy?'#antSpriteEn':'#antSpriteMe'); group.appendChild(u); }
+  while(group.children.length>list.length) group.removeChild(group.lastChild);
+  for(let i=0;i<list.length;i++){
+    const a=list[i], u=group.children[i];
+    const sc=worldToScreen(a.x,a.y);
+    const deg=a.aim*180/Math.PI+180;
+    const period=Math.max(0.2,0.9*(24/Math.max(8,a.speed)));
+    u.style.setProperty('--legdur', period.toFixed(2)+'s');
+    u.setAttribute('transform','translate('+sc.x+','+sc.y+') rotate('+deg+') scale('+scale+')');
+  }
+}
+
+function foodScale(times){ const mult=Math.max(1,Math.min(20,times)); const s=Math.pow(Math.log(mult)/Math.log(3),2); return 1+ s; }
+function drawFoodIcon(o,kind,cx,cy,times){
+  const s=foodScale(times);
+  o.save(); o.translate(cx,cy); o.scale(s,s); o.globalAlpha=0.8; o.fillStyle="rgba(200,205,215,0.55)"; o.strokeStyle="rgba(255,255,255,0.15)"; o.lineWidth=1;
+  if(kind==='fish'){ o.beginPath(); o.ellipse(0,0,7,4,0,0,6.283); o.fill(); o.stroke(); o.beginPath(); o.moveTo(5,0); o.lineTo(10,-3); o.lineTo(10,3); o.closePath(); o.fill(); o.stroke(); }
+  else if(kind==='peanut'){ o.beginPath(); o.ellipse(-2,0,3.5,5,0,0,6.283); o.ellipse(2,0,3.5,5,0,0,6.283); o.fill(); o.stroke(); }
+  else if(kind==='cater'){ for(let i=0;i<5;i++){ o.beginPath(); o.ellipse(-6+i*3,0,2.2,2.6,0,0,6.283); o.fill(); o.stroke(); } }
+  else if(kind==='resin'){ o.beginPath(); o.moveTo(-6,2); o.quadraticCurveTo(0,-8,6,2); o.quadraticCurveTo(0,7,-6,2); o.closePath(); o.fill(); o.stroke(); }
+  else if(kind==='citrus'){ o.beginPath(); o.arc(0,0,6,0,6.283); o.fill(); o.stroke(); o.beginPath(); o.moveTo(0,-6); o.lineTo(0,6); o.moveTo(-6,0); o.lineTo(6,0); o.stroke(); }
+  else if(kind==='beetle'){ o.beginPath(); o.ellipse(0,0,6,4,0,0,6.283); o.fill(); o.stroke(); o.beginPath(); o.moveTo(-6,0); o.lineTo(6,0); o.stroke(); }
+  else { o.beginPath(); o.arc(0,0,6,0,6.283); o.fill(); o.stroke(); }
+  o.restore();
+}
+
 function draw(){
-  const dpr=window.devicePixelRatio||1; ctx.setTransform(1,0,0,1,0,0); ctx.clearRect(0,0,canvas.width,canvas.height); ctx.scale(dpr,dpr);
-  ctx.save(); ctx.scale(viewScale,viewScale); ctx.translate(-viewX,-viewY);
-  ctx.fillStyle=groundColor(0); ctx.fillRect(0,0,WORLD_W,WORLD_H);
-  for(let y=0;y<H;y++){ for(let x=0;x<W;x++){
-    const c=grid[idx(x,y)]; if(c.type===T_WATER){ ctx.fillStyle=groundColor(T_WATER); ctx.fillRect(x*TILE,y*TILE,TILE,TILE); }
-    for(const key in c.pherMe){ const e=c.pherMe[key]; const a=Math.min(0.5, e.s*0.5); if(a>0.01){ ctx.globalAlpha=a; ctx.fillStyle=PH[key]?PH[key].color:'#68a0ff'; ctx.fillRect(x*TILE,y*TILE,TILE,TILE); ctx.globalAlpha=1; } }
-    for(const key in c.pherRv){ const e=c.pherRv[key]; const a=Math.min(0.35, e.s*0.5); if(a>0.01){ ctx.globalAlpha=a; ctx.fillStyle="#cfd3da44"; ctx.fillRect(x*TILE,y*TILE,TILE,TILE); ctx.globalAlpha=1; } }
-    if(c.type===T_FOOD) drawFood(x,y,c.food);
-  } }
-  for(let y=0;y<H;y++){ for(let x=0;x<W;x++){ const t=grid[idx(x,y)].type; if(t===T_NEST_ME){ ctx.fillStyle='#77e4a0'; rr(ctx,x*TILE+2,y*TILE+2,TILE-4,TILE-4,4); } else if(t===T_NEST_RIVAL){ ctx.fillStyle='#cfd3da66'; rr(ctx,x*TILE+2,y*TILE+2,TILE-4,TILE-4,4);} } }
+  const d=window.devicePixelRatio||1; cx.setTransform(1,0,0,1,0,0); cx.clearRect(0,0,cv.width,cv.height);
+  cx.save(); cx.scale(d,d);
+  cx.fillStyle='#0c101a'; cx.fillRect(0,0,cv.width/d,cv.height/d);
+  cx.translate(-cam.x*cam.s, -cam.y*cam.s); cx.scale(cam.s, cam.s);
+
+  // pheromones (pixel dots)
+  for(let y=0;y<H;y++) for(let x=0;x<W;x++){
+    const p=grid[idx(x,y)].pher;
+    for(const k in p){
+      const e=p[k]; if(e.s<=0.01) continue;
+      cx.fillStyle=PH[k]?.color||'rgba(255,255,255,0.9)';
+      const dots = Math.min(40, Math.max(1, Math.floor(e.s*6)));
+      for(let i=0;i<dots;i++){
+        const px = x*TILE + Math.random()*TILE;
+        const py = y*TILE + Math.random()*TILE;
+        cx.fillRect(px, py, 1, 1);
+      }
+    }
+  }
+
+  // water / food / nests
+  for(let y=0;y<H;y++) for(let x=0;x<W;x++){
+    const c=grid[idx(x,y)];
+    if(c.type===T_WATER){ cx.fillStyle='#0a1830'; cx.fillRect(x*TILE,y*TILE,TILE,TILE); }
+    else if(c.type===T_FOOD){
+      drawFoodIcon(cx, c.kind||'peanut', x*TILE+TILE/2, y*TILE+TILE/2, c.food.times);
+      cx.fillStyle='rgba(240,245,255,0.95)'; cx.font='10px ui-sans-serif'; cx.fillText(String(c.food.times), x*TILE+4, y*TILE+12);
+    } else if(c.type===T_NEST_ME){ drawHouse(cx,x*TILE+TILE/2,y*TILE+TILE/2,TILE*0.7,'#77e4a0'); }
+    else if(c.type===T_NEST_EN){ drawHouse(cx,x*TILE+TILE/2,y*TILE+TILE/2,TILE*0.7,'#bfc6d6'); }
+  }
+  cx.restore();
+
   // ants
-  ctx.fillStyle='#9ffcac'; for(const a of ants){ ctx.beginPath(); ctx.arc(a.x,a.y,2,0,TAU); ctx.fill(); }
-  ctx.fillStyle='#cfd3da88'; for(const a of antsRival){ ctx.beginPath(); ctx.arc(a.x,a.y,2,0,TAU); ctx.fill(); }
-  ctx.restore();
+  syncGroup(gMe,antsMe,false); 
+  syncGroup(gEn,antsEn,true);
 }
 
-// dashboards
-const gWind = document.getElementById('gWind').getContext('2d');
-const gHum  = document.getElementById('gHum').getContext('2d');
-const gTime = document.getElementById('gTime').getContext('2d');
-const gZoom = document.getElementById('gZoom').getContext('2d');
-const speedSlider = document.getElementById('speedSlider');
+// gauges
+const gWind=document.getElementById('gWind').getContext('2d');
+const gHum=document.getElementById('gHum').getContext('2d');
+const gTime=document.getElementById('gTime').getContext('2d');
+const gZoom=document.getElementById('gZoom').getContext('2d');
+const spd=document.getElementById('spd'); spd.addEventListener('input',e=>{ tscale=Number(e.target.value)||1; });
+function angClock(deg){ return (-90+deg)*Math.PI/180; }
+function drawWind(){ const o=gWind,w=60,h=60; o.setTransform(1,0,0,1,0,0); o.clearRect(0,0,w,h); o.translate(w/2,h/2); o.strokeStyle="#2b3246"; o.lineWidth=1.2; o.beginPath(); o.arc(0,0,26,0,Math.PI*2); o.stroke(); const a=angClock((weather.dir%360+360)%360); o.fillStyle="#cbd3e3"; o.beginPath(); o.arc(Math.cos(a)*22,Math.sin(a)*22,3,0,Math.PI*2); o.fill(); o.fillStyle="#cbd3e3"; o.font="bold 13px ui-sans-serif"; o.textAlign="center"; o.textBaseline="middle"; o.fillText(weather.wind.toFixed(1),0,0); }
+function drawHum(){ const o=gHum,w=60,h=60; o.setTransform(1,0,0,1,0,0); o.clearRect(0,0,w,h); o.translate(w/2,h/2); o.strokeStyle="#2b3246"; o.lineWidth=1.2; o.beginPath(); o.arc(0,0,26,0,Math.PI*2); o.stroke(); const t=Math.max(0,Math.min(1,weather.hum/100)); const start=210, span=300, end=(start+span*t)%360; const ro=26, ri=18, steps=60; o.fillStyle="#6e7890"; o.globalAlpha=0.6; o.beginPath(); for(let i=0;i<=steps;i++){ const d=(end>=start)? (start+(end-start)*i/steps):(start+(360-start+end)*i/steps); const a=angClock(d%360); const x=Math.cos(a)*ro, y=Math.sin(a)*ro; if(i===0) o.moveTo(x,y); else o.lineTo(x,y);} for(let j=steps;j>=0;j--){ const d2=(end>=start)? (start+(end-start)*j/steps):(start+(360-start+end)*j/steps); const a2=angClock(d2%360); const x2=Math.cos(a2)*ri, y2=Math.sin(a2)*ri; o.lineTo(x2,y2);} o.closePath(); o.fill(); o.globalAlpha=1; o.fillStyle="#cbd3e3"; o.font="bold 13px ui-sans-serif"; o.textAlign="center"; o.textBaseline="middle"; o.fillText(Math.round(weather.hum)+'%',0,0); }
+function taipeiNow(){ const fmt=new Intl.DateTimeFormat('zh-TW',{timeZone:'Asia/Taipei',hour12:false,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'}); const parts=fmt.formatToParts(new Date()); const part=t=>Number((parts.find(p=>p.type===t)||{value:"0"}).value); return new Date(part('year'),part('month')-1,part('day'),part('hour'),part('minute'),part('second')); }
+let base=null; function drawTime(){ if(!base) base=taipeiNow(); const o=gTime,w=60,h=60; o.setTransform(1,0,0,1,0,0); o.clearRect(0,0,w,h); o.translate(w/2,h/2); o.strokeStyle="#2b3246"; o.lineWidth=1.2; o.beginPath(); o.arc(0,0,26,0,Math.PI*2); o.stroke(); const t=(tscale>1)? new Date(base.getTime()+sim*1000) : taipeiNow(); const s=t.getSeconds(), m=t.getMinutes(), h0=t.getHours(); const aS=angClock(s/60*360), aM=angClock((m+s/60)/60*360), aH=angClock(((h0%12)+m/60)/12*360); o.strokeStyle="#77e4a0"; o.lineWidth=3; o.beginPath(); o.moveTo(0,0); o.lineTo(Math.cos(aH)*14,Math.sin(aH)*14); o.stroke(); o.strokeStyle="#ffd36e"; o.lineWidth=2; o.beginPath(); o.moveTo(0,0); o.lineTo(Math.cos(aM)*20,Math.sin(aM)*20); o.stroke(); o.strokeStyle="#e8eefc"; o.lineWidth=1; o.beginPath(); o.moveTo(0,0); o.lineTo(Math.cos(aS)*22,Math.sin(aS)*22); o.stroke(); const tot=Math.floor(sim); const dd=Math.floor(tot/86400), hh=Math.floor((tot%86400)/3600), mm=Math.floor((tot%3600)/60), ss=tot%60; document.getElementById('acc').textContent=String(dd).padStart(2,'0')+':'+String(hh).padStart(2,'0')+':'+String(mm).padStart(2,'0')+':'+String(ss).padStart(2,'0'); gTime.canvas.onclick=()=>{ tscale=1; document.getElementById('spd').value='1'; }; }
+function drawZoom(){ const o=gZoom,w=60,h=60; o.setTransform(1,0,0,1,0,0); o.clearRect(0,0,w,h); o.translate(w/2,h/2); o.strokeStyle="#2b3246"; o.lineWidth=1.2; o.beginPath(); o.arc(0,0,26,0,Math.PI*2); o.stroke(); o.fillStyle="#cbd3e3"; o.font="bold 13px ui-sans-serif"; o.textAlign="center"; o.textBaseline="middle"; o.fillText("全景",0,0); gZoom.canvas.onclick=()=>{ zoomAll=!zoomAll; if(zoomAll) fitAll(); else fit1(); draw(); updateView(); }; }
 
-function drawWind(){
-  const o=gWind, w=60,h=60; o.setTransform(1,0,0,1,0,0); o.clearRect(0,0,w,h); o.translate(w/2,h/2);
-  o.strokeStyle="#2b3246"; o.lineWidth=1.2; o.beginPath(); o.arc(0,0,26,0,TAU); o.stroke();
-  o.strokeStyle="#3a415a"; for(let i=0;i<12;i++){ const a=i*PI/6; o.beginPath(); o.moveTo(Math.cos(a)*22, Math.sin(a)*22); o.lineTo(Math.cos(a)*26, Math.sin(a)*26); o.stroke(); }
-  const angIn = (wx.windDir + 180) * PI/180;
-  o.fillStyle="#9aa4b2"; o.beginPath(); o.arc(Math.cos(angIn)*24, Math.sin(angIn)*24, 2.2, 0, TAU); o.fill();
-  o.fillStyle="#cbd3e3"; o.font="bold 12px ui-sans-serif"; o.textAlign="center"; o.textBaseline="middle"; o.fillText(wx.wind.toFixed(1), 0, 0);
-}
-function drawHum(){
-  const o=gHum, w=60,h=60; o.setTransform(1,0,0,1,0,0); o.clearRect(0,0,w,h); o.translate(w/2,h/2);
-  const start=PI*7/6, end=PI*11/6;
-  o.strokeStyle="#2b3246"; o.lineWidth=8; o.globalAlpha=0.35; o.beginPath(); o.arc(0,0,22,start,end); o.stroke();
-  const t = clamp(wx.humPerc/100, 0, 1); o.globalAlpha=0.75; o.strokeStyle="#6e7890"; o.beginPath(); o.arc(0,0,22,start, start + (end-start)*t); o.stroke(); o.globalAlpha=1;
-  const perc=Math.round(wx.humPerc); o.fillStyle="#cbd3e3"; o.font="bold 12px ui-sans-serif"; o.textAlign="center"; o.textBaseline="middle"; o.fillText(perc+'%', 0, 0);
-}
-function drawTime(){
-  if(baseTaipei===null){ baseTaipei=taipeiNowDate(); }
-  const o=gTime, w=60,h=60; o.setTransform(1,0,0,1,0,0); o.clearRect(0,0,w,h); o.translate(w/2,h/2);
-  o.strokeStyle="#2b3246"; o.lineWidth=1.2; o.beginPath(); o.arc(0,0,26,0,TAU); o.stroke();
-  if(timeScale>1) hasAccelerated=true;
-  let base;
-  if(hasAccelerated){ base = new Date(baseTaipei.getTime() + simElapsed*1000); } else { base = taipeiNowDate(); }
-  const s=base.getSeconds(), m=base.getMinutes(), h0=base.getHours();
-  const angSec = (s/60)*TAU, angMin=((m + s/60)/60)*TAU, angHour=(((h0%12)+m/60)/12)*TAU;
-  o.strokeStyle="#77e4a0"; o.lineWidth=3; o.beginPath(); o.moveTo(0,0); o.lineTo(Math.cos(angHour)*14, Math.sin(angHour)*14); o.stroke();
-  o.strokeStyle="#ffd36e"; o.lineWidth=2; o.beginPath(); o.moveTo(0,0); o.lineTo(Math.cos(angMin)*20, Math.sin(angMin)*20); o.stroke();
-  o.strokeStyle="#e8eefc"; o.lineWidth=1; o.beginPath(); o.moveTo(0,0); o.lineTo(Math.cos(angSec)*22, Math.sin(angSec)*22); o.stroke();
-  gTime.canvas.onclick = ()=>{ timeScale=1; speedSlider.value='1'; viewScale=1; viewX=0; viewY=0; hasAccelerated=false; simElapsed=0; baseTaipei=taipeiNowDate(); };
-  const total = Math.floor(simElapsed); const dd = Math.floor(total/86400); const hh = Math.floor((total%86400)/3600); const mm = Math.floor((total%3600)/60); const ss = total%60;
-  document.getElementById('accumTime').textContent = String(dd).padStart(2,'0')+':'+String(hh).padStart(2,'0')+':'+String(mm).padStart(2,'0')+':'+String(ss).padStart(2,'0');
-}
-function drawZoom(){
-  const o=gZoom, w=60,h=60; o.setTransform(1,0,0,1,0,0); o.clearRect(0,0,w,h); o.translate(w/2,h/2);
-  o.strokeStyle="#2b3246"; o.lineWidth=1.2; o.beginPath(); o.arc(0,0,26,0,TAU); o.stroke();
-  const k = clamp((viewScale-0.5)/(4-0.5), 0, 1); o.fillStyle="#9aa4b2"; o.globalAlpha=0.25+0.5*k; o.beginPath(); o.arc(0,0, 26*k + 4, 0, TAU); o.fill(); o.globalAlpha=1;
-  o.fillStyle="#cbd3e3"; o.font="bold 12px ui-sans-serif"; o.textAlign="center"; o.textBaseline="middle"; o.fillText("1:1",0,0);
-  gZoom.canvas.onclick = ()=>{ viewScale=1; viewX=0; viewY=0; };
+// humidity diurnal update
+function humTargetByHour(h){
+  // 最低約 13 點，最高約清晨 5 點
+  const rad = (h/24)*2*Math.PI;
+  const base = 65 - 20*Math.sin(rad + Math.PI/2); // 5點 ~85, 13點 ~45
+  return clamp(base, 25, 95);
 }
 
-function refreshMats(){
-  const row=document.getElementById('matRow'); row.innerHTML='';
-  const sel=document.getElementById('craftSel').value;
-  const need=(RECIPES[sel] && RECIPES[sel].cost)||{};
-  for(const k of MATERIALS){
-    const d=document.createElement('div'); d.className='mini matItem'+(need[k]?' hi':'');
-    d.textContent=k+': '+(mats[k]||0)+' '+(need[k]?`(需${need[k]})`:'');
-    row.appendChild(d);
-  }
-}
-function refreshInv(){
-  const list=document.getElementById('invList'); list.innerHTML='';
-  for(const id of Object.keys(RECIPES)){
-    const btn=document.createElement('button'); btn.textContent=RECIPES[id].label; btn.className='phBtn';
-    btn.onclick=function(){ selectedPh=id; document.getElementById('craftSel').value=id; refreshMats(); refreshInv(); };
-    if(selectedPh===id) btn.classList.add('selected');
-    list.appendChild(btn);
-    const b=document.createElement('span'); b.className='mini'; b.textContent=(inventory[id]||0); list.appendChild(b);
-  }
-}
-function buildCraftSel(){
-  const sel=document.getElementById('craftSel'); sel.innerHTML='';
-  for(const id of Object.keys(RECIPES)){ const o=document.createElement('option'); o.value=id; o.textContent=RECIPES[id].label; sel.appendChild(o); }
-  sel.value=selectedPh; sel.onchange=()=>{ selectedPh=sel.value; refreshMats(); refreshInv(); };
-}
-document.getElementById('btnCraft').onclick=function(){
-  const id=document.getElementById('craftSel').value; const need=RECIPES[id].cost;
-  for(const k in need){ if((mats[k]||0)<need[k]) return; }
-  for(const k in need) mats[k]-=need[k];
-  inventory[id]=(inventory[id]||0)+1; refreshInv(); refreshMats();
-};
-function countFoodFrags(){ let frag=0,cells=0; for(let i=0;i<grid.length;i++){ const c=grid[i]; if(c.type===T_FOOD && c.food && Array.isArray(c.food.frags)){ frag+=c.food.frags.length; cells++; } } return {frag,cells}; }
-function updateOverview(){
-  document.getElementById('meAnts').textContent = ants.length;
-  document.getElementById('rvAnts').textContent = antsRival.length;
-  document.getElementById('meScore').textContent = scoreMe;
-  document.getElementById('rvScore').textContent = scoreRival;
-  const {frag,cells}=countFoodFrags();
-  document.getElementById('fragCount').textContent=String(frag);
-  document.getElementById('proteinMe').textContent=String(proteinMe);
-  document.getElementById('proteinRv').textContent=String(proteinRv);
-  const btn=document.getElementById('btnMoreFood'); btn.style.display=(cells===0)?'inline-block':'none';
+// UI
+document.getElementById('reset').onclick=reset;
+document.getElementById('ref').onclick=()=>{ document.getElementById('refModal').style.display='flex'; };
+document.getElementById('btnCraft').onclick=()=>craft(1);
+document.getElementById('btnCraft10').onclick=()=>craft(10);
+document.getElementById('btnScatter').onclick=()=>{ if(foodCount()===0){ placeFoods(Math.floor(W*H*0.0008)); } updateFoodUI(); };
+document.getElementById('btnPlace').onclick=()=>{ placeFoodMode=!placeFoodMode; document.getElementById('placeHint').style.display=placeFoodMode?'inline':'none'; };
+cv.addEventListener('click',e=>{ const r=cv.getBoundingClientRect(); const x=(e.clientX-r.left); const y=(e.clientY-r.top); const w=screenToWorld(x,y); const gx=Math.floor(w.x/TILE), gy=Math.floor(w.y/TILE); if(!inB(gx,gy)) return; if(placeFoodMode){ addFoodAt(gx,gy,rint(6,20),FOODK[rint(0,FOODK.length-1)]); placeFoodMode=false; document.getElementById('placeHint').style.display='none'; return; } const id=document.getElementById('craft').value; if(id==='ant') return; if((inv[id]||0)<=0) return; placeP(gx,gy,id,2.0,1,0, id==='monomorine'?gx:null, id==='monomorine'?gy:null, null); inv[id]--; refreshInv(); refreshNeeds(); });
+
+function updateFoodUI(){
+  document.getElementById('btnScatter').style.display = (foodCount()===0)?'inline-block':'none';
 }
 
-// interactions
-document.getElementById('btnRestart').onclick=()=>resetGame();
-document.getElementById('levelSel').onchange=(e)=>{ level=parseInt(e.target.value,10); resetGame(); };
-document.getElementById('btnMoreFood').onclick=()=>scatterFood(Object.keys(FOOD_BASE), Math.max(1, Math.floor(initialFoodCount/2)));
-document.getElementById('btnRef').onclick=openRef; document.getElementById('refClose').onclick=()=>document.getElementById('refModal').style.display='none';
-
-function openRef(){
-  document.getElementById('refModal').style.display='grid';
-  const phTB=document.querySelector('#refPhTable tbody'); phTB.innerHTML='';
-  for(const r of REF){
-    const recipe = RECIPES[r.id]; const parts=[]; if(recipe){ for(const k in recipe.cost){ parts.push(`${k}×${recipe.cost[k]}`); } }
-    const tr=document.createElement('tr');
-    tr.innerHTML = `<td>${r.label}</td><td><code class="k">${r.id}</code></td><td>${r.cls}</td><td>${r.mw}</td>
-      <td><span style="display:inline-block;width:12px;height:12px;background:${r.color};border:1px solid #2b3246;border-radius:3px"></span></td>
-      <td>${parts.join('、')}</td><td>${r.note||''}</td>`;
-    phTB.appendChild(tr);
-  }
-  const fdTB=document.querySelector('#refFoodTable tbody'); fdTB.innerHTML='';
-  for(const key in FOOD_BASE){ const f=FOOD_BASE[key]; const parts=[]; for(const k in f.base){ parts.push(`${k}×${f.base[k]}`); } const tr=document.createElement('tr'); tr.innerHTML = `<td>${f.label}</td><td>${f.art}</td><td>${parts.join('、')}</td>`; fdTB.appendChild(tr); }
+function craft(times){
+  const id=document.getElementById('craft').value, need=REC[id].cost||{};
+  for(const k in need){ if((mats[k]||0) < need[k]*times) return; }
+  for(const k in need){ mats[k]-=need[k]*times; }
+  if(id==='ant'){ for(let i=0;i<times;i++) antsMe.push(spawnAnt('me')); } else { inv[id]=(inv[id]||0)+times; }
+  refreshMats(); refreshInv(); refreshNeeds();
 }
 
-// click to place ARTIFICIAL pheromone: half-life = 6× of natural (30min) => 180min (=10800s); effect ×2
-canvas.addEventListener('mousedown', function(e){
-  if(e.button!==0) return;
-  const rect=canvas.getBoundingClientRect(); const dpr=window.devicePixelRatio||1;
-  const wxp=(e.clientX-rect.left)/dpr/viewScale + viewX; const wyp=(e.clientY-rect.top)/dpr/viewScale + viewY;
-  const gx=Math.floor(wxp/TILE), gy=Math.floor(wyp/TILE); if(!inBounds(gx,gy)) return;
-  if((inventory[selectedPh]||0) <= 0) return;
-  const dir = Math.atan2(wyp - (gy*TILE+TILE/2), wxp - (gx*TILE+TILE/2));
-  placePher(gx,gy, selectedPh, 2.0, 'me', Math.cos(dir), Math.sin(dir), 10800); // 作用範圍≈×2（以濃度代替）
-  inventory[selectedPh]--; refreshInv();
-});
-
-// init
-let initialFoodCount = 28;
-function resetGame(){
-  ants=[]; antsRival=[]; mats={}; inventory={}; scoreMe=0; scoreRival=0; proteinMe=0; proteinRv=0;
-  hasAccelerated=false; simElapsed=0; baseTaipei=taipeiNowDate(); // 0.76：遊戲一開始即讀取系統時間
-  // humidity initial from system time
-  const now=taipeiNowDate(); wx.humPerc = clamp(targetHumidityPercent(now.getHours()) + (Math.random()*10-5), 10, 95);
-  wx.humidIdx = Math.round(wx.humPerc/10);
-  wx.targetWind = sampleWindSpeed(); wx.wind = wx.targetWind; // start with a plausible wind
-  baseRandomMap(); scatterFood(Object.keys(FOOD_BASE), initialFoodCount);
-  for(let i=0;i<10;i++) ants.push(spawnAnt('me'));
-  for(let i=0;i<10;i++) antsRival.push(spawnAnt('rv'));
-  buildCraftSel(); refreshMats(); refreshInv(); resizeCanvas(); updateOverview();
-  drawWind(); drawHum(); drawTime(); drawZoom(); draw();
-}
+function buildSel(){ const s=document.getElementById('craft'); s.innerHTML=''; ['faranal','monomorine','noentry','ant'].forEach(id=>{ const o=document.createElement('option'); o.value=id; o.textContent=REC[id].label; s.appendChild(o); }); s.onchange=refreshNeeds; }
+function refreshMats(){ mC.textContent=String(mats.C||0); mH.textContent=String(mats.H||0); mO.textContent=String(mats.O||0); mN.textContent=String(mats.N||0); }
+function refreshNeeds(){ const box=document.getElementById('needs'); box.innerHTML=''; const need=(REC[document.getElementById('craft').value].cost||{}); ['C','H','O','N'].forEach(k=>{ const has=mats[k]||0, req=need[k]||0; const sp=document.createElement('span'); sp.className='mini'; sp.style.fontWeight='900'; sp.style.marginRight='8px'; sp.style.color=(has>=req)?'#e8eefc':'#ff8e8e'; sp.textContent=k+': 需'+req; box.appendChild(sp); }); }
+function refreshInv(){ const row=document.getElementById('inv'); row.innerHTML=''; ['faranal','monomorine','noentry'].forEach(id=>{ const b=document.createElement('button'); b.textContent=REC[id].label; b.onclick=()=>{ document.getElementById('craft').value=id; refreshNeeds(); }; row.appendChild(b); const n=document.createElement('span'); n.textContent='×'+(inv[id]||0); n.className='mini'; row.appendChild(n); }); }
 
 // loop
-let _last=performance.now();
+let last=performance.now(), windTick=0, minTick=0;
 function loop(now){
-  const dt=(now-_last)/1000; _last=now;
-  simElapsed += dt*timeScale;
-  const sdt=dt*timeScale;
+  const dt=((now-last)/1000)*tscale; last=now; sim+=dt;
   try{
-    stepWeather(sdt); stepPher(sdt);
-    for(const a of ants) stepAnt(a,sdt); for(const a of antsRival) stepAnt(a,sdt);
-    autoRecruit();
-    draw(); updateOverview(); drawWind(); drawHum(); drawTime(); drawZoom();
-  }catch(err){
-    const box=document.getElementById('errorOverlay'); const pre=document.getElementById('errorText'); if(box){ box.style.display='block'; pre.textContent=String(err && err.stack || err); }
-    console.error(err);
-  }
+    minTick+=dt; windTick+=dt;
+    if(minTick>=60){ minTick=0; weather.dir=(weather.dir + (Math.random()*120-60))%360; }
+    if(windTick>=10){ windTick=0; const bands=Math.random(); let target=1+Math.random()*2; if(bands>0.6 && bands<=0.8) target=3+Math.random()*3; else if(bands>0.8) target=6+Math.random()*3; weather.wind += (target-weather.wind)*0.35; }
+
+    // 溼度：依小時目標值趨近 + 輕微雜訊（±10%）
+    const tNow = new Date();
+    const hr = tNow.getHours() + tNow.getMinutes()/60;
+    const tgt = humTargetByHour(hr);
+    const noise = (Math.random()-0.5)*2; // -1..1%
+    weather.hum += (tgt - weather.hum)*0.025*dt + noise*0.1*dt;
+    weather.hum = clamp(weather.hum, 20, 95);
+
+    stepPher(dt);
+    for(let i=0;i<antsMe.length;i++) stepAnt(antsMe[i],dt);
+    for(let j=0;j<antsEn.length;j++) stepAnt(antsEn[j],dt);
+
+    draw(); drawWind(); drawHum(); drawTime(); drawZoom();
+    meA.textContent=String(antsMe.length); enA.textContent=String(antsEn.length);
+    meS.textContent=String(scoreMe); enS.textContent=String(scoreEn);
+
+    updateFoodUI();
+  }catch(err){ const b=document.getElementById('err'); const p=document.getElementById('errTxt'); b.style.display='block'; p.textContent=String(err && err.stack || err); }
   requestAnimationFrame(loop);
 }
-const speedSliderEl=document.getElementById('speedSlider');
-speedSliderEl.addEventListener('input', e=>{ timeScale=Number(e.target.value)||1; });
 
-resetGame();
-requestAnimationFrame(loop);
-
-}catch(err){
-  const box=document.getElementById('errorOverlay'); const pre=document.getElementById('errorText'); if(box){ box.style.display='block'; pre.textContent=String(err && err.stack || err); }
-  console.error(err);
+// reset
+function reset(){
+  mats={C:0,H:0,O:0,N:0}; inv={faranal:2,monomorine:2,noentry:1};
+  antsMe=[]; antsEn=[]; foods=[]; scoreMe=0; scoreEn=0; sim=0;
+  initMap();
+  for(let i=0;i<28;i++) antsMe.push(spawnAnt('me'));
+  for(let j=0;j<22;j++) antsEn.push(spawnAnt('en'));
+  buildSel(); refreshMats(); refreshInv(); refreshNeeds();
+  fit(); fitAll(); updateView(); zoomAll=true; // 開場全景（先設比例再首次繪圖）
+  draw(); drawWind(); drawHum(); drawTime(); drawZoom();
+  updateFoodUI();
 }
-})(); // IIFE
-</script>
+
+reset(); requestAnimationFrame(loop);
+})();</script>
 </body>
 </html>
