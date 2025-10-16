@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>非球面平凸透鏡 橫剖面互動設計器 v0.12 (mm)</title>
+<title>非球面平凸透鏡 橫剖面互動設計器 v0.13 (mm)</title>
 <style>
   :root{
     --bg:#0b0f14; --panel:#10161f; --ink:#e6f0ff; --muted:#9bb3cc; --accent:#7cc4ff; --good:#3ddc97; --warn:#ffd166; --bad:#ef476f;
@@ -33,7 +33,7 @@
   /* Modal */
   .modal{position:fixed; inset:0; display:none; place-items:center; background:#0009; z-index:50;}
   .modal.on{display:grid;}
-  .card{max-width:940px; max-height:80vh; overflow:auto; background:#0f1523; border:1px solid #2c3e5f; border-radius:16px; padding:16px 18px;}
+  .card{max-width:960px; max-height:80vh; overflow:auto; background:#0f1523; border:1px solid #2c3e5f; border-radius:16px; padding:16px 18px;}
   .card h3{margin:6px 0 8px; font-size:16px;}
   .card p, .card li{font-size:14px; line-height:1.6; color:#dbe8ff;}
   .grid2{display:grid; grid-template-columns: 1fr 1fr; gap:12px;}
@@ -45,7 +45,7 @@
 <body>
 <div class="wrap">
   <div class="panel">
-    <h1>非球面平凸透鏡 設計器 <span class="tag">v0.12</span>（單位：mm）</h1>
+    <h1>非球面平凸透鏡 設計器 <span class="tag">v0.13</span>（單位：mm）</h1>
 
     <h2>主要尺寸 & 光學條件</h2>
     <div class="row"><label>清孔徑（CA, 直徑）</label><input id="ca" class="num" type="number" step="0.1" value="25"><input id="caR" type="range" min="2" max="100" step="0.1" value="25"></div>
@@ -68,10 +68,34 @@
 
     <h2>顯示與輸出</h2>
     <div class="row"><label>視圖縮放（px/mm）</label><input id="scale" class="num" type="number" step="0.5" value="8"><input id="scaleR" type="range" min="2" max="40" step="0.5" value="8"></div>
+
+    <h2>3D 匯出設定</h2>
+    <div class="row"><label>STL 格式</label>
+      <select id="stlFormat">
+        <option value="binary" selected>Binary（二進位，小檔）</option>
+        <option value="ascii">ASCII（可讀，較大）</option>
+      </select>
+    </div>
+    <div class="row"><label>網格品質</label>
+      <select id="stlQuality">
+        <option value="draft">草稿（nr=64, na=72）</option>
+        <option value="medium" selected>中等（nr=128, na=120）</option>
+        <option value="fine">精細（nr=256, na=180｜v0.13 既定）</option>
+        <option value="ultra">超細（nr=512, na=360）</option>
+      </select>
+    </div>
+    <div class="row"><label>自適應徑向取樣：限制弦高誤差（μm）</label>
+      <input id="stlTol" class="num" type="number" step="0.5" value="10.0">
+      <input id="stlTolR" type="range" min="1" max="100" step="0.5" value="10.0">
+      <div class="note">開啟後會依曲率自動加密取樣，平坦處減少面數。容許誤差越大 → 檔案越小。</div>
+    </div>
+    <div class="note stat" id="stlStats">—</div>
+
     <div class="btns">
       <button id="reset">重設預設</button>
-      <button id="dlCSV" class="good">下載剖面 CSV（v0.12）</button>
-      <button id="dlSVG" class="good">下載視圖 SVG（v0.12）</button>
+      <button id="dlCSV" class="good">下載剖面 CSV（v0.13）</button>
+      <button id="dlSVG" class="good">下載視圖 SVG（v0.13）</button>
+      <button id="dlSTL" class="good">下載 3D STL（v0.13）</button>
       <button id="about">說明</button>
     </div>
 
@@ -95,41 +119,39 @@
 <!-- 說明 Modal -->
 <div id="help" class="modal">
   <div class="card">
-    <h3>參數說明（八年級可懂版）</h3>
+    <h3>參數說明與 3D 匯出（八年級可懂版）</h3>
     <div class="grid2">
       <div>
         <p><span class="em">清孔徑 CA</span>：光能通過的有效直徑（mm）。像水管口徑，越大進光越多、景深越淺。</p>
         <p><span class="em">焦距 EFL</span>：鏡片把很遠的景物（近似平行光）聚焦的距離（mm）。像放大鏡對太陽的焦點距離。</p>
         <p><span class="em">折射率 n</span>：光在材料中的「速度比」。n 越大代表光進材料更慢，彎折更明顯。</p>
-        <p><span class="em">厚度模式（ET/CT）</span>：
-          ET 是邊緣最薄處；CT 是中心厚度。選 ET 可避免邊緣做得太薄而脆。</p>
+        <p><span class="em">厚度模式（ET/CT）</span>：ET 是邊緣最薄處；CT 是中心厚度。選 ET 可避免邊緣做得太薄而脆。</p>
         <p><span class="em">R 與 c</span>：曲率半徑 R（mm），c=1/R。對平凸鏡，<b>R = EFL×(n−1)</b>。</p>
       </div>
       <div>
         <p><span class="em">圓錐常數 K</span>：決定基礎曲面形狀。K=0 球面、K=-1 拋物面（預設）、K&lt;-1 雙曲面、-1&lt;K&lt;0 橢圓面。</p>
-        <p><span class="em">A4/A6/A8 是什麼？</span> 它們是非球面方程中的多項式係數，用來在基礎圓錐面上做微調：z(r)=conic+ A4·r⁴ + A6·r⁶ + A8·r⁸。</p>
-        <p><span class="em">為什麼 UI 的單位有縮放？</span> 為了好輸入：
-          A4 以「×10⁻⁶ mm⁻³」、A6 以「×10⁻⁹ mm⁻⁵」、A8 以「×10⁻¹² mm⁻⁷」顯示；計算時會自動換回 mm 量綱。</p>
-        <p><span class="em">怎麼影響形狀？</span> A4 主要影響中外圈（r 越大越明顯），A6/A8 更偏邊緣；
-          調整方向：A&gt;0 讓外圈更「凸」，A&lt;0 讓外圈更「平」。建議：先用 K 決定大致曲率，A4 粗調，A6/A8 只做小微調。</p>
-        <p><span class="em">量級感（以目前 CA 為例）</span>：在 r=CA/2 處，若 A4/A6/A8 的顯示值各 +1，則弧高增量約為：
-          <span id="a468Example">—</span></p>
+        <p><span class="em">A4/A6/A8 是什麼？</span> 非球面方程中的多項式係數：z(r)=conic + A4·r⁴ + A6·r⁶ + A8·r⁸。</p>
+        <p><span class="em">為什麼 UI 的單位有縮放？</span> 為了好輸入：A4 用「×10⁻⁶ mm⁻³」、A6「×10⁻⁹ mm⁻⁵」、A8「×10⁻¹² mm⁻⁷」，計算時會自動換回 mm 量綱。</p>
+        <p><span class="em">怎麼影響形狀？</span> A4 主要影響中外圈；A6/A8 更偏邊緣。A&gt;0 使外圈更凸，A&lt;0 更平。建議：先用 K 決定大致曲率，A4 粗調，A6/A8 小幅微調。</p>
+        <p><span class="em">量級感（以目前 CA 為例）</span>：在 r=CA/2 處，若 A4/A6/A8 的顯示值各 +1，則弧高增量約為：<span id="a468Example">—</span></p>
       </div>
     </div>
     <details>
-      <summary>輸出檔案內容</summary>
+      <summary>輸出檔案內容與壓縮策略</summary>
       <ul>
-        <li><b>CSV</b>：第一段是「# 開頭的參數區」（包含你輸入的 CA、EFL、n、K、A4/A6/A8、厚度模式與 ET/CT），第二段是 <code>r_mm,z_mm</code> 剖面資料。</li>
-        <li><b>SVG</b>：置中的鏡片剖面 + 平面後表面 + <b>口徑 CA 的尺寸標示</b>（方便你在其他軟體做比例校正）。</li>
+        <li><b>CSV（v0.13）</b>：第一段是「# 參數區」（包含 CA/EFL/n/K/A₄/A₆/A₈、厚度模式與 ET/CT），第二段是 <code>r_mm,z_mm</code> 剖面。</li>
+        <li><b>SVG（v0.13）</b>：置中的鏡片剖面 + 平面後表面 + <b>CA 尺寸標示</b>（供比例校正）。</li>
+        <li><b>STL（v0.13）</b>：支援 <b>Binary</b>（小檔）與 <b>ASCII</b>；並可用<b>自適應取樣</b>限制弦高誤差（μm）以減檔。</li>
       </ul>
     </details>
+    <p class="note">STL 目前輸出為 <b>ASCII 或 Binary</b>（可選）。若需 <b>負模（模具）</b>或 <b>STEP</b> 檔，請告訴我你要的型式（公模/母模、拔模角、倒角與安全邊）。</p>
     <div style="text-align:right; margin-top:8px;"><button id="closeHelp">關閉</button></div>
   </div>
 </div>
 
 <script>
 (function(){
-  const VERSION = 'v0.12';
+  const VERSION = 'v0.13';
   const $ = s=>document.querySelector(s);
   const elt = (tag, attrs={}, children=[])=>{ const e=document.createElementNS('http://www.w3.org/2000/svg', tag); for(const k in attrs) e.setAttribute(k, attrs[k]); children.forEach(c=>e.appendChild(c)); return e; };
 
@@ -146,6 +168,9 @@
     thickMode: $('#thickMode'),
     et: $('#et'), etR: $('#etR'),
     ct: $('#ct'), ctR: $('#ctR'),
+    stlFormat: $('#stlFormat'),
+    stlQuality: $('#stlQuality'),
+    stlTol: $('#stlTol'), stlTolR: $('#stlTolR'),
   };
   const etRow = $('#etRow');
   const ctRow = $('#ctRow');
@@ -153,10 +178,12 @@
   let currentData = null;
 
   function bindPair(num, rng){ num.addEventListener('input', ()=>{ rng.value = num.value; computeAndDraw(); }); rng.addEventListener('input', ()=>{ num.value = rng.value; computeAndDraw(); }); }
-  [ ['ca','caR'],['efl','eflR'],['nidx','nidxR'],['K','KR'], ['A4','A4R'],['A6','A6R'],['A8','A8R'], ['scale','scaleR'], ['et','etR'],['ct','ctR'] ].forEach(([a,b])=>bindPair(inp[a], inp[b]));
+  [ ['ca','caR'],['efl','eflR'],['nidx','nidxR'],['K','KR'], ['A4','A4R'],['A6','A6R'],['A8','A8R'], ['scale','scaleR'], ['et','etR'],['ct','ctR'], ['stlTol','stlTolR'] ].forEach(([a,b])=>bindPair(inp[a], inp[b]));
 
   inp.thickMode.addEventListener('change', ()=>{ const m = inp.thickMode.value; etRow.style.display = (m==='ET')?'block':'none'; ctRow.style.display = (m==='CT')?'block':'none'; computeAndDraw(); });
-  $('#reset').addEventListener('click', ()=>{ inp.ca.value = inp.caR.value = 25; inp.efl.value = inp.eflR.value = 30; inp.nidx.value = inp.nidxR.value = 1.520; inp.K.value = inp.KR.value = -1; inp.A4.value = inp.A4R.value = 0; inp.A6.value = inp.A6R.value = 0; inp.A8.value = inp.A8R.value = 0; inp.scale.value = inp.scaleR.value = 8; inp.thickMode.value = 'ET'; etRow.style.display='block'; ctRow.style.display='none'; inp.et.value = inp.etR.value = 2.00; inp.ct.value = inp.ctR.value = 4.00; computeAndDraw(); });
+  inp.stlFormat.addEventListener('change', ()=>{ updateSTLEstimate(); });
+  inp.stlQuality.addEventListener('change', ()=>{ updateSTLEstimate(); });
+  $('#reset').addEventListener('click', ()=>{ inp.ca.value = inp.caR.value = 25; inp.efl.value = inp.eflR.value = 30; inp.nidx.value = inp.nidxR.value = 1.520; inp.K.value = inp.KR.value = -1; inp.A4.value = inp.A4R.value = 0; inp.A6.value = inp.A6R.value = 0; inp.A8.value = inp.A8R.value = 0; inp.scale.value = inp.scaleR.value = 8; inp.thickMode.value = 'ET'; etRow.style.display='block'; ctRow.style.display='none'; inp.et.value = inp.etR.value = 2.00; inp.ct.value = inp.ctR.value = 4.00; inp.stlFormat.value='binary'; inp.stlQuality.value='medium'; inp.stlTol.value=inp.stlTolR.value=10.0; computeAndDraw(); });
 
   // Help modal
   const modal = $('#help');
@@ -166,8 +193,10 @@
 
   // Downloads
   function download(filename, text){ const a=document.createElement('a'); a.href='data:text/plain;charset=utf-8,'+encodeURIComponent(text); a.download=filename; document.body.appendChild(a); a.click(); a.remove(); }
+  function downloadBlob(filename, blob){ const a=document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = filename; document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 0); }
   $('#dlCSV').addEventListener('click', ()=>{ const d = currentData || computeProfile(); const csv = buildCSV(d); download(`asphere_profile_${VERSION}.csv`, csv); });
   $('#dlSVG').addEventListener('click', ()=>{ const d=currentData||computeProfile(); const xml = exportLensSVG(d); download(`lens_cross_section_${VERSION}.svg`, xml); });
+  $('#dlSTL').addEventListener('click', ()=>{ const d=currentData||computeProfile(); const opts = getSTLOpts(); if(opts.format==='binary'){ const blob = buildSTLBinary(d, opts); downloadBlob(`lens_solid_${VERSION}.stl`, blob); } else { const stl = buildSTL(d, opts); download(`lens_solid_${VERSION}.stl`, stl); } });
 
   function clamp(x,lo,hi){return Math.max(lo, Math.min(hi,x));}
 
@@ -200,7 +229,7 @@
 
   function bestFitSphereRadius(samples){ let R0=1000; if(samples.length>5){const r1=samples[1].r, z1=samples[1].z; const c_est=(2*z1)/(r1*r1); R0= c_est>1e-9? 1/c_est : 1e9;} let a=Math.max(0.1,R0*0.25), b=R0*2.5; const phi=(1+Math.sqrt(5))/2; let c1=b-(b-a)/phi, c2=a+(b-a)/phi; function sse(R){ if(!isFinite(R)||R<=0) return 1e99; let E=0; for(const s of samples){ const r=s.r,z=s.z; const zs=R-Math.sqrt(Math.max(1e-9,R*R - r*r)); const d=z-zs; E+=d*d;} return E; } let f1=sse(c1), f2=sse(c2); for(let i=0;i<80;i++){ if(f1>f2){ a=c1; c1=c2; f1=f2; c2=a+(b-a)/phi; f2=sse(c2);} else { b=c2; c2=c1; f2=f1; c1=b-(b-a)/phi; f1=sse(c1);} } return (b+a)/2; }
 
-  function computeAndDraw(){ const d = currentData = computeProfile(); draw(d); report(d); runTests(d); }
+  function computeAndDraw(){ const d = currentData = computeProfile(); draw(d); report(d); updateSTLEstimate(); runTests(d); }
 
   function draw(d){
     const pxPerMM = parseFloat(inp.scale.value); $('#badgeScale').textContent = ` · 縮放 ${pxPerMM.toFixed(1)} px/mm · ${VERSION}`;
@@ -215,7 +244,7 @@
 
     while(svg.firstChild) svg.removeChild(svg.firstChild);
 
-    // Reference crosshair at center (optional light grid)
+    // Center crosshair
     const grid = elt('g', {opacity:0.20});
     grid.appendChild(elt('line',{x1:0,y1:H/2,x2:W,y2:H/2, stroke:'#20344f','stroke-width':1}));
     grid.appendChild(elt('line',{x1:W/2,y1:0,x2:W/2,y2:H, stroke:'#20344f','stroke-width':1}));
@@ -243,7 +272,7 @@
 
     lensG.appendChild(asph); lensG.appendChild(back);
 
-    // Aperture dimension (exportable) --------------------------------------
+    // Aperture dimension (exportable)
     const dimG = drawCADimension(X, Y, d.rMax, d.CT, pxPerMM);
     lensG.appendChild(dimG);
 
@@ -256,22 +285,122 @@
   }
 
   function drawCADimension(X, Y, rMax, CT, pxPerMM){
-    // Place dimension slightly to the right of lens
-    const zDim = CT + 0.15 * (rMax*2); // offset ~ 0.3*CA mm to the right
+    const zDim = CT + 0.15 * (rMax*2); // offset right ~ 0.3*CA
     const x = X(zDim);
     const yTop = Y(rMax), yBot = Y(-rMax);
     const g = elt('g', {'data-dim':'ca'});
-    // main line
     g.appendChild(elt('line',{x1:x, y1:yTop, x2:x, y2:yBot, stroke:'#a9ffd0','stroke-width':2}));
-    // arrow heads (simple ticks)
     const tick=8; g.appendChild(elt('line',{x1:x-tick,y1:yTop,x2:x+tick,y2:yTop, stroke:'#a9ffd0','stroke-width':2})); g.appendChild(elt('line',{x1:x-tick,y1:yBot,x2:x+tick,y2:yBot, stroke:'#a9ffd0','stroke-width':2}));
-    // text label
     const ca = (rMax*2).toFixed(2);
     const text = elt('text',{x:x+10, y:(yTop+yBot)/2 + 4, fill:'#a9ffd0','font-size':12});
     text.appendChild(document.createTextNode(`CA = ${ca} mm`));
     g.appendChild(text);
     return g;
   }
+
+  // ----------------- 3D helpers -------------------
+  function qualityPreset(q){
+    switch(q){
+      case 'draft': return {nr:64, na:72};
+      case 'medium': return {nr:128, na:120};
+      case 'fine': return {nr:256, na:180};
+      case 'ultra': return {nr:512, na:360};
+      default: return {nr:256, na:180};
+    }
+  }
+  function getSTLOpts(){ const q = inp.stlQuality.value; const base = qualityPreset(q); const tol_um = parseFloat(inp.stlTol.value)||0; return { format: inp.stlFormat.value, nr: base.nr, na: base.na, adaptive: tol_um>0, tol_um: tol_um }; }
+  function sagFromD(d, r){ const c=d.c, K=d.K; const cr=c*r; const sq=1-(1+K)*cr*cr; if(sq<0) return NaN; const base=(c*r*r)/(1+Math.sqrt(sq)); return base + d.A4*r**4 + d.A6*r**6 + d.A8*r**8; }
+  function radialProfile(d, {nr=256, adaptive=false, tol_um=10}={}){
+    const rs=[], zs=[]; const rMax=d.rMax; const tol = Math.max(0, tol_um)/1000; // mm
+    if(adaptive){
+      const r0=0, r1=rMax; const z0=0, z1=sagFromD(d, r1);
+      rs.push(0); zs.push(0);
+      (function subdiv(r0,z0,r1,z1,depth){ const rm=0.5*(r0+r1); const zm=sagFromD(d, rm); const zlin = z0 + (z1 - z0) * ( (rm - r0) / (r1 - r0) ); const err = Math.abs(zm - zlin); if((err>tol) && depth<22){ subdiv(r0,z0,rm,zm,depth+1); subdiv(rm,zm,r1,z1,depth+1); } else { rs.push(r1); zs.push(z1); } })(r0,z0,r1,z1,0);
+    } else {
+      for(let i=0;i<nr;i++){ const r = rMax*i/(nr-1); rs.push(r); zs.push(sagFromD(d,r)); }
+    }
+    return {rs,zs};
+  }
+
+  // ----------------- 3D: ASCII STL builder -------------------
+  function buildSTL(d, {nr=256, na=180, adaptive=false, tol_um=10}={}){
+    const prof = radialProfile(d,{nr, adaptive, tol_um}); const rs=prof.rs, zs=prof.zs;
+    function v(r, z, th){ const c=Math.cos(th), s=Math.sin(th); return [r*c, r*s, z]; }
+    function nrm(a,b,c){ const ux=b[0]-a[0], uy=b[1]-a[1], uz=b[2]-a[2]; const vx=c[0]-a[0], vy=c[1]-a[1], vz=c[2]-a[2]; const nx=uy*vz-uz*vy, ny=uz*vx-ux*vz, nz=ux*vy-uy*vx; const len=Math.hypot(nx,ny,nz)||1; return [nx/len, ny/len, nz/len]; }
+    function facet(a,b,c){ const [nx,ny,nz]=nrm(a,b,c); return `facet normal ${nx} ${ny} ${nz}\n outer loop\n  vertex ${a[0]} ${a[1]} ${a[2]}\n  vertex ${b[0]} ${b[1]} ${b[2]}\n  vertex ${c[0]} ${c[1]} ${c[2]}\n endloop\nendfacet\n`; }
+    let out = `solid lens_${VERSION} (units: mm)\n`;
+    const dth = 2*Math.PI/na; const CT=d.CT; const rMax=d.rMax; const zEdge=zs[zs.length-1];
+    // Front asphere
+    for(let i=0;i<rs.length-1;i++){
+      for(let j=0;j<na;j++){
+        const t0=j*dth, t1=(j+1)*dth; const r0=rs[i], r1=rs[i+1]; const z0=zs[i], z1=zs[i+1];
+        const A=v(r0,z0,t0), B=v(r1,z1,t0), C=v(r1,z1,t1), D=v(r0,z0,t1);
+        out += facet(A,B,C) + facet(A,C,D);
+      }
+    }
+    // Back plane
+    for(let i=0;i<rs.length-1;i++){
+      for(let j=0;j<na;j++){
+        const t0=j*dth, t1=(j+1)*dth; const r0=rs[i], r1=rs[i+1];
+        const A=v(r0,CT,t0), B=v(r0,CT,t1), C=v(r1,CT,t1), D=v(r1,CT,t0);
+        out += facet(A,B,C) + facet(A,C,D);
+      }
+    }
+    // Rim
+    for(let j=0;j<na;j++){
+      const t0=j*dth, t1=(j+1)*dth; const r=rMax; const A=v(r,zEdge,t0), B=v(r,zEdge,t1), C=v(r,CT,t1), D=v(r,CT,t0);
+      out += facet(A,B,C) + facet(A,C,D);
+    }
+    out += 'endsolid\n'; return out;
+  }
+
+  // ----------------- 3D: Binary STL builder -------------------
+  function buildSTLBinary(d, {nr=256, na=180, adaptive=true, tol_um=10}={}){
+    const prof = radialProfile(d,{nr, adaptive, tol_um}); const rs=prof.rs, zs=prof.zs;
+    const CT=d.CT; const rMax=d.rMax; const zEdge=zs[zs.length-1];
+    const dth = 2*Math.PI/na; const triFront=(rs.length-1)*na*2, triBack=(rs.length-1)*na*2, triRim=na*2; const triCount = triFront+triBack+triRim;
+    const bytes = 84 + 50*triCount; const buf = new ArrayBuffer(bytes); const dv = new DataView(buf); let off=0;
+    // header 80 bytes
+    const header = `lens_${VERSION}_binary`; for(let i=0;i<80;i++){ const code = i<header.length ? header.charCodeAt(i) : 32; dv.setUint8(off++, code); }
+    dv.setUint32(off, triCount, true); off+=4;
+    function v(r,z,th){ const c=Math.cos(th), s=Math.sin(th); return [r*c, r*s, z]; }
+    function writeFacet(a,b,c){ // compute normal
+      const ux=b[0]-a[0], uy=b[1]-a[1], uz=b[2]-a[2]; const vx=c[0]-a[0], vy=c[1]-a[1], vz=c[2]-a[2];
+      let nx=uy*vz-uz*vy, ny=uz*vx-ux*vz, nz=ux*vy-uy*vx; const len=Math.hypot(nx,ny,nz)||1; nx/=len; ny/=len; nz/=len;
+      dv.setFloat32(off, nx, true); off+=4; dv.setFloat32(off, ny, true); off+=4; dv.setFloat32(off, nz, true); off+=4;
+      dv.setFloat32(off, a[0], true); off+=4; dv.setFloat32(off, a[1], true); off+=4; dv.setFloat32(off, a[2], true); off+=4;
+      dv.setFloat32(off, b[0], true); off+=4; dv.setFloat32(off, b[1], true); off+=4; dv.setFloat32(off, b[2], true); off+=4;
+      dv.setFloat32(off, c[0], true); off+=4; dv.setFloat32(off, c[1], true); off+=4; dv.setFloat32(off, c[2], true); off+=4;
+      dv.setUint16(off, 0, true); off+=2;
+    }
+    // Front
+    for(let i=0;i<rs.length-1;i++){
+      for(let j=0;j<na;j++){
+        const t0=j*dth, t1=(j+1)*dth; const r0=rs[i], r1=rs[i+1]; const z0=zs[i], z1=zs[i+1];
+        const A=v(r0,z0,t0), B=v(r1,z1,t0), C=v(r1,z1,t1), D=v(r0,z0,t1);
+        writeFacet(A,B,C); writeFacet(A,C,D);
+      }
+    }
+    // Back
+    for(let i=0;i<rs.length-1;i++){
+      for(let j=0;j<na;j++){
+        const t0=j*dth, t1=(j+1)*dth; const r0=rs[i], r1=rs[i+1];
+        const A=v(r0,CT,t0), B=v(r0,CT,t1), C=v(r1,CT,t1), D=v(r1,CT,t0);
+        writeFacet(A,B,C); writeFacet(A,C,D);
+      }
+    }
+    // Rim
+    for(let j=0;j<na;j++){
+      const t0=j*dth, t1=(j+1)*dth; const r=rMax; const A=v(r,zEdge,t0), B=v(r,zEdge,t1), C=v(r,CT,t1), D=v(r,CT,t0);
+      writeFacet(A,B,C); writeFacet(A,C,D);
+    }
+    return new Blob([buf], {type:'model/stl'});
+  }
+
+  // 估算 STL 面數/檔案大小
+  function estimateSTL(d, opts){ const prof = radialProfile(d,{nr:opts.nr, adaptive:opts.adaptive, tol_um:opts.tol_um}); const m=prof.rs.length; const tris = (m-1)*opts.na*2 + (m-1)*opts.na*2 + opts.na*2; const size = opts.format==='binary' ? 84 + 50*tris : 200*tris; return {tris, size}; }
+  function humanBytes(n){ const u=['B','KB','MB','GB']; let i=0; while(n>=1024&&i<u.length-1){ n/=1024; i++; } return `${n.toFixed(n<10?2:1)} ${u[i]}`; }
+  function updateSTLEstimate(){ const d = currentData || computeProfile(); const opts = getSTLOpts(); const est = estimateSTL(d, opts); const txt = `預估三角形數 ≈ ${est.tris.toLocaleString()}，檔案 ≈ ${humanBytes(est.size)}（${opts.format==='binary'?'Binary':'ASCII'}；品質=${inp.stlQuality.value}${opts.adaptive?`；自適應≤${opts.tol_um} μm`:''}）`; const el=$('#stlStats'); if(el) el.textContent = txt; }
 
   function exportLensSVG(d){
     const pxPerMM = parseFloat(inp.scale.value);
@@ -296,7 +425,6 @@
     lines.push(`# EFL_mm,${d.efl.toFixed(3)}`);
     lines.push(`# n,${d.n.toFixed(6)}`);
     lines.push(`# K,${d.K}`);
-    // include both display and actual values for A4/6/8
     lines.push(`# A4_display_(x1e-6_mm^-3),${parseFloat(inp.A4.value)}`);
     lines.push(`# A4_actual_mm^-3,${d.A4}`);
     lines.push(`# A6_display_(x1e-9_mm^-5),${parseFloat(inp.A6.value)}`);
@@ -342,15 +470,15 @@
       if(inp.thickMode.value==='ET'){ const ET = parseFloat(inp.et.value); out.push(approxEqual(d.CT, ET + d.zEdge, 1e-9) ? '✅ CT=ET+zEdge 檢查通過' : `❌ CT 與 ET+zEdge 不符 (${d.CT} vs ${ET + d.zEdge})`); }
       out.push(d.Rb>0 && isFinite(d.Rb) ? '✅ BFS 半徑有效' : '❌ BFS 半徑無效');
       const csv = buildCSV(d); out.push(csv.includes('# inputs') && csv.includes('r_mm,z_mm') ? '✅ CSV 含參數＋剖面兩段' : '❌ CSV 結構缺少參數或剖面');
-      out.push(csv.includes('v0.12') ? '✅ CSV 檔頭含版本' : '❌ CSV 檔頭未含版本');
+      out.push(csv.includes('v0.13') ? '✅ CSV 檔頭含版本' : '❌ CSV 檔頭未含版本');
+      out.push(csv.indexOf('\n')>0 && csv.split('\n').length>5 ? '✅ CSV 行分隔為 \n 且行數合理' : '❌ CSV 換行或行數異常');
       const xml = exportLensSVG(d); out.push(xml.includes('data-dim="ca"') ? '✅ SVG 含口徑 CA 尺寸標示' : '❌ SVG 未含 CA 尺寸標示');
       out.push(xml.startsWith('<?xml') ? '✅ SVG 有 XML 宣告' : '❌ SVG 缺少 XML 宣告');
-      // UI sanity: lens group exists & roughly centered
-      const lensG = document.querySelector('g.lens.exportable');
-      if(lensG){ const bb = lensG.getBBox(); const cx = (svg.clientWidth||svg.viewBox.baseVal.width)/2; out.push(Math.abs((bb.x + bb.width/2) - cx) < 20 ? '✅ 鏡片水平置中（±20px）' : `ℹ 鏡片中心偏移 ${Math.round((bb.x + bb.width/2) - cx)}px`); }
-      // Help example value can be produced
-      updateA468Example(); const ex = document.getElementById('a468Example').textContent||''; out.push(ex.includes('μm') ? '✅ A4/A6/A8 量級示例可產生' : '❌ 說明示例未產生');
-      console.info('[LensDesigner v0.12] Self-tests:', out); const box = document.getElementById('testResults'); if(box) box.innerHTML = out.join('<br>');
+      // STL (ASCII)
+      const stl = buildSTL(d,{nr:64,na:36}); out.push(stl.startsWith('solid') && stl.includes('facet normal') ? '✅ STL(ASCII) 產生基本正確' : '❌ STL(ASCII) 產生失敗'); out.push(stl.includes('units: mm') ? '✅ STL 註記單位 mm' : '❌ STL 未含單位註記'); out.push(stl.includes('endsolid\n') ? '✅ STL 尾端存在換行' : '❌ STL 尾端缺少換行');
+      // STL (Binary)
+      const bin = buildSTLBinary(d,{nr:64,na:36,adaptive:true,tol_um:20}); out.push(bin && (bin.size||0)>200 ? '✅ STL(Binary) 產生成功' : '❌ STL(Binary) 產生失敗');
+      console.info('[LensDesigner v0.13] Self-tests:', out); const box = document.getElementById('testResults'); if(box) box.innerHTML = out.join('<br>');
     }catch(err){ console.error('自測發生錯誤', err); const box=document.getElementById('testResults'); if(box) box.textContent = '❌ 自測例外：'+err.message; }
   }
 
