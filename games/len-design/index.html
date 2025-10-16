@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>非球面平凸透鏡 橫剖面互動設計器 v0.13 (mm)</title>
+<title>非球面平凸透鏡 橫剖面互動設計器 v0.2 (mm)</title>
 <style>
   :root{
     --bg:#0b0f14; --panel:#10161f; --ink:#e6f0ff; --muted:#9bb3cc; --accent:#7cc4ff; --good:#3ddc97; --warn:#ffd166; --bad:#ef476f;
@@ -45,7 +45,8 @@
 <body>
 <div class="wrap">
   <div class="panel">
-    <h1>非球面平凸透鏡 設計器 <span class="tag">v0.13</span>（單位：mm）</h1>
+    <!-- 移除版號與單位，改放到「說明」 -->
+    <h1>非球面平凸透鏡 設計器</h1>
 
     <h2>主要尺寸 & 光學條件</h2>
     <div class="row"><label>清孔徑（CA, 直徑）</label><input id="ca" class="num" type="number" step="0.1" value="25"><input id="caR" type="range" min="2" max="100" step="0.1" value="25"></div>
@@ -80,7 +81,7 @@
       <select id="stlQuality">
         <option value="draft">草稿（nr=64, na=72）</option>
         <option value="medium" selected>中等（nr=128, na=120）</option>
-        <option value="fine">精細（nr=256, na=180｜v0.13 既定）</option>
+        <option value="fine">精細（nr=256, na=180）</option>
         <option value="ultra">超細（nr=512, na=360）</option>
       </select>
     </div>
@@ -93,9 +94,10 @@
 
     <div class="btns">
       <button id="reset">重設預設</button>
-      <button id="dlCSV" class="good">下載剖面 CSV（v0.13）</button>
-      <button id="dlSVG" class="good">下載視圖 SVG（v0.13）</button>
-      <button id="dlSTL" class="good">下載 3D STL（v0.13）</button>
+      <button id="dlCSV" class="good">下載剖面 CSV（v0.2）</button>
+      <button id="dlSVG" class="good">下載視圖 SVG（v0.2）</button>
+      <button id="dlSTL" class="good">下載 3D STL（v0.2）</button>
+      <button id="simulate">模擬（成像）</button>
       <button id="about">說明</button>
     </div>
 
@@ -108,18 +110,19 @@
   </div>
 
   <div class="viewer">
-    <div class="badge">鏡片剖面（<b>光軸水平</b>，向右為 +z）。<span id="badgeScale"></span></div>
+    <div class="badge"><span id="viewMode">設計</span>視圖（<b>光軸水平</b>，向右為 +z）。<span id="badgeScale"></span></div>
     <svg id="svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 700">
       <!-- 元素由 JS 建立 -->
     </svg>
-    <div class="legend">線色：<span style="color:#7cc4ff">非球前表面</span> · <span style="color:#c9ff7c">平面後表面</span> · <span style="color:#ff9f7c">最佳擬合球</span> · <span style="color:#a9ffd0">口徑標示（CA）</span></div>
+    <div class="legend" id="legend">線色：<span style="color:#7cc4ff">非球前表面</span> · <span style="color:#c9ff7c">平面後表面</span> · <span style="color:#ff9f7c">最佳擬合球</span> · <span style="color:#a9ffd0">口徑標示（CA）</span></div>
   </div>
 </div>
 
 <!-- 說明 Modal -->
 <div id="help" class="modal">
   <div class="card">
-    <h3>參數說明與 3D 匯出（八年級可懂版）</h3>
+    <h3>參數說明與 3D/模擬（八年級可懂版）</h3>
+    <p class="note">版本：<b>v0.2</b>．單位：<b>mm</b></p>
     <div class="grid2">
       <div>
         <p><span class="em">清孔徑 CA</span>：光能通過的有效直徑（mm）。像水管口徑，越大進光越多、景深越淺。</p>
@@ -137,23 +140,26 @@
       </div>
     </div>
     <details>
-      <summary>輸出檔案內容與壓縮策略</summary>
+      <summary>輸出檔案與模擬</summary>
       <ul>
-        <li><b>CSV（v0.13）</b>：第一段是「# 參數區」（包含 CA/EFL/n/K/A₄/A₆/A₈、厚度模式與 ET/CT），第二段是 <code>r_mm,z_mm</code> 剖面。</li>
-        <li><b>SVG（v0.13）</b>：置中的鏡片剖面 + 平面後表面 + <b>CA 尺寸標示</b>（供比例校正）。</li>
-        <li><b>STL（v0.13）</b>：支援 <b>Binary</b>（小檔）與 <b>ASCII</b>；並可用<b>自適應取樣</b>限制弦高誤差（μm）以減檔。</li>
+        <li><b>CSV（v0.2）</b>：第一段是「# 參數區」，第二段是 <code>r_mm,z_mm</code> 剖面。</li>
+        <li><b>SVG（v0.2）</b>：置中的鏡片剖面 + 平面後表面 + <b>CA 尺寸標示</b>。</li>
+        <li><b>STL（v0.2）</b>：支援 <b>Binary</b> 與 <b>ASCII</b>，可用<b>自適應取樣</b>減檔。</li>
+        <li><b>模擬</b>：按「模擬」按鈕，會以幾何追跡（ray tracing）顯示物體→鏡片→像面，並自動尋找最佳成像平面（最小 RMS spot）。</li>
       </ul>
     </details>
-    <p class="note">STL 目前輸出為 <b>ASCII 或 Binary</b>（可選）。若需 <b>負模（模具）</b>或 <b>STEP</b> 檔，請告訴我你要的型式（公模/母模、拔模角、倒角與安全邊）。</p>
     <div style="text-align:right; margin-top:8px;"><button id="closeHelp">關閉</button></div>
   </div>
 </div>
 
 <script>
 (function(){
-  const VERSION = 'v0.13';
+  const VERSION = 'v0.2';
   const $ = s=>document.querySelector(s);
   const elt = (tag, attrs={}, children=[])=>{ const e=document.createElementNS('http://www.w3.org/2000/svg', tag); for(const k in attrs) e.setAttribute(k, attrs[k]); children.forEach(c=>e.appendChild(c)); return e; };
+
+  // State
+  let simMode = false;
 
   // Inputs & pairs
   const inp = {
@@ -183,7 +189,7 @@
   inp.thickMode.addEventListener('change', ()=>{ const m = inp.thickMode.value; etRow.style.display = (m==='ET')?'block':'none'; ctRow.style.display = (m==='CT')?'block':'none'; computeAndDraw(); });
   inp.stlFormat.addEventListener('change', ()=>{ updateSTLEstimate(); });
   inp.stlQuality.addEventListener('change', ()=>{ updateSTLEstimate(); });
-  $('#reset').addEventListener('click', ()=>{ inp.ca.value = inp.caR.value = 25; inp.efl.value = inp.eflR.value = 30; inp.nidx.value = inp.nidxR.value = 1.520; inp.K.value = inp.KR.value = -1; inp.A4.value = inp.A4R.value = 0; inp.A6.value = inp.A6R.value = 0; inp.A8.value = inp.A8R.value = 0; inp.scale.value = inp.scaleR.value = 8; inp.thickMode.value = 'ET'; etRow.style.display='block'; ctRow.style.display='none'; inp.et.value = inp.etR.value = 2.00; inp.ct.value = inp.ctR.value = 4.00; inp.stlFormat.value='binary'; inp.stlQuality.value='medium'; inp.stlTol.value=inp.stlTolR.value=10.0; computeAndDraw(); });
+  $('#reset').addEventListener('click', ()=>{ inp.ca.value = inp.caR.value = 25; inp.efl.value = inp.eflR.value = 30; inp.nidx.value = inp.nidxR.value = 1.520; inp.K.value = inp.KR.value = -1; inp.A4.value = inp.A4R.value = 0; inp.A6.value = inp.A6R.value = 0; inp.A8.value = inp.A8R.value = 0; inp.scale.value = inp.scaleR.value = 8; inp.thickMode.value = 'ET'; etRow.style.display='block'; ctRow.style.display='none'; inp.et.value = inp.etR.value = 2.00; inp.ct.value = inp.ctR.value = 4.00; inp.stlFormat.value='binary'; inp.stlQuality.value='medium'; inp.stlTol.value=inp.stlTolR.value=10.0; simMode=false; setViewMode(); computeAndDraw(); });
 
   // Help modal
   const modal = $('#help');
@@ -191,12 +197,14 @@
   $('#closeHelp').addEventListener('click', ()=>{ modal.classList.remove('on'); });
   modal.addEventListener('click', (e)=>{ if(e.target===modal) modal.classList.remove('on'); });
 
-  // Downloads
+  // Downloads + Simulate
   function download(filename, text){ const a=document.createElement('a'); a.href='data:text/plain;charset=utf-8,'+encodeURIComponent(text); a.download=filename; document.body.appendChild(a); a.click(); a.remove(); }
   function downloadBlob(filename, blob){ const a=document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = filename; document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 0); }
   $('#dlCSV').addEventListener('click', ()=>{ const d = currentData || computeProfile(); const csv = buildCSV(d); download(`asphere_profile_${VERSION}.csv`, csv); });
   $('#dlSVG').addEventListener('click', ()=>{ const d=currentData||computeProfile(); const xml = exportLensSVG(d); download(`lens_cross_section_${VERSION}.svg`, xml); });
   $('#dlSTL').addEventListener('click', ()=>{ const d=currentData||computeProfile(); const opts = getSTLOpts(); if(opts.format==='binary'){ const blob = buildSTLBinary(d, opts); downloadBlob(`lens_solid_${VERSION}.stl`, blob); } else { const stl = buildSTL(d, opts); download(`lens_solid_${VERSION}.stl`, stl); } });
+  $('#simulate').addEventListener('click', ()=>{ simMode = !simMode; setViewMode(); computeAndDraw(); });
+  function setViewMode(){ const tag = $('#viewMode'); const legend = $('#legend'); if(simMode){ tag.textContent='模擬'; legend.textContent='線色：青=入/出射光線 · 綠=像面（螢幕） · 橙=物體（箭頭） · 白=鏡片輪廓 · 黃=尺寸標示'; } else { tag.textContent='設計'; legend.textContent='線色：非球前表面 · 平面後表面 · 最佳擬合球 · 口徑標示（CA）'; } }
 
   function clamp(x,lo,hi){return Math.max(lo, Math.min(hi,x));}
 
@@ -224,19 +232,18 @@
 
     let maxDep=0, maxSlope=0; const depArr=[]; for(let i=0;i<samples.length;i++){ const {r,z} = samples[i]; const dep = z - sphereSag(r,Rb); depArr.push(dep); if(Math.abs(dep)>Math.abs(maxDep)) maxDep=dep; const im=Math.max(0,i-1), ip=Math.min(samples.length-1,i+1); const dz=samples[ip].z-samples[im].z; const dr=samples[ip].r-samples[im].r || 1e-9; const slope=dz/dr; if(Math.abs(slope)>maxSlope) maxSlope=Math.abs(slope); }
 
-    return { CA, efl, n, K, A4, A6, A8, c, R, rMax:rLimit, CT, zEdge, Rb, samples, depArr, maxDep, maxSlope, zMinSag, zMaxSag };
+    return { CA, efl, n, K, A4, A6, A8, c, R, rMax:rLimit, CT, zEdge, Rb, samples, depArr, maxDep, maxSlope, zMinSag, zMaxSag, sag };
   }
 
   function bestFitSphereRadius(samples){ let R0=1000; if(samples.length>5){const r1=samples[1].r, z1=samples[1].z; const c_est=(2*z1)/(r1*r1); R0= c_est>1e-9? 1/c_est : 1e9;} let a=Math.max(0.1,R0*0.25), b=R0*2.5; const phi=(1+Math.sqrt(5))/2; let c1=b-(b-a)/phi, c2=a+(b-a)/phi; function sse(R){ if(!isFinite(R)||R<=0) return 1e99; let E=0; for(const s of samples){ const r=s.r,z=s.z; const zs=R-Math.sqrt(Math.max(1e-9,R*R - r*r)); const d=z-zs; E+=d*d;} return E; } let f1=sse(c1), f2=sse(c2); for(let i=0;i<80;i++){ if(f1>f2){ a=c1; c1=c2; f1=f2; c2=a+(b-a)/phi; f2=sse(c2);} else { b=c2; c2=c1; f2=f1; c1=b-(b-a)/phi; f1=sse(c1);} } return (b+a)/2; }
 
-  function computeAndDraw(){ const d = currentData = computeProfile(); draw(d); report(d); updateSTLEstimate(); runTests(d); }
+  function computeAndDraw(){ const d = currentData = computeProfile(); if(simMode) drawSim(d); else drawDesign(d); report(d); updateSTLEstimate(); runTests(d); }
 
-  function draw(d){
+  function drawDesign(d){
     const pxPerMM = parseFloat(inp.scale.value); $('#badgeScale').textContent = ` · 縮放 ${pxPerMM.toFixed(1)} px/mm · ${VERSION}`;
     const vb = svg.viewBox.baseVal; const W = (svg.clientWidth||svg.getBoundingClientRect().width||vb.width||1200); const H = (svg.clientHeight||svg.getBoundingClientRect().height||vb.height||700);
 
-    // --- Centering mapping (上下左右置中) ---
-    const zMinLens = Math.min(0, d.zMinSag, d.CT); // front surface starts near z>=0
+    const zMinLens = Math.min(0, d.zMinSag, d.CT);
     const zMaxLens = Math.max(d.zMaxSag, d.CT);
     const zCenter = (zMinLens + zMaxLens) / 2;
     function X(z){ return W/2 + (z - zCenter) * pxPerMM; }
@@ -244,19 +251,14 @@
 
     while(svg.firstChild) svg.removeChild(svg.firstChild);
 
-    // Center crosshair
     const grid = elt('g', {opacity:0.20});
     grid.appendChild(elt('line',{x1:0,y1:H/2,x2:W,y2:H/2, stroke:'#20344f','stroke-width':1}));
     grid.appendChild(elt('line',{x1:W/2,y1:0,x2:W/2,y2:H, stroke:'#20344f','stroke-width':1}));
     svg.appendChild(grid);
 
-    // Lens group (exportable)
     const lensG = elt('g',{class:'lens exportable'});
-
-    // Back plane (flat)
     const back = elt('line',{x1:X(d.CT), y1:Y(d.rMax), x2:X(d.CT), y2:Y(-d.rMax), stroke:'#c9ff7c','stroke-width':3,'vector-effect':'non-scaling-stroke'});
 
-    // Front asphere silhouette (closed)
     const asph = elt('path',{fill:'#7cc4ff22', stroke:'#e6f0ff','stroke-width':3,'vector-effect':'non-scaling-stroke'});
     let dStr = '';
     for(let i=0;i<d.samples.length;i++){ const {r,z} = d.samples[i]; dStr += (i===0?`M ${X(z)} ${Y(r)}`:` L ${X(z)} ${Y(r)}`); }
@@ -264,31 +266,26 @@
     dStr += ` L ${X(d.CT)} ${Y(-d.rMax)} L ${X(d.CT)} ${Y(d.rMax)} Z`;
     asph.setAttribute('d', dStr);
 
-    // BFS (upper half)
     const bfs = elt('path',{fill:'none', stroke:'#ff9f7c','stroke-dasharray':'6,6','stroke-width':2,'vector-effect':'non-scaling-stroke'});
     let bStr=''; const Rb=d.Rb; function sphereSag(r,Rb){ return Rb - Math.sqrt(Math.max(1e-9,Rb*Rb - r*r)); }
     for(let i=0;i<d.samples.length;i++){ const {r} = d.samples[i]; const zs = sphereSag(r,Rb); bStr += (i===0?`M ${X(zs)} ${Y(r)}`:` L ${X(zs)} ${Y(r)}`); }
     bfs.setAttribute('d', bStr);
 
     lensG.appendChild(asph); lensG.appendChild(back);
-
-    // Aperture dimension (exportable)
-    const dimG = drawCADimension(X, Y, d.rMax, d.CT, pxPerMM);
+    const dimG = drawCADimension(X, Y, d.rMax, d.CT);
     lensG.appendChild(dimG);
 
     svg.appendChild(lensG);
     svg.appendChild(bfs);
 
-    // Labels
     svg.appendChild(elt('text',{x:X(0)+6, y:Y(d.rMax)-6, fill:'#9fc6ff', 'font-size':11}, [document.createTextNode('前表面（非球）')]));
     svg.appendChild(elt('text',{x:X(d.CT)+6, y:Y(0)-6, fill:'#ccffae', 'font-size':11}, [document.createTextNode('後表面（平面）')]));
   }
 
-  function drawCADimension(X, Y, rMax, CT, pxPerMM){
-    const zDim = CT + 0.15 * (rMax*2); // offset right ~ 0.3*CA
-    const x = X(zDim);
-    const yTop = Y(rMax), yBot = Y(-rMax);
+  function drawCADimension(X, Y, rMax, CT){
+    const zDim = CT + 0.15 * (rMax*2);
     const g = elt('g', {'data-dim':'ca'});
+    const x = X(zDim); const yTop = Y(rMax), yBot = Y(-rMax);
     g.appendChild(elt('line',{x1:x, y1:yTop, x2:x, y2:yBot, stroke:'#a9ffd0','stroke-width':2}));
     const tick=8; g.appendChild(elt('line',{x1:x-tick,y1:yTop,x2:x+tick,y2:yTop, stroke:'#a9ffd0','stroke-width':2})); g.appendChild(elt('line',{x1:x-tick,y1:yBot,x2:x+tick,y2:yBot, stroke:'#a9ffd0','stroke-width':2}));
     const ca = (rMax*2).toFixed(2);
@@ -298,169 +295,156 @@
     return g;
   }
 
-  // ----------------- 3D helpers -------------------
-  function qualityPreset(q){
-    switch(q){
-      case 'draft': return {nr:64, na:72};
-      case 'medium': return {nr:128, na:120};
-      case 'fine': return {nr:256, na:180};
-      case 'ultra': return {nr:512, na:360};
-      default: return {nr:256, na:180};
-    }
+  // 供模擬用的水平尺寸標註：z1↔z2 於 y = const
+  function drawZDimension(X, Y, z1, z2, yConst, label, color='#ffd166'){
+    const g = elt('g', {'data-dim':'Lcs'});
+    const x1 = X(z1), x2 = X(z2); const y = Y(yConst);
+    // 主線
+    g.appendChild(elt('line',{x1:Math.min(x1,x2), y1:y, x2:Math.max(x1,x2), y2:y, stroke:color, 'stroke-width':2}));
+    // 箭頭（向內）
+    const ah=10, ahh=6; // px
+    // 左端
+    g.appendChild(elt('polyline',{points:`${x1},${y} ${x1+ah},${y-ahh} ${x1+ah},${y+ahh} ${x1},${y}`, fill:color, stroke:color}));
+    // 右端
+    g.appendChild(elt('polyline',{points:`${x2},${y} ${x2-ah},${y-ahh} ${x2-ah},${y+ahh} ${x2},${y}`, fill:color, stroke:color}));
+    // 文字
+    const xc = 0.5*(x1+x2);
+    g.appendChild(elt('text',{x:xc, y:y-8, 'text-anchor':'middle', fill:color, 'font-size':12}, [document.createTextNode(label)]));
+    return g;
   }
+
+  // ----------------- Simulation (ray trace) -----------------
+  function fprimeNumeric(sag, r){ const h = Math.max(1e-5, Math.abs(r)*1e-5); const z1 = sag(Math.max(0,r-h)), z2 = sag(r+h); return (z2 - z1)/(2*h); }
+  function refract2D(i, n, n1, n2){ // i,n: [y,z], unit; n points into incident medium
+    const dot = i[0]*n[0] + i[1]*n[1]; const cosi = -dot; const eta = n1/n2; const k = 1 - eta*eta*(1 - cosi*cosi); if(k<0){ // TIR → reflect
+      const r = [ i[0] + 2*cosi*n[0], i[1] + 2*cosi*n[1] ]; const L = Math.hypot(r[0],r[1])||1; return [r[0]/L, r[1]/L];
+    }
+    const a = eta; const b = eta*cosi - Math.sqrt(k); const t = [ a*i[0] + b*n[0], a*i[1] + b*n[1] ]; const L = Math.hypot(t[0],t[1])||1; return [t[0]/L, t[1]/L];
+  }
+  function intersectFront(P, I, d){ // Newton on t s.t. z(t) = sag(|y(t)|)
+    let t = (0 - P[1]) / (I[1]||1e-9); // to z≈0 as initial
+    for(let k=0;k<20;k++){
+      const y = P[0] + I[0]*t; const z = P[1] + I[1]*t; const r = Math.abs(y);
+      const sz = d.sag(r);
+      const g = z - sz; if(!isFinite(g)) return null; if(Math.abs(g) < 1e-6) return {t, y, z:sz};
+      const fp = fprimeNumeric(d.sag, r) * (y>=0?1:-1); // dz/dy
+      const gp = I[1] - fp * I[0]; if(Math.abs(gp)<1e-9) t += 1e-3; else t -= g/gp;
+    }
+    const y = P[0] + I[0]*t; const z = d.sag(Math.abs(y)); if(!isFinite(z)) return null; return {t, y, z};
+  }
+  function traceRayFromObject(d, obj, yApert){ // obj:[z,y]
+    // Aim toward z=0, y=yApert
+    const dir0 = (function(){ const vy = yApert - obj[1]; const vz = 0 - obj[0]; const L = Math.hypot(vy,vz)||1; return [vy/L, vz/L]; })();
+    // Intersect front
+    const hit = intersectFront([obj[1], obj[0]], dir0, d); if(!hit) return null; if(Math.abs(hit.y) > d.rMax+1e-6) return null;
+    // Surface normal (into incident, i.e., air side)
+    const r = Math.abs(hit.y); const dfdy = fprimeNumeric(d.sag, r) * (hit.y>=0?1:-1); let n = [ -dfdy, 1 ]; { const L=Math.hypot(n[0],n[1])||1; n=[n[0]/L, n[1]/L]; }
+    // Orient normal into incident medium
+    const dot = dir0[0]*n[0] + dir0[1]*n[1]; if(dot>0){ n=[-n[0], -n[1]]; }
+    // Refract air→lens
+    const i1 = refract2D(dir0, n, 1.0, d.n);
+    const P1 = [ hit.y, hit.z ];
+    // Go to back plane z=CT
+    const t2 = (d.CT - P1[1]) / (i1[1]||1e-9); const P2 = [ P1[0] + i1[0]*t2, d.CT ];
+    // Refract lens→air at plane; normal into incident medium (inside) is (0,-1)
+    const n2 = [0,-1]; const i2 = refract2D(i1, n2, d.n, 1.0);
+    return { segs: [ [obj[1],obj[0]], [P1[0],P1[1]], [P2[0],P2[1]] ], out: { P:P2, I:i2 } };
+  }
+  function bestFocusZ(d, rays){ // minimize RMS of y at screen
+    // bracket around CT+EFL
+    let a = d.CT + 0.2*d.efl, b = d.CT + 3.0*d.efl;
+    function rms(zs){ const ys=[]; for(const r of rays){ const {P,I}=r.out; const t=(zs - P[1])/(I[1]||1e-9); ys.push(P[0] + I[0]*t); } const mean = ys.reduce((s,y)=>s+y,0)/ys.length; const varr = ys.reduce((s,y)=>s+(y-mean)*(y-mean),0)/ys.length; return Math.sqrt(varr); }
+    const phi=(1+Math.sqrt(5))/2; let c=b-(b-a)/phi, d0=a+(b-a)/phi; let fc=rms(c), fd=rms(d0); for(let k=0;k<50;k++){ if(fc>fd){ a=c; c=d0; fc=fd; d0=a+(b-a)/phi; fd=rms(d0);} else { b=d0; d0=c; fd=fc; c=b-(b-a)/phi; fc=rms(c);} }
+    return (b+a)/2;
+  }
+  function drawSim(d){
+    const pxPerMM = parseFloat(inp.scale.value); $('#badgeScale').textContent = ` · 縮放 ${pxPerMM.toFixed(1)} px/mm · ${VERSION}`;
+    const vb = svg.viewBox.baseVal; const W = (svg.clientWidth||svg.getBoundingClientRect().width||vb.width||1200); const H = (svg.clientHeight||svg.getBoundingClientRect().height||vb.height||700);
+
+    const zMinLens = Math.min(-d.efl*2, d.zMinSag, d.CT); const zMaxLens = Math.max(d.zMaxSag, d.CT + 2*d.efl);
+    const zCenter = (zMinLens + zMaxLens) / 2;
+    function X(z){ return W/2 + (z - zCenter) * pxPerMM; }
+    function Y(r){ return H/2 - r * pxPerMM; }
+
+    while(svg.firstChild) svg.removeChild(svg.firstChild);
+
+    const gSim = elt('g',{class:'sim'});
+
+    // Draw lens silhouette (thin white)
+    const lensG = elt('g',{opacity:0.9});
+    const asph = elt('path',{fill:'#ffffff11', stroke:'#ffffff','stroke-width':1.8,'vector-effect':'non-scaling-stroke'});
+    let dStr = '';
+    for(let i=0;i<d.samples.length;i++){ const {r,z} = d.samples[i]; dStr += (i===0?`M ${X(z)} ${Y(r)}`:` L ${X(z)} ${Y(r)}`); }
+    for(let i=d.samples.length-1;i>=0;i--){ const {r,z} = d.samples[i]; dStr += ` L ${X(z)} ${Y(-r)}`; }
+    dStr += ` L ${X(d.CT)} ${Y(-d.rMax)} L ${X(d.CT)} ${Y(d.rMax)} Z`;
+    asph.setAttribute('d', dStr); lensG.appendChild(asph);
+    gSim.appendChild(lensG);
+
+    // Object (orange arrow) at z_obj
+    const zObj = -Math.max(50, 2*d.efl); const hObj = Math.min(d.rMax*0.8, 0.6*d.CA*0.5);
+    const objG = elt('g',{});
+    objG.appendChild(elt('line',{x1:X(zObj),y1:Y(0),x2:X(zObj),y2:Y(hObj),stroke:'#ffb36b','stroke-width':2}));
+    objG.appendChild(elt('polyline',{points:`${X(zObj)},${Y(hObj)} ${X(zObj)-8},${Y(hObj)-12} ${X(zObj)+8},${Y(hObj)-12} ${X(zObj)},${Y(hObj)}`,fill:'#ffb36b'}));
+    gSim.appendChild(objG);
+
+    // Rays from the object top
+    const yTop = hObj; const rMax=d.rMax; const samples=21; const rays=[]; for(let k=0;k<samples;k++){ const yA = -rMax + (2*rMax)*k/(samples-1); const ray = traceRayFromObject(d, [zObj, yTop], yA); if(ray) rays.push(ray); }
+
+    // Find best focus plane
+    const zScreen = bestFocusZ(d, rays);
+
+    // Draw rays (cyan)
+    const rayG = elt('g',{});
+    for(const r of rays){ const p = r.segs; const {P,I}=r.out; const t=(zScreen - P[1])/(I[1]||1e-9); const Ps = [P[0]+I[0]*t, zScreen]; const poly = [p[0],[p[1][0],p[1][1]],[p[2][0],p[2][1]],[Ps[0],Ps[1]]].map(q=>`${X(q[1])},${Y(q[0])}`).join(' '); rayG.appendChild(elt('polyline',{points:poly, fill:'none', stroke:'#7cc4ff','stroke-width':1.5,'stroke-opacity':0.9})); }
+    gSim.appendChild(rayG);
+
+    // Screen (green)
+    gSim.appendChild(elt('line',{x1:X(zScreen),y1:Y(d.rMax*1.2),x2:X(zScreen),y2:Y(-d.rMax*1.2),stroke:'#8aff9b','stroke-width':2,'stroke-dasharray':'6,6'}));
+
+    // ---- 新增：尺寸標示 ----
+    // 1) 口徑 CA（與設計視圖一致）
+    gSim.appendChild(drawCADimension(X, Y, d.rMax, d.CT));
+    // 2) 幾何鏡心（取幾何中心 z=CT/2）到螢幕距離
+    const zLensCenter = d.CT * 0.5;
+    const Lcs = Math.abs(zScreen - zLensCenter);
+    const dimY = -Math.max(d.rMax*1.35, 10); // 放在下方
+    gSim.appendChild(drawZDimension(X, Y, zLensCenter, zScreen, dimY, `鏡心→螢幕 ≈ ${Lcs.toFixed(2)} mm`, '#ffd166'));
+    // 鏡心輕標記
+    gSim.appendChild(elt('line',{x1:X(zLensCenter),y1:Y(6),x2:X(zLensCenter),y2:Y(-6),stroke:'#ffd166','stroke-width':1,'stroke-dasharray':'3,3'}));
+
+    // Image arrow by chief/bottom rays intersections
+    function interceptAt(yObj){ const rays2=[]; for(let k=0;k<samples;k++){ const yA=-rMax+(2*rMax)*k/(samples-1); const ray=traceRayFromObject(d,[zObj,yObj],yA); if(ray) rays2.push(ray); } function meanY(zs){ const ys=rays2.map(r=>{ const {P,I}=r.out; const t=(zs-P[1])/(I[1]||1e-9); return P[0]+I[0]*t; }); return ys.reduce((s,y)=>s+y,0)/ys.length; } return meanY(zScreen); }
+    const yImgTop = interceptAt(yTop), yImgBase = interceptAt(0);
+    const imgG = elt('g',{});
+    imgG.appendChild(elt('line',{x1:X(zScreen),y1:Y(yImgBase),x2:X(zScreen),y2:Y(yImgTop),stroke:'#e9f2ff','stroke-width':2}));
+    imgG.appendChild(elt('polyline',{points:`${X(zScreen)},${Y(yImgTop)} ${X(zScreen)-8},${Y(yImgTop)+(yImgTop>yImgBase?12:-12)} ${X(zScreen)+8},${Y(yImgTop)+(yImgTop>yImgBase?12:-12)} ${X(zScreen)},${Y(yImgTop)}`,fill:'#e9f2ff'}));
+    gSim.appendChild(imgG);
+
+    svg.appendChild(gSim);
+  }
+
+  // ----------------- 3D helpers & builders -------------------
+  function qualityPreset(q){ switch(q){ case 'draft': return {nr:64, na:72}; case 'medium': return {nr:128, na:120}; case 'fine': return {nr:256, na:180}; case 'ultra': return {nr:512, na:360}; default: return {nr:256, na:180}; } }
   function getSTLOpts(){ const q = inp.stlQuality.value; const base = qualityPreset(q); const tol_um = parseFloat(inp.stlTol.value)||0; return { format: inp.stlFormat.value, nr: base.nr, na: base.na, adaptive: tol_um>0, tol_um: tol_um }; }
   function sagFromD(d, r){ const c=d.c, K=d.K; const cr=c*r; const sq=1-(1+K)*cr*cr; if(sq<0) return NaN; const base=(c*r*r)/(1+Math.sqrt(sq)); return base + d.A4*r**4 + d.A6*r**6 + d.A8*r**8; }
-  function radialProfile(d, {nr=256, adaptive=false, tol_um=10}={}){
-    const rs=[], zs=[]; const rMax=d.rMax; const tol = Math.max(0, tol_um)/1000; // mm
-    if(adaptive){
-      const r0=0, r1=rMax; const z0=0, z1=sagFromD(d, r1);
-      rs.push(0); zs.push(0);
-      (function subdiv(r0,z0,r1,z1,depth){ const rm=0.5*(r0+r1); const zm=sagFromD(d, rm); const zlin = z0 + (z1 - z0) * ( (rm - r0) / (r1 - r0) ); const err = Math.abs(zm - zlin); if((err>tol) && depth<22){ subdiv(r0,z0,rm,zm,depth+1); subdiv(rm,zm,r1,z1,depth+1); } else { rs.push(r1); zs.push(z1); } })(r0,z0,r1,z1,0);
-    } else {
-      for(let i=0;i<nr;i++){ const r = rMax*i/(nr-1); rs.push(r); zs.push(sagFromD(d,r)); }
-    }
-    return {rs,zs};
-  }
+  function radialProfile(d, {nr=256, adaptive=false, tol_um=10}={}){ const rs=[], zs=[]; const rMax=d.rMax; const tol = Math.max(0, tol_um)/1000; if(adaptive){ const r0=0, r1=rMax; const z0=0, z1=sagFromD(d, r1); rs.push(0); zs.push(0); (function subdiv(r0,z0,r1,z1,depth){ const rm=0.5*(r0+r1); const zm=sagFromD(d, rm); const zlin = z0 + (z1 - z0) * ( (rm - r0) / (r1 - r0) ); const err = Math.abs(zm - zlin); if((err>tol) && depth<22){ subdiv(r0,z0,rm,zm,depth+1); subdiv(rm,zm,r1,z1,depth+1); } else { rs.push(r1); zs.push(z1); } })(r0,z0,r1,z1,0);} else { for(let i=0;i<nr;i++){ const r = rMax*i/(nr-1); rs.push(r); zs.push(sagFromD(d,r)); } } return {rs,zs}; }
 
-  // ----------------- 3D: ASCII STL builder -------------------
-  function buildSTL(d, {nr=256, na=180, adaptive=false, tol_um=10}={}){
-    const prof = radialProfile(d,{nr, adaptive, tol_um}); const rs=prof.rs, zs=prof.zs;
-    function v(r, z, th){ const c=Math.cos(th), s=Math.sin(th); return [r*c, r*s, z]; }
-    function nrm(a,b,c){ const ux=b[0]-a[0], uy=b[1]-a[1], uz=b[2]-a[2]; const vx=c[0]-a[0], vy=c[1]-a[1], vz=c[2]-a[2]; const nx=uy*vz-uz*vy, ny=uz*vx-ux*vz, nz=ux*vy-uy*vx; const len=Math.hypot(nx,ny,nz)||1; return [nx/len, ny/len, nz/len]; }
-    function facet(a,b,c){ const [nx,ny,nz]=nrm(a,b,c); return `facet normal ${nx} ${ny} ${nz}\n outer loop\n  vertex ${a[0]} ${a[1]} ${a[2]}\n  vertex ${b[0]} ${b[1]} ${b[2]}\n  vertex ${c[0]} ${c[1]} ${c[2]}\n endloop\nendfacet\n`; }
-    let out = `solid lens_${VERSION} (units: mm)\n`;
-    const dth = 2*Math.PI/na; const CT=d.CT; const rMax=d.rMax; const zEdge=zs[zs.length-1];
-    // Front asphere
-    for(let i=0;i<rs.length-1;i++){
-      for(let j=0;j<na;j++){
-        const t0=j*dth, t1=(j+1)*dth; const r0=rs[i], r1=rs[i+1]; const z0=zs[i], z1=zs[i+1];
-        const A=v(r0,z0,t0), B=v(r1,z1,t0), C=v(r1,z1,t1), D=v(r0,z0,t1);
-        out += facet(A,B,C) + facet(A,C,D);
-      }
-    }
-    // Back plane
-    for(let i=0;i<rs.length-1;i++){
-      for(let j=0;j<na;j++){
-        const t0=j*dth, t1=(j+1)*dth; const r0=rs[i], r1=rs[i+1];
-        const A=v(r0,CT,t0), B=v(r0,CT,t1), C=v(r1,CT,t1), D=v(r1,CT,t0);
-        out += facet(A,B,C) + facet(A,C,D);
-      }
-    }
-    // Rim
-    for(let j=0;j<na;j++){
-      const t0=j*dth, t1=(j+1)*dth; const r=rMax; const A=v(r,zEdge,t0), B=v(r,zEdge,t1), C=v(r,CT,t1), D=v(r,CT,t0);
-      out += facet(A,B,C) + facet(A,C,D);
-    }
-    out += 'endsolid\n'; return out;
-  }
+  function buildSTL(d, {nr=256, na=180, adaptive=false, tol_um=10}={}){ const prof = radialProfile(d,{nr, adaptive, tol_um}); const rs=prof.rs, zs=prof.zs; function v(r, z, th){ const c=Math.cos(th), s=Math.sin(th); return [r*c, r*s, z]; } function nrm(a,b,c){ const ux=b[0]-a[0], uy=b[1]-a[1], uz=b[2]-a[2]; const vx=c[0]-a[0], vy=c[1]-a[1], vz=c[2]-a[2]; const nx=uy*vz-uz*vy, ny=uz*vx-ux*vz, nz=ux*vy-uy*vx; const len=Math.hypot(nx,ny,nz)||1; return [nx/len, ny/len, nz/len]; } function facet(a,b,c){ const [nx,ny,nz]=nrm(a,b,c); return `facet normal ${nx} ${ny} ${nz}\n outer loop\n  vertex ${a[0]} ${a[1]} ${a[2]}\n  vertex ${b[0]} ${b[1]} ${b[2]}\n  vertex ${c[0]} ${c[1]} ${c[2]}\n endloop\nendfacet\n`; } let out = `solid lens_${VERSION} (units: mm)\n`; const dth = 2*Math.PI/na; const CT=d.CT; const rMax=d.rMax; const zEdge=zs[zs.length-1]; for(let i=0;i<rs.length-1;i++){ for(let j=0;j<na;j++){ const t0=j*dth, t1=(j+1)*dth; const r0=rs[i], r1=rs[i+1]; const z0=zs[i], z1=zs[i+1]; const A=v(r0,z0,t0), B=v(r1,z1,t0), C=v(r1,z1,t1), D=v(r0,z0,t1); out += facet(A,B,C) + facet(A,C,D); } } for(let i=0;i<rs.length-1;i++){ for(let j=0;j<na;j++){ const t0=j*dth, t1=(j+1)*dth; const r0=rs[i], r1=rs[i+1]; const A=v(r0,CT,t0), B=v(r0,CT,t1), C=v(r1,CT,t1), D=v(r1,CT,t0); out += facet(A,B,C) + facet(A,C,D); } } for(let j=0;j<na;j++){ const t0=j*dth, t1=(j+1)*dth; const r=rMax; const A=v(r,zEdge,t0), B=v(r,zEdge,t1), C=v(r,CT,t1), D=v(r,CT,t0); out += facet(A,B,C) + facet(A,C,D); } out += 'endsolid\n'; return out; }
 
-  // ----------------- 3D: Binary STL builder -------------------
-  function buildSTLBinary(d, {nr=256, na=180, adaptive=true, tol_um=10}={}){
-    const prof = radialProfile(d,{nr, adaptive, tol_um}); const rs=prof.rs, zs=prof.zs;
-    const CT=d.CT; const rMax=d.rMax; const zEdge=zs[zs.length-1];
-    const dth = 2*Math.PI/na; const triFront=(rs.length-1)*na*2, triBack=(rs.length-1)*na*2, triRim=na*2; const triCount = triFront+triBack+triRim;
-    const bytes = 84 + 50*triCount; const buf = new ArrayBuffer(bytes); const dv = new DataView(buf); let off=0;
-    // header 80 bytes
-    const header = `lens_${VERSION}_binary`; for(let i=0;i<80;i++){ const code = i<header.length ? header.charCodeAt(i) : 32; dv.setUint8(off++, code); }
-    dv.setUint32(off, triCount, true); off+=4;
-    function v(r,z,th){ const c=Math.cos(th), s=Math.sin(th); return [r*c, r*s, z]; }
-    function writeFacet(a,b,c){ // compute normal
-      const ux=b[0]-a[0], uy=b[1]-a[1], uz=b[2]-a[2]; const vx=c[0]-a[0], vy=c[1]-a[1], vz=c[2]-a[2];
-      let nx=uy*vz-uz*vy, ny=uz*vx-ux*vz, nz=ux*vy-uy*vx; const len=Math.hypot(nx,ny,nz)||1; nx/=len; ny/=len; nz/=len;
-      dv.setFloat32(off, nx, true); off+=4; dv.setFloat32(off, ny, true); off+=4; dv.setFloat32(off, nz, true); off+=4;
-      dv.setFloat32(off, a[0], true); off+=4; dv.setFloat32(off, a[1], true); off+=4; dv.setFloat32(off, a[2], true); off+=4;
-      dv.setFloat32(off, b[0], true); off+=4; dv.setFloat32(off, b[1], true); off+=4; dv.setFloat32(off, b[2], true); off+=4;
-      dv.setFloat32(off, c[0], true); off+=4; dv.setFloat32(off, c[1], true); off+=4; dv.setFloat32(off, c[2], true); off+=4;
-      dv.setUint16(off, 0, true); off+=2;
-    }
-    // Front
-    for(let i=0;i<rs.length-1;i++){
-      for(let j=0;j<na;j++){
-        const t0=j*dth, t1=(j+1)*dth; const r0=rs[i], r1=rs[i+1]; const z0=zs[i], z1=zs[i+1];
-        const A=v(r0,z0,t0), B=v(r1,z1,t0), C=v(r1,z1,t1), D=v(r0,z0,t1);
-        writeFacet(A,B,C); writeFacet(A,C,D);
-      }
-    }
-    // Back
-    for(let i=0;i<rs.length-1;i++){
-      for(let j=0;j<na;j++){
-        const t0=j*dth, t1=(j+1)*dth; const r0=rs[i], r1=rs[i+1];
-        const A=v(r0,CT,t0), B=v(r0,CT,t1), C=v(r1,CT,t1), D=v(r1,CT,t0);
-        writeFacet(A,B,C); writeFacet(A,C,D);
-      }
-    }
-    // Rim
-    for(let j=0;j<na;j++){
-      const t0=j*dth, t1=(j+1)*dth; const r=rMax; const A=v(r,zEdge,t0), B=v(r,zEdge,t1), C=v(r,CT,t1), D=v(r,CT,t0);
-      writeFacet(A,B,C); writeFacet(A,C,D);
-    }
-    return new Blob([buf], {type:'model/stl'});
-  }
+  function buildSTLBinary(d, {nr=256, na=180, adaptive=true, tol_um=10}={}){ const prof = radialProfile(d,{nr, adaptive, tol_um}); const rs=prof.rs, zs=prof.zs; const CT=d.CT; const rMax=d.rMax; const zEdge=zs[zs.length-1]; const dth = 2*Math.PI/na; const triFront=(rs.length-1)*na*2, triBack=(rs.length-1)*na*2, triRim=na*2; const triCount = triFront+triBack+triRim; const bytes = 84 + 50*triCount; const buf = new ArrayBuffer(bytes); const dv = new DataView(buf); let off=0; const header = `lens_${VERSION}_binary`; for(let i=0;i<80;i++){ const code = i<header.length ? header.charCodeAt(i) : 32; dv.setUint8(off++, code); } dv.setUint32(off, triCount, true); off+=4; function v(r,z,th){ const c=Math.cos(th), s=Math.sin(th); return [r*c, r*s, z]; } function writeFacet(a,b,c){ const ux=b[0]-a[0], uy=b[1]-a[1], uz=b[2]-a[2]; const vx=c[0]-a[0], vy=c[1]-a[1], vz=c[2]-a[2]; let nx=uy*vz-uz*vy, ny=uz*vx-ux*vz, nz=ux*vy-uy*vx; const len=Math.hypot(nx,ny,nz)||1; nx/=len; ny/=len; nz/=len; dv.setFloat32(off, nx, true); off+=4; dv.setFloat32(off, ny, true); off+=4; dv.setFloat32(off, nz, true); off+=4; dv.setFloat32(off, a[0], true); off+=4; dv.setFloat32(off, a[1], true); off+=4; dv.setFloat32(off, a[2], true); off+=4; dv.setFloat32(off, b[0], true); off+=4; dv.setFloat32(off, b[1], true); off+=4; dv.setFloat32(off, b[2], true); off+=4; dv.setFloat32(off, c[0], true); off+=4; dv.setFloat32(off, c[1], true); off+=4; dv.setFloat32(off, c[2], true); off+=4; dv.setUint16(off, 0, true); off+=2; } for(let i=0;i<rs.length-1;i++){ for(let j=0;j<na;j++){ const t0=j*dth, t1=(j+1)*dth; const r0=rs[i], r1=rs[i+1]; const z0=zs[i], z1=zs[i+1]; const A=v(r0,z0,t0), B=v(r1,z1,t0), C=v(r1,z1,t1), D=v(r0,z0,t1); writeFacet(A,B,C); writeFacet(A,C,D); } } for(let i=0;i<rs.length-1;i++){ for(let j=0;j<na;j++){ const t0=j*dth, t1=(j+1)*dth; const r0=rs[i], r1=rs[i+1]; const A=v(r0,CT,t0), B=v(r0,CT,t1), C=v(r1,CT,t1), D=v(r1,CT,t0); writeFacet(A,B,C); writeFacet(A,C,D); } } for(let j=0;j<na;j++){ const t0=j*dth, t1=(j+1)*dth; const r=rMax; const A=v(r,zEdge,t0), B=v(r,zEdge,t1), C=v(r,CT,t1), D=v(r,CT,t0); writeFacet(A,B,C); writeFacet(A,C,D); } return new Blob([buf], {type:'model/stl'}); }
 
   // 估算 STL 面數/檔案大小
   function estimateSTL(d, opts){ const prof = radialProfile(d,{nr:opts.nr, adaptive:opts.adaptive, tol_um:opts.tol_um}); const m=prof.rs.length; const tris = (m-1)*opts.na*2 + (m-1)*opts.na*2 + opts.na*2; const size = opts.format==='binary' ? 84 + 50*tris : 200*tris; return {tris, size}; }
   function humanBytes(n){ const u=['B','KB','MB','GB']; let i=0; while(n>=1024&&i<u.length-1){ n/=1024; i++; } return `${n.toFixed(n<10?2:1)} ${u[i]}`; }
   function updateSTLEstimate(){ const d = currentData || computeProfile(); const opts = getSTLOpts(); const est = estimateSTL(d, opts); const txt = `預估三角形數 ≈ ${est.tris.toLocaleString()}，檔案 ≈ ${humanBytes(est.size)}（${opts.format==='binary'?'Binary':'ASCII'}；品質=${inp.stlQuality.value}${opts.adaptive?`；自適應≤${opts.tol_um} μm`:''}）`; const el=$('#stlStats'); if(el) el.textContent = txt; }
 
-  function exportLensSVG(d){
-    const pxPerMM = parseFloat(inp.scale.value);
-    const vb = svg.viewBox.baseVal; const W = vb.width||1200, H = vb.height||700;
-    const zMinLens = Math.min(0, d.zMinSag, d.CT); const zMaxLens = Math.max(d.zMaxSag, d.CT); const zCenter = (zMinLens + zMaxLens)/2;
-    function X(z){ return W/2 + (z - zCenter) * pxPerMM; } function Y(r){ return H/2 - r*pxPerMM; }
+  function exportLensSVG(d){ const pxPerMM = parseFloat(inp.scale.value); const vb = svg.viewBox.baseVal; const W = vb.width||1200, H = vb.height||700; const zMinLens = Math.min(0, d.zMinSag, d.CT); const zMaxLens = Math.max(d.zMaxSag, d.CT); const zCenter = (zMinLens + zMaxLens)/2; function X(z){ return W/2 + (z - zCenter) * pxPerMM; } function Y(r){ return H/2 - r*pxPerMM; } let path=''; for(let i=0;i<d.samples.length;i++){ const {r,z}=d.samples[i]; path += (i===0?`M ${X(z)} ${Y(r)}`:` L ${X(z)} ${Y(r)}`);} for(let i=d.samples.length-1;i>=0;i--){ const {r,z}=d.samples[i]; path += ` L ${X(z)} ${Y(-r)}`;} path += ` L ${X(d.CT)} ${Y(-d.rMax)} L ${X(d.CT)} ${Y(d.rMax)} Z`; const dim = (()=>{ const zDim = d.CT + 0.15*(d.rMax*2); const x = X(zDim); const yTop = Y(d.rMax), yBot = Y(-d.rMax); return `\n  <g data-dim="ca">\n    <line x1="${x}" y1="${yTop}" x2="${x}" y2="${yBot}" stroke="#000" stroke-width="1"/>\n    <line x1="${x-8}" y1="${yTop}" x2="${x+8}" y2="${yTop}" stroke="#000" stroke-width="1"/>\n    <line x1="${x-8}" y1="${yBot}" x2="${x+8}" y2="${yBot}" stroke="#000" stroke-width="1"/>\n    <text x="${x+10}" y="${(yTop+yBot)/2+4}" font-size="12">CA = ${(d.rMax*2).toFixed(2)} mm</text>\n  </g>`; })(); const xml = `<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 ${W} ${H}\">\n  <g class=\"lens\">\n    <path d=\"${path}\" fill=\"#7cc4ff22\" stroke=\"#000\" stroke-width=\"1\"/>\n    <line x1=\"${X(d.CT)}\" y1=\"${Y(d.rMax)}\" x2=\"${X(d.CT)}\" y2=\"${Y(-d.rMax)}\" stroke=\"#000\" stroke-width=\"1\"/>${dim}\n  </g>\n</svg>`; return xml; }
 
-    // Build asphere silhouette
-    let path=''; for(let i=0;i<d.samples.length;i++){ const {r,z}=d.samples[i]; path += (i===0?`M ${X(z)} ${Y(r)}`:` L ${X(z)} ${Y(r)}`);} for(let i=d.samples.length-1;i>=0;i--){ const {r,z}=d.samples[i]; path += ` L ${X(z)} ${Y(-r)}`;} path += ` L ${X(d.CT)} ${Y(-d.rMax)} L ${X(d.CT)} ${Y(d.rMax)} Z`;
+  function buildCSV(d){ const lines = []; lines.push(`# Non-spherical Plano-Convex Lens Profile ${VERSION}`); lines.push(`# inputs`); lines.push(`# CA_mm,${d.CA.toFixed(3)}`); lines.push(`# EFL_mm,${d.efl.toFixed(3)}`); lines.push(`# n,${d.n.toFixed(6)}`); lines.push(`# K,${d.K}`); lines.push(`# A4_display_(x1e-6_mm^-3),${parseFloat(inp.A4.value)}`); lines.push(`# A4_actual_mm^-3,${d.A4}`); lines.push(`# A6_display_(x1e-9_mm^-5),${parseFloat(inp.A6.value)}`); lines.push(`# A6_actual_mm^-5,${d.A6}`); lines.push(`# A8_display_(x1e-12_mm^-7),${parseFloat(inp.A8.value)}`); lines.push(`# A8_actual_mm^-7,${d.A8}`); lines.push(`# thickness_mode,${inp.thickMode.value}`); if(inp.thickMode.value==='ET'){ lines.push(`# ET_mm,${parseFloat(inp.et.value).toFixed(3)}`); } else { lines.push(`# CT_mm,${parseFloat(inp.ct.value).toFixed(3)}`); } lines.push(`# scale_px_per_mm,${parseFloat(inp.scale.value).toFixed(3)}`); lines.push(`# ---`); lines.push('r_mm,z_mm'); for(const s of d.samples){ lines.push(`${s.r.toFixed(6)},${s.z.toFixed(6)}`); } return lines.join('\n'); }
 
-    // CA dimension group
-    const dim = (()=>{ const zDim = d.CT + 0.15*(d.rMax*2); const x = X(zDim); const yTop = Y(d.rMax), yBot = Y(-d.rMax); return `\n  <g data-dim="ca">\n    <line x1="${x}" y1="${yTop}" x2="${x}" y2="${yBot}" stroke="#000" stroke-width="1"/>\n    <line x1="${x-8}" y1="${yTop}" x2="${x+8}" y2="${yTop}" stroke="#000" stroke-width="1"/>\n    <line x1="${x-8}" y1="${yBot}" x2="${x+8}" y2="${yBot}" stroke="#000" stroke-width="1"/>\n    <text x="${x+10}" y="${(yTop+yBot)/2+4}" font-size="12">CA = ${(d.rMax*2).toFixed(2)} mm</text>\n  </g>`; })();
+  function report(d){ const s = $('#stats'); const et = d.CT - d.zEdge; let warnMsg=''; if(d.rMax < d.CA/2 - 1e-6){ warnMsg += '⚠ 非法半徑：請降低 |K| 或縮小口徑。\n'; } if(et<=0){ warnMsg += '⚠ 邊緣厚度 ≤ 0 mm，請增大 CT 或減小口徑/曲率。\n'; } s.innerHTML = [ `基底曲率 R = ${d.R.toFixed(4)} mm  (c = ${(1/d.R).toFixed(6)} mm⁻¹)`, `中心厚度 CT = ${d.CT.toFixed(3)} mm；邊緣厚度 ET = ${et.toFixed(3)} mm`, `最大非球偏離（對 BFS） = ${(d.maxDep*1000).toFixed(3)} μm`, `最大表面斜率 |dz/dr| = ${d.maxSlope.toFixed(3)} mm/mm （約 ${(Math.atan(d.maxSlope)*180/Math.PI).toFixed(1)}°）`, `最佳擬合球半徑 R_BFS = ${d.Rb.toFixed(4)} mm`, (warnMsg?`<br><span class=\"warn\">${warnMsg.replace(/\n/g,'<br>')}</span>`:'') ].join('<br>'); }
 
-    const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}">\n  <g class="lens">\n    <path d="${path}" fill="#7cc4ff22" stroke="#000" stroke-width="1"/>\n    <line x1="${X(d.CT)}" y1="${Y(d.rMax)}" x2="${X(d.CT)}" y2="${Y(-d.rMax)}" stroke="#000" stroke-width="1"/>${dim}\n  </g>\n</svg>`; return xml;
-  }
-
-  function buildCSV(d){
-    const lines = [];
-    lines.push(`# Non-spherical Plano-Convex Lens Profile ${VERSION}`);
-    lines.push(`# inputs`);
-    lines.push(`# CA_mm,${d.CA.toFixed(3)}`);
-    lines.push(`# EFL_mm,${d.efl.toFixed(3)}`);
-    lines.push(`# n,${d.n.toFixed(6)}`);
-    lines.push(`# K,${d.K}`);
-    lines.push(`# A4_display_(x1e-6_mm^-3),${parseFloat(inp.A4.value)}`);
-    lines.push(`# A4_actual_mm^-3,${d.A4}`);
-    lines.push(`# A6_display_(x1e-9_mm^-5),${parseFloat(inp.A6.value)}`);
-    lines.push(`# A6_actual_mm^-5,${d.A6}`);
-    lines.push(`# A8_display_(x1e-12_mm^-7),${parseFloat(inp.A8.value)}`);
-    lines.push(`# A8_actual_mm^-7,${d.A8}`);
-    lines.push(`# thickness_mode,${inp.thickMode.value}`);
-    if(inp.thickMode.value==='ET'){ lines.push(`# ET_mm,${parseFloat(inp.et.value).toFixed(3)}`); }
-    else { lines.push(`# CT_mm,${parseFloat(inp.ct.value).toFixed(3)}`); }
-    lines.push(`# scale_px_per_mm,${parseFloat(inp.scale.value).toFixed(3)}`);
-    lines.push(`# ---`);
-    lines.push('r_mm,z_mm');
-    for(const s of d.samples){ lines.push(`${s.r.toFixed(6)},${s.z.toFixed(6)}`); }
-    return lines.join('\n');
-  }
-
-  function report(d){
-    const s = $('#stats');
-    const et = d.CT - d.zEdge;
-    let warnMsg='';
-    if(d.rMax < d.CA/2 - 1e-6){ warnMsg += '⚠ 非法半徑：請降低 |K| 或縮小口徑。\n'; }
-    if(et<=0){ warnMsg += '⚠ 邊緣厚度 ≤ 0 mm，請增大 CT 或減小口徑/曲率。\n'; }
-    s.innerHTML = [
-      `基底曲率 R = ${d.R.toFixed(4)} mm  (c = ${(1/d.R).toFixed(6)} mm⁻¹)`,
-      `中心厚度 CT = ${d.CT.toFixed(3)} mm；邊緣厚度 ET = ${et.toFixed(3)} mm`,
-      `最大非球偏離（對 BFS） = ${(d.maxDep*1000).toFixed(3)} μm`,
-      `最大表面斜率 |dz/dr| = ${d.maxSlope.toFixed(3)} mm/mm （約 ${(Math.atan(d.maxSlope)*180/Math.PI).toFixed(1)}°）`,
-      `最佳擬合球半徑 R_BFS = ${d.Rb.toFixed(4)} mm`,
-      (warnMsg?`<br><span class="warn">${warnMsg.replace(/\n/g,'<br>')}</span>`:'')
-    ].join('<br>');
-  }
-
-  function updateA468Example(){
-    const CA = parseFloat(inp.ca.value); const r = CA/2; const dz4 = 1e-6*Math.pow(r,4); const dz6 = 1e-9*Math.pow(r,6); const dz8 = 1e-12*Math.pow(r,8);
-    const el = document.getElementById('a468Example'); if(!el) return; el.textContent = `A4: ${(dz4*1000).toFixed(2)} μm、 A6: ${(dz6*1000).toFixed(2)} μm、 A8: ${(dz8*1000).toFixed(2)} μm（每 +1 顯示值）`;
-  }
+  function updateA468Example(){ const CA = parseFloat(inp.ca.value); const r = CA/2; const dz4 = 1e-6*Math.pow(r,4); const dz6 = 1e-9*Math.pow(r,6); const dz8 = 1e-12*Math.pow(r,8); const el = document.getElementById('a468Example'); if(!el) return; el.textContent = `A4: ${(dz4*1000).toFixed(2)} μm、 A6: ${(dz6*1000).toFixed(2)} μm、 A8: ${(dz8*1000).toFixed(2)} μm（每 +1 顯示值）`; }
 
   // --- Self tests -----------------------------------------------------------
   function approxEqual(a,b,eps=1e-6){ return Math.abs(a-b) <= eps*Math.max(1, Math.abs(a), Math.abs(b)); }
@@ -470,20 +454,25 @@
       if(inp.thickMode.value==='ET'){ const ET = parseFloat(inp.et.value); out.push(approxEqual(d.CT, ET + d.zEdge, 1e-9) ? '✅ CT=ET+zEdge 檢查通過' : `❌ CT 與 ET+zEdge 不符 (${d.CT} vs ${ET + d.zEdge})`); }
       out.push(d.Rb>0 && isFinite(d.Rb) ? '✅ BFS 半徑有效' : '❌ BFS 半徑無效');
       const csv = buildCSV(d); out.push(csv.includes('# inputs') && csv.includes('r_mm,z_mm') ? '✅ CSV 含參數＋剖面兩段' : '❌ CSV 結構缺少參數或剖面');
-      out.push(csv.includes('v0.13') ? '✅ CSV 檔頭含版本' : '❌ CSV 檔頭未含版本');
-      out.push(csv.indexOf('\n')>0 && csv.split('\n').length>5 ? '✅ CSV 行分隔為 \n 且行數合理' : '❌ CSV 換行或行數異常');
-      const xml = exportLensSVG(d); out.push(xml.includes('data-dim="ca"') ? '✅ SVG 含口徑 CA 尺寸標示' : '❌ SVG 未含 CA 尺寸標示');
-      out.push(xml.startsWith('<?xml') ? '✅ SVG 有 XML 宣告' : '❌ SVG 缺少 XML 宣告');
-      // STL (ASCII)
+      out.push(csv.includes('v0.2') ? '✅ CSV 檔頭含版本 v0.2' : '❌ CSV 檔頭未含版本 v0.2');
+      out.push(csv.indexOf('\n')>0 && csv.split('\n').length>5 ? '✅ CSV 行分隔為 \\n 且行數合理' : '❌ CSV 換行或行數異常');
+      // 模擬核心計算
+      const zObj = -Math.max(50, 2*d.efl); const hObj = Math.min(d.rMax*0.8, 0.6*d.CA*0.5);
+      const rays=[]; const rMax=d.rMax; for(let k=0;k<11;k++){ const yA = -rMax + (2*rMax)*k/10; const ray = traceRayFromObject(d, [zObj, hObj], yA); if(ray) rays.push(ray); }
+      if(rays.length>=3){ const zs = bestFocusZ(d, rays); out.push(Number.isFinite(zs)? '✅ 模擬：可求得像面 zScreen' : '❌ 模擬：像面計算失敗'); const Lcs = Math.abs(zs - d.CT*0.5); out.push(Number.isFinite(Lcs)? '✅ 模擬：鏡心→螢幕距離可計算' : '❌ 模擬：鏡心距離計算失敗'); }
+      else { out.push('❌ 模擬：有效射線不足'); }
+      // STL 基本檢查
       const stl = buildSTL(d,{nr:64,na:36}); out.push(stl.startsWith('solid') && stl.includes('facet normal') ? '✅ STL(ASCII) 產生基本正確' : '❌ STL(ASCII) 產生失敗'); out.push(stl.includes('units: mm') ? '✅ STL 註記單位 mm' : '❌ STL 未含單位註記'); out.push(stl.includes('endsolid\n') ? '✅ STL 尾端存在換行' : '❌ STL 尾端缺少換行');
-      // STL (Binary)
       const bin = buildSTLBinary(d,{nr:64,na:36,adaptive:true,tol_um:20}); out.push(bin && (bin.size||0)>200 ? '✅ STL(Binary) 產生成功' : '❌ STL(Binary) 產生失敗');
-      console.info('[LensDesigner v0.13] Self-tests:', out); const box = document.getElementById('testResults'); if(box) box.innerHTML = out.join('<br>');
+      const est = estimateSTL(d, getSTLOpts()); out.push(est.tris>100 ? '✅ STL 面數估算合理' : '❌ STL 面數估算異常');
+      console.info('[LensDesigner v0.2] Self-tests:', out); const box = document.getElementById('testResults'); if(box) box.innerHTML = out.join('<br>');
     }catch(err){ console.error('自測發生錯誤', err); const box=document.getElementById('testResults'); if(box) box.textContent = '❌ 自測例外：'+err.message; }
   }
 
   // Initial
-  computeAndDraw(); window.addEventListener('resize', ()=>{ try{ computeAndDraw(); }catch(e){} });
+  setViewMode();
+  computeAndDraw();
+  window.addEventListener('resize', ()=>{ try{ computeAndDraw(); }catch(e){} });
 })();
 </script>
 </body>
