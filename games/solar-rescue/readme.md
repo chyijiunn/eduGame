@@ -31,7 +31,7 @@
 
 ## 🔗 延伸活動
 - **自創行星實驗室（Free 版）**：用右側面板自由調整一顆行星的重力、阻力、外觀與生物，並觀察橢圓/拋物/雙曲線的形成條件。  
-  👉 [進入自創行星實驗室（index_free_planet_lab.html）](index_free_planet_lab.html)
+  👉 [進入自創行星實驗室](/free.html)
 
 ---
 
