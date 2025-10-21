@@ -4,7 +4,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no"/>
-<title>消化系統拼圖 v0.68d（隨機擺位，無檢查）</title>
+<title>消化系統拼圖</title>
 <style>
   :root{ --bg:#4a4a4a; --ink:#e6edf3; --stroke:#2b2b2b; }
   *{box-sizing:border-box}
@@ -17,17 +17,21 @@
     stroke:none !important; fill:none !important; opacity:0 !important; visibility:hidden !important; pointer-events:none !important; stroke-dasharray:0 !important; filter:none !important;
   }
   .organ-outer{ cursor:grab; }
+  .right{ outline:2px dashed #34d399; outline-offset:2px }
+  .wrong{ outline:2px dashed #f87171; outline-offset:2px }
+  .particle{ pointer-events:none }
   .hint{position:absolute;left:12px;top:10px;font-size:13px;opacity:.9}
 </style>
 </head>
 <body>
 <div class="wrap">
   <div class="stage">
-    <div class="hint">v0.68d：器官一開始<span style="font-weight:700">隨機分佈在舞台上</span>（不做位置檢查）。可拖曳。</div>
+    <div class="hint">把器官放到正確位置<span style="font-weight:700">/span>（</div>
     <svg id="stage" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
       <defs id="defs-holder"></defs>
       <g id="bg-group"></g>
       <g id="organs-holder"></g>
+      <g id="effects-holder"></g>
     </svg>
   </div>
 </div>
@@ -269,6 +273,123 @@ function parseViewBox(svgEl){
 function svgBBox(el){ try{return el.getBBox();}catch(e){return {x:0,y:0,width:0,height:0};} }
 function svgPointFromClient(x,y){ const p=stage.createSVGPoint(); p.x=x; p.y=y; return p.matrixTransform(stage.getScreenCTM().inverse()); }
 function rect(el){ return el.getBoundingClientRect(); }
+
+// ---- Validity checks & fireworks ----
+const effectsHolder = document.getElementById('effects-holder');
+let __celebrated = false;
+
+function elementIsBodyPaint(el){
+  if(!el) return false;
+  if(!bgGroup.contains(el)) return false;
+  // Prefer computed style, fallback to attribute
+  let fill = (getComputedStyle(el).fill || '').toLowerCase();
+  if(!fill) fill = (el.getAttribute('fill') || '').toLowerCase();
+  const op = parseFloat(getComputedStyle(el).opacity || '1');
+  return !!fill && fill !== 'none' && op > 0.01;
+}
+function pointInBodyAtClient(cx, cy){
+  const prev = organsHolder.style.pointerEvents;
+  organsHolder.style.pointerEvents = 'none';
+  let el = document.elementFromPoint(cx, cy);
+  organsHolder.style.pointerEvents = prev || '';
+  while(el && el !== bgGroup){
+    if(elementIsBodyPaint(el)) return true;
+    el = el.parentNode;
+  }
+  return false;
+}
+function fractionInsideBodyRect(screenRect, samples){
+  samples = samples || 10;
+  let inside = 0;
+  for(let i=0;i<samples;i++){
+    const u = Math.random(), v = Math.random();
+    const cx = screenRect.left + u*screenRect.width;
+    const cy = screenRect.top + v*screenRect.height;
+    if(pointInBodyAtClient(cx, cy)) inside++;
+  }
+  return inside / samples;
+}
+function rectEl(el){ return el.getBoundingClientRect(); }
+function overlap(r1,r2,pad){ pad=pad||0; return !(r1.right<r2.left-pad||r1.left>r2.right+pad||r1.bottom<r2.top-pad||r1.top>r2.bottom+pad); }
+function centerOf(r){ return {x:(r.left+r.right)/2, y:(r.top+r.bottom)/2}; }
+function dist(a,b){ const dx=a.x-b.x, dy=a.y-b.y; return Math.hypot(dx,dy); }
+
+const ADJ = { mouth:['pharynx'], pharynx:['mouth','esophagus'], esophagus:['pharynx','stomach'], stomach:['esophagus','smallint'], smallint:['stomach','largeint'], largeint:['smallint'] };
+
+function insideBody(g){
+  const r = rectEl(g);
+  const frac = fractionInsideBodyRect(r, 10);
+  return frac >= 0.55;
+}
+function isValidPiece(p, map){
+  if(!insideBody(p)) return false;
+  const key = p.getAttribute('data-key');
+  if(['liver','pancreas'].includes(key)){
+    // glands near stomach/smallint center with generous tolerance
+    const stomach = map['stomach'], smallint = map['smallint'];
+    if(!stomach && !smallint) return false;
+    const meC = centerOf(rectEl(p));
+    const targets = []; if(stomach) targets.push(centerOf(rectEl(stomach))); if(smallint) targets.push(centerOf(rectEl(smallint)));
+    const d = Math.min(...targets.map(c=>dist(meC,c)));
+    const baseRect = stomach? rectEl(stomach): rectEl(smallint);
+    let tol = Math.max(baseRect.width, baseRect.height)*0.9;
+    if(key==='liver') tol *= 1.6;
+    return d < tol;
+  }else{
+    // tubes require overlap with neighbors
+    const meR = rectEl(p);
+    const pad = Math.min(meR.width, meR.height)*0.08;
+    const neighbors = ADJ[key] || [];
+    for(const nb of neighbors){
+      if(map[nb]){ if(!overlap(meR, rectEl(map[nb]), pad)) return false; }
+    }
+    return true;
+  }
+}
+function refreshValidity(){
+  const gs = Array.from(organsHolder.querySelectorAll('g.organ-outer'));
+  const map = Object.fromEntries(gs.map(g=>[g.getAttribute('data-key'), g]));
+  gs.forEach(g=>{ g.classList.remove('right','wrong'); });
+  gs.forEach(g=>{ g.classList.add( isValidPiece(g,map) ? 'right' : 'wrong' ); });
+  const allRight = gs.length>0 && gs.every(g=>g.classList.contains('right'));
+  if(allRight && !__celebrated){ celebrateOnce(); }
+}
+
+function celebrateOnce(){
+  if(__celebrated) return; __celebrated = true;
+  // 10s of fireworks
+  const endAt = performance.now() + 10000;
+  const bodyR = rectEl(bgGroup);
+  const timer = setInterval(()=>{
+    const now = performance.now(); if(now >= endAt){ clearInterval(timer); return; }
+    const rx = bodyR.left + Math.random()*bodyR.width;
+    const ry = bodyR.top + Math.random()*bodyR.height*0.9;
+    spawnParticles({left:rx-60,right:rx+60,top:ry-40,bottom:ry+40,width:120,height:80}, 30);
+  }, 100);
+}
+function spawnParticles(r, count){
+  for(let i=0;i<count;i++){
+    const c = document.createElementNS('http://www.w3.org/2000/svg','circle');
+    const sx = r.left + Math.random()*(r.right-r.left);
+    const sy = r.top + Math.random()*(r.bottom-r.top);
+    const sp = svgPointFromClient(sx, sy);
+    c.setAttribute('cx', sp.x); c.setAttribute('cy', sp.y);
+    c.setAttribute('r', 2 + Math.random()*3); c.setAttribute('fill','#ffd166'); c.setAttribute('opacity','0.9');
+    c.classList.add('particle'); effectsHolder.appendChild(c);
+    const dx=(Math.random()-0.5)*60, dy=(Math.random()-0.5)*60; const dur=700+Math.random()*700;
+    const r0=parseFloat(c.getAttribute('r')); const t0=performance.now();
+    (function(circ,x0,y0,dx,dy,dur,r0,t0){
+      function anim(now){
+        const p=Math.min(1,(now-t0)/dur);
+        circ.setAttribute('cx', x0+dx*p); circ.setAttribute('cy', y0+dy*p);
+        circ.setAttribute('r', r0*(1-p*0.5)); circ.setAttribute('opacity', 0.9*(1-p));
+        if(p<1) requestAnimationFrame(anim); else circ.remove();
+      }
+      requestAnimationFrame(anim);
+    })(c, sp.x, sp.y, dx, dy, dur, r0, t0);
+  }
+}
+
 function parseTranslate(tr){
   if(!tr) return {x:0,y:0};
   const m=/translate\(([-\d\.]+)[ ,]([-\d\.]+)\)/.exec(tr);
@@ -336,24 +457,80 @@ const PIECES=[
   { key:'smallint' },{ key:'largeint' },{ key:'liver' },{ key:'pancreas' }
 ];
 
+
+
 function initOrgans(){
   const vbStr = stage.getAttribute('viewBox') || '0 0 100 100';
-  const vb = (()=>{ const a=vbStr.split(/[\s,]+/).map(Number); return {x:a[0],y:a[1],width:a[2],height:a[3]}; })();
+  const a = vbStr.split(/[,\s]+/).map(Number);
+  const vb = {x:a[0], y:a[1], width:a[2], height:a[3]};
   const margin = Math.max(vb.width, vb.height)*0.02;
+  const center = { x: vb.x + vb.width*0.5, y: vb.y + vb.height*0.5 };
+  const maxDim = Math.max(vb.width, vb.height);
+
+  function overlap(a,b,p){ p=p||0; return !(a.x+a.width+p<b.x || b.x+b.width+p<a.x || a.y+a.height+p<b.y || b.y+b.height+p<a.y); }
+  function rectFromCenter(cx,cy,ratioW,ratioH){
+    const hw = vb.width * ratioW * 0.5; const hh = vb.height * ratioH * 0.5;
+    return { x1: cx-hw, y1: cy-hh, x2: cx+hw, y2: cy+hh };
+  }
+  function placeInRect(w,h,rect){
+    const tx = rect.x1 + Math.random()*Math.max(1, rect.x2 - rect.x1 - w);
+    const ty = rect.y1 + Math.random()*Math.max(1, rect.y2 - rect.y1 - h);
+    return {tx,ty};
+  }
+
+  const stageRect = { x1: vb.x+margin, y1: vb.y+margin, x2: vb.x+vb.width-margin, y2: vb.y+vb.height-margin };
+  const innerRect = rectFromCenter(center.x, center.y, 0.4, 0.4);
+  const outerRects = [
+    { x1: stageRect.x1, y1: stageRect.y1, x2: stageRect.x2, y2: innerRect.y1 }, // top
+    { x1: stageRect.x1, y1: innerRect.y2, x2: stageRect.x2, y2: stageRect.y2 }, // bottom
+    { x1: stageRect.x1, y1: innerRect.y1, x2: innerRect.x1, y2: innerRect.y2 }, // left
+    { x1: innerRect.x2, y1: innerRect.y1, x2: stageRect.x2, y2: innerRect.y2 }  // right
+  ];
+
+  const placedBoxes=[]; const centers={};
 
   PIECES.forEach(p=>{
     const tpl = tplClone('tpl-'+p.key); if(!tpl) return;
     const organ = flattenOrgan(tpl);
+    organ.setAttribute('data-key', p.key);
     organsHolder.appendChild(organ);
 
     const b0 = svgBBox(organ);
     const ow = Math.max(10, b0.width), oh = Math.max(10, b0.height);
-    const tx = vb.x + margin + Math.random()*(Math.max(1, vb.width  - ow - margin*2));
-    const ty = vb.y + margin + Math.random()*(Math.max(1, vb.height - oh - margin*2));
-    const dx = tx - b0.x, dy = ty - b0.y;
-    organ.setAttribute('transform', 'translate('+dx+','+dy+')');
 
-    // Dragging
+    let tries=0, ok=false, tx=0, ty=0;
+    while(!ok && tries<200){
+      let targetRect = stageRect;
+      if(p.key==='mouth' || p.key==='pharynx'){
+        if((innerRect.x2-innerRect.x1)>ow && (innerRect.y2-innerRect.y1)>oh) targetRect = innerRect;
+      } else if(p.key==='smallint' || p.key==='largeint'){
+        const usable = outerRects.filter(r=> (r.x2-r.x1)>ow && (r.y2-r.y1)>oh);
+        if(usable.length) targetRect = usable[Math.floor(Math.random()*usable.length)];
+      }
+      const pos = placeInRect(ow,oh,targetRect); tx=pos.tx; ty=pos.ty;
+      const dx = tx - b0.x, dy = ty - b0.y;
+      organ.setAttribute('transform','translate('+dx+','+dy+')');
+      const nb = {x:tx,y:ty,width:ow,height:oh};
+
+      // light anti-overlap
+      let bad=false; for(const b of placedBoxes){ if(overlap(nb,b,Math.min(ow,oh)*0.1)){ bad=true; break; } }
+      if(bad){ tries++; continue; }
+
+      // keep smallint & largeint far apart
+      const c = { x: tx+ow*0.5, y: ty+oh*0.5 };
+      if(p.key==='smallint' && centers['largeint']){
+        const d = Math.hypot(c.x - centers['largeint'].x, c.y - centers['largeint'].y);
+        if(d < maxDim*0.45){ tries++; continue; }
+      }
+      if(p.key==='largeint' && centers['smallint']){
+        const d = Math.hypot(c.x - centers['smallint'].x, c.y - centers['smallint'].y);
+        if(d < maxDim*0.45){ tries++; continue; }
+      }
+
+      placedBoxes.push(nb); centers[p.key]=c; ok=true;
+    }
+
+    // drag
     organ.addEventListener('pointerdown', ev=>{
       ev.preventDefault(); ev.stopPropagation();
       try{ organ.setPointerCapture(ev.pointerId); }catch(e){}
@@ -368,14 +545,14 @@ function initOrgans(){
         window.removeEventListener('pointermove', onMove);
         window.removeEventListener('pointerup', onUp);
         try{ organ.releasePointerCapture(ev.pointerId); }catch(e){}
+        refreshValidity();
       }
       window.addEventListener('pointermove', onMove);
       window.addEventListener('pointerup', onUp);
     });
   });
 }
-
-window.addEventListener('load', ()=>{ loadBody(); initOrgans(); });
+window.addEventListener('load', ()=>{ loadBody(); initOrgans(); setTimeout(refreshValidity, 100); });
 </script>
 </body>
 </html>
