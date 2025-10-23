@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>物質三態｜粒子運動 × 溫度控制模擬器</title>
+<meta name="description" content="調整溫度，觀察固體、液體、氣體中分子運動速度與平均距離的變化。單檔 HTML，手機與電腦皆可用。" />
+<style>
+:root{
+  --bg: #0f1220;
+  --panel: #151933;
+  --ink: #e9edf7;
+  --sub: #b8c2e0;
+  --brand: #6ac8ff;
+  --accent: #9d7bff;
+  --ok: #36d399;
+  --warn: #ffb86b;
+  --danger:#ff6b7b;
+  --muted:#1b2040;
+  --chip:#202751;
+  --chip-on:#2a3270;
+  --ring:#2c3b8d;
+  --grid:#0a0d1a;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0; background: radial-gradient(1200px 800px at 10% -10%, #19204a 0%, var(--bg) 40%) fixed;
+  color:var(--ink); font-family: "Noto Sans TC", system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+}
+header{
+  padding: clamp(12px,1.8vw,18px) clamp(12px,2.4vw,24px);
+  display:flex; align-items:center; justify-content:space-between; gap:12px;
+  border-bottom:1px solid rgba(255,255,255,.06);
+  background:linear-gradient(180deg, rgba(255,255,255,.02), rgba(255,255,255,0));
+}
+h1{
+  font-size:clamp(18px,2.2vw,26px); margin:0; letter-spacing:.5px;
+  color:var(--brand); font-weight:800; display:flex; align-items:center; gap:.6em;
+}
+.badge{font-size:.75rem; padding:.15em .6em; border-radius:999px; background:var(--chip); color:var(--sub); border:1px solid rgba(255,255,255,.08)}
+main{
+  display:grid; grid-template-columns: minmax(240px,1fr) minmax(260px,360px);
+  gap:16px; padding:16px; height:calc(100% - 72px); max-height:calc(100% - 72px);
+}
+@media (max-width: 900px){
+  main{grid-template-columns: 1fr; grid-auto-rows: minmax(0,auto)}
+}
+.canvas-wrap{
+  background:linear-gradient(180deg, rgba(255,255,255,.02), rgba(255,255,255,.03));
+  border:1px solid rgba(255,255,255,.06);
+  border-radius:18px; position:relative; overflow:hidden; min-height:300px;
+  display:flex; flex-direction:column;
+}
+.toolbar{
+  display:flex; flex-wrap:wrap; gap:8px; padding:10px; border-bottom:1px solid rgba(255,255,255,.06);
+  background: rgba(9, 12, 30, .35); backdrop-filter: blur(6px);
+}
+.tool-btn{
+  appearance:none; border:1px solid rgba(255,255,255,.08); background:var(--chip);
+  color:var(--ink); padding:.5em .8em; border-radius:12px; font-size:.9rem; cursor:pointer;
+}
+.tool-btn[data-on="true"]{ background:var(--chip-on); border-color:var(--ring); box-shadow:0 0 0 2px rgba(106,200,255,.15) inset}
+.tool-btn:active{transform:translateY(1px)}
+.canvas-zone{ position:relative; flex:1; }
+#sim{
+  width:100%; height:100%; display:block; background:
+    linear-gradient(180deg, rgba(255,255,255,.02), rgba(255,255,255,.0)),
+    radial-gradient(800px 600px at 80% -20%, rgba(106,200,255,.08), rgba(106,200,255,0) 50%),
+    linear-gradient(90deg, var(--grid) 0 100%);
+}
+
+.sidebar{
+  background:linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.02));
+  border:1px solid rgba(255,255,255,.06);
+  border-radius:18px; padding:14px; display:flex; flex-direction:column; gap:12px;
+  overflow:auto; max-height:100%;
+}
+.card{
+  background:var(--panel); border:1px solid rgba(255,255,255,.08);
+  border-radius:14px; padding:12px; display:flex; flex-direction:column; gap:10px;
+}
+.card h2{font-size:1rem; margin:0; color:var(--brand)}
+.card p{margin:.25rem 0; color:var(--sub); line-height:1.6}
+.row{display:flex; gap:10px; align-items:center; flex-wrap:wrap}
+.state-group{display:flex; gap:6px; flex-wrap:wrap}
+.state-chip{
+  border:1px solid rgba(255,255,255,.1); background:var(--chip); color:var(--ink);
+  padding:.45em .7em; border-radius:999px; cursor:pointer; font-size:.9rem;
+}
+.state-chip[data-active="true"]{ background:var(--chip-on); border-color:var(--ring)}
+.range{
+  width:100%;
+  accent-color: var(--brand);
+}
+.kpi{
+  display:grid; grid-template-columns: 1fr 1fr; gap:8px;
+}
+.kpi .box{
+  background:var(--muted); border:1px solid rgba(255,255,255,.08); border-radius:12px; padding:10px;
+}
+.kpi .box .label{font-size:.8rem; color:var(--sub)}
+.kpi .box .value{font-size:1.15rem; font-weight:700}
+.helper{font-size:.85rem; color:var(--sub)}
+a.help-link{color:var(--brand); text-decoration:underline dotted}
+
+footer{
+  display:flex; gap:10px; align-items:center; justify-content:flex-end;
+}
+.small{font-size:.8rem; color:var(--sub)}
+
+.modal{
+  position:fixed; inset:0; display:none; align-items:center; justify-content:center; z-index:50;
+  background: rgba(13,16,35,.6); backdrop-filter: blur(6px);
+}
+.modal[open]{display:flex}
+.modal .sheet{
+  width:min(860px,92vw); max-height:84vh; overflow:auto;
+  background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.04));
+  border:1px solid rgba(255,255,255,.12); border-radius:16px; padding:16px;
+}
+.modal h3{margin:.2em 0 .4em; color:var(--brand)}
+.modal .x{position:sticky; top:0; display:flex; justify-content:flex-end}
+.modal .x button{background:var(--chip); color:var(--ink); border:1px solid rgba(255,255,255,.12); border-radius:10px; padding:.4em .7em; cursor:pointer}
+ul{margin:.5em 0 .8em; padding-left:1.2em}
+code{background:#11152b; padding:.1em .3em; border-radius:.4em; border:1px solid rgba(255,255,255,.08)}
+</style>
+</head>
+<body>
+<header>
+  <h1>物質三態｜粒子運動 <span class="badge">溫度控制模擬器</span></h1>
+  <div class="row">
+    <button id="btnHelp" class="tool-btn" aria-label="開啟說明">說明</button>
+    <span class="small">單檔 HTML｜手機/電腦皆可用</span>
+  </div>
+</header>
+
+<main>
+  <section class="canvas-wrap" aria-label="模擬區">
+    <div class="toolbar" role="toolbar" aria-label="工具列">
+      <button id="btnPlay" class="tool-btn" data-on="true" aria-pressed="true">⏸ 暫停/播放</button>
+      <button id="btnTrail" class="tool-btn" aria-pressed="false">✳ 軌跡</button>
+      <button id="btnLinks" class="tool-btn" aria-pressed="false">〰 近鄰線</button>
+      <button id="btnReset" class="tool-btn">↺ 重置</button>
+    </div>
+    <div class="canvas-zone">
+      <canvas id="sim" aria-label="粒子運動模擬畫布"></canvas>
+    </div>
+  </section>
+
+  <aside class="sidebar" aria-label="控制面板">
+    <div class="card">
+      <h2>狀態選擇 State</h2>
+      <div class="state-group" role="tablist" aria-label="物質三態">
+        <button class="state-chip" data-state="solid" data-active="true" role="tab" aria-selected="true">固體</button>
+        <button class="state-chip" data-state="liquid" role="tab" aria-selected="false">液體</button>
+        <button class="state-chip" data-state="gas" role="tab" aria-selected="false">氣體</button>
+      </div>
+      <p class="helper" id="stateDesc">固體：規則排列，粒子主要在固定位置附近熱振動。</p>
+    </div>
+
+    <div class="card">
+      <h2>溫度控制 Temperature</h2>
+      <div class="row">
+        <input id="temp" class="range" type="range" min="-50" max="200" step="1" value="25" aria-label="溫度（攝氏）" />
+      </div>
+      <div class="kpi" role="group" aria-label="即時指標">
+        <div class="box">
+          <div class="label">溫度 °C / K</div>
+          <div class="value"><span id="tC">25</span> °C｜<span id="tK">298.15</span> K</div>
+        </div>
+        <div class="box">
+          <div class="label">速度（平均 | 像素/秒）</div>
+          <div class="value" id="avgV">—</div>
+        </div>
+        <div class="box">
+          <div class="label">最近鄰距（平均 | 像素）</div>
+          <div class="value" id="avgD">—</div>
+        </div>
+        <div class="box">
+          <div class="label">粒子數</div>
+          <div class="value" id="nCount">—</div>
+        </div>
+      </div>
+      <p class="helper">模型將速度與振幅大致按 <code>∝ √T(K)</code> 縮放（教學用途之簡化）。</p>
+    </div>
+
+    <div class="card">
+      <h2>概念重點</h2>
+      <ul>
+        <li><strong>固體：</strong>粒子位置規則、彼此距離固定，主要是原位附近「振動」。</li>
+        <li><strong>液體：</strong>粒子靠近但可滑動流動，距離較固體大、排列不規則。</li>
+        <li><strong>氣體：</strong>粒子彼此距離大、自由運動、充滿容器；溫度越高平均速率越大。</li>
+      </ul>
+      <p class="helper">建議在不同狀態下調整溫度，觀察「平均速度」與「平均最近鄰距」的變化趨勢。</p>
+    </div>
+
+    <footer>
+      <span class="small">教育用途示意模型，非分子動力學之精確解。</span>
+    </footer>
+  </aside>
+</main>
+
+<!-- 說明 Modal -->
+<dialog class="modal" id="modal">
+  <div class="sheet">
+    <div class="x"><button id="closeModal">關閉</button></div>
+    <h3>使用說明</h3>
+    <ul>
+      <li>選擇「固體／液體／氣體」觀看不同微觀行為的示意。</li>
+      <li>拖曳溫度滑桿（-50～200 ℃）→ 模擬中粒子速度/振幅依 <code>√T(K)</code> 調整。</li>
+      <li>「軌跡」可視化短時間移動路徑；「近鄰線」顯示每個粒子與最近鄰的連線。</li>
+      <li>右側指標即時計算：平均速度（像素/秒）與平均最近鄰距（像素）。</li>
+    </ul>
+    <h3>模型簡化說明</h3>
+    <p>
+      為了效率與可理解性，本模擬採示意性的交互規則：
+      <br>固體：以彈簧振動於晶格定位點附近；
+      <br>液體：弱排斥＋弱凝聚與阻尼、可滑移；
+      <br>氣體：自由運動、與壁彈性反射（粒子間不做精確兩兩碰撞）。
+    </p>
+  </div>
+</dialog>
+
+<script>
+(()=>{
+// ====== 基本設定 ======
+const canvas = document.getElementById('sim');
+const ctx = canvas.getContext('2d', { alpha: false });
+let dpr = Math.max(1, window.devicePixelRatio || 1);
+
+const btnPlay = document.getElementById('btnPlay');
+const btnTrail = document.getElementById('btnTrail');
+const btnLinks = document.getElementById('btnLinks');
+const btnReset = document.getElementById('btnReset');
+const tempRange = document.getElementById('temp');
+const tC = document.getElementById('tC');
+const tK = document.getElementById('tK');
+const avgV = document.getElementById('avgV');
+const avgD = document.getElementById('avgD');
+const nCount = document.getElementById('nCount');
+const chips = Array.from(document.querySelectorAll('.state-chip'));
+const stateDesc = document.getElementById('stateDesc');
+
+const modal = document.getElementById('modal');
+document.getElementById('btnHelp').addEventListener('click', ()=> modal.setAttribute('open',''));
+document.getElementById('closeModal').addEventListener('click', ()=> modal.removeAttribute('open'));
+
+// 狀態描述
+const descMap = {
+  solid: '固體：規則排列，粒子主要在固定位置附近熱振動。',
+  liquid: '液體：排列不規則，可滑動，距離較固體大。',
+  gas  : '氣體：粒子距離大，自由運動並充滿容器。'
+};
+
+// 相對應的視覺色彩
+const colorMap = {
+  solid: '#6ac8ff',
+  liquid: '#9d7bff',
+  gas: '#36d399'
+};
+
+// ====== 模擬世界參數 ======
+const world = {
+  w: 800, h: 500,
+  particles: [],
+  state: 'solid',
+  running: true,
+  showTrail: false,
+  showLinks: false,
+  lastT: performance.now(),
+  temperatureC: 25,
+  // 每個狀態的基準
+  cfg: {
+    solid: { count: (shortSide)=> Math.round(Math.min(12, Math.max(6, shortSide/50)))**2, // 依畫布大小定格點數
+             kSpring: 10, damping: 2.2, jitter: 12, radius: 5 },
+    liquid:{ count: (shortSide)=> Math.round(shortSide*shortSide/2800), // 約 60~120
+             repel: 500, attract: 20, cutoff: 36, damping: 0.7, radius: 5 },
+    gas   :{ count: (shortSide)=> Math.round(shortSide*shortSide/4000), // 約 40~90
+             speedBase: 60, radius: 4 }
+  }
+};
+
+function resize(){
+  const wrap = document.querySelector('.canvas-zone');
+  const rect = wrap.getBoundingClientRect();
+  world.w = Math.max(260, Math.floor(rect.width));
+  world.h = Math.max(240, Math.floor(rect.height));
+  // retina
+  dpr = Math.max(1, window.devicePixelRatio || 1);
+  canvas.width = Math.floor(world.w * dpr);
+  canvas.height= Math.floor(world.h * dpr);
+  canvas.style.width = world.w + 'px';
+  canvas.style.height = world.h + 'px';
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+}
+window.addEventListener('resize', ()=>{ resize(); resetState(world.state); });
+
+// ====== 工具函式 ======
+const rand = (a,b)=> a + Math.random()*(b-a);
+const clamp = (x,a,b)=> Math.max(a, Math.min(b, x));
+const dist2 = (ax,ay,bx,by)=> (ax-bx)*(ax-bx) + (ay-by)*(ay-by);
+
+// 依溫度計算縮放：速度或振幅 ≈ sqrt(T_K / 298K)
+function tempScale(){
+  const TK = world.temperatureC + 273.15;
+  return Math.sqrt(clamp(TK, 1, 10000) / 298.15);
+}
+
+// ====== 粒子類別 ======
+class Particle{
+  constructor(x,y,r=4){
+    this.x=x; this.y=y;
+    this.vx=0; this.vy=0;
+    this.r = r;
+    // 固體用：錨點
+    this.ax = x; this.ay = y;
+  }
+}
+
+// ====== 初始化不同狀態 ======
+function resetState(state){
+  world.state = state;
+  stateDesc.textContent = descMap[state];
+  chips.forEach(ch=>{
+    const on = ch.dataset.state === state;
+    ch.setAttribute('data-active', on ? 'true':'false');
+    ch.setAttribute('aria-selected', on ? 'true':'false');
+  });
+
+  const shortSide = Math.min(world.w, world.h);
+  const cfg = world.cfg[state];
+  world.particles.length = 0;
+
+  if(state === 'solid'){
+    // 建立晶格
+    const gridN = Math.max(4, Math.min(14, Math.round(Math.sqrt(cfg.count(shortSide)))));
+    const pad = 40;
+    const gw = world.w - pad*2;
+    const gh = world.h - pad*2;
+    const sx = gw / (gridN-1);
+    const sy = gh / (gridN-1);
+    for(let i=0;i<gridN;i++){
+      for(let j=0;j<gridN;j++){
+        const x = pad + i*sx;
+        const y = pad + j*sy;
+        const p = new Particle(x,y,cfg.radius);
+        p.ax = x; p.ay = y;
+        world.particles.push(p);
+      }
+    }
+  }
+  else if(state === 'liquid'){
+    const N = clamp(cfg.count(shortSide), 40, 140);
+    for(let i=0;i<N;i++){
+      const x = rand(40, world.w-40);
+      const y = rand(40, world.h-40);
+      const p = new Particle(x,y,cfg.radius);
+      p.vx = rand(-10,10); p.vy = rand(-10,10);
+      world.particles.push(p);
+    }
+  }
+  else if(state === 'gas'){
+    const N = clamp(world.cfg.gas.count(shortSide), 30, 100);
+    for(let i=0;i<N;i++){
+      const x = rand(20, world.w-20);
+      const y = rand(20, world.h-20);
+      const p = new Particle(x,y,cfg.radius);
+      // 初速方向隨機，大小依 base * tempScale
+      const sp = cfg.speedBase * tempScale() * rand(0.8,1.2);
+      const th = Math.random()*Math.PI*2;
+      p.vx = Math.cos(th)*sp;
+      p.vy = Math.sin(th)*sp;
+      world.particles.push(p);
+    }
+  }
+  nCount.textContent = world.particles.length;
+  // 清畫布
+  ctx.fillStyle = '#0a0d1a';
+  ctx.fillRect(0,0,world.w,world.h);
+}
+
+function applyForces(dt){
+  const s = world.state;
+  const Tscale = tempScale();
+
+  if(s === 'solid'){
+    const {kSpring, damping, jitter, radius} = world.cfg.solid;
+    for(const p of world.particles){
+      // 朝錨點的彈性力
+      const dx = p.ax - p.x;
+      const dy = p.ay - p.y;
+      const fx = dx * kSpring;
+      const fy = dy * kSpring;
+      // 阻尼
+      p.vx = (p.vx + fx*dt) * (1 - damping*dt);
+      p.vy = (p.vy + fy*dt) * (1 - damping*dt);
+      // 熱擾動幅度 ~ Tscale
+      p.vx += (Math.random()-0.5) * jitter * Tscale;
+      p.vy += (Math.random()-0.5) * jitter * Tscale;
+      // 更新位置
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+    }
+  }
+  else if(s === 'liquid'){
+    const {repel, attract, cutoff, damping} = world.cfg.liquid;
+    // 簡化的短程排斥+弱凝聚
+    for(let i=0;i<world.particles.length;i++){
+      const p = world.particles[i];
+      let fx=0, fy=0;
+      for(let j=i+1;j<world.particles.length;j++){
+        const q = world.particles[j];
+        let dx = q.x - p.x;
+        let dy = q.y - p.y;
+        let r2 = dx*dx + dy*dy + 1e-6;
+        let r = Math.sqrt(r2);
+        if(r < cutoff){
+          // 排斥：距離越近力越強
+          const f = repel / r2;
+          const ux = dx / r, uy = dy / r;
+          fx -= f*ux; fy -= f*uy;
+          q.vx += f*ux*dt; q.vy += f*uy*dt;
+        }else{
+          // 弱凝聚：拉回群體
+          const f = attract / r2;
+          const ux = dx / r, uy = dy / r;
+          fx += f*ux; fy += f*uy;
+          q.vx -= f*ux*dt; q.vy -= f*uy*dt;
+        }
+      }
+      // 溫度驅動的隨機擾動：使流動性隨溫度上升
+      fx += (Math.random()-0.5) * 80 * Tscale;
+      fy += (Math.random()-0.5) * 80 * Tscale;
+
+      p.vx = (p.vx + fx*dt) * (1 - damping*dt);
+      p.vy = (p.vy + fy*dt) * (1 - damping*dt);
+
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+
+      // 與牆壁溫和反彈
+      if(p.x < p.r){ p.x = p.r; p.vx *= -0.7; }
+      if(p.x > world.w - p.r){ p.x = world.w - p.r; p.vx *= -0.7; }
+      if(p.y < p.r){ p.y = p.r; p.vy *= -0.7; }
+      if(p.y > world.h - p.r){ p.y = world.h - p.r; p.vy *= -0.7; }
+    }
+  }
+  else if(s === 'gas'){
+    const base = world.cfg.gas.speedBase;
+    // 持續把速率朝 base*sqrt(T) 收斂（模擬麥氏分布趨勢的簡版）
+    const target = base * Tscale;
+    for(const p of world.particles){
+      const v = Math.hypot(p.vx,p.vy) + 1e-6;
+      const scale = 1 + (target - v) * 0.6 * dt; // 平滑調整
+      p.vx *= scale; p.vy *= scale;
+
+      p.x += p.vx * dt; p.y += p.vy * dt;
+
+      // 與牆壁彈性碰撞
+      if(p.x < p.r){ p.x = p.r; p.vx = Math.abs(p.vx); }
+      if(p.x > world.w - p.r){ p.x = world.w - p.r; p.vx = -Math.abs(p.vx); }
+      if(p.y < p.r){ p.y = p.r; p.vy = Math.abs(p.vy); }
+      if(p.y > world.h - p.r){ p.y = world.h - p.r; p.vy = -Math.abs(p.vy); }
+    }
+  }
+}
+
+function measure(){
+  // 平均速度
+  let sumV = 0;
+  for(const p of world.particles){
+    sumV += Math.hypot(p.vx, p.vy);
+  }
+  const avgVel = world.particles.length ? sumV / world.particles.length : 0;
+
+  // 平均最近鄰距
+  let sumD = 0;
+  for(let i=0;i<world.particles.length;i++){
+    const p = world.particles[i];
+    let best = Infinity;
+    for(let j=0;j<world.particles.length;j++){
+      if(i===j) continue;
+      const q = world.particles[j];
+      const d2 = dist2(p.x,p.y,q.x,q.y);
+      if(d2 < best) best = d2;
+    }
+    if(best < Infinity) sumD += Math.sqrt(best);
+  }
+  const avgNN = world.particles.length ? (sumD / world.particles.length) : 0;
+
+  avgV.textContent = avgVel.toFixed(1);
+  avgD.textContent = avgNN.toFixed(1);
+}
+
+function draw(){
+  if(!world.showTrail){
+    // 清背景
+    const g = ctx.createLinearGradient(0,0,0,world.h);
+    g.addColorStop(0,'#0c112a'); g.addColorStop(1,'#0a0d1a');
+    ctx.fillStyle = g;
+    ctx.fillRect(0,0,world.w,world.h);
+  }else{
+    // 漸隱疊影：留下軌跡
+    ctx.fillStyle = 'rgba(10,13,26,0.08)';
+    ctx.fillRect(0,0,world.w,world.h);
+  }
+
+  const color = colorMap[world.state] || '#6ac8ff';
+  ctx.lineWidth = 1;
+
+  if(world.showLinks){
+    ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+    ctx.beginPath();
+    for(let i=0;i<world.particles.length;i++){
+      const p = world.particles[i];
+      let best = Infinity; let bj = -1;
+      for(let j=0;j<world.particles.length;j++){
+        if(i===j) continue;
+        const q = world.particles[j];
+        const d2 = dist2(p.x,p.y,q.x,q.y);
+        if(d2 < best){ best = d2; bj = j; }
+      }
+      if(bj>=0){
+        const q = world.particles[bj];
+        ctx.moveTo(p.x, p.y); ctx.lineTo(q.x, q.y);
+      }
+    }
+    ctx.stroke();
+  }
+
+  // 粒子
+  ctx.fillStyle = color;
+  for(const p of world.particles){
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r, 0, Math.PI*2);
+    ctx.fill();
+  }
+
+  // 邊框微光
+  ctx.strokeStyle = 'rgba(106,200,255,0.15)';
+  ctx.strokeRect(0.5,0.5,world.w-1,world.h-1);
+}
+
+function step(){
+  const now = performance.now();
+  const dt = Math.min(0.05, (now - world.lastT)/1000); // 限制最大步長，避免卡頓
+  world.lastT = now;
+  if(world.running){
+    applyForces(dt);
+    measure();
+    draw();
+  }else{
+    // 暫停時仍畫一次，避免縮放/操作後畫面不同步
+    draw();
+  }
+  requestAnimationFrame(step);
+}
+
+// ====== 事件綁定 ======
+btnPlay.addEventListener('click', ()=>{
+  world.running = !world.running;
+  btnPlay.dataset.on = world.running ? 'true':'false';
+  btnPlay.setAttribute('aria-pressed', world.running ? 'true':'false');
+  btnPlay.textContent = world.running ? '⏸ 暫停/播放' : '▶ 播放';
+});
+
+btnTrail.addEventListener('click', ()=>{
+  world.showTrail = !world.showTrail;
+  btnTrail.setAttribute('aria-pressed', world.showTrail ? 'true':'false');
+  btnTrail.dataset.on = world.showTrail ? 'true':'false';
+});
+
+btnLinks.addEventListener('click', ()=>{
+  world.showLinks = !world.showLinks;
+  btnLinks.setAttribute('aria-pressed', world.showLinks ? 'true':'false');
+  btnLinks.dataset.on = world.showLinks ? 'true':'false';
+});
+
+btnReset.addEventListener('click', ()=>{
+  resetState(world.state);
+});
+
+chips.forEach(ch=>{
+  ch.addEventListener('click', ()=>{
+    resetState(ch.dataset.state);
+  });
+});
+
+tempRange.addEventListener('input', ()=>{
+  world.temperatureC = parseFloat(tempRange.value);
+  tC.textContent = world.temperatureC.toFixed(0);
+  tK.textContent = (world.temperatureC + 273.15).toFixed(2);
+
+  // 立即影響（特別是氣體：調整目標速率；固/液：擾動強度）
+  if(world.state==='gas'){
+    // 即時把速率推向新尺度（平滑在 step 中持續進行）
+    const target = world.cfg.gas.speedBase * tempScale();
+    for(const p of world.particles){
+      const v = Math.hypot(p.vx,p.vy) + 1e-6;
+      const scale = target / v;
+      p.vx *= scale; p.vy *= scale;
+    }
+  }
+});
+
+// 點擊背景關閉 modal
+modal.addEventListener('click', (e)=>{
+  if(e.target === modal) modal.removeAttribute('open');
+});
+
+// ====== 啟動 ======
+resize();
+resetState('solid');
+world.temperatureC = parseFloat(tempRange.value);
+tC.textContent = world.temperatureC.toFixed(0);
+tK.textContent = (world.temperatureC + 273.15).toFixed(2);
+world.lastT = performance.now();
+step();
+
+})();
+</script>
+</body>
+</html>
