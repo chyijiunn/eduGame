@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>原子模型演化｜3D 互動時間軸（Dalton → Thomson → Bohr → Modern）</title>
+<title>原子模型演化｜3D 互動時間軸 v0.2（Dalton → Thomson → 拉塞福 → Bohr → Modern）</title>
 <style>
 :root{
   --bg:#0b1020; --panel:#0f1730; --ink:#eef3ff; --sub:#a7b3d8;
@@ -12,7 +12,12 @@
 *{box-sizing:border-box}
 html,body{height:100%}
 body{margin:0;background:radial-gradient(1200px 800px at 60% -10%,#122553 0%,#0b1020 45%,#050915 100%);color:var(--ink);font-family:"Noto Sans TC",ui-sans-serif,system-ui,Segoe UI,Arial,Helvetica,sans-serif;}
-.app{display:grid;grid-template-columns:1fr min(380px,34vw);grid-auto-rows:100vh;gap:0}
+.app{display:grid;grid-template-columns:1fr min(400px,36vw);grid-auto-rows:100vh;gap:0}
+@media (max-width: 900px){
+  .app{grid-template-columns:1fr;grid-auto-rows:auto}
+  #view{height:58vh}
+  .panel{min-height:auto}
+}
 canvas{display:block;width:100%;height:100%;background:transparent;touch-action:none;cursor:grab}
 canvas:active{cursor:grabbing}
 .panel{background:linear-gradient(180deg,#0f1730 0%,#0b1228 100%);border-left:1px solid #1e2a52;display:flex;flex-direction:column;justify-content:space-between;min-height:0}
@@ -34,6 +39,9 @@ input[type=range]{width:100%}
 .hr{height:1px;background:#1e2a52;margin:6px 0}
 .tip{background:#0e1a3e;border:1px solid #2a3a73;border-radius:10px;padding:8px 10px;color:#cfe7ff;font-size:.82rem}
 select, .pill{background:#0d1736;color:#e7f1ff;border:1px solid #2a3a73;border-radius:10px;padding:6px 10px}
+.pill{white-space:nowrap}
+.klist{margin:6px 0 0 0;padding-left:16px}
+.klist li{margin:2px 0}
 </style>
 </head>
 <body>
@@ -41,20 +49,20 @@ select, .pill{background:#0d1736;color:#e7f1ff;border:1px solid #2a3a73;border-r
   <canvas id="view"></canvas>
   <aside class="panel">
     <section>
-      <div class="badge">原子模型演化｜3D 互動</div>
-      <h1>Dalton → Thomson → Bohr → Modern（軌域/混成）</h1>
-      <p class="sub" id="model-title">使用下方時間軸切換模型；拖曳旋轉，滾輪縮放。現代模型可切換 s / p / sp / sp² / sp³ 等雲圖。</p>
+      <div class="badge">原子模型演化｜3D 互動（單檔版 v0.2）</div>
+      <h1>Dalton → Thomson → 拉塞福 → Bohr → Modern（軌域/混成）</h1>
+      <p class="sub" id="model-title">用時間軸切換模型；拖曳旋轉；滾輪或雙指「捏合」縮放；雙擊/一鍵適配重置視角。Modern 階段可切換 s / p / sp / sp² / sp³ 雲圖。</p>
       <div class="controls">
         <div class="row">
           <label>原子演化互動時間軸</label>
-          <input id="timeline" type="range" min="0" max="3" step="1" value="0">
+          <input id="timeline" type="range" min="0" max="4" step="1" value="0">
           <div class="grid-2">
             <div class="pill" id="eraL">道耳頓（1803）</div>
             <div class="pill" style="text-align:right" id="eraR">現代量子模型（1926–）</div>
           </div>
         </div>
         <div class="row" id="orbitalRow" style="display:none;">
-          <label>現代模型｜電子軌域/混成</label>
+          <label>Modern｜電子軌域/混成</label>
           <select id="orbital">
             <option value="s">s（球對稱）</option>
             <option value="px">p<sub>x</sub>（啞鈴）</option>
@@ -66,15 +74,23 @@ select, .pill{background:#0d1736;color:#e7f1ff;border:1px solid #2a3a73;border-r
           </select>
         </div>
         <div class="row">
-          <label>電子雲強度（點數）</label>
-          <input id="density" type="range" min="800" max="6000" step="200" value="2600">
+          <label>電子雲強度（點數，預設較稀疏）</label>
+          <input id="density" type="range" min="200" max="5000" step="200" value="1400">
         </div>
         <div class="row">
           <label>自動旋轉</label>
-          <input id="autorot" type="range" min="-0.8" max="0.8" step="0.01" value="0.10">
+          <input id="autorot" type="range" min="-0.8" max="0.8" step="0.01" value="0.08">
+        </div>
+        <div class="row">
+          <label>視角縮放（小手機可用）</label>
+          <input id="zoomRange" type="range" min="2.2" max="14" step="0.1" value="5.6">
+          <div class="grid-2">
+            <button class="btn" id="fitBtn">一鍵適配</button>
+            <button class="btn" id="resetBtn">重置視角</button>
+          </div>
         </div>
         <div class="row tip" id="tip">
-          小技巧：按住滑鼠拖曳旋轉；雙擊重置視角。<br>Bohr 模型為離散殼層；現代模型以雲圖近似機率分布。
+          小技巧：滑鼠拖曳旋轉；滾輪或雙指捏合縮放；雙擊或按「重置視角」恢復；按「一鍵適配」可自動讓模型完整入鏡。
         </div>
       </div>
     </section>
@@ -82,23 +98,29 @@ select, .pill{background:#0d1736;color:#e7f1ff;border:1px solid #2a3a73;border-r
     <section>
       <div class="kv" id="info">
         <b>名稱</b><span>道耳頓之原子說（實心小球）</span>
-        <b>核心概念</b><span>原子不可再分；同元素原子相同，化合依固定比例。</span>
+        <b>核心概念</b><span>原子不可再分；同元素原子相同；化合依固定比例。</span>
         <b>可視化</b><span>單一實心球體；無電子。</span>
+        <b>補充</b><span>
+          <ul class="klist">
+            <li>能說明質量守恆與定比/倍比定律；但無法處理電性與光譜。</li>
+          </ul>
+        </span>
       </div>
     </section>
     <div class="footer">
       <div>© 2025 • 教學用互動示意（簡化版本，非嚴格量子力學解）。</div>
-      <div class="small">科學準確性說明：<br>• 雲圖為基於幾何分布的視覺近似（s/p 與 sp/sp²/sp³ 混成之方向性）。<br>• Thomson/Bohr 以歷史模型特徵動畫化，輔助比較概念。</div>
+      <div class="small">說明：雲圖為機率分布之視覺近似（s/p 與 sp/sp²/sp³ 混成方向性），Thomson/拉塞福/Bohr 為歷史模型特徵的概念化動畫，便於比較。</div>
     </div>
   </aside>
 </div>
 
 <script>
 /* =========================================================
-   超輕量 3D 粒子與簡易網格渲染器（無外部函式庫）
-   - 目標：單檔、檔案小、可離線運行
-   - 內容：Dalton / Thomson / Bohr / Modern(軌域/混成) 切換
-   - 互動：拖曳旋轉、滾輪縮放、雙擊復位、自動旋轉
+   3D 粒子渲染（Canvas 2D，無外部庫） v0.2
+   - 新增 拉塞福（Rutherford）核式模型（1911）
+   - 降低雲圖預設點數與透明度（更不擁擠）
+   - 新增縮放滑桿、雙指捏合、重置與一鍵適配
+   - 小螢幕改為上下佈局（更易看到全貌）
    ========================================================= */
 
 const canvas = document.getElementById('view');
@@ -106,12 +128,14 @@ const ctx = canvas.getContext('2d');
 
 let W = canvas.width = canvas.clientWidth;
 let H = canvas.height = canvas.clientHeight;
-window.addEventListener('resize', () => {
+function resize(){
   W = canvas.width = canvas.clientWidth;
   H = canvas.height = canvas.clientHeight;
-});
+  fitView(); // 保持在可視範圍
+}
+window.addEventListener('resize', resize);
 
-// ---------- 小工具 ----------
+// ---------- 數學小工具 ----------
 const rand = (a,b)=>a+Math.random()*(b-a);
 const clamp=(x,a,b)=>x<a?a:(x>b?b:x);
 
@@ -128,11 +152,12 @@ function rotY(v,a){const s=Math.sin(a),c=Math.cos(a);return vec3(c*v.x + s*v.z, 
 function rotZ(v,a){const s=Math.sin(a),c=Math.cos(a);return vec3(c*v.x - s*v.y, s*v.x + c*v.y, v.z);}
 
 // ---------- 相機 / 互動 ----------
-let camZ = 5.2, fov = 700; // fov 越大越遠小
+let camZ = 5.6, fov = 720;
 let rot = {x:0.0, y:0.4, z:0};
-let autoY = 0.10;
+let autoY = 0.08;
 let dragging=false, last={x:0,y:0};
 
+// 旋轉（滑鼠單指）
 canvas.addEventListener('pointerdown', e=>{dragging=true; last.x=e.clientX; last.y=e.clientY; canvas.setPointerCapture(e.pointerId);});
 canvas.addEventListener('pointerup', e=>{dragging=false; canvas.releasePointerCapture(e.pointerId);});
 canvas.addEventListener('pointermove', e=>{
@@ -143,38 +168,90 @@ canvas.addEventListener('pointermove', e=>{
   rot.x += dy*3.5;
   last.x=e.clientX; last.y=e.clientY;
 });
+// 滾輪縮放（桌機）
 canvas.addEventListener('wheel', e=>{
-  camZ = clamp(camZ + (e.deltaY>0?0.3:-0.3), 2.2, 12);
+  camZ = clamp(camZ + (e.deltaY>0?0.35:-0.35), 2.2, 14);
+  syncZoomUI();
 });
-canvas.addEventListener('dblclick', ()=>{ camZ=5.2; rot.x=0; rot.y=0.4; });
+// 雙擊重置
+canvas.addEventListener('dblclick', resetView);
+
+// 觸控捏合縮放（手機）
+let pinchStartDist = 0, pinchStartCamZ = 5.6;
+function touchDist(t){
+  const dx = t[0].clientX - t[1].clientX;
+  const dy = t[0].clientY - t[1].clientY;
+  return Math.hypot(dx,dy);
+}
+canvas.addEventListener('touchstart', (e)=>{
+  if(e.touches.length===2){
+    pinchStartDist = touchDist(e.touches);
+    pinchStartCamZ = camZ;
+  }
+}, {passive:true});
+canvas.addEventListener('touchmove', (e)=>{
+  if(e.touches.length===2){
+    const d = touchDist(e.touches);
+    const scale = pinchStartDist ? (pinchStartDist/d) : 1;
+    camZ = clamp(pinchStartCamZ * scale, 2.2, 14);
+    syncZoomUI();
+  }
+}, {passive:true});
 
 // ---------- UI 元件 ----------
 const timeline = document.getElementById('timeline');
 const orbitalSel = document.getElementById('orbital');
 const density = document.getElementById('density');
 const autorot = document.getElementById('autorot');
+const zoomRange = document.getElementById('zoomRange');
+const fitBtn = document.getElementById('fitBtn');
+const resetBtn = document.getElementById('resetBtn');
 const info = document.getElementById('info');
 const modelTitle = document.getElementById('model-title');
 const eraL = document.getElementById('eraL');
 const eraR = document.getElementById('eraR');
 const orbitalRow = document.getElementById('orbitalRow');
 
+function syncZoomUI(){ zoomRange.value = camZ.toFixed(2); }
+zoomRange.addEventListener('input', ()=>{ camZ = +zoomRange.value; });
+
 const ERA = [
-  {key:'dalton',  year:'1803', name:'道耳頓之原子說（實心小球）', concept:'原子不可再分；同元素原子相同；化合依固定比例。', viz:'單一實心球體；無電子。'},
-  {key:'thomson', year:'1904', name:'湯姆森葡萄乾布丁模型', concept:'原子為帶正電的「布丁」混入帶負電的電子。', viz:'球形正電背景；電子分散其內，緩慢漂移。'},
-  {key:'bohr',    year:'1913', name:'波耳行星模型', concept:'電子繞核於量化軌道（殼層）；能階躍遷。', viz:'固定半徑環軌；離散速度與能階。'},
-  {key:'modern',  year:'1926–', name:'現代量子力學（軌域/混成）', concept:'電子以機率雲分布於軌域；方向性與對稱性可描述。', viz:'s、p 軌域與 sp / sp² / sp³ 混成之雲圖。'}
+  {key:'dalton',  year:'1803', name:'道耳頓之原子說（實心小球）',
+   concept:'原子不可再分；同元素原子相同；化合依固定比例。',
+   viz:'單一實心球體；無電子。',
+   more:['能說明質量守恆與定比/倍比定律；但沒有電性與光譜的解釋。']},
+  {key:'thomson', year:'1904', name:'湯姆森葡萄乾布丁模型',
+   concept:'原子為帶正電的「布丁」混入帶負電的電子。',
+   viz:'球形正電背景；電子分散其內，緩慢漂移。',
+   more:['可解釋電子存在（陰極射線），但正電過度分散；之後被拉塞福金箔散射否定。']},
+  {key:'rutherford', year:'1911', name:'拉塞福核式原子模型',
+   concept:'正電與大多數質量集中於極小的原子核；電子在外圍運動。',
+   viz:'集中小核；電子於多種傾角與半徑的軌道上運行（非量化）。',
+   more:['金箔散射：絕大多數直通、少數大角度偏轉，顯示核很小且正電集中。','無法解釋為何電子不因輻射而掉入原子核（穩定性問題）。']},
+  {key:'bohr',    year:'1913', name:'波耳行星模型',
+   concept:'電子只允許在量化半徑的圓軌道；吸放光時進行能階躍遷。',
+   viz:'固定半徑環軌；離散速度與能階。',
+   more:['成功解釋氫原子光譜；難以推廣至多電子原子，且假設「確定軌道」不符後來的波動觀。']},
+  {key:'modern',  year:'1926–', name:'現代量子力學（軌域/混成）',
+   concept:'電子以波函數描述，其機率密度形成「電子雲」。',
+   viz:'s、p 與 sp / sp² / sp³ 混成的雲圖；無經典式軌跡。',
+   more:['測不準原理：無法同時精確知位置與動量。','能解釋元素週期性、鍵合方向性與化學性質。']}
 ];
 
+function infoHTML(e){
+  const li = e.more.map(s=>`<li>${s}</li>`).join('');
+  return `<b>名稱</b><span>${e.name}</span>
+          <b>核心概念</b><span>${e.concept}</span>
+          <b>可視化</b><span>${e.viz}</span>
+          <b>補充</b><span><ul class="klist">${li}</ul></span>`;
+}
 function setInfo(i){
   const e=ERA[i];
-  info.innerHTML = `<b>名稱</b><span>${e.name}</span>
-                    <b>核心概念</b><span>${e.concept}</span>
-                    <b>可視化</b><span>${e.viz}</span>`;
-  modelTitle.textContent = i<3
-   ? '用時間軸比較歷史模型；拖曳旋轉、滾輪縮放。'
-   : '現代模型：選擇 s / p / sp / sp² / sp³ 等雲圖；拖曳旋轉、滾輪縮放。';
-  orbitalRow.style.display = (i===3)?'block':'none';
+  info.innerHTML = infoHTML(e);
+  modelTitle.textContent = i<4
+   ? '用時間軸比較歷史模型；拖曳旋轉、滾輪/捏合縮放。'
+   : 'Modern：選擇 s / p / sp / sp² / sp³ 等雲圖；拖曳旋轉、滾輪/捏合縮放。';
+  orbitalRow.style.display = (i===4)?'block':'none';
 }
 setInfo(0);
 
@@ -182,68 +259,52 @@ timeline.addEventListener('input', ()=>{
   currentModel = +timeline.value;
   setInfo(currentModel);
   rebuild();
+  fitView();
 });
+orbitalSel.addEventListener('change', ()=>{ rebuild(); });
+density.addEventListener('input', ()=>{ rebuild(); });
+autorot.addEventListener('input', ()=>{ autoY = +autorot.value; });
+fitBtn.addEventListener('click', fitView);
+resetBtn.addEventListener('click', resetView);
 
-orbitalSel.addEventListener('change', ()=>rebuild());
-density.addEventListener('input', ()=>rebuild());
-autorot.addEventListener('input', ()=>{autoY = +autorot.value;});
-
-// ---------- 幾何生成（點雲為主，輕量快） ----------
-let points=[], electrons=[], rings=[], nucleus=[], puddingShell=[];
+// ---------- 幾何生成 ----------
+let points=[], electrons=[], rings=[], ellipses=[], nucleus=[], puddingShell=[];
 let currentModel = 0;
 
 function sampleSpherePoint(radius=1){
-  // 均勻方向 + 半徑
-  const u = Math.random()*2-1; // cos(theta) in [-1,1]
+  const u = Math.random()*2-1;
   const t = Math.random()*Math.PI*2;
-  const r = radius * Math.cbrt(Math.random()); // 均勻體積
+  const r = radius * Math.cbrt(Math.random());
   const s = Math.sqrt(1-u*u);
   return vec3(r*s*Math.cos(t), r*s*Math.sin(t), r*u);
 }
 
-function sampleGaussianLobe(dir, sigma=0.35, rmax=1.2){
-  // 沿著 dir 的高斯分布 + 衰減半徑
+function sampleGaussianLobe(dir, sigma=0.33, rmax=1.2){
   const u1=Math.random(), u2=Math.random();
   const g = Math.sqrt(-2*Math.log(u1))*Math.cos(2*Math.PI*u2)*sigma;
-  const off = mul(norm(dir), rand(0.4,1.0)+g);
-  // 橫向擴散
-  // 建立任意正交基
+  const off = mul(norm(dir), rand(0.45,1.05)+g);
   let a = Math.abs(dir.x)<0.9?vec3(1,0,0):vec3(0,1,0);
   let v1 = norm(sub(a, mul(dir,dot(a,dir))));
   let v2 = norm({x:dir.y*v1.z - dir.z*v1.y, y:dir.z*v1.x - dir.x*v1.z, z:dir.x*v1.y - dir.y*v1.x});
-  const radial = add(mul(v1, rand(-0.3,0.3)), mul(v2, rand(-0.3,0.3)));
+  const radial = add(mul(v1, rand(-0.26,0.26)), mul(v2, rand(-0.26,0.26)));
   const p = add(off, radial);
-  const L = len(p);
-  const s = clamp(1 - (L/rmax), 0, 1);
-  return mul(p, 1); // 直接回傳點
+  return p;
 }
 
 function tetraDirs(){
-  // sp3 四面體方向（等角 ~109.5°），採用正四面體頂點
-  const t = 1;
-  const dirs = [
-    vec3( 1, 1, 1),
-    vec3( 1,-1,-1),
-    vec3(-1, 1,-1),
-    vec3(-1,-1, 1),
-  ];
-  return dirs.map(norm);
+  return [vec3( 1, 1, 1), vec3( 1,-1,-1), vec3(-1, 1,-1), vec3(-1,-1, 1)].map(norm);
 }
-
 function trigDirs(){
-  // sp2：平面三角，120°
   const a=2*Math.PI/3;
   return [vec3(1,0,0), vec3(Math.cos(a),Math.sin(a),0), vec3(Math.cos(-a),Math.sin(-a),0)];
 }
-
 function spDirs(){
-  // sp：線形，180°
   return [vec3(1,0,0), vec3(-1,0,0)];
 }
 
 function rebuild(){
   const n = +density.value|0;
-  points = []; electrons = []; rings = []; nucleus = []; puddingShell = [];
+  points = []; electrons = []; rings = []; ellipses=[]; nucleus = []; puddingShell = [];
   const model = +timeline.value;
 
   if(model===0){
@@ -255,23 +316,34 @@ function rebuild(){
     // Thomson：正電布丁 + 內部電子
     const R=1.2;
     puddingShell.push({p:vec3(0,0,0), r:R, col:'rgba(102,209,255,0.08)'});
-    // 布丁雲（微透明）
-    for(let i=0;i<n;i++){
+    for(let i=0;i<Math.max(600, n*0.6);i++){
       const p = sampleSpherePoint(R);
-      points.push({p, a: rand(0.2,0.4)});
+      points.push({p, a: rand(0.14,0.28)});
     }
-    // 電子（可緩慢漂移）
-    for(let i=0;i<Math.max(8, n/500);i++){
+    for(let i=0;i<Math.max(8, n/700);i++){
       const p = sampleSpherePoint(R*0.9);
       electrons.push({p, v: mul(norm(sampleSpherePoint(1)), rand(0.001,0.003))});
     }
   }
   else if(model===2){
-    // Bohr：殼層 + 電子繞行
+    // 拉塞福：小核 + 多傾角橢圓軌道（非量化）
+    nucleus.push({p:vec3(0,0,0), r:0.22, col:'#ffc857'});
+    const m = Math.max(6, n/900|0);
+    for(let i=0;i<m;i++){
+      const a = rand(0.7,1.6); // 半長軸
+      const b = a*rand(0.4,0.95); // 半短軸
+      const tiltX = rand(0,Math.PI*0.8);
+      const tiltY = rand(0,Math.PI*0.8);
+      ellipses.push({a,b,tiltX,tiltY,col:'#66d1ff22'});
+      electrons.push({type:'ellipse', a,b, tiltX, tiltY, ang: rand(0,Math.PI*2), w: rand(0.012,0.028)});
+    }
+  }
+  else if(model===3){
+    // Bohr：殼層 + 電子繞行（量化）
     const shells=[0.6,1.0,1.4];
     shells.forEach((R,si)=>{
       rings.push({R, tiltX: (si*0.6), tiltY:(si*0.3)});
-      const m = si===0?2:(si===1?6:gradNum(n)); // 小量即可
+      const m = si===0?2:(si===1?6:Math.min(10, Math.max(4, (n/800)|0)));
       for(let k=0;k<m;k++){
         electrons.push({
           orbit:si, angle: Math.random()*Math.PI*2, speed: (si===0?0.03:(si===1?0.02:0.015))*rand(0.9,1.1),
@@ -279,74 +351,76 @@ function rebuild(){
         });
       }
     });
-    // 核心
     nucleus.push({p:vec3(0,0,0), r:0.22, col:'#ffc857'});
   }
   else{
     // Modern：雲圖（s/p & sp/sp2/sp3）
     const kind = orbitalSel.value;
-    // 核心更小
     nucleus.push({p:vec3(0,0,0), r:0.18, col:'#ffc857'});
-
     let dirs=[];
     if(kind==='s'){
-      for(let i=0;i<n;i++) points.push({p: sampleSpherePoint(1.0), a: rand(0.25,0.5)});
+      for(let i=0;i<n;i++) points.push({p: sampleSpherePoint(1.0), a: rand(0.14,0.28)});
     }else if(kind==='px' || kind==='py' || kind==='pz'){
-      const axis = kind==='px'?vec3(1,0,0):kind==='py'?vec3(0,1,0):vec3(0,0,1);
+      const axis = kind==='px'?vec3(1,0,0):kind==='py'?vec3(0,1,0):kind==='pz'?vec3(0,0,1):vec3(1,0,0);
       for(let i=0;i<n;i++){
         const sign = Math.random()<0.5?-1:1;
-        const base = mul(axis, sign*rand(0.5,1.1));
-        const pt = sampleGaussianLobe(base, 0.28, 1.35);
-        points.push({p: pt, a: rand(0.25,0.55)});
+        const base = mul(axis, sign*rand(0.5,1.05));
+        const pt = sampleGaussianLobe(base, 0.26, 1.35);
+        points.push({p: pt, a: rand(0.14,0.3)});
       }
     }else if(kind==='sp'){
-      dirs = spDirs();
-      points = hybridPoints(dirs, n);
+      dirs = spDirs(); points = hybridPoints(dirs, n);
     }else if(kind==='sp2'){
-      dirs = trigDirs();
-      points = hybridPoints(dirs, n);
+      dirs = trigDirs(); points = hybridPoints(dirs, n);
     }else if(kind==='sp3'){
-      dirs = tetraDirs();
-      points = hybridPoints(dirs, n);
+      dirs = tetraDirs(); points = hybridPoints(dirs, n);
     }
   }
 }
 
-function gradNum(n){ return Math.min(10, Math.max(4, (n/800)|0)); }
-
 function hybridPoints(dirs, n){
   const arr=[];
-  // 依方向分配點數（平均）
   for(let i=0;i<n;i++){
     const d = dirs[i % dirs.length];
     const base = mul(d, rand(0.55, 1.15));
-    const pt = sampleGaussianLobe(base, 0.28, 1.4);
-    arr.push({p: pt, a: rand(0.25,0.55)});
+    const pt = sampleGaussianLobe(base, 0.26, 1.35);
+    arr.push({p: pt, a: rand(0.14,0.30)});
   }
   return arr;
 }
 
-// 初始建立
-rebuild();
-
-// ---------- 繪製 ----------
+// ---------- 投影 ----------
 function project(v){
-  // 世界旋轉
   let p = v;
   p = rotX(p, rot.x);
   p = rotY(p, rot.y);
   p = rotZ(p, rot.z);
-  // 透視投影
   const z = p.z + camZ;
   const s = fov / (z || 0.0001);
   return {x: W/2 + p.x*s, y: H/2 + p.y*s, z, s};
 }
 
-function drawSphere(center, R, color, wire=false){
-  // 簡易球體：多圈經緯線（輕量）
+// ---------- 擬合視角 ----------
+function modelRadius(){
+  const i = +timeline.value;
+  if(i===0) return 1.3;
+  if(i===1) return 1.35;
+  if(i===2) return 1.7;
+  if(i===3) return 1.55;
+  return 1.45; // modern
+}
+function fitCamForRadius(R){
+  const half = Math.min(W,H)*0.42;
+  const z = (fov*R)/Math.max(half,1);
+  return clamp(z, 2.2, 14);
+}
+function fitView(){ camZ = fitCamForRadius(modelRadius()); syncZoomUI(); }
+function resetView(){ rot.x=0; rot.y=0.4; fitView(); }
+
+// ---------- 繪圖 ----------
+function drawSphere(center, R, color){
   ctx.save();
-  ctx.globalAlpha = 1;
-  const rings = 14, seg = 64;
+  const rings = 12, seg = 56;
   ctx.strokeStyle = color; ctx.lineWidth = 1;
   for(let j=1;j<rings;j++){
     const phi = Math.PI*j/(rings);
@@ -361,7 +435,6 @@ function drawSphere(center, R, color, wire=false){
       prev=q;
     }
   }
-  // 經線
   for(let m=0;m<6;m++){
     let prev=null;
     for(let i=0;i<=seg;i++){
@@ -374,7 +447,6 @@ function drawSphere(center, R, color, wire=false){
   }
   ctx.restore();
 }
-
 function drawRing(R, tiltX, tiltY, color='#66d1ff22'){
   const seg=120;
   let prev=null;
@@ -387,15 +459,26 @@ function drawRing(R, tiltX, tiltY, color='#66d1ff22'){
     prev=q;
   }
 }
+function drawEllipse(a,b, tiltX, tiltY, color='#66d1ff22'){
+  const seg=140;
+  let prev=null;
+  ctx.strokeStyle = color; ctx.lineWidth = 1.8;
+  for(let i=0;i<=seg;i++){
+    const th = 2*Math.PI*i/seg;
+    let p = vec3(a*Math.cos(th), 0, b*Math.sin(th));
+    p = rotX(p, tiltX); p = rotY(p, tiltY);
+    const q = project(p);
+    if(prev){ ctx.beginPath(); ctx.moveTo(prev.x, prev.y); ctx.lineTo(q.x,q.y); ctx.stroke(); }
+    prev=q;
+  }
+}
 
 function draw(){
   ctx.clearRect(0,0,W,H);
-
-  // 自動旋轉
   rot.y += autoY*0.01;
 
-  // 背景微星點
-  ctx.globalAlpha = 0.25;
+  // 背景星點
+  ctx.globalAlpha = 0.22;
   for(let i=0;i<18;i++){
     const x = (Math.sin(i*12.3 + performance.now()*0.0003)*0.5+0.5)*W;
     const y = (Math.cos(i*7.1 + performance.now()*0.0002)*0.5+0.5)*H;
@@ -405,38 +488,47 @@ function draw(){
   ctx.globalAlpha = 1;
 
   const model = +timeline.value;
-
-  // 模型繪製順序：遠到近（點以 z 排序）
   let drawable = [];
 
   if(model===0){
-    // Dalton：以線框球表達實心
-    if(nucleus[0]) drawSphere(nucleus[0].p, nucleus[0].r, '#66d1ff33', true);
-    // 加一層半透明填充（點雲）提升體感
-    for(let i=0;i<1600;i++){
+    // Dalton
+    if(nucleus[0]) drawSphere(nucleus[0].p, nucleus[0].r, '#66d1ff2a');
+    for(let i=0;i<900;i++){
       const p = sampleSpherePoint(nucleus[0].r);
       const q = project(p);
-      drawable.push({x:q.x,y:q.y,z:q.z, r: q.s*0.8, a:0.02, col:'#66d1ff'});
+      drawable.push({x:q.x,y:q.y,z:q.z, r: Math.max(0.6, q.s*0.7), a:0.018, col:'#66d1ff'});
     }
   }
   else if(model===1){
-    // Thomson：布丁背景雲 + 電子
-    if(puddingShell[0]) drawSphere(puddingShell[0].p, puddingShell[0].r, '#66d1ff18', true);
-    // 布丁雲點
+    // Thomson
+    if(puddingShell[0]) drawSphere(puddingShell[0].p, puddingShell[0].r, '#66d1ff18');
     for(const it of points){
       const q=project(it.p);
-      drawable.push({x:q.x,y:q.y,z:q.z, r: q.s*0.9, a: it.a*0.18, col:'#66d1ff'});
+      drawable.push({x:q.x,y:q.y,z:q.z, r: Math.max(0.6,q.s*0.8), a: it.a*0.16, col:'#66d1ff'});
     }
-    // 電子點
     for(const e of electrons){
-      // 漂移
       e.p = add(e.p, e.v);
       if(len(e.p)>1.15){ e.v = mul(norm(e.p), -len(e.v)); }
       const q=project(e.p);
-      drawable.push({x:q.x,y:q.y,z:q.z, r: q.s*2.2, a:0.9, col:'#8ef5c5'});
+      drawable.push({x:q.x,y:q.y,z:q.z, r: q.s*2.1, a:0.9, col:'#8ef5c5'});
     }
   }
   else if(model===2){
+    // 拉塞福：橢圓軌道 + 小核
+    for(const el of ellipses){ drawEllipse(el.a, el.b, el.tiltX, el.tiltY); }
+    for(const e of electrons){
+      e.ang += e.w;
+      let p = vec3(e.a*Math.cos(e.ang), 0, e.b*Math.sin(e.ang));
+      p = rotX(p, e.tiltX); p = rotY(p, e.tiltY);
+      const q=project(p);
+      drawable.push({x:q.x,y:q.y,z:q.z,r:q.s*2.1,a:0.9,col:'#8ef5c5'});
+    }
+    if(nucleus[0]){
+      const q=project(nucleus[0].p);
+      drawable.push({x:q.x,y:q.y,z:q.z,r:q.s*3.4,a:1,col:'#ffc857'});
+    }
+  }
+  else if(model===3){
     // Bohr：環 + 電子
     rings.forEach(rg=> drawRing(rg.R, rg.tiltX, rg.tiltY));
     for(const e of electrons){
@@ -444,46 +536,48 @@ function draw(){
       let p = vec3(e.R*Math.cos(e.angle), 0, e.R*Math.sin(e.angle));
       p = rotX(p, e.tiltX); p = rotY(p, e.tiltY);
       const q=project(p);
-      drawable.push({x:q.x,y:q.y,z:q.z,r:q.s*2.2,a:0.9,col:'#8ef5c5'});
+      drawable.push({x:q.x,y:q.y,z:q.z,r:q.s*2.1,a:0.9,col:'#8ef5c5'});
     }
     if(nucleus[0]){
       const q=project(nucleus[0].p);
-      drawable.push({x:q.x,y:q.y,z:q.z,r:q.s*4,a:1,col:'#ffc857'});
+      drawable.push({x:q.x,y:q.y,z:q.z,r:q.s*3.6,a:1,col:'#ffc857'});
     }
   }
   else{
     // Modern：雲圖
     for(const it of points){
-      // 呼吸式微動
-      const p = add(it.p, vec3(Math.sin(performance.now()*0.001+it.p.x*3)*0.01, Math.cos(performance.now()*0.0012+it.p.y*2.7)*0.01, Math.sin(performance.now()*0.0009+it.p.z*2.9)*0.01));
+      const p = add(it.p, vec3(Math.sin(performance.now()*0.001+it.p.x*3)*0.008, Math.cos(performance.now()*0.0012+it.p.y*2.7)*0.008, Math.sin(performance.now()*0.0009+it.p.z*2.9)*0.008));
       const q = project(p);
-      drawable.push({x:q.x,y:q.y,z:q.z, r:q.s*0.9, a: it.a*0.22, col:'#66d1ff'});
+      drawable.push({x:q.x,y:q.y,z:q.z, r: Math.max(0.5,q.s*0.8), a: it.a*0.18, col:'#66d1ff'});
     }
     if(nucleus[0]){
       const q=project(nucleus[0].p);
-      drawable.push({x:q.x,y:q.y,z:q.z,r:q.s*3.2,a:1,col:'#ffc857'});
+      drawable.push({x:q.x,y:q.y,z:q.z,r:q.s*3.0,a:1,col:'#ffc857'});
     }
   }
 
-  // 依 z 排序繪製
   drawable.sort((a,b)=>b.z-a.z);
   for(const d of drawable){
     ctx.globalAlpha = d.a;
     ctx.fillStyle = d.col;
     ctx.beginPath();
-    ctx.arc(d.x, d.y, Math.max(0.6, d.r), 0, Math.PI*2);
+    ctx.arc(d.x, d.y, d.r, 0, Math.PI*2);
     ctx.fill();
   }
   ctx.globalAlpha = 1;
 
   requestAnimationFrame(draw);
 }
-requestAnimationFrame(draw);
 
-// 初始說明文字（兩端標籤）
-eraL.textContent = '道耳頓（1803）';
-eraR.textContent = '現代量子模型（1926–）';
-
+// 初始
+function init(){
+  rebuild();
+  fitView();
+  requestAnimationFrame(draw);
+  eraL.textContent = '道耳頓（1803）';
+  eraR.textContent = '現代量子模型（1926–）';
+}
+init();
 </script>
 </body>
 </html>
