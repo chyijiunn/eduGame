@@ -1,0 +1,733 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>3D 氣團模擬（Canvas2D 單檔相容版）v1.5</title>
+<style>
+:root{
+  --bg:#0b1220; --panel:#0f172a; --ink:#e6edf6; --sub:#9fb0c9;
+  --grid:#23324a; --accent:#60a5fa;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,"Noto Sans TC",Segoe UI,Roboto,Arial,"PingFang TC","Microsoft JhengHei",sans-serif;overflow:hidden}
+#app{position:fixed;inset:0;display:grid;grid-template-columns:1fr 460px}
+#cv{display:block;width:100%;height:100%;background:radial-gradient(1300px 900px at 60% 40%,#0e1a2e 0%,#0b1220 60%)}
+#panel{background:linear-gradient(180deg,#0f172a 0%,#0b1220 100%);border-left:1px solid #1e293b;padding:14px;overflow:auto}
+h1{margin:0 0 8px;font-size:18px;color:#a3d2ff}
+.ver{font-size:11px;color:var(--sub);margin-bottom:10px}
+.group{background:#0c1626;border:1px solid #1f2a44;border-radius:14px;padding:12px;margin-bottom:12px}
+.row{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:8px 0}
+label{font-size:12px;color:var(--sub)}
+input[type="range"]{width:250px}
+.btns{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+button{background:#1c2b44;color:#dbeafe;border:1px solid #244066;padding:8px 12px;border-radius:10px;cursor:pointer;font-weight:700;letter-spacing:1px}
+button:hover{background:#223556}
+.legend{height:10px;background:linear-gradient(90deg,#3b82f6 0%,#60a5fa 10%,#93c5fd 25%,#c7d2fe 40%,#fde68a 55%,#fca5a5 70%,#ef4444 85%,#b91c1c 100%);border-radius:6px;border:1px solid #1f2a44}
+.tiny{font-size:11px;color:var(--sub)}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:6px 10px;font-size:12px}
+.sep{height:1px;background:#1f2a44;margin:10px 0}
+.hud{position:absolute;left:12px;top:12px;background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:10px 12px;backdrop-filter:blur(4px);font-size:12px;line-height:1.45;pointer-events:none}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;vertical-align:middle}
+/* switch */
+.switch{position:relative;display:inline-block;width:60px;height:28px;vertical-align:middle}
+.switch input{opacity:0;width:0;height:0}
+.slider{position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background:#1c2b44;border:1px solid #244066;transition:.2s;border-radius:999px}
+.slider:before{position:absolute;content:"";height:22px;width:22px;left:3px;top:2px;background:#dbeafe;border-radius:50%;transition:.2s;box-shadow:0 2px 6px rgba(0,0,0,.35)}
+input:checked + .slider{background:#2a506e}
+input:checked + .slider:before{transform:translateX(30px)}
+.switch-label{font-size:12px;color:var(--sub);margin:0 6px}
+@media (max-width:1020px){
+  #app{grid-template-columns:1fr;grid-template-rows:1fr 560px}
+  #panel{grid-row:2}
+}
+</style>
+</head>
+<body>
+  <div id="app">
+    <div style="position:relative">
+      <canvas id="cv"></canvas>
+      <div class="hud" id="hud">
+        <div><span class="dot" style="background:#3b82f6"></span>大陸氣團 A（較冷）<span id="hudA"></span></div>
+        <div><span class="dot" style="background:#ef4444"></span>海洋氣團 B（較暖濕）<span id="hudB"></span></div>
+        <div class="sep"></div>
+        <div class="kv">
+          <div>中央面風速：</div><div><span id="wind"></span> m/s（相對）</div>
+          <div>平均壓差（B−A）：</div><div><span id="dp"></span> Pa（相對）</div>
+          <div>上半空間雲量：</div><div><span id="cloudCov"></span>%</div>
+          <div>前緣位移：</div><div><span id="front"></span>（步）</div>
+          <div>海洋濕度：</div><div><span id="hudRH"></span>% RH</div>
+          <div>分子數：</div><div><span id="nCount"></span></div>
+          <div>FPS：</div><div><span id="fps"></span></div>
+        </div>
+        <div id="pausedBadge" class="dot" style="background:#eab308;width:10px;height:10px"></div>
+        <div id="modeBadge" class="tiny" style="margin-top:6px;"></div>
+      </div>
+    </div>
+    <div id="panel">
+      <h1>3D 氣團模擬（相容版）</h1>
+      <div class="ver">Canvas2D 單一檔｜v1.5｜修正羅盤 N/S｜雲雨觸發更穩定｜保留「只看雲雨」</div>
+
+      <div class="group">
+        <div class="row"><label>大陸氣團 A 溫度（°C）</label><input id="tA" type="range" min="-5" max="40" step="1" value="-5"><span id="tAVal">-5</span></div>
+        <div class="row"><label>海洋氣團 B 溫度（°C）</label><input id="tB" type="range" min="-5" max="40" step="1" value="40"><span id="tBVal">40</span></div>
+        <div class="row"><label>B 濕度（RH）</label><input id="rhB" type="range" min="0.30" max="1.00" step="0.01" value="0.90"><span id="rhBVal">90%</span></div>
+        <div class="row"><label>分子數量</label><input id="nPart" type="range" min="400" max="500000" step="200" value="16000"><span id="nPartVal">16000</span></div>
+        <div class="row"><label>粒子尺寸</label><input id="psize" type="range" min="2" max="18" step="1" value="2"><span id="psizeVal">2</span></div>
+        <div class="row"><label>初始抖動（布朗）</label><input id="brown" type="range" min="0" max="1" step="0.01" value="0.45"><span id="brownVal">0.45</span></div>
+        <div class="row"><label>對流強度</label><input id="conv" type="range" min="0" max="2" step="0.01" value="0.9"><span id="convVal">0.90</span></div>
+        <div class="row"><label>傳導（擴散）</label><input id="cond" type="range" min="0" max="2" step="0.01" value="0"><span id="condVal">0.00</span></div>
+        <div class="row"><label>輻射散熱</label><input id="rad" type="range" min="0" max="2" step="0.01" value="0"><span id="radVal">0.00</span></div>
+        <div class="row"><label>壓力→加速度</label><input id="press" type="range" min="0" max="4" step="0.01" value="0.04"><span id="pressVal">0.04</span></div>
+      </div>
+
+      <div class="group">
+        <div class="row"><label>成雲倍率</label><input id="cloudRate" type="range" min="0" max="0.20" step="0.001" value="0.022"><span id="cloudRateVal">0.022</span></div>
+        <div class="row"><label>碰撞增益</label><input id="collBoost" type="range" min="0" max="4" step="0.05" value="2.0"><span id="collBoostVal">2.00</span></div>
+        <div class="row"><label>垂直分層強度</label><input id="strat" type="range" min="0" max="2" step="0.01" value="0.6"><span id="stratVal">0.60</span></div>
+        <div class="row"><label>每步前進距離</label><input id="advStep" type="range" min="0.2" max="2.0" step="0.1" value="0.8"><span id="advStepVal">0.8</span></div>
+        <div class="row"><label>有效半徑倍率（×粒徑）</label><input id="effR" type="range" min="5" max="40" step="1" value="14"><span id="effRVal">14×</span></div>
+      </div>
+
+      <div class="group">
+        <div class="row"><label>霧化程度（雲平滑）</label><input id="fog" type="range" min="0" max="3" step="0.01" value="1.6"><span id="fogVal">1.60</span></div>
+        <div class="row"><label>雲水含量</label><input id="qcloud" type="range" min="0" max="2" step="0.01" value="1.5"><span id="qcloudVal">1.50</span></div>
+        <div class="row"><label>降雨粒徑</label><input id="drop" type="range" min="0.5" max="3.0" step="0.1" value="2.0"><span id="dropVal">2.0</span></div>
+        <div class="row"><label>雲顯著度（尺寸＋不透明）</label><input id="cloudAmp" type="range" min="1" max="4" step="0.1" value="2.6"><span id="cloudAmpVal">2.6×</span></div>
+      </div>
+
+      <div class="group">
+        <div class="btns">
+          <button id="toggle">▶︎ 繼續</button>
+          <button id="reset">🔄 重置</button>
+          <button id="export">⬇︎ 匯出 CSV</button>
+          <button id="view">🎯 視角</button>
+          <button id="bright">🌟 對比</button>
+          <button id="viewCR">☁︎ 只看雲雨</button>
+          <span class="switch-label">推方向：</span>
+          <span class="switch-label">陸→海</span>
+          <label class="switch">
+            <input id="dirSwitch" type="checkbox">
+            <span class="slider"></span>
+          </label>
+          <span class="switch-label">海→陸</span>
+          <button id="advance">推</button>
+        </div>
+        <div class="tiny">建議觀察：RH≥85%、有效半徑 12–24×；按「推」於前緣形成雲帶後轉雨。</div>
+      </div>
+
+      <div class="tiny">註：教學用近似模型，非天氣預報系統。</div>
+    </div>
+  </div>
+
+<script>
+// ===== 基本參數 =====
+const canvas = document.getElementById('cv');
+const ctx = canvas.getContext('2d');
+function resize(){ const dpr=Math.min(window.devicePixelRatio||1,2); const w=canvas.clientWidth, h=canvas.clientHeight; canvas.width=w*dpr; canvas.height=h*dpr; ctx.setTransform(dpr,0,0,dpr,0,0); }
+new ResizeObserver(resize).observe(canvas);
+
+// 3D 相機（以 2D 投影呈現）
+let camDist=34, camYaw=0.4, camPitch=0.45, fov=55*Math.PI/180;
+function getBasis(){
+  const ex = camDist*Math.cos(camPitch)*Math.cos(camYaw);
+  const ey = camDist*Math.sin(camPitch);
+  const ez = camDist*Math.cos(camPitch)*Math.sin(camYaw);
+  const eye=[ex,ey,ez];
+  const f = [-ex,-ey,-ez]; const fl = Math.hypot(...f); f[0]/=fl; f[1]/=fl; f[2]/=fl;
+  const up=[0,1,0];
+  let r = [ up[1]*f[2]-up[2]*f[1], up[2]*f[0]-up[0]*f[2], up[0]*f[1]-up[1]*f[0] ];
+  const rl=Math.hypot(...r); r=r.map(x=>x/rl);
+  const u = [ f[1]*r[2]-f[2]*r[1], f[2]*r[0]-f[0]*r[2], f[0]*r[1]-f[1]*r[0] ];
+  return {eye, r,u,f};
+}
+function project(pt){
+  const {eye,r,u,f} = getBasis();
+  const v = [pt[0]-eye[0], pt[1]-eye[1], pt[2]-eye[2]];
+  const x = v[0]*r[0]+v[1]*r[1]+v[2]*r[2];
+  const y = v[0]*u[0]+v[1]*u[1]+v[2]*u[2];
+  const z = v[0]*f[0]+v[1]*f[1]+v[2]*f[2];
+  const H = canvas.clientHeight;
+  const scale = H/(2*Math.tan(fov/2));
+  return {x: canvas.clientWidth/2 + (x/z)*scale, y: canvas.clientHeight/2 - (y/z)*scale, z};
+}
+function resetView(){ camDist=34; camYaw=0.4; camPitch=0.45; }
+
+// 滑鼠/觸控
+let dragging=false, lastX=0,lastY=0;
+canvas.addEventListener('mousedown', e=>{ dragging=true; lastX=e.clientX; lastY=e.clientY; });
+window.addEventListener('mouseup', ()=> dragging=false);
+window.addEventListener('mousemove', e=>{
+  if(!dragging) return;
+  const dx=e.clientX-lastX, dy=e.clientY-lastY;
+  camYaw += dx*0.005;
+  camPitch = Math.max(-1.4, Math.min(1.4, camPitch + dy*0.005));
+  lastX=e.clientX; lastY=e.clientY;
+});
+canvas.addEventListener('wheel', e=>{ camDist = Math.max(8, Math.min(80, camDist + e.deltaY*0.01)); });
+canvas.addEventListener('touchstart', e=>{ if(e.touches.length==1){ dragging=true; lastX=e.touches[0].clientX; lastY=e.touches[0].clientY; }},{passive:true});
+canvas.addEventListener('touchmove', e=>{
+  if(e.touches.length==1 && dragging){
+    const t=e.touches[0], dx=t.clientX-lastX, dy=t.clientY-lastY;
+    camYaw += dx*0.005; camPitch = Math.max(-1.4, Math.min(1.4, camPitch + dy*0.005));
+    lastX=t.clientX; lastY=t.clientY;
+  }
+},{passive:true});
+window.addEventListener('touchend', ()=> dragging=false);
+
+// ===== 模擬空間 =====
+const BOX = { x:24, y:12, z:12 }; const HALF = { x:BOX.x/2, y:BOX.y/2, z:BOX.z/2 };
+const GRID = { nx: 20, ny: 10, nz: 10 };
+const cell = { dx: BOX.x/GRID.nx, dy: BOX.y/GRID.ny, dz: BOX.z/GRID.nz };
+const ambientC = 15, TMIN=-5, TMAX=40, dt=1/60;
+
+// 場
+const size = GRID.nx*GRID.ny*GRID.nz;
+let T=new Float32Array(size), rho=new Float32Array(size), P=new Float32Array(size),
+    Vx=new Float32Array(size), Vy=new Float32Array(size), Vz=new Float32Array(size), count=new Float32Array(size),
+    Cloud=new Float32Array(size), rhoA=new Float32Array(size), rhoB=new Float32Array(size),
+    RH=new Float32Array(size),
+    CollEff=new Float32Array(size), Frontness=new Float32Array(size);
+function idx(i,j,k){ return (i*GRID.ny + j)*GRID.nz + k; }
+function worldToCell(x,y,z){
+  const i = Math.min(GRID.nx-1, Math.max(0, Math.floor((x+HALF.x)/BOX.x*GRID.nx)));
+  const j = Math.min(GRID.ny-1, Math.max(0, Math.floor((y+HALF.y)/BOX.y*GRID.ny)));
+  const k = Math.min(GRID.nz-1, Math.max(0, Math.floor((z+HALF.z)/BOX.z*GRID.nz)));
+  return {i,j,k,id:idx(i,j,k)};
+}
+
+// 前緣位移（按鈕每按一次＋Δ）
+let frontOffset = 0;
+function rebuildFields(){
+  const Ta = parseFloat(document.getElementById('tA').value);
+  const Tb = parseFloat(document.getElementById('tB').value);
+  const rhB = parseFloat(document.getElementById('rhB').value);
+  const rhA = 0.30; // A 較乾
+  for(let i=0;i<GRID.nx;i++){
+    const x = -HALF.x + (i+0.5)*cell.dx;
+    const mix = 0.5*(1+Math.tanh((x - frontOffset)/2.0)); // 0=A, 1=B
+    const baseT = Ta*(1-mix) + Tb*mix;
+    const baseRH = rhA*(1-mix) + rhB*mix;
+    for(let j=0;j<GRID.ny;j++) for(let k=0;k<GRID.nz;k++){
+      const id=idx(i,j,k); T[id]=baseT; RH[id]=baseRH;
+    }
+  }
+}
+function initFields(){ frontOffset=0; rebuildFields(); Cloud.fill(0); }
+
+// 粒子（支援到 500k；繪圖 LOD 保持流暢）
+let N=16000, pos=new Float32Array(N*3), vel=new Float32Array(N*3), origA=new Int8Array(N);
+function rnd(a,b){ return a + Math.random()*(b-a); }
+function createParticles(){
+  N = parseInt(document.getElementById('nPart').value,10);
+  pos=new Float32Array(N*3); vel=new Float32Array(N*3); origA=new Int8Array(N);
+  const marginX=0.8, marginY=0.6, marginZ=0.6;
+  const halfN = Math.floor(N/2);
+  for(let p=0;p<N;p++){
+    const isA = (p < halfN); // 前半 A（左）、後半 B（右）
+    const x = isA ? rnd(-HALF.x+marginX, -0.6) : rnd(0.6, HALF.x-marginX);
+    const y = rnd(-HALF.y+marginY, HALF.y-marginY);
+    const z = rnd(-HALF.z+marginZ, HALF.z-marginZ);
+    pos[3*p]=x; pos[3*p+1]=y; pos[3*p+2]=z;
+    vel[3*p]=(Math.random()*2-1)*0.2;
+    vel[3*p+1]=(Math.random()*2-1)*0.2;
+    vel[3*p+2]=(Math.random()*2-1)*0.2;
+    origA[p] = isA ? 1 : 0;
+  }
+}
+
+// 溫度→顏色
+function tempToRGB(tC){
+  const t=(tC - TMIN)/(TMAX - TMIN); const hue=220*(1-t); // 220→0
+  const h=hue/360, s=0.8, l=0.55;
+  const c=(1-Math.abs(2*l-1))*s, hp=h*6, x=c*(1-Math.abs(hp%2-1));
+  let r=0,g=0,b=0;
+  if(hp<1){ r=c; g=x; }
+  else if(hp<2){ r=x; g=c; }
+  else if(hp<3){ g=c; b=x; }
+  else if(hp<4){ g=x; b=c; }
+  else if(hp<5){ r=x; b=c; }
+  else { r=c; b=x; }
+  const m=l-c/2; return [r+m,g+m,b+m];
+}
+
+// 物理更新
+const drag=0.995, brownBase=0.35, pressureK=0.18, buoyancy=0.12;
+let tSinceStart=0, simPaused=true, frames=0, lastFPS=performance.now(), fps=0, brighten=false, showOnlyCR=false;
+const Tnew=new Float32Array(size);
+
+// 快速工具：拉普拉斯
+function laplacian(arr,i,j,k){
+  const c=idx(i,j,k);
+  const xm=(i>0?arr[idx(i-1,j,k)]:arr[c]), xp=(i<GRID.nx-1?arr[idx(i+1,j,k)]:arr[c]);
+  const ym=(j>0?arr[idx(i,j-1,k)]:arr[c]), yp=(j<GRID.ny-1?arr[idx(i,j+1,k)]:arr[c]);
+  const zm=(k>0?arr[idx(i,j,k-1)]:arr[c]), zp=(k<GRID.nz-1?arr[idx(i,j,k+1)]:arr[c]);
+  const cx=(xm+xp-2*arr[c])/(cell.dx*cell.dx);
+  const cy=(ym+yp-2*arr[c])/(cell.dy*cell.dy);
+  const cz=(zm+zp-2*arr[c])/(cell.dz*cell.dz);
+  return cx+cy+cz;
+}
+
+// 以「擴散平滑」近似 可調 ×粒徑 的有效半徑
+const tmpA=new Float32Array(size), tmpB=new Float32Array(size);
+let sampleStride=1; // 用於密度歸一化
+function buildEffectiveCollision(){
+  const psize = parseInt(document.getElementById('psize').value,10);
+  const effR = parseFloat(document.getElementById('effR').value); // 5..40
+  const voxRadius = Math.max(1, Math.round((psize * effR / 8) * 0.5));
+  const iters = Math.min(12, Math.max(2, voxRadius)); // 擴散迭代次數
+  const lambda = 0.20; // 擴散係數
+
+  let A = tmpA; let B = tmpB;
+  A.set(rhoA); B.set(rhoB);
+  for(let t=0;t<iters;t++){
+    for(let i=0;i<GRID.nx;i++) for(let j=0;j<GRID.ny;j++) for(let k=0;k<GRID.nz;k++){
+      const id=idx(i,j,k);
+      const a = A[id] + lambda * laplacian(A,i,j,k);
+      const b = B[id] + lambda * laplacian(B,i,j,k);
+      tmpA[id] = Math.max(0,a); tmpB[id] = Math.max(0,b);
+    }
+    A.set(tmpA); B.set(tmpB);
+  }
+  // 前緣性（梯度強處表示兩團交界）
+  for(let i=0;i<GRID.nx;i++) for(let j=0;j<GRID.ny;j++) for(let k=0;k<GRID.nz;k++){
+    const c=idx(i,j,k);
+    const gx=(i<GRID.nx-1? (A[idx(i+1,j,k)]-A[c]) : 0) - (i>0? (A[c]-A[idx(i-1,j,k)]) : 0);
+    const gy=(j<GRID.ny-1? (A[idx(i,j+1,k)]-A[c]) : 0) - (j>0? (A[c]-A[idx(i,j-1,k)]) : 0);
+    const gz=(k<GRID.nz-1? (A[idx(i,j,k+1)]-A[c]) : 0) - (k>0? (A[c]-A[idx(i,j,k-1)]) : 0);
+    const gradA = Math.sqrt(gx*gx+gy*gy+gz*gz);
+    Frontness[c] = Math.tanh(0.12 * gradA);
+  }
+  // 有效碰撞潛勢：歸一化 A × B，並依取樣步長補償
+  const norm = sampleStride * sampleStride;
+  for(let id=0; id<size; id++){
+    const ab = A[id]*B[id] * norm;
+    CollEff[id] = 1.0 - Math.exp(-0.06 * ab); // 放大基底係數
+  }
+}
+
+function clearFields(){
+  rho.fill(0); rhoA.fill(0); rhoB.fill(0); P.fill(0);
+  Vx.fill(0); Vy.fill(0); Vz.fill(0); count.fill(0);
+}
+function accumulateFields(){
+  // 適度抽樣累積，讓 50萬 粒子仍可跑
+  const stride = Math.max(1, Math.ceil(N / 120000)); // 約最多取樣 12 萬個
+  sampleStride = stride;
+  for(let p=0;p<N;p+=stride){
+    const {id}=worldToCell(pos[3*p],pos[3*p+1],pos[3*p+2]);
+    rho[id]++; if(origA[p]) rhoA[id]++; else rhoB[id]++;
+    Vx[id]+=vel[3*p]; Vy[id]+=vel[3*p+1]; Vz[id]+=vel[3*p+2]; count[id]++;
+  }
+  for(let id=0; id<size; id++){
+    const dens=rho[id], temp=T[id];
+    P[id]=pressureK*dens*(temp - TMIN + 6);
+    if(count[id]>0){ Vx[id]/=count[id]; Vy[id]/=count[id]; Vz[id]/=count[id]; }
+  }
+  buildEffectiveCollision();
+}
+
+function updateTemperature(){
+  const cond = parseFloat(document.getElementById('cond').value);
+  const rad  = parseFloat(document.getElementById('rad').value);
+  const conv = parseFloat(document.getElementById('conv').value);
+  for(let i=0;i<GRID.nx;i++){
+    for(let j=0;j<GRID.ny;j++){
+      for(let k=0;k<GRID.nz;k++){
+        const id=idx(i,j,k);
+        let t=T[id];
+        t += cond * laplacian(T,i,j,k) * dt;
+        const up=T[idx(i, Math.min(GRID.ny-1,j+1), k)];
+        const dn=T[idx(i, Math.max(0, j-1), k)];
+        t += conv * ((dn-up)*0.5) * dt * 0.6;
+        const env=ambientC;
+        t += -rad * (Math.pow(Math.max(t+273.15,1),4) - Math.pow(env+273.15,4)) * 1e-10;
+        Tnew[id]=Math.max(TMIN-6, Math.min(TMAX+6, t));
+      }
+    }
+  }
+  T.set(Tnew);
+}
+function gradP_at(i,j,k){
+  const c=idx(i,j,k);
+  const px=(i<GRID.nx-1?P[idx(i+1,j,k)]:P[c]) - (i>0?P[idx(i-1,j,k)]:P[c]);
+  const py=(j<GRID.ny-1?P[idx(i,j+1,k)]:P[c]) - (j>0?P[idx(i,j-1,k)]:P[c]);
+  const pz=(k<GRID.nz-1?P[idx(i,j,k+1)]:P[c]) - (k>0?P[idx(i,j,k-1)]:P[c]);
+  return {gx:px/(2*cell.dx), gy:py/(2*cell.dy), gz:pz/(2*cell.dz)};
+}
+
+// ---- 逐步前進（推） ----
+let advanceSteps = 0;
+function advanceStep(){
+  const step = parseFloat(document.getElementById('advStep').value);
+  const dirOceanPush = document.getElementById('dirSwitch').checked; // false: A→B ; true: B→A
+  if(!dirOceanPush){
+    for(let p=0;p<N;p++){ if(origA[p]) pos[3*p] = Math.min(HALF.x, pos[3*p] + step); }
+    frontOffset = Math.min(HALF.x, frontOffset + step);
+  }else{
+    for(let p=0;p<N;p++){ if(!origA[p]) pos[3*p] = Math.max(-HALF.x, pos[3*p] - step); }
+    frontOffset = Math.max(-HALF.x, frontOffset - step);
+  }
+  rebuildFields();
+  advanceSteps += 1;
+  document.getElementById('front').textContent = advanceSteps.toString();
+}
+
+// ---- 雲雨：B 濕暖在前緣遇冷 → 先雲後雨；雨沖刷雲 ----
+const RH_THRESH=0.60; // 放寬
+const MAX_RAIN=6000; // 提高上限
+let raindrops=[]; // {x,y,z, vy, d}
+
+function updateParticles(){
+  const press=parseFloat(document.getElementById('press').value);
+  const brown=parseFloat(document.getElementById('brown').value);
+  const brownJitter=(tSinceStart<2.5?1.8:1.0);
+  const strat = parseFloat(document.getElementById('strat').value);
+
+  // 分批更新，避免 N 很大時卡頓
+  const chunk = 40000;
+  const rounds = Math.ceil(N / chunk);
+  const tick = (Math.floor(tSinceStart / dt) % Math.max(1, rounds));
+  const start = tick * chunk;
+  const end = Math.min(N, start + chunk);
+
+  for(let p=start; p<end; p++){
+    let x=pos[3*p], y=pos[3*p+1], z=pos[3*p+2];
+    const c=worldToCell(x,y,z), g=gradP_at(c.i,c.j,c.k), tLocal=T[c.id];
+    // 基礎力
+    let ax=-press*g.gx + (Math.random()*2-1)*brown*brownBase*brownJitter;
+    let ay=-press*g.gy + (Math.random()*2-1)*brown*brownBase*brownJitter*0.8;
+    let az=-press*g.gz + (Math.random()*2-1)*brown*brownBase*brownJitter;
+    // 浮力（對流）＋ 分層
+    ay += 0.04*buoyancy*(tLocal-ambientC) + 0.02*strat*(tLocal-ambientC);
+
+    if(!origA[p]){
+      const RHloc = RH[c.id];
+      const fRH = Math.max(0, (RHloc - RH_THRESH) / (1 - RH_THRESH));
+      const fWarm = Math.max(0, (tLocal - 16) / 12);
+      const collide = CollEff[c.id];
+      const front = Frontness[c.id];
+      const lift = 1.25 * collide * front * fRH * (0.6 + 0.4*fWarm);
+      ay += lift;
+    }
+
+    vel[3*p]=(vel[3*p]+ax*dt)*drag;
+    vel[3*p+1]=(vel[3*p+1]+ay*dt)*drag;
+    vel[3*p+2]=(vel[3*p+2]+az*dt)*drag;
+    x += vel[3*p]*dt; y += vel[3*p+1]*dt; z += vel[3*p+2]*dt;
+    if(x<-HALF.x){ x=-HALF.x; vel[3*p]*=-0.8; } if(x>HALF.x){ x=HALF.x; vel[3*p]*=-0.8; }
+    if(y<-HALF.y){ y=-HALF.y; vel[3*p+1]*=-0.6; } if(y>HALF.y){ y=HALF.y; vel[3*p+1]*=-0.6; }
+    if(z<-HALF.z){ z=-HALF.z; vel[3*p+2]*=-0.8; } if(z>HALF.z){ z=HALF.z; vel[3*p+2]*=-0.8; }
+    pos[3*p]=x; pos[3*p+1]=y; pos[3*p+2]=z;
+  }
+}
+
+// 雲形成＆降雨
+function updateCloudAndRain(){
+  const fog = parseFloat(document.getElementById('fog').value);
+  const qcloud = parseFloat(document.getElementById('qcloud').value);
+  const drop = parseFloat(document.getElementById('drop').value);
+  const cloudRate = parseFloat(document.getElementById('cloudRate').value);
+  const collBoost = parseFloat(document.getElementById('collBoost').value);
+
+  // (1) 霧化（平滑擴散）
+  if(fog>0){
+    const Cnew = new Float32Array(size);
+    for(let i=0;i<GRID.nx;i++) for(let j=0;j<GRID.ny;j++) for(let k=0;k<GRID.nz;k++){
+      const id=idx(i,j,k);
+      Cnew[id] = Math.max(0, Cloud[id] + fog * laplacian(Cloud,i,j,k) * dt * 2.0);
+    }
+    Cloud.set(Cnew);
+  }
+
+  // (2) 成雲（B 濕暖在前緣，且遇冷）
+  for(let i=0;i<GRID.nx;i++){
+    for(let j=Math.floor(GRID.ny/2); j<GRID.ny; j++){
+      for(let k=0;k<GRID.nz;k++){
+        const id=idx(i,j,k);
+        const t = T[id], RHloc = RH[id];
+        const fRH = Math.max(0, (RHloc - RH_THRESH) / (1 - RH_THRESH));
+        const fWarm = Math.max(0, (t - 16) / 16);
+        const fCold = Math.max(0, (22 - t) / 18);
+        const trigger = CollEff[id] * Frontness[id];
+        if(trigger>0.006 && fRH>0){
+          const gain = cloudRate * qcloud * (1 + collBoost * Math.min(1, trigger*2.0)) * fRH * (0.5 + 0.8*fWarm) * (0.6 + 0.6*fCold);
+          Cloud[id] = Math.min(5.0, Cloud[id] + gain * dt);
+        }
+      }
+    }
+  }
+
+  // (3) 衰減
+  const dec = Math.max(0, 1 - 0.05*dt);
+  for(let id=0; id<size; id++){ Cloud[id] *= dec; }
+
+  // (4) 生成雨滴（更冷→更易轉雨；雨沖刷雲）
+  const spawnRate = 0.0085 * qcloud * (0.6 + 0.5*drop);
+  for(let i=0;i<GRID.nx;i++){
+    for(let j=Math.floor(GRID.ny/2); j<GRID.ny; j++){
+      for(let k=0;k<GRID.nz;k++){
+        const id=idx(i,j,k);
+        const c = Cloud[id]; if(c<=0.09) continue;
+        const t = T[id];
+        const rainBias = Math.max(0, (20 - t) / 20);
+        if(Math.random() < spawnRate * c * (0.5 + 1.2*rainBias) && raindrops.length<MAX_RAIN){
+          const x = -HALF.x + (i+Math.random())*cell.dx;
+          const y = -HALF.y + (j+0.5)*cell.dy + Math.random()*cell.dy*0.3;
+          const z = -HALF.z + (k+Math.random())*cell.dz;
+          raindrops.push({x,y,z, vy: - (0.36 + 0.40*drop + Math.random()*0.25*drop), d: drop});
+          Cloud[id] = Math.max(0, c - (0.14 + 0.28*drop)); // 雨後雲消退更明顯
+        }
+      }
+    }
+  }
+
+  // (5) 雨滴更新＋沿路沖刷
+  const g = -0.40 - 0.18*drop;
+  const newDrops=[];
+  for(const d of raindrops){
+    const c = worldToCell(d.x, d.y, d.z);
+    d.x += (Vx[c.id]||0)*0.06*dt;
+    d.z += (Vz[c.id]||0)*0.06*dt;
+    d.vy += g*dt;
+    d.y += d.vy*dt;
+    if(c.id!==undefined){ Cloud[c.id] = Math.max(0, Cloud[c.id] - 0.08); }
+    if(d.y > -HALF.y) newDrops.push(d);
+  }
+  raindrops = newDrops;
+}
+
+// 羅盤（水平面 y≈-HALF.y 上方一點）— 修正 N/S：N 指向 +z，S 指向 −z
+function drawCompass(){
+  const y = -HALF.y + 0.02;
+  const cx = -HALF.x + 2.2, cz = -HALF.z + 2.2; // 左前角內縮
+  const R = 1.6;
+  // 圓環
+  ctx.lineWidth = 2; ctx.strokeStyle = "rgba(120,190,255,0.9)";
+  ctx.beginPath();
+  const seg=40;
+  let pPrev=null;
+  for(let s=0;s<=seg;s++){
+    const a = (s/seg)*Math.PI*2;
+    const x = cx + Math.cos(a)*R;
+    const z = cz + Math.sin(a)*R;
+    const p = project([x,y,z]);
+    if(p.z>0){
+      if(pPrev){ ctx.moveTo(pPrev.x,pPrev.y); ctx.lineTo(p.x,p.y); }
+      pPrev = p;
+    }
+  }
+  ctx.stroke();
+  // 十字
+  const arms=[
+    {lab:"N", dx:0, dz:+1},
+    {lab:"E", dx:+1, dz:0},
+    {lab:"S", dx:0, dz:-1},
+    {lab:"W", dx:-1, dz:0},
+  ];
+  ctx.font="bold 14px system-ui,-apple-system,Segoe UI,Roboto";
+  ctx.fillStyle="rgba(200,230,255,0.98)";
+  ctx.strokeStyle="rgba(120,190,255,0.9)";
+  ctx.lineWidth=2;
+  for(const a of arms){
+    const p0 = project([cx,y,cz]);
+    const p1 = project([cx + a.dx*R, y, cz + a.dz*R]);
+    if(p0.z>0 && p1.z>0){
+      ctx.beginPath(); ctx.moveTo(p0.x,p0.y); ctx.lineTo(p1.x,p1.y); ctx.stroke();
+      const pT = project([cx + a.dx*(R+0.4), y, cz + a.dz*(R+0.4)]);
+      if(pT.z>0){ ctx.fillText(a.lab, pT.x-5, pT.y+4); }
+    }
+  }
+}
+
+// 繪圖
+function drawBox(){
+  const corners=[
+    [-HALF.x,-HALF.y,-HALF.z],[ HALF.x,-HALF.y,-HALF.z],
+    [ HALF.x, HALF.y,-HALF.z],[-HALF.x, HALF.y,-HALF.z],
+    [-HALF.x,-HALF.y, HALF.z],[ HALF.x,-HALF.y, HALF.z],
+    [ HALF.x, HALF.y, HALF.z],[-HALF.x, HALF.y, HALF.z]
+  ];
+  const edges=[[0,1],[1,2],[2,3],[3,0],[4,5],[5,6],[6,7],[7,4],[0,4],[1,5],[2,6],[3,7]];
+  ctx.lineWidth=1; ctx.strokeStyle="rgba(32,50,76,0.9)";
+  ctx.beginPath();
+  for(const [a,b] of edges){
+    const pa=project(corners[a]), pb=project(corners[b]);
+    if(pa.z<=0 || pb.z<=0) continue;
+    ctx.moveTo(pa.x, pa.y); ctx.lineTo(pb.x, pb.y);
+  }
+  ctx.stroke();
+}
+function hash01(i,j,k,seed){
+  let h = ((i*73856093) ^ (j*19349663) ^ (k*83492791) ^ (seed*2654435761)) | 0;
+  h = (h<<13) ^ h;
+  const n = (h*(h*h*15731 + 789221) + 1376312589) & 0x7fffffff;
+  return n / 2147483647;
+}
+function drawClouds(){
+  const qcloud = parseFloat(document.getElementById('qcloud').value);
+  const amp = parseFloat(document.getElementById('cloudAmp').value);
+  ctx.save();
+  ctx.shadowColor = "rgba(255,255,255,0.95)";
+  ctx.shadowBlur = 8 * amp * amp;
+  for(let i=0;i<GRID.nx;i++){
+    for(let j=0;j<GRID.ny;j++){
+      for(let k=0;k<GRID.nz;k++){
+        const id=idx(i,j,k);
+        const c0 = Cloud[id];
+        if(c0<=0.02) continue;
+        let navg=c0, w=1;
+        const nb=[[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]];
+        for(const [di,dj,dk] of nb){
+          const ii=i+di, jj=j+dj, kk=k+dk;
+          if(ii>=0&&ii<GRID.nx&&jj>=0&&jj<GRID.ny&&kk>=0&&kk<GRID.nz){ navg += 0.5*Cloud[idx(ii,jj,kk)]; w+=0.5; }
+        }
+        const c = navg/w;
+        const baseX=-HALF.x+(i+0.5)*cell.dx, baseY=-HALF.y+(j+0.5)*cell.dy, baseZ=-HALF.z+(k+0.5)*cell.dz;
+        const baseSamples = Math.min(7, 2 + Math.floor(5*Math.min(1,c*qcloud)));
+        const samples = Math.min(16, Math.floor(baseSamples * (1 + 0.5*(amp-1))));
+        for(let s=0;s<samples;s++){
+          const u1=hash01(i,j,k,31*s+1), u2=hash01(i,j,k,31*s+2), u3=hash01(i,j,k,31*s+3);
+          const x = baseX + (u1-0.5)*cell.dx*1.2 + 0.18*Math.sin(0.5*tSinceStart+5.3*u1);
+          const y = baseY + (u2-0.5)*cell.dy*1.2 + 0.18*Math.cos(0.4*tSinceStart+3.7*u2);
+          const z = baseZ + (u3-0.5)*cell.dz*1.2;
+          const pr=project([x,y,z]); if(pr.z<=0) continue;
+          let size = (10 + 50*Math.min(1,c*qcloud)) * (16/(pr.z+8)) * (0.7 + 0.6*u3);
+          size *= amp;
+          let alpha = (0.10 + 0.36*Math.min(1,c*qcloud)) * (0.7 + 0.6*u1);
+          alpha = Math.min(0.98, alpha * Math.pow(amp, 0.9));
+          ctx.globalAlpha = alpha; ctx.fillStyle="white";
+          ctx.beginPath(); ctx.arc(pr.x, pr.y, size, 0, Math.PI*2); ctx.fill();
+        }
+      }
+    }
+  }
+  ctx.restore();
+  ctx.globalAlpha = 1.0;
+}
+function drawRain(){
+  const drop = parseFloat(document.getElementById('drop').value);
+  ctx.lineWidth = Math.max(1.8, 1.3*drop);
+  ctx.strokeStyle = "rgba(190,220,255,0.98)";
+  ctx.shadowColor = "rgba(160,190,255,0.85)";
+  ctx.shadowBlur = 14;
+  ctx.beginPath();
+  for(const d of raindrops){
+    const p = project([d.x,d.y,d.z]);
+    if(p.z<=0) continue;
+    const len = (16 + 22*drop) * (16/(p.z+8));
+    ctx.moveTo(p.x, p.y);
+    ctx.lineTo(p.x, p.y + len);
+  }
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+}
+function drawParticles(){
+  const size = parseInt(document.getElementById('psize').value,10);
+  const brightenFactor = brighten? 1.25 : 1.0;
+  const stride = Math.max(1, Math.ceil(N / 24000)); // LOD：最多繪 24k 顆
+  for(let p=0;p<N;p+=stride){
+    const c=worldToCell(pos[3*p],pos[3*p+1],pos[3*p+2]);
+    const pr=project([pos[3*p],pos[3*p+1],pos[3*p+2]]);
+    if(pr.z<=0) continue;
+    const [r,g,b]=tempToRGB(T[c.id]);
+    const alpha = Math.min(0.95, 0.65 + 0.35*Math.min(1, 24/pr.z));
+    ctx.fillStyle=`rgba(${Math.min(255,Math.floor(r*255*brightenFactor))},${Math.min(255,Math.floor(g*255*brightenFactor))},${Math.min(255,Math.floor(b*brightenFactor*255))},${alpha.toFixed(3)})`;
+    const s = size * (16 / (pr.z+8));
+    ctx.beginPath(); ctx.arc(pr.x, pr.y, s, 0, Math.PI*2); ctx.fill();
+  }
+}
+
+// ===== UI =====
+const ids=['tA','tB','rhB','nPart','psize','brown','conv','cond','rad','press','cloudRate','collBoost','strat','advStep','effR','fog','qcloud','drop','cloudAmp'];
+for(const id of ids){
+  const s=document.getElementById(id), v=document.getElementById(id+'Val');
+  const upd=()=>{
+    let text;
+    if(id==='nPart'||id==='psize'||id==='advStep'||id==='drop'){ text=s.value; }
+    else if(id==='cloudRate'||id==='fog'||id==='qcloud'){ text=(+s.value).toFixed(3); }
+    else if(id==='rhB'){ text=Math.round(+s.value*100) + '%'; }
+    else if(id==='cloudAmp'){ text=(+s.value).toFixed(1) + '×'; }
+    else if(id==='effR'){ text=(+s.value).toFixed(0) + '×'; }
+    else { text=(+s.value).toFixed(2); }
+    v.textContent = text;
+    if(id==='tA'||id==='tB'||id==='rhB'){ rebuildFields(); }
+    if(id==='nPart'){ createParticles(); }
+  };
+  if(s){ s.addEventListener('input', upd); upd(); }
+}
+document.getElementById('toggle').onclick=()=>{
+  simPaused=!simPaused;
+  document.getElementById('toggle').textContent= simPaused? "▶︎ 繼續":"⏸︎ 暫停";
+  document.getElementById('pausedBadge').style.display = simPaused? 'inline-block':'none';
+};
+document.getElementById('reset').onclick=()=>{ resetAll(); };
+document.getElementById('export').onclick=()=> exportCSV();
+document.getElementById('view').onclick=()=> resetView();
+document.getElementById('bright').onclick=()=>{ brighten=!brighten; };
+document.getElementById('advance').onclick=()=> advanceStep();
+document.getElementById('viewCR').onclick=()=>{
+  showOnlyCR = !showOnlyCR;
+  document.getElementById('viewCR').textContent = showOnlyCR ? "☁︎ 全部顯示" : "☁︎ 只看雲雨";
+  document.getElementById('modeBadge').textContent = showOnlyCR ? "模式：只看雲雨" : "";
+};
+
+// ===== HUD/匯出 =====
+function computeHud(){
+  let pA=0,nA=0,pB=0,nB=0, vx=0,vy=0,vz=0,nC=0, cloudTop=0, topCells=0;
+  const mid=Math.floor(GRID.nx/2);
+  for(let i=0;i<GRID.nx;i++)for(let j=0;j<GRID.ny;j++)for(let k=0;k<GRID.nz;k++){
+    const id=idx(i,j,k);
+    if(i<mid){ pA+=P[id]; nA++; } else { pB+=P[id]; nB++; }
+    if(Math.abs(i-mid)<=1){ vx+=Vx[id]; vy+=Vy[id]; vz+=Vz[id]; nC++; }
+    if(j>=Math.floor(GRID.ny/2)){ cloudTop += Math.min(1, Cloud[id]/1.0); topCells++; }
+  }
+  const avgA=pA/Math.max(1,nA), avgB=pB/Math.max(1,nB);
+  document.getElementById('hudA').textContent = ` | 平均壓力 ~ ${avgA.toFixed(2)}`;
+  document.getElementById('hudB').textContent = ` | 平均壓力 ~ ${avgB.toFixed(2)}`;
+  document.getElementById('dp').textContent = (avgB-avgA).toFixed(2);
+  document.getElementById('wind').textContent = Math.sqrt((vx/nC)**2 + (vy/nC)**2 + (vz/nC)**2).toFixed(3);
+  document.getElementById('nCount').textContent = N.toString();
+  document.getElementById('hudRH').textContent = Math.round(parseFloat(document.getElementById('rhB').value)*100);
+  document.getElementById('cloudCov').textContent = Math.round(100*cloudTop/Math.max(1,topCells));
+}
+function exportCSV(){
+  const rows=["x,y,z,tempC,RH,density,pressure,vx,vy,vz,cloud,collEff,frontness,rhoA,rhoB,frontOffset,advanceSteps"];
+  for(let i=0;i<GRID.nx;i++){
+    const x=-HALF.x+(i+0.5)*cell.dx;
+    for(let j=0;j<GRID.ny;j++){
+      const y=-HALF.y+(j+0.5)*cell.dy;
+      for(let k=0;k<GRID.nz;k++){
+        const z=-HALF.z+(k+0.5)*cell.dz;
+        const id=idx(i,j,k);
+        rows.push([x.toFixed(3),y.toFixed(3),z.toFixed(3),T[id].toFixed(3),(RH[id]*100).toFixed(1),rho[id].toFixed(0),P[id].toFixed(6),Vx[id].toFixed(6),Vy[id].toFixed(6),Vz[id].toFixed(6),Cloud[id].toFixed(4),CollEff[id].toFixed(4),Frontness[id].toFixed(4),rhoA[id].toFixed(0),rhoB[id].toFixed(0),frontOffset.toFixed(3),advanceSteps].join(","));
+      }
+    }
+  }
+  const blob=new Blob([rows.join("\\n")],{type:"text/csv"});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download="airmass_v1_5_fields.csv"; a.click(); URL.revokeObjectURL(a.href);
+}
+
+// ===== 初始化與主循環 =====
+function resetAll(){
+  initFields(); createParticles();
+  tSinceStart=0; raindrops=[]; frontOffset=0; advanceSteps=0; document.getElementById('front').textContent='0';
+  simPaused=true; document.getElementById('toggle').textContent="▶︎ 繼續"; document.getElementById('pausedBadge').style.display='inline-block';
+  showOnlyCR=false; document.getElementById('viewCR').textContent="☁︎ 只看雲雨"; document.getElementById('modeBadge').textContent="";
+}
+resetAll();
+
+function step(){
+  requestAnimationFrame(step);
+  const now=performance.now(); frames++; if(now-lastFPS>500){ fps=frames/((now-lastFPS)/1000); document.getElementById('fps').textContent=fps.toFixed(0); frames=0; lastFPS=now; }
+  if(!simPaused){
+    clearFields(); accumulateFields(); updateTemperature(); updateParticles(); updateCloudAndRain(); tSinceStart+=dt;
+  }
+  ctx.clearRect(0,0,canvas.clientWidth, canvas.clientHeight);
+  drawBox(); drawCompass(); drawClouds(); drawRain(); if(!showOnlyCR) drawParticles(); computeHud();
+}
+step();
+</script>
+</body>
+</html>
