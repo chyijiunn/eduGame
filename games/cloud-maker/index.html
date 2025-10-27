@@ -1,0 +1,809 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>成雲機制 3D 模擬｜低-中-高雲族與高度軸</title>
+<style>
+  :root{
+    --ink:#0f172a;--bg:#0b1220;--panel:#0f172a;--card:#111827;--sub:#8da2b5;
+    --brand:#38bdf8;--ok:#34d399;--warn:#f59e0b;--bad:#fb7185;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0;background:linear-gradient(180deg,#0b1220 0%,#0c1730 60%,#0b1220 100%);color:#e5e7eb;font-family:"Noto Sans TC",ui-sans-serif,system-ui,Segoe UI,Arial,sans-serif;}
+  #app{display:grid;grid-template-columns:minmax(300px,380px) 1fr;gap:0;height:100vh;}
+  /* 左側控制面板 */
+  .panel{background:var(--card);border-right:1px solid #1f2937;padding:16px 14px;overflow:auto}
+  h1{margin:0 0 10px;font-size:18px;color:var(--brand);letter-spacing:.5px}
+  .badge{display:inline-grid;grid-auto-flow:column;gap:8px;font-size:12px;color:#9ca3af;margin-bottom:8px}
+  .row{margin:10px 0 14px}
+  .row label{display:flex;justify-content:space-between;font-size:12px;color:#cbd5e1;margin-bottom:6px}
+  .row input[type=range]{width:100%}
+  .row .val{color:#e5e7eb;margin-left:8px}
+  .select{display:flex;gap:8px;flex-wrap:wrap}
+  .pill{padding:6px 10px;border:1px solid #334155;border-radius:999px;background:#0b1220;color:#cbd5e1;cursor:pointer}
+  .pill[data-active="true"]{background:#112033;border-color:#3b82f6;color:#dbeafe}
+  .muted{color:#93a3b3;font-size:12px}
+  .hr{height:1px;background:#1f2937;margin:12px 0}
+  .btns{display:flex;gap:8px;flex-wrap:wrap}
+  button{background:#1f2937;border:1px solid #334155;color:#e5e7eb;border-radius:10px;padding:8px 10px;font-size:12px;cursor:pointer}
+  button:hover{border-color:#3b82f6}
+  .kpi{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+  .card{background:#0b1220;border:1px solid #1f2937;border-radius:12px;padding:10px}
+  .card h3{margin:0 0 6px;font-weight:600;font-size:12px;color:#9ddcff}
+  .card p{margin:0;font-size:12px;color:#cbd5e1}
+
+  /* 右側場景 + 高度軸 */
+  #scene{position:relative;background:#060a12}
+  canvas{display:block}
+  .axis{position:absolute;left:12px;top:10px;bottom:10px;width:56px;background:linear-gradient(180deg,#081526,#0b1b2f);border:1px solid #1f2937;border-radius:10px;padding:8px 10px}
+  .axis h4{margin:0 0 6px;font-size:12px;color:#93c5fd;text-align:center}
+  .ticks{position:absolute;left:24px;top:28px;bottom:12px;width:2px;background:linear-gradient(#1e293b,#0b1220);}
+  .tick{position:absolute;left:-10px;width:20px;height:1px;background:#334155}
+  .tick span{position:absolute;left:-30px;top:-7px;width:28px;text-align:right;color:#9ca3af;font-size:10px}
+  .legend{position:absolute;right:14px;top:12px;background:#0b1220aa;border:1px solid #1f2937;color:#e5e7eb;border-radius:10px;padding:8px 10px;font-size:12px}
+  .legend b{color:#93c5fd}
+  .tag{display:inline-block;padding:2px 6px;border-radius:999px;font-size:11px;margin-right:8px;border:1px solid #334155}
+  .tag.low{color:#86efac;border-color:#14532d}
+  .tag.mid{color:#fde68a;border-color:#854d0e}
+  .tag.high{color:#a5b4fc;border-color:#312e81}
+
+  /* 訊息吐司 */
+  .toast{position:absolute;left:50%;transform:translateX(-50%);bottom:12px;background:#0b1220;border:1px solid #334155;color:#e5e7eb;padding:8px 12px;border-radius:10px;font-size:12px}
+
+  /* CWB 面板 */
+  .cwb{margin-top:10px}
+  .cwb .row{margin:6px 0 10px}
+  .cwb input[type=text]{width:100%;background:#0b1220;color:#e5e7eb;border:1px solid #334155;border-radius:8px;padding:6px 8px}
+  .cwb small{color:#9ca3af}
+  .kv{display:grid;grid-template-columns:auto 1fr;gap:6px 10px;font-size:12px;margin-top:6px}
+  .kv div{color:#cbd5e1}
+
+  /* 說明面板（教學說明） */
+  .help-overlay{position:fixed;inset:0;background:#0009;display:none;align-items:center;justify-content:center;z-index:50}
+  .help{width:min(980px,92vw);max-height:86vh;overflow:auto;background:#0b1220;border:1px solid #1f2937;border-radius:14px;box-shadow:0 10px 30px #0009}
+  .help header{position:sticky;top:0;background:#0b1220;border-bottom:1px solid #1f2937;display:flex;align-items:center;justify-content:space-between;padding:12px 16px}
+  .help header h2{margin:0;color:#93c5fd;font-size:16px}
+  .help .content{padding:12px 16px 18px}
+  .help .content h3{color:#9ddcff;font-size:14px;margin:14px 0 8px}
+  .help .content p, .help .content li{font-size:13px;line-height:1.6;color:#d1d5db}
+  .help code{background:#0f172a;border:1px solid #1f2937;padding:1px 4px;border-radius:6px}
+  .chip{display:inline-block;border:1px solid #334155;border-radius:999px;padding:2px 8px;margin:0 6px 6px 0;font-size:12px}
+  .tbl{width:100%;border-collapse:collapse;margin-top:10px}
+  .tbl th,.tbl td{border:1px solid #1f2937;padding:6px 8px;font-size:12px}
+  .tbl th{background:#0f172a;color:#cfe6ff;position:sticky;top:0}
+  .note{color:#9ca3af;font-size:12px}
+
+  /* 小裝置優化 */
+  @media (max-width: 900px){
+    #app{grid-template-columns:1fr;grid-template-rows:auto 1fr}
+    .panel{position:relative;z-index:2}
+    .axis{left:auto;right:12px}
+  }
+</style>
+
+<!-- Import Map + Shims：修正 OrbitControls 內部的 'three' 模組解析（同步載入避免競態） -->
+<script src="https://unpkg.com/es-module-shims@1.10.0/dist/es-module-shims.js"></script>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/examples/jsm/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+</head>
+<body>
+<div id="app">
+  <!-- 左側控制面板 -->
+  <aside class="panel">
+    <h1>成雲機制 3D 模擬</h1>
+    <div class="badge"><span>低雲 0–2 km</span><span>中雲 2–7 km</span><span>高雲 5–12 km</span></div>
+
+    <div class="row">
+      <label>地表溫度 Tₛ (°C) <span class="val" id="vT">30</span></label>
+      <input id="T" type="range" min="-5" max="40" step="0.5" value="30" />
+    </div>
+    <div class="row">
+      <label>地表露點 T<sub>d</sub> (°C) <span class="val" id="vTd">24</span></label>
+      <input id="Td" type="range" min="-5" max="30" step="0.5" value="24" />
+    </div>
+    <div class="row">
+      <label>環境遞減率 ELR (°C/km) <span class="val" id="vELR">6.5</span></label>
+      <input id="ELR" type="range" min="3" max="10" step="0.1" value="6.5" />
+    </div>
+
+    <div class="row">
+      <label>上層濕度 RH<sub>high</sub> (%) <span class="val" id="vRHh">60</span></label>
+      <input id="RHh" type="range" min="0" max="100" step="1" value="60" />
+    </div>
+    <div class="row">
+      <label>中層濕度 RH<sub>mid</sub> (%) <span class="val" id="vRHm">60</span></label>
+      <input id="RHm" type="range" min="0" max="100" step="1" value="60" />
+    </div>
+    <div class="row">
+      <label>垂直風切 (級) <span class="val" id="vShear">1</span></label>
+      <input id="shear" type="range" min="0" max="3" step="1" value="1" />
+      <div class="muted">影響積雨雲鐵砧形狀與高雲飄移</div>
+    </div>
+
+    <div class="row">
+      <label>抬升機制</label>
+      <div class="select" id="lift">
+        <div class="pill" data-mode="conv">日間對流</div>
+        <div class="pill" data-mode="orog">地形抬升</div>
+        <div class="pill" data-mode="front">鋒面抬升</div>
+      </div>
+    </div>
+
+    <div class="row">
+      <label>顯示</label>
+      <div class="select" id="toggles">
+        <div class="pill" data-toggle="wire" data-active="false">地景線框</div>
+        <div class="pill" data-toggle="onlyCloud" data-active="false">只看雲雨</div>
+        <div class="pill" data-toggle="grid" data-active="true">地面網格</div>
+      </div>
+    </div>
+
+    <div class="btns">
+      <button id="rand">隨機天氣</button>
+      <button id="reset">重設</button>
+      <button id="selftest">執行環境自檢</button>
+      <button id="runtests">執行單元測試</button>
+      <button id="helpBtn">說明</button>
+    </div>
+
+    <!-- CWB 連線（API） -->
+    <div class="hr"></div>
+    <div class="card cwb">
+      <h3>中央氣象署 CWB 觀測站連線</h3>
+      <div class="row">
+        <label for="cwbKey">API 金鑰（Authorization）</label>
+        <input id="cwbKey" type="text" placeholder="輸入 CWB API Key（不會外傳）" />
+        <small>來源：氣象資料開放平臺 → 資料擷取 API。需要登入後取得金鑰。</small>
+      </div>
+      <div class="btns">
+        <button id="cwbGeo">以我的定位更新</button>
+        <button id="cwbFetch">僅用金鑰測試</button>
+        <button id="cwbMock">使用模擬資料</button>
+      </div>
+      <div class="kv" id="cwbInfo">
+        <div>最近測站：</div><div id="cwbStation">—</div>
+        <div>觀測時間：</div><div id="cwbTime">—</div>
+        <div>天氣現象：</div><div id="cwbWx">—</div>
+      </div>
+    </div>
+
+    <div class="hr"></div>
+
+    <div class="kpi">
+      <div class="card"><h3>估計雲底 LCL</h3><p id="kLCL">— km</p></div>
+      <div class="card"><h3>估計雲頂</h3><p id="kTOP">— km</p></div>
+      <div class="card" style="grid-column:1 / span 2"><h3>雲族判定</h3><p id="kTYPE">—</p></div>
+      <div class="card" style="grid-column:1 / span 2"><h3>降雨</h3><p id="kRAIN">—</p></div>
+      <div class="card" style="grid-column:1 / span 2"><h3>診斷</h3><p id="diag">—</p></div>
+    </div>
+
+    <div class="hr"></div>
+    <div class="muted">註：本模型用教學近似：LCL≈125×(T−T<sub>d</sub>) 公尺；乾絕熱 9.8°C/km、濕絕熱 ~6°C/km、對流層頂設為 12 km。高雲英文 cirro-，其中「卷積雲」正確拼法為 <b>cirrocumulus</b>。</div>
+  </aside>
+
+  <!-- 右側 3D 場景 -->
+  <section id="scene">
+    <div class="axis" aria-hidden="true">
+      <h4>高度 (km)</h4>
+      <div class="ticks" id="ticks"></div>
+    </div>
+    <div class="legend" id="legend">
+      <div><span class="tag low">低</span>積雲/積雨雲/層雲/層積雲</div>
+      <div><span class="tag mid">中</span>高積雲/高層雲/雨層雲</div>
+      <div><span class="tag high">高</span>卷雲/卷積雲/卷層雲</div>
+    </div>
+    <div class="toast" id="toast">拖曳旋轉視角，滾輪縮放。</div>
+  </section>
+</div>
+
+<!-- 說明面板 -->
+<div class="help-overlay" id="helpWrap" aria-hidden="true">
+  <div class="help" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
+    <header>
+      <h2 id="helpTitle">成雲機制｜參數說明與雲族對照</h2>
+      <button id="helpClose">關閉</button>
+    </header>
+    <div class="content">
+      <h3>一、主要參數是什麼意思？</h3>
+      <ul>
+        <li><b>地表露點 Td</b>：地面空氣冷卻到何溫度會達到飽和。<br>與地表溫度 T 的差值 <code>T−Td</code> 稱為「露點差」，影響雲底高度 LCL。<span class="note">模型近似：<code>LCL ≈ 125 × (T − Td) m</code>；露點差愈小 → 雲底愈低。</span></li>
+        <li><b>環境遞減率 ELR</b>（°C/km）：環境氣溫隨高度降低的速率。與乾絕熱 <code>9.8</code>、濕絕熱約 <code>6</code> 比較可判別穩定度：
+          <ul>
+            <li>ELR &gt; 9.8 → <b>絕對不穩定</b>：對流旺，易長高塔狀雲。</li>
+            <li>6 ≤ ELR ≤ 9.8 → <b>條件不穩定</b>：濕潤時對流易啟動。</li>
+            <li>ELR &lt; 6 → <b>穩定</b>：易出層狀雲或無明顯對流。</li>
+          </ul>
+        </li>
+        <li><b>上層濕度 RH<sub>high</sub></b>、<b>中層濕度 RH<sub>mid</sub></b>：分別代表約 <b>5–12 km</b>、<b>2–7 km</b> 的相對濕度。<span class="note">本模型常用門檻：70% 以上易生成對應高度的雲；85% 以上可能成片。</span></li>
+        <li><b>垂直風切（0–3 級）</b>：高度改變時風速/風向的差異。<br>級數愈高，積雨雲頂部越傾斜並形成<b>鐵砧</b>；也較容易將高冰晶吹散成<b>卷雲/卷層雲</b>。</li>
+        <li><b>抬升機制</b>：
+          <div class="chip">日間對流</div><div class="chip">地形抬升</div><div class="chip">鋒面抬升</div>
+          <ul>
+            <li><b>日間對流</b>：地面增溫→氣塊上升；易產生積雲、條件佳時發展為積雨雲。</li>
+            <li><b>地形抬升</b>：迎風坡氣流被迫上升；常見層雲/層積雲、高層雲。</li>
+            <li><b>鋒面抬升</b>：暖/冷空氣交界的大尺度上升；常見高層雲、雨層雲、卷層雲。</li>
+          </ul>
+        </li>
+      </ul>
+
+      <h3>二、參數如何影響雲族？（對照速查）</h3>
+      <table class="tbl">
+        <thead><tr><th>雲族（中/英）</th><th>典型高度</th><th>成因/條件</th><th>降水</th></tr></thead>
+        <tbody>
+          <tr><td>積雲 <i>cumulus</i></td><td>低（&lt;2 km）</td><td>小露點差、ELR ≥ 6；對流</td><td>通常無或局部微雨</td></tr>
+          <tr><td>積雨雲 <i>cumulonimbus</i></td><td>低起→高頂</td><td>露點差小、ELR 大、RH<sub>mid/high</sub> 足、風切中–大</td><td>陣雨/雷雨</td></tr>
+          <tr><td>層雲 <i>stratus</i></td><td>低</td><td>近地面飽和、ELR 小（穩定）、輕微抬升</td><td>毛毛雨/霧滴</td></tr>
+          <tr><td>層積雲 <i>stratocumulus</i></td><td>低</td><td>淺層混合作用、逆溫上蓋、ELR 中</td><td>局部零星</td></tr>
+          <tr><td>高積雲 <i>altocumulus</i></td><td>中（2–7 km）</td><td>RH<sub>mid</sub> 中–高；波動/弱不穩</td><td>通常無</td></tr>
+          <tr><td>高層雲 <i>altostratus</i></td><td>中</td><td>鋒面/地形抬升；RH<sub>mid</sub> 高、ELR 小–中</td><td>可有持續小雨</td></tr>
+          <tr><td>雨層雲 <i>nimbostratus</i></td><td>中（可伸至低）</td><td>大尺度抬升、RH<sub>mid</sub> 很高、ELR 小（穩定）</td><td><b>持續性降雨</b></td></tr>
+          <tr><td>卷雲 <i>cirrus</i></td><td>高（5–12 km）</td><td>RH<sub>high</sub> 中；常為對流雲頂外流</td><td>無</td></tr>
+          <tr><td>卷積雲 <i>cirrocumulus</i></td><td>高</td><td>RH<sub>high</sub> 高；高層小對流或波動</td><td>無</td></tr>
+          <tr><td>卷層雲 <i>cirrostratus</i></td><td>高</td><td>RH<sub>high</sub> 很高；鋒面前沿薄幕</td><td>無（可見暈）</td></tr>
+        </tbody>
+      </table>
+      <p class="note">提示：<code>T−Td</code> 越小 → LCL 越低；ELR 越大 → 越有利對流；RH<sub>mid/high</sub> 決定中/高雲是否成片；風切影響雲塔傾斜與高雲外流。</p>
+
+      <h3>三、如何用滑桿做探究？</h3>
+      <ol>
+        <li>固定 <b>抬升機制＝日間對流</b>，逐步減少露點差（拉高 Td）：觀察積雲 → 積雨雲的轉變與 LCL 變化。</li>
+        <li>固定 <b>T、Td</b>，改變 <b>ELR</b>：從穩定（層狀雲）到不穩定（對流雲）的過程。</li>
+        <li>固定低層條件，提升 <b>RH<sub>high</sub></b> 或 <b>RH<sub>mid</sub></b>：對比卷雲/卷層雲與高層/雨層雲出現的門檻。</li>
+        <li>在對流條件下增加 <b>風切</b>：觀察鐵砧與高雲外流的變化。</li>
+      </ol>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+
+window.addEventListener('DOMContentLoaded', () => {
+  // ======= DOM 取得 =======
+  const W = document.getElementById('scene');
+  const ticks = document.getElementById('ticks');
+  const ui = {
+    T: document.getElementById('T'),
+    Td: document.getElementById('Td'),
+    ELR: document.getElementById('ELR'),
+    RHh: document.getElementById('RHh'),
+    RHm: document.getElementById('RHm'),
+    shear: document.getElementById('shear'),
+    kLCL: document.getElementById('kLCL'),
+    kTOP: document.getElementById('kTOP'),
+    kTYPE: document.getElementById('kTYPE'),
+    kRAIN: document.getElementById('kRAIN'),
+    diag: document.getElementById('diag'),
+    randBtn: document.getElementById('rand'),
+    resetBtn: document.getElementById('reset'),
+    selftestBtn: document.getElementById('selftest'),
+    runtestsBtn: document.getElementById('runtests'),
+    helpBtn: document.getElementById('helpBtn'),
+    // CWB
+    cwbKey: document.getElementById('cwbKey'),
+    cwbGeo: document.getElementById('cwbGeo'),
+    cwbFetch: document.getElementById('cwbFetch'),
+    cwbMock: document.getElementById('cwbMock'),
+    cwbStation: document.getElementById('cwbStation'),
+    cwbTime: document.getElementById('cwbTime'),
+    cwbWx: document.getElementById('cwbWx'),
+  };
+  const labelId = { T:'vT', Td:'vTd', ELR:'vELR', RHh:'vRHh', RHm:'vRHm', shear:'vShear' };
+  const val = (id, v)=>{ const el = document.getElementById(id); if(el) el.textContent = v; };
+
+  // 從 localStorage 回填金鑰
+  try{ const saved=localStorage.getItem('cwbKey'); if(saved) ui.cwbKey.value=saved; }catch{}
+
+  // 初值顯示
+  val('vT', ui.T?.value); val('vTd', ui.Td?.value); val('vELR', ui.ELR?.value); val('vRHh', ui.RHh?.value); val('vRHm', ui.RHm?.value); val('vShear', ui.shear?.value);
+
+  // ======= THREE 場景 =======
+  const renderer = new THREE.WebGLRenderer({antialias:true,alpha:true});
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  renderer.setSize(W.clientWidth, W.clientHeight);
+  W.appendChild(renderer.domElement);
+
+  const scene = new THREE.Scene();
+  scene.fog = new THREE.FogExp2(0x09121f, 0.015);
+
+  const camera = new THREE.PerspectiveCamera(55, W.clientWidth/W.clientHeight, 0.1, 2000);
+  const KM = 10; // 1 km = 10 scene units
+  camera.position.set(55, 25, 55);
+
+  const controls = new OrbitControls(camera, renderer.domElement);
+  controls.target.set(0, 15, 0);
+  controls.enableDamping = true;
+  controls.maxPolarAngle = Math.PI * 0.49;
+  controls.minDistance = 20; controls.maxDistance = 160;
+
+  // 燈光
+  scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+  const dir = new THREE.DirectionalLight(0xffffff, 0.8);
+  dir.position.set(40, 80, 20); scene.add(dir);
+
+  // 地面與網格
+  const ground = new THREE.Mesh(
+    new THREE.PlaneGeometry(200, 200, 1, 1),
+    new THREE.MeshStandardMaterial({color:0x0a1222, metalness:0, roughness:1})
+  );
+  ground.rotation.x = -Math.PI/2; scene.add(ground);
+  const grid = new THREE.GridHelper(200, 40, 0x233146, 0x1a2739); grid.material.transparent = true; grid.material.opacity = 0.6; scene.add(grid);
+
+  // 線框地形（可切換）
+  const wireGeo = new THREE.PlaneGeometry(200, 200, 30, 30);
+  const wireMat = new THREE.MeshBasicMaterial({color:0x204060, wireframe:true, transparent:true, opacity:0.35});
+  const wire = new THREE.Mesh(wireGeo, wireMat); wire.rotation.x = -Math.PI/2; wire.visible = false; scene.add(wire);
+
+  // 高度層色帶（低/中/高）
+  function makeLayer(y0km, y1km, color){
+    const h = (y1km - y0km) * KM;
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(200, h, 200), new THREE.MeshBasicMaterial({
+      color, transparent:true, opacity:0.06, depthWrite:false
+    }));
+    mesh.position.y = (y0km*KM + h/2);
+    return mesh;
+  }
+  const lowBand = makeLayer(0,2,0x16a34a), midBand = makeLayer(2,7,0xeab308), highBand = makeLayer(5,12,0x6366f1);
+  scene.add(lowBand, midBand, highBand);
+
+  // ======= 雲粒子紋理（輕量蓬鬆） =======
+  function makeFluffyTexture(){
+    const c = document.createElement('canvas'); c.width = 256; c.height = 256; const ctx = c.getContext('2d');
+    const grad = ctx.createRadialGradient(128,128,20,128,128,128);
+    grad.addColorStop(0,'rgba(255,255,255,0.95)');
+    grad.addColorStop(0.5,'rgba(255,255,255,0.6)');
+    grad.addColorStop(1,'rgba(255,255,255,0.0)');
+    const bg = ctx.createLinearGradient(0,0,0,256); bg.addColorStop(0,'rgba(255,255,255,0.1)'); bg.addColorStop(1,'rgba(255,255,255,0)');
+    ctx.fillStyle = grad; ctx.fillRect(0,0,256,256); ctx.fillStyle=bg; ctx.fillRect(0,0,256,256);
+    const tex = new THREE.CanvasTexture(c); tex.anisotropy = 4; tex.minFilter = THREE.LinearMipMapLinearFilter; tex.magFilter = THREE.LinearFilter;
+    return tex;
+  }
+  const cloudTex = makeFluffyTexture();
+
+  // 容器群組
+  const clouds = new THREE.Group(); scene.add(clouds);
+  const rains = new THREE.Group(); scene.add(rains);
+
+  // ======= 高度軸刻度 =======
+  function drawTicks(){
+    ticks.innerHTML='';
+    const top = 12; // km
+    for(let k=0;k<=top;k++){
+      const d = document.createElement('div'); d.className='tick';
+      const pct = k/top; d.style.bottom = `calc(${pct*100}% - 1px)`; d.style.height = '1px';
+      const s = document.createElement('span'); s.textContent = k.toString(); d.appendChild(s);
+      ticks.appendChild(d);
+    }
+  }
+  drawTicks();
+
+  // ======= 模型核心：溫度剖面與雲判定 =======
+  const DRY = 9.8, MOIST = 6.0, TROPO = 12; // °C/km, km
+  let liftMode = 'conv';
+
+  function computeProfile(){
+    const T = parseFloat(ui.T.value);
+    const Td = parseFloat(ui.Td.value);
+    const ELR = parseFloat(ui.ELR.value);
+    const RHh = parseFloat(ui.RHh.value);
+    const RHm = parseFloat(ui.RHm.value);
+    // LCL 近似 (m)
+    let LCL = Math.max(0, 125*(T - Td))/1000; // km
+    if(!isFinite(LCL)) LCL = 0;
+    // Parcel & Env 溫度差，估雲頂
+    const step = 0.1; // km
+    let zTop = LCL; let buoy = 0; let lastPositive = false;
+    for(let z=LCL; z<=TROPO; z+=step){
+      const env = T - ELR*z;
+      const tAtLCL = T - DRY*LCL;
+      const parcel = (z<=LCL) ? (T - DRY*z) : (tAtLCL - MOIST*(z-LCL));
+      const diff = parcel - env;
+      if(diff>0){ buoy += diff*step; lastPositive = true; zTop = z; }
+      else if(lastPositive){ zTop = z; break; }
+    }
+    // 若抬升非對流（地形/鋒面），允許形成層狀雲
+    let layerBase = null, layerTop = null;
+    if(liftMode!== 'conv'){
+      const base = (liftMode==='orog') ? Math.max(0.4, LCL-0.2) : Math.max(0.8, LCL-0.1);
+      const thick = (liftMode==='front') ? (1.5 + RHm/80) : (0.6 + RHm/160);
+      layerBase = base; layerTop = Math.min(TROPO, base + thick);
+    }
+
+    // 中/高層雲：由濕度觸發
+    const highActive = RHh>=70; const midActive = RHm>=70;
+
+    // 判定雲族（簡化）：
+    let type = '—'; let precip = false; let base = LCL; let top = Math.max(zTop, LCL + 0.1);
+    const depth = Math.max(0, top - base);
+    if(buoy>3 && depth>4 && base<3){ type = '低雲：積雨雲 cumulonimbus'; precip = true; }
+    else if(base<2){
+      if(depth<0.5){ type = (liftMode==='conv')? '低雲：積雲 cumulus' : '低雲：層雲 stratus'; }
+      else if(depth<2.5){ type = (liftMode==='conv')? '低雲：積雲 cumulus' : '低雲：層積雲 stratocumulus'; }
+      else { type = '低雲：積雲/強對流 (可能發展)'; }
+    } else if(base>=2 && base<5){
+      if((layerBase!==null) && (layerTop-layerBase>1.5) && RHm>75){ type = '中雲：雨層雲 nimbostratus'; precip = true; base = layerBase; top = layerTop; }
+      else if(midActive){ type = (RHm>85)? '中雲：高層雲 altostratus' : '中雲：高積雲 altocumulus'; base = layerBase??base; top = layerTop??top; }
+      else { type = '中雲：零散雲'; }
+    } else {
+      if(highActive){
+        if(RHh>85){ type = '高雲：卷層雲 cirrostratus'; base = 7.5; top = 10.5; }
+        else if(RHh>75){ type = '高雲：卷積雲 cirrocumulus'; base = 8.0; top = 10.0; }
+        else { type = '高雲：卷雲 cirrus'; base = 9.0; top = 11.0; }
+      } else { type = '高空乾燥、少雲'; }
+    }
+
+    if(liftMode==='front' && midActive && base<5){
+      type = (RHm>80) ? '中雲：雨層雲 nimbostratus' : '中雲：高層雲 altostratus';
+      precip = RHm>82; base = layerBase??2.0; top = layerTop??(base+2.0);
+    }
+
+    // 更新 KPI
+    ui.kLCL.textContent = base.toFixed(2) + ' km';
+    ui.kTOP.textContent = top.toFixed(2) + ' km';
+    ui.kTYPE.textContent = type;
+    ui.kRAIN.innerHTML = precip ? '<span style="color: var(--ok)">可能降雨</span>' : '<span style="color:#9ca3af">不顯著</span>';
+
+    return { base, top, type, precip, buoy };
+  }
+
+  // ======= 視覺化：建立各類雲 =======
+  function clearGroup(g){ for(let i=g.children.length-1;i>=0;i--) g.remove(g.children[i]); }
+
+  function makeCumulus(xzSize=120, baseKm=1.2, topKm=2.2, count=450){
+    const g = new THREE.Group();
+    for(let i=0;i<count;i++){
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: cloudTex, transparent:true, opacity:0.9, depthWrite:false }));
+      const x = (Math.random()-0.5)*xzSize;
+      const z = (Math.random()-0.5)*xzSize;
+      const y = (baseKm + Math.random()*(Math.max(0.2, topKm-baseKm))) * KM + (Math.random()-0.5)*1.0;
+      const s = 1.2 + Math.random()*3.0; sp.scale.set(s*2.2, s*1.6, 1);
+      sp.position.set(x, y, z);
+      g.add(sp);
+    }
+    return g;
+  }
+  function makeStratus(baseKm=0.6, thicknessKm=0.4, size=160){
+    const g = new THREE.Group();
+    const layers = Math.max(1, Math.floor(thicknessKm*4));
+    for(let l=0;l<layers;l++){
+      const y = (baseKm + (l/layers)*thicknessKm) * KM;
+      for(let i=0;i<220;i++){
+        const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: cloudTex, transparent:true, opacity:0.6, depthWrite:false }));
+        sp.position.set((Math.random()-0.5)*size, y + (Math.random()-0.5)*0.6, (Math.random()-0.5)*size);
+        const s = 2 + Math.random()*3; sp.scale.set(s*3.5, s*2.3, 1); g.add(sp);
+      }
+    }
+    return g;
+  }
+  function makeAltostratus(baseKm=3.5, thickKm=1.4){ return makeStratus(baseKm, thickKm, 160); }
+  function makeNimbostratus(baseKm=1.6, thickKm=2.2){ return makeStratus(baseKm, thickKm, 170); }
+
+  function makeCb(baseKm=0.9, topKm=10.0, shearLevel=1){
+    const g = new THREE.Group();
+    const core = new THREE.Group(); g.add(core);
+    const height = (topKm - baseKm);
+    const steps = Math.max(8, Math.floor(height*4));
+    for(let i=0;i<steps;i++){
+      const f = i/steps; const y = (baseKm + f*height) * KM;
+      const radius = 10 + f*16 + Math.sin(f*Math.PI)*8;
+      const n = 80 + Math.floor(f*140);
+      for(let k=0;k<n;k++){
+        const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: cloudTex, transparent:true, opacity:0.92, depthWrite:false }));
+        const ang = Math.random()*Math.PI*2;
+        const r = radius*(0.4+Math.random()*0.8);
+        const x = Math.cos(ang)*r*(0.8+0.4*Math.random());
+        const z = Math.sin(ang)*r*(0.8+0.4*Math.random());
+        const s = 1.4 + Math.random()*3.2; sp.scale.set(s*2.4, s*1.8, 1);
+        sp.position.set(x, y+(Math.random()-0.5)*1.1, z); core.add(sp);
+      }
+    }
+    // anvil
+    const anvil = new THREE.Group(); g.add(anvil);
+    const tilt = (shearLevel)*0.35;
+    for(let i=0;i<220;i++){
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: cloudTex, transparent:true, opacity:0.85, depthWrite:false }));
+      const x = (Math.random()-0.5)*36 + tilt*20; const z = (Math.random()-0.5)*36;
+      const y = topKm*KM - 2 + (Math.random()-0.5)*1.5;
+      const s = 2 + Math.random()*4; sp.scale.set(s*3.6, s*2.2, 1);
+      sp.position.set(x, y, z); anvil.add(sp);
+    }
+    return g;
+  }
+
+  function makeCirrus(baseKm=9.5){
+    const g = new THREE.Group();
+    for(let i=0;i<220;i++){
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: cloudTex, transparent:true, opacity:0.7, depthWrite:false }));
+      sp.scale.set(6+Math.random()*10, 3+Math.random()*4, 1);
+      sp.position.set((Math.random()-0.5)*180, baseKm*KM + (Math.random()-0.5)*4, (Math.random()-0.5)*180);
+      g.add(sp);
+    }
+    return g;
+  }
+  function makeCirrostratus(){ return makeStratus(9.0, 1.0, 180); }
+  function makeCirrocumulus(){
+    const g = new THREE.Group();
+    for(let i=0;i<320;i++){
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: cloudTex, transparent:true, opacity:0.85, depthWrite:false }));
+      const s = 1 + Math.random()*2; sp.scale.set(s*2.0, s*1.5, 1);
+      sp.position.set((Math.random()-0.5)*160, (8.8+Math.random()*1.6)*KM, (Math.random()-0.5)*160);
+      g.add(sp);
+    }
+    return g;
+  }
+
+  // 雨粒子
+  function makeRain(baseKm=1.0, topKm=2.0, density=1400){
+    const g = new THREE.Group();
+    const geom = new THREE.BufferGeometry();
+    const N = density; const positions = new Float32Array(N*3); const speeds = new Float32Array(N);
+    for(let i=0;i<N;i++){
+      positions[i*3+0] = (Math.random()-0.5)*160;
+      positions[i*3+2] = (Math.random()-0.5)*160;
+      positions[i*3+1] = (baseKm*KM) + Math.random()*(Math.max(5, (topKm-baseKm)*KM));
+      speeds[i] = 0.6 + Math.random()*1.0;
+    }
+    geom.setAttribute('position', new THREE.BufferAttribute(positions,3));
+    geom.setAttribute('speed', new THREE.BufferAttribute(speeds,1));
+    const mat = new THREE.PointsMaterial({color:0x5dade2, size:0.08, transparent:true, opacity:0.85});
+    const pts = new THREE.Points(geom, mat);
+    pts.userData = { base: baseKm*KM };
+    g.add(pts);
+    return g;
+  }
+
+  // 重新建立雲
+  function buildClouds(){
+    clearGroup(clouds); clearGroup(rains);
+    const { base, top, type, precip } = computeProfile();
+    const shearLevel = parseInt(ui.shear.value);
+
+    if(type.includes('積雨雲')){
+      clouds.add( makeCb(base, top, shearLevel) );
+    } else if(type.includes('層積雲')){
+      clouds.add( makeStratus(base, Math.max(0.6, top-base), 160) );
+    } else if(type.includes('層雲')){
+      clouds.add( makeStratus(base, Math.max(0.4, top-base), 170) );
+    } else if(type.includes('雨層雲')){
+      clouds.add( makeNimbostratus(base, Math.max(1.6, top-base)) );
+    } else if(type.includes('高層雲')){
+      clouds.add( makeAltostratus(base, Math.max(1.0, top-base)) );
+    } else if(type.includes('高積雲')){
+      clouds.add( makeCumulus(160, Math.max(base,2.5), Math.max(top, base+0.8), 380) );
+    } else if(type.includes('積雲')){
+      clouds.add( makeCumulus(160, base, Math.max(top, base+0.8), 420) );
+    } else if(type.includes('卷層雲')){
+      clouds.add( makeCirrostratus() );
+    } else if(type.includes('卷積雲')){
+      clouds.add( makeCirrocumulus() );
+    } else if(type.includes('卷雲')){
+      clouds.add( makeCirrus() );
+    }
+
+    if(precip){ rains.add( makeRain(Math.min(base,3.0), Math.max(top, base+1.5), (type.includes('積雨雲')? 2200 : 1400)) ); }
+  }
+
+  function recompute(){ buildClouds(); }
+  buildClouds();
+
+  // ======= 測試工具 =======
+  function runSmokeTests(){
+    const results = [];
+    try{ results.push(['THREE 可用', typeof THREE.WebGLRenderer === 'function']); }catch(e){ results.push(['THREE 可用', false]); }
+    try{ results.push(['OrbitControls 可用', typeof OrbitControls === 'function']); }catch(e){ results.push(['OrbitControls 可用', false]); }
+    try{ results.push(['Renderer 啟動', renderer instanceof THREE.WebGLRenderer]); }catch(e){ results.push(['Renderer 啟動', false]); }
+    try{ recompute(); results.push(['雲生成函式', clouds.children.length >= 0]); }catch(e){ results.push(['雲生成函式', false]); }
+    try{ results.push(['DOM 節點存在', !!(ui.T && ui.Td && ui.ELR && ui.RHh && ui.RHm && ui.shear)]); }catch(e){ results.push(['DOM 節點存在', false]); }
+    const pass = results.filter(r=>r[1]).length; const fail = results.length - pass;
+    console.table(results.map(([k,v])=>({項目:k, 通過:v})));
+    ui.diag.textContent = `自檢結果：${pass} 項通過 / ${fail} 項失敗（詳見 console）`;
+  }
+
+  function approx(a,b,tol=1.5){ return Math.abs(a-b)<=tol; }
+
+  function runUnitTests(){
+    const snapshot = { T: ui.T.value, Td: ui.Td.value, ELR: ui.ELR.value, RHh: ui.RHh.value, RHm: ui.RHm.value, shear: ui.shear.value, lift: liftMode };
+    const cases = [];
+
+    // 用例1：對流、低雲（預期：產生雲體）
+    ui.T.value = 30; ui.Td.value = 24; ui.ELR.value = 6.5; ui.RHh.value = 40; ui.RHm.value = 50; liftMode='conv';
+    recompute(); cases.push(['對流低雲可見', clouds.children.length > 0]);
+
+    // 用例2：鋒面 + 高中層濕度（預期：偏層狀、可能雨層雲）
+    ui.T.value = 20; ui.Td.value = 18; ui.ELR.value = 5.0; ui.RHh.value = 70; ui.RHm.value = 90; liftMode='front';
+    recompute(); cases.push(['鋒面雨層雲判定', document.getElementById('kTYPE').textContent.includes('雨層雲')]);
+
+    // 用例3：上層極濕（預期：有高雲類別）
+    ui.T.value = 24; ui.Td.value = 10; ui.ELR.value = 6.0; ui.RHh.value = 90; ui.RHm.value = 30; liftMode='orog';
+    recompute(); cases.push(['上層濕→高雲', /高雲：/.test(document.getElementById('kTYPE').textContent)]);
+
+    // 用例4：露點公式（T=30,RH=60% → Td≈21°C）
+    const Td = dewPointFromTRH(30, 60);
+    cases.push(['露點計算公式', approx(Td, 21, 1.5)]);
+
+    console.table(cases.map(([name,ok])=>({測試:name, 通過:ok})));
+    ui.diag.textContent = `單元測試：通過 ${cases.filter(c=>c[1]).length} / ${cases.length}（詳見 console）`;
+
+    // 還原
+    ui.T.value = snapshot.T; ui.Td.value = snapshot.Td; ui.ELR.value = snapshot.ELR; ui.RHh.value = snapshot.RHh; ui.RHm.value = snapshot.RHm; ui.shear.value = snapshot.shear; liftMode = snapshot.lift; recompute();
+  }
+
+  // 事件綁定
+  [ui.T,ui.Td,ui.ELR,ui.RHh,ui.RHm,ui.shear].forEach(e=> e.addEventListener('input',()=>{ const lbl = labelId[e.id]; if(lbl) val(lbl, e.value); recompute(); }));
+
+  const liftBtns = [...document.querySelectorAll('#lift .pill')];
+  function setLift(mode){ liftMode = mode; liftBtns.forEach(b=> b.dataset.active = (b.dataset.mode===mode)); recompute(); }
+  setLift('conv'); liftBtns.forEach(b=> b.addEventListener('click',()=> setLift(b.dataset.mode)));
+
+  const toggles = { wire:false, onlyCloud:false, grid:true };
+  [...document.querySelectorAll('#toggles .pill')].forEach(b=>{
+    b.addEventListener('click',()=>{
+      const key = b.dataset.toggle; b.dataset.active = !(b.dataset.active==='true'); toggles[key] = (b.dataset.active==='true');
+      if(key==='wire') wire.visible = toggles.wire;
+      if(key==='grid') grid.visible = toggles.grid;
+      if(key==='onlyCloud'){
+        ground.visible = !toggles.onlyCloud; lowBand.visible = !toggles.onlyCloud; midBand.visible=!toggles.onlyCloud; highBand.visible=!toggles.onlyCloud;
+        grid.visible = !toggles.onlyCloud && toggles.grid; wire.visible = !toggles.onlyCloud && toggles.wire; }
+    });
+  });
+
+  // 控制鈕
+  function randomize(){
+    ui.T.value = (10 + Math.random()*24).toFixed(1);
+    ui.Td.value = (Math.max(-2, ui.T.value- (4+Math.random()*12))).toFixed(1);
+    ui.ELR.value = (4.5 + Math.random()*5).toFixed(1);
+    ui.RHh.value = Math.floor(30 + Math.random()*70);
+    ui.RHm.value = Math.floor(30 + Math.random()*70);
+    val('vT', ui.T.value); val('vTd', ui.Td.value); val('vELR', ui.ELR.value); val('vRHh', ui.RHh.value); val('vRHm', ui.RHm.value); val('vShear', ui.shear.value);
+    setLift(['conv','orog','front'][Math.floor(Math.random()*3)]);
+    recompute();
+  }
+  function reset(){ ui.T.value=30; ui.Td.value=24; ui.ELR.value=6.5; ui.RHh.value=60; ui.RHm.value=60; ui.shear.value=1; val('vT',30); val('vTd',24); val('vELR',6.5); val('vRHh',60); val('vRHm',60); val('vShear',1); setLift('conv'); recompute(); }
+
+  ui.randBtn.addEventListener('click', randomize);
+  ui.resetBtn.addEventListener('click', reset);
+  ui.selftestBtn.addEventListener('click', runSmokeTests);
+  ui.runtestsBtn.addEventListener('click', runUnitTests);
+
+  // ======= CWB 連線：地理定位 + 最近測站 + 套用觀測 =======
+  function saveKey(){ try{ if(ui.cwbKey.value) localStorage.setItem('cwbKey', ui.cwbKey.value); }catch{} }
+  function rad(d){ return d * Math.PI/180; }
+  function haversine(lat1,lon1,lat2,lon2){ const R=6371; const dLat=rad(lat2-lat1), dLon=rad(lon2-lon1); const a = Math.sin(dLat/2)**2 + Math.cos(rad(lat1))*Math.cos(rad(lat2))*Math.sin(dLon/2)**2; return 2*R*Math.asin(Math.sqrt(a)); }
+  function dewPointFromTRH(T, RH){ // Magnus-Tetens
+    const rh = (RH>1? RH/100 : RH); const a=17.27,b=237.7; const gamma = (a*T)/(b+T) + Math.log(Math.max(0.01, rh)); return (b*gamma)/(a-gamma); }
+  window.dewPointFromTRH = dewPointFromTRH; // for tests
+
+  function deepGet(obj, paths){ for(const p of paths){ const parts=p.split('.'); let cur=obj; let ok=true; for(const k of parts){ if(cur && (k in cur)) cur = cur[k]; else { ok=false; break; } } if(ok) return cur; } return undefined; }
+  function findFirstKey(obj, keys){ if(!obj||typeof obj!=='object') return undefined; for(const k of Object.keys(obj)){ if(keys.includes(k)) return obj[k]; const v=obj[k]; const r=findFirstKey(v, keys); if(r!==undefined) return r; } return undefined; }
+
+  async function fetchCWBAll(){
+    const key = ui.cwbKey.value.trim(); if(!key){ alert('請先輸入 CWB API 金鑰'); return null; }
+    saveKey();
+    const url = `https://opendata.cwa.gov.tw/api/v1/rest/datastore/O-A0001-001?Authorization=${encodeURIComponent(key)}&format=JSON`;
+    const res = await fetch(url);
+    if(!res.ok) throw new Error('CWB API 失敗：'+res.status);
+    return res.json();
+  }
+
+  function extractStations(json){
+    // O-A0001-001 標準：records.Station[*]
+    const stations = json?.records?.Station || json?.records?.location || [];
+    return stations;
+  }
+
+  function parseObs(st){
+    // Fields based on official doc: WeatherElement/AirTemperature, RelativeHumidity, Weather
+    const lat = deepGet(st, ['GeoInfo.Coordinates.StationLatitude', 'lat', 'latitude', 'StationLatitude']);
+    const lon = deepGet(st, ['GeoInfo.Coordinates.StationLongitude', 'lon', 'longitude', 'StationLongitude']);
+    const name = st.StationName || st.locationName || st.StationId || st.StationID || '未知測站';
+    const wl = st.WeatherElement || st.weatherElement || {};
+    let T = findFirstKey(wl, ['AirTemperature','TEMP','temperature']);
+    let RH = findFirstKey(wl, ['RelativeHumidity','HUMD','humidity']);
+    let WX = findFirstKey(wl, ['Weather','weather','WeatherDescription']);
+    // Some structures may be like { AirTemperature: 26.4 } or { AirTemperature: { value: '26.4' } }
+    const getVal = (v)=> (v && typeof v==='object' && 'value' in v)? parseFloat(v.value) : parseFloat(v);
+    T = getVal(T); RH = getVal(RH); if(RH<=1) RH = RH*100; // allow 0-1 scale
+    WX = (typeof WX==='string')? WX : (WX?.value || '--');
+    const tISO = st.ObsTime?.DateTime || st.ObsTime || st.time?.obsTime || st.time || '';
+    return { lat:parseFloat(lat), lon:parseFloat(lon), name, T, RH, WX, time:tISO };
+  }
+
+  function pickNearest(stations, lat, lon){
+    let best=null; let bestD=Infinity; let bestRaw=null;
+    for(const s of stations){
+      const la = parseFloat(deepGet(s,['GeoInfo.Coordinates.StationLatitude','lat','StationLatitude']));
+      const lo = parseFloat(deepGet(s,['GeoInfo.Coordinates.StationLongitude','lon','StationLongitude']));
+      if(!isFinite(la)||!isFinite(lo)) continue;
+      const d = haversine(lat,lon,la,lo);
+      if(d<bestD){ bestD=d; best=s; bestRaw=s; }
+    }
+    return { station: bestRaw, distanceKm: bestD };
+  }
+
+  function applyObsToUI(obs){
+    if(!obs) return;
+    // 更新 UI 顯示
+    ui.cwbStation.textContent = `${obs.name}`;
+    ui.cwbTime.textContent = obs.time ? new Date(obs.time).toLocaleString('zh-TW') : '—';
+    ui.cwbWx.textContent = obs.WX || '—';
+    // 更新參數：T, Td
+    if(isFinite(obs.T)){ ui.T.value = obs.T.toFixed(1); val('vT', ui.T.value); }
+    if(isFinite(obs.RH)){ const td = dewPointFromTRH(parseFloat(ui.T.value), obs.RH); ui.Td.value = td.toFixed(1); val('vTd', ui.Td.value); }
+    // 若觀測顯示明顯降水字串，稍微提高中層濕度以利展示
+    const wetHint = /雨|shower|rain/i.test(obs.WX||'');
+    if(wetHint){ ui.RHm.value = Math.max(80, parseInt(ui.RHm.value)); val('vRHm', ui.RHm.value); }
+    recompute();
+  }
+
+  async function locateAndUpdate(){
+    const key = ui.cwbKey.value.trim(); if(!key){ alert('請先輸入 CWB API 金鑰'); return; }
+    saveKey();
+    const pos = await new Promise((res,rej)=> navigator.geolocation ? navigator.geolocation.getCurrentPosition(res, rej, {enableHighAccuracy:true, timeout:8000}) : rej(new Error('此瀏覽器不支援定位')));
+    const myLat = pos.coords.latitude, myLon = pos.coords.longitude;
+    const json = await fetchCWBAll();
+    const stations = extractStations(json);
+    const { station } = pickNearest(stations, myLat, myLon);
+    const obs = parseObs(station);
+    applyObsToUI(obs);
+  }
+
+  async function justFetch(){
+    try{ const json = await fetchCWBAll(); const stations = extractStations(json); const obs = parseObs(stations[0]); applyObsToUI(obs); }
+    catch(e){ alert('CWB 讀取失敗：'+e.message); console.error(e); }
+  }
+
+  function useMock(){
+    const mock = { name:'臺北', time:new Date().toISOString(), T: 28.4, RH: 74, WX: '多雲時陰' };
+    applyObsToUI(mock);
+  }
+
+  ui.cwbGeo.addEventListener('click', ()=>{
+    locateAndUpdate().catch(err=>{ alert('定位/讀取失敗：'+err.message); console.error(err); });
+  });
+  ui.cwbFetch.addEventListener('click', justFetch);
+  ui.cwbMock.addEventListener('click', useMock);
+
+  // ======= 說明面板控制 =======
+  const helpWrap = document.getElementById('helpWrap');
+  const helpClose = document.getElementById('helpClose');
+  function openHelp(){ helpWrap.style.display='flex'; helpWrap.setAttribute('aria-hidden','false'); }
+  function closeHelp(){ helpWrap.style.display='none'; helpWrap.setAttribute('aria-hidden','true'); }
+  ui.helpBtn?.addEventListener('click', openHelp);
+  helpClose?.addEventListener('click', closeHelp);
+  helpWrap?.addEventListener('click', (e)=>{ if(e.target===helpWrap) closeHelp(); });
+
+  // 動畫迴圈（更新雨）
+  function animate(){
+    requestAnimationFrame(animate); controls.update();
+    for(const g of rains.children){
+      const pts = g.children[0]; if(!pts) continue;
+      const arr = pts.geometry.attributes.position.array; const spd = pts.geometry.attributes.speed.array; const baseY = pts.userData.base;
+      for(let i=0;i<spd.length;i++){
+        arr[i*3+1] -= spd[i];
+        if(arr[i*3+1] < 0.4){ arr[i*3+1] = baseY + Math.random()* (KM*4); arr[i*3+0] = (Math.random()-0.5)*160; arr[i*3+2] = (Math.random()-0.5)*160; }
+      }
+      pts.geometry.attributes.position.needsUpdate = true;
+    }
+    renderer.render(scene, camera);
+  }
+  animate();
+
+  // 自適應尺寸
+  function onResize(){ renderer.setSize(W.clientWidth, W.clientHeight); camera.aspect = W.clientWidth/W.clientHeight; camera.updateProjectionMatrix(); }
+  if('ResizeObserver' in window){ new ResizeObserver(onResize).observe(W); } else { window.addEventListener('resize', onResize); }
+
+  // 初始提示淡出
+  setTimeout(()=>{ const t=document.getElementById('toast'); t.style.opacity='0'; t.style.transform='translate(-50%, 10px)'; }, 3600);
+});
+</script>
+</body>
+</html>
