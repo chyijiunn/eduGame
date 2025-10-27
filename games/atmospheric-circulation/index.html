@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>大氣環流模擬</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="anonymous">
+<style>
+:root{ --bg:#070c16; --panel:#0e1726; --ink:#e6eefb; --muted:#8aa0c5; }
+*{box-sizing:border-box}
+html,body{height:100%; margin:0; background:var(--bg); color:#e6eefb; font-family:"Noto Sans TC",ui-sans-serif,system-ui,Segoe UI,Arial}
+#app{position:fixed; inset:0; display:grid; grid-template-columns: 1fr min(420px, 38vw);}
+#map{position:relative; background:transparent; transition:background 200ms ease; min-height:0}
+#map .leaflet-container{position:absolute; inset:0}
+#overlay{pointer-events:none; position:absolute; inset:0; width:100%; height:100%; display:block; z-index:100000}
+#ui{background:linear-gradient(180deg,rgba(17,26,44,.96),rgba(14,23,38,.96)); border-left:1px solid #16213c; padding:14px 14px 16px; overflow:auto}
+h1{margin:0 0 8px; font-size:18px; letter-spacing:.5px; color:#9cc9ff; display:flex; align-items:center; gap:8px}
+.badge{font:600 11px/1.8 ui-monospace,monospace; padding:2px 8px; border-radius:999px; background:#12213c; color:#7fbfff; border:1px solid #1a3a63}
+.row{display:flex; align-items:center; gap:8px; margin:10px 0 8px; flex-wrap:wrap}
+button{cursor:pointer; border:1px solid #3a4b6f; border-radius:10px; padding:8px 10px; color:#e6eefb; background:#0f1a2e; font-weight:700}
+button:active{transform:translateY(1px)}
+label{font-size:12px; color:#8aa0c5}
+input[type="range"]{width:100%}
+.card{background:#0f1a2e; border:1px solid #1a2b4d; border-radius:14px; padding:10px; margin:10px 0}
+.card h3{margin:0 0 6px; font-size:14px; color:#bcd1ff}
+.small{font-size:12px; color:#8aa0c5}
+.kv{display:flex; align-items:center; justify-content:space-between; font:600 12px/1 ui-monospace,monospace; color:#cfe4ff}
+.toast{position:absolute; left:50%; transform:translateX(-50%); bottom:12px; background:rgba(0,0,0,.45); border:1px solid #1a2b4d; border-radius:10px; padding:6px 10px; font-size:12px; color:#d7e8ff; pointer-events:none; z-index:100001}
+#hud{position:absolute; top:10px; left:10px; z-index:100001; background:rgba(10,16,30,.55); border:1px solid #1a2b4d; border-radius:10px; padding:8px 10px; font-size:12px; color:#bcd1ff}
+#timeline{
+  position:absolute; left:50%; bottom:6px; transform:translateX(-50%);
+  z-index:100002; display:flex; align-items:center; gap:10px;
+  background:rgba(8,12,22,.65); border:1px solid #1a2b4d; padding:8px 12px; border-radius:12px;
+}
+#timeline .label{min-width:120px; text-align:center; font-weight:800; color:#e6f0ff}
+#monthSlider{width:min(48vw,600px)}
+#playBtn{border-radius:999px; width:34px; height:34px; display:grid; place-items:center}
+.tag{display:inline-grid; place-items:center; width:18px; height:18px; border-radius:999px; font:700 12px ui-monospace; margin-right:6px}
+.tag.user{background:#2b2133; color:#ffd6e5; border:1px solid #61345b}
+.sys .hdr{display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:6px}
+.sys .hdr h3{font-size:13px; color:#d9e6ff; margin:0}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="map">
+    <div id="hud" class="mono">大氣環流觀察器</div>
+    <canvas id="overlay"></canvas>
+    <div id="timeline">
+      <button id="playBtn" title="播放 / 暫停">⏵</button>
+      <div class="label" id="monthLabel">—</div>
+      <input id="monthSlider" type="range" min="0" max="12" step="0.05">
+    </div>
+    <div id="toast" class="toast" style="display:none"></div>
+  </div>
+  <aside id="ui">
+    <h1>東亞＋西太平洋風場 <span class="badge">v0.413</span></h1>
+    <div class="small">近台灣的氣候型 冬季大陸高壓（蒙古／西伯利亞）、春季梅雨槽低壓、夏季西太副高</div>
+    <div class="row">
+      <button id="addLow">新增低壓（L）</button>
+      <button id="addHigh">新增高壓（H）</button>
+      <button id="reset">清空自設高低壓</button>
+      <button id="toggleMap">地圖關閉</button>
+    </div>
+    <div class="card">
+      <h3>顯示效能</h3>
+      <div class="row kv"><span>粒子數（上限 10,000）</span><span id="pcnt" class="mono"></span></div>
+      <input id="particles" type="range" min="200" max="10000" step="100" value="2000">
+      <div class="row kv"><span>尾跡長度</span><span id="trailLen" class="mono">0.08</span></div>
+      <input id="trail" type="range" min="0.02" max="0.2" step="0.01" value="0.08">
+      <div class="row kv"><span>可視速度（倍速）</span><span id="vSpd" class="mono">1×</span></div>
+      <input id="visSpeed" type="range" min="1" max="20" step="1" value="1">
+      <div class="row"><label><input type="checkbox" id="showGrid">經緯顯示</label></div>
+    </div>
+
+    <div id="systems"></div>
+
+    <div class="card">
+      <h3>資料</h3>
+      <div class="row">
+        <button id="exportBtn">匯出</button>
+        <button id="importBtn">匯入</button>
+        <button id="snapBtn">下載快照</button>
+      </div>
+      <input id="fileInput" type="file" accept="application/json" style="display:none">
+      <div class="small">匯出內容含參數與自訂 L/H；快照僅風場疊圖（不含地圖）。</div>
+    </div>
+  </aside>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="anonymous"></script>
+<script>
+// Map
+const map = L.map('map', { center:[23.5,121], zoom:4.2, zoomControl:true, attributionControl:true });
+const tiles = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', {
+  maxZoom: 11, minZoom: 3, attribution: '&copy; OpenStreetMap contributors &copy; CARTO'
+}).addTo(map);
+let mapVisible = true;
+
+// Canvas
+const canvas = document.getElementById('overlay');
+const ctx = canvas.getContext('2d', { alpha:true });
+let DPR=1, W=0, H=0;
+function resize(){
+  DPR = Math.max(1, Math.min(2, window.devicePixelRatio||1));
+  const rect = canvas.getBoundingClientRect();
+  W = Math.max(2, Math.floor(rect.width * DPR));
+  H = Math.max(2, Math.floor(rect.height * DPR));
+  if(W!==canvas.width || H!==canvas.height){ canvas.width=W; canvas.height=H; }
+}
+function softClear(a=0.06){
+  if(W===0||H===0) return;
+  ctx.globalCompositeOperation='destination-in'; ctx.fillStyle=`rgba(0,0,0,${a})`;
+  ctx.fillRect(0,0,W,H); ctx.globalCompositeOperation='source-over';
+}
+new ResizeObserver(()=>{ resize(); }).observe(document.getElementById('map'));
+document.getElementById('map').appendChild(canvas);
+
+// UI
+const particlesRange = document.getElementById('particles');
+const pcnt = document.getElementById('pcnt');
+const trailRange = document.getElementById('trail');
+const trailLenLabel = document.getElementById('trailLen');
+const visSpeed = document.getElementById('visSpeed');
+const vSpdLabel = document.getElementById('vSpd');
+const showGrid = document.getElementById('showGrid');
+const monthSlider = document.getElementById('monthSlider');
+const monthLabel = document.getElementById('monthLabel');
+const playBtn = document.getElementById('playBtn');
+const toggleMapBtn = document.getElementById('toggleMap');
+const addLowBtn = document.getElementById('addLow');
+const addHighBtn = document.getElementById('addHigh');
+const resetBtn = document.getElementById('reset');
+const systemsWrap = document.getElementById('systems');
+const exportBtn = document.getElementById('exportBtn');
+const importBtn = document.getElementById('importBtn');
+const fileInput = document.getElementById('fileInput');
+const snapBtn = document.getElementById('snapBtn');
+const toast = document.getElementById('toast');
+const now = new Date();
+const MONTH_NAMES = ['一月','二月','三月','四月','五月','六月','七月','八月','九月','十月','十一月','十二月'];
+
+let autoPlay=true, autoTimer=null;
+const UI = {
+  particleCount:+particlesRange.value, trail:+trailRange.value, visSpeed:+visSpeed.value,
+  showGrid:false, monthDesired: now.getMonth(), monthEff: now.getMonth(), paused:false, version:'0.413'
+};
+function setLabels(){
+  pcnt.textContent = UI.particleCount.toLocaleString();
+  trailLenLabel.textContent = UI.trail.toFixed(2);
+  vSpdLabel.textContent = `${UI.visSpeed}×`;
+  const mInt = Math.floor(UI.monthDesired%12+12)%12, frac = UI.monthDesired - Math.floor(UI.monthDesired);
+  monthLabel.textContent = `${MONTH_NAMES[mInt]} ${frac>0?('+'+frac.toFixed(2)) : ''}`;
+  monthSlider.value = (UI.monthDesired%12+12)%12;
+}
+function ping(msg){ toast.textContent=msg; toast.style.display='block'; clearTimeout(ping._t); ping._t=setTimeout(()=>toast.style.display='none',1500); }
+setLabels();
+particlesRange.oninput = e=>{ UI.particleCount=+e.target.value; resetParticles(true); setLabels(); softClear(0.04); };
+trailRange.oninput = e=>{ UI.trail=+e.target.value; setLabels(); softClear(0.04); };
+visSpeed.oninput = e=>{ UI.visSpeed=+e.target.value; setLabels(); softClear(0.04); };
+showGrid.onchange = e=>{ UI.showGrid = e.target.checked; softClear(0.04); };
+monthSlider.oninput = e=>{ UI.monthDesired=+e.target.value; setLabels(); regenClimoIfNeeded(); };
+playBtn.onclick = ()=>{ autoPlay=!autoPlay; playBtn.textContent = autoPlay ? '⏸' : '⏵'; if(autoPlay) startAuto(); else stopAuto(); };
+toggleMapBtn.onclick = ()=>{
+  mapVisible = !mapVisible;
+  if(mapVisible){ tiles.addTo(map); document.getElementById('map').style.background='transparent'; }
+  else{ map.removeLayer(tiles); document.getElementById('map').style.background='radial-gradient(115% 80% at 50% 20%, #0b1730 0%, #081221 60%, #061020 100%)'; }
+  toggleMapBtn.textContent = mapVisible ? '關閉底圖' : '開啟底圖';
+  softClear(0.08);
+};
+function startAuto(){ stopAuto(); playBtn.textContent='⏸'; autoTimer=setInterval(()=>{ UI.monthDesired=(UI.monthDesired+0.05)%12; setLabels(); regenClimoIfNeeded(); },180); }
+function stopAuto(){ if(autoTimer){ clearInterval(autoTimer); autoTimer=null; } playBtn.textContent='⏵'; }
+startAuto();
+
+// Helpers
+function ll2px(lon, lat){ const p = map.latLngToContainerPoint([lat, lon]); return [p.x*DPR, p.y*DPR]; }
+function px2ll(x, y){ const p = map.containerPointToLatLng([x/DPR, y/DPR]); return [p.lng, p.lat]; }
+function kmToPxAtLat(km, lat){ const dLat=(km/111.32); const p1=map.latLngToContainerPoint([lat,0]); const p2=map.latLngToContainerPoint([lat+dLat,0]); return Math.abs((p2.y-p1.y)*DPR); }
+function clamp(x,a,b){ return Math.max(a, Math.min(b, x)); }
+function smoothstep(a,b,x){ const t=clamp((x-a)/(b-a),0,1); return t*t*(3-2*t); }
+function smoothpeak(a,b,c,d,x){ return smoothstep(a,b,x) * (1 - smoothstep(c,d,x)); }
+function wrapDiff(a,b){ let d=b-a; if(d>6) d-=12; if(d<-6) d+=12; return d; }
+function hash32(n){ n|=0; n=(n+0x7ed55d16)+(n<<12); n=(n^0xc761c23c)^(n>>>19); n=(n+0x165667b1)+(n<<5); n=(n+0xd3a2646c)^(n<<9); n=(n+0xfd7046c5)+(n<<3); n=(n^0xb55a4f09)^(n>>>16); return n>>>0; }
+function rndSeed(seed){ let s=seed>>>0; return ()=>{ s=hash32(s+0x9e3779b9); return (s&0xffff)/0xffff; }; }
+function cycTri(m, peak, w){ let d=((m-peak+6)%12+12)%12-6; d=Math.abs(d); return clamp(1-d/w,0,1); }
+
+// Month morph
+function stepMonthEff(dt){ const tau=0.35; const k=clamp(dt/tau,0,1); const d=wrapDiff(UI.monthEff, UI.monthDesired); UI.monthEff = (UI.monthEff + k*d + 12)%12; }
+
+// Background global circulation with enhanced E. Asia winter NE monsoon
+function itczLat(m){ const amp=12, phase=3; return amp*Math.sin(2*Math.PI*(m-phase)/12); }
+function winterFactor(lat,m){ const nh=lat>=0?1:-1; const s=Math.cos(2*Math.PI*m/12); return 1+0.35*(nh*s); }
+function bgGlobalAt(lon, lat, m){
+  const itcz=itczLat(m); const rel=lat-itcz; const absRel=Math.abs(rel);
+  const wH=smoothpeak(0,5,28,35,absRel), wF=smoothpeak(25,33,58,66,absRel), wP=smoothstep(57,70,absRel);
+  const wSum=wH+wF+wP+1e-6, WH=wH/wSum, WF=wF/wSum, WP=wP/wSum;
+  const facW=winterFactor(lat,m);
+  const Ue=9.0, Uw=12.0*facW, Up=6.0, Ve=3.0, Vf=1.5*facW, Vp=1.2;
+  let uH=-Ue*Math.cos(Math.PI*clamp(absRel,0,30)/30);
+  let vH=-Math.sign(rel||1e-6)*Ve*Math.sin(Math.PI*clamp(absRel,0,30)/30);
+  let uF=+Uw*Math.cos(Math.PI*clamp(absRel-30,0,30)/30);
+  let signF=(absRel>=45?+1:-1)*Math.sign(rel||1e-6);
+  let vF=signF*Vf*Math.sin(Math.PI*clamp(Math.abs(absRel-45),0,15)/15);
+  let uP=-Up*Math.cos(Math.PI*clamp(absRel-60,0,30)/30);
+  let vP=-Math.sign(rel||1e-6)*Vp*Math.cos(Math.PI*clamp(absRel-60,0,30)/30);
+  let u=WH*uH+WF*uF+WP*uP, v=WH*vH+WF*vF+WP*vP;
+
+  // Seasonal anomalies
+  // 1) E. Asia Winter NE monsoon (stronger, Dec-Feb)
+  if(lon>=110 && lon<=135 && lat>=10 && lat<=30){
+    const wWin = Math.pow(cycTri(m, 1.0, 2.2), 1.2); // peak Jan
+    u += -3.0 * wWin;  // toward west
+    v += -4.0 * wWin;  // toward south
+  }
+  // 2) S. Asia SW monsoon (Jun-Sep) – keep mild for balance around Taiwan
+  if(lon>=90 && lon<=120 && lat>=5 && lat<=25){
+    const sw = Math.pow(cycTri(m, 7.0, 3.0), 1.1);
+    u += 1.5*sw; v += 2.2*sw;
+  }
+  const mag=Math.hypot(u,v), LIM=22; if(mag>LIM){ u*=LIM/mag; v*=LIM/mag; } return [u,v];
+}
+
+// --- Simplified Taiwan-near seasonal H/L (2–3 systems) ---
+let climo=[];
+function addHL(arr,type,lon,lat,r,v,spiral,id,rng){
+  const jx=(rng()-0.5), jy=(rng()-0.5);
+  const lonJ=lon + jx*(type==='high'?2.5:2.0);
+  const latJ=lat + jy*(type==='high'?2.0:1.8);
+  arr.push({id,type,lon:lonJ,lat:latJ,radiusKm:r,vmax:v,spiral:(spiral ?? (type==='low'?0.25:0.12)), decayKm:r*1.8, isClimo:true});
+}
+function generateClimo(m){
+  const rng = rndSeed(Math.floor(m*10007) ^ 0x5a8b13);
+  const L=[];
+
+  // A) Continental (Mongolia/Siberia) High – strong in DJF, weaker in spring, minimal summer
+  const wSib = Math.pow(cycTri(m, 1.0, 2.4), 1.1); // peak Jan
+  const H_r = 1000*(0.6+0.9*wSib), H_v = 12*(0.6+0.9*wSib);
+  addHL(L,'high', 110, 45, H_r, H_v, 0.10, 'SiberianMongolianHigh', rng);
+
+  // B) WNP Subtropical High – grows from spring, peak in JJA, dominant in summer
+  const wWNP = Math.pow(cycTri(m, 7.0, 3.0), 1.0) + 0.25*Math.pow(cycTri(m, 5.0, 1.6), 1.2); // include spring onset
+  const SH_r = 1100*(0.5+0.9*wWNP), SH_v = 13*(0.5+0.9*wWNP);
+  addHL(L,'high', 140, 25, SH_r, SH_v, 0.10, 'WNP_SubtropicalHigh', rng);
+
+  // C) Meiyu/Baiu Low – May–June prominent, weak otherwise
+  const wMei = Math.pow(cycTri(m, 5.8, 1.3), 1.3); // peak early Jun
+  if(wMei>0.05){
+    const L_r = 650*(0.6+0.6*wMei), L_v = 15*(0.6+0.7*wMei);
+    addHL(L, 'low', 125, 27, L_r, L_v, 0.26, 'MeiyuFrontalLow', rng);
+  }
+
+  // Keep total near Taiwan to 2–3: above ensures 2 highs may coexist but in winter WNP weak; in summer Siberian weak; in Meiyu season adds one low.
+
+  climo = L;
+}
+
+// User systems
+let SID=1; let systemsUser=[];
+function makeRow(labelText, min, max, step, value, on){
+  const wrap = document.createElement('div'); wrap.className='row';
+  const label = document.createElement('label'); const sp = document.createElement('span'); sp.className='mono'; sp.textContent = value.toFixed((step<1)?2:0);
+  label.textContent = labelText + '：'; label.append(sp);
+  const r = document.createElement('input'); r.type='range'; r.min=min; r.max=max; r.step=step; r.value=value;
+  r.oninput = ()=>{ const v=(step<1)? +r.value : Math.round(+r.value); sp.textContent = (step<1)? v.toFixed(2) : v; on(v); softClear(0.04); };
+  wrap.append(label); wrap.append(r); return wrap;
+}
+function rebuildSystemCards(){
+  systemsWrap.innerHTML='';
+  systemsUser.forEach(s=>{
+    const card = document.createElement('div'); card.className='card sys'; card.dataset.id=s.id;
+    const hdr = document.createElement('div'); hdr.className='hdr';
+    const left = document.createElement('div'); left.style.display='flex'; left.style.alignItems='center';
+    const tag = document.createElement('span'); tag.className='tag user'; tag.textContent = s.type==='low'?'L':'H';
+    const title = document.createElement('h3'); title.textContent = `${s.type==='low'?'低壓':'高壓'} #${s.id}`;
+    left.append(tag,title);
+    const del = document.createElement('button'); del.textContent='刪除'; del.onclick=()=>{ systemsUser = systemsUser.filter(x=>x.id!==s.id); rebuildSystemCards(); softClear(0.08); };
+    hdr.append(left,del);
+    card.append(hdr);
+    card.append(makeRow('核心半徑 (km)',50,1000,10,s.radiusKm, v=>{s.radiusKm=v;}));
+    card.append(makeRow('最大風速 (m/s)',5,80,1,s.vmax, v=>{s.vmax=v;}));
+    card.append(makeRow('螺旋度 (0–1)',0,1,0.01,s.spiral, v=>{s.spiral=v;}));
+    card.append(makeRow('衰減尺度 (km)',200,2000,10,s.decayKm, v=>{s.decayKm=v;}));
+    systemsWrap.append(card);
+  });
+}
+function addSystemUser(type, lon=121, lat=23.5){
+  const s = { id:SID++, type, lon, lat,
+    radiusKm: type==='low'?180:500, vmax: type==='low'?40:20,
+    spiral: type==='low'?0.35:0.12, decayKm: (type==='low'?180:500)*1.8, isClimo:false };
+  systemsUser.push(s); rebuildSystemCards(); ping((type==='low'?'低壓':'高壓')+' 已新增'); return s;
+}
+addLowBtn.onclick = ()=> addSystemUser('low', 121, 23.5);
+addHighBtn.onclick = ()=> addSystemUser('high', 140, 25);
+resetBtn.onclick = ()=>{ systemsUser=[]; rebuildSystemCards(); ping('已清空自訂 L/H。'); };
+
+// Drag user centers
+let dragging=null;
+map.on('mousedown', (e)=>{
+  const pt = map.latLngToContainerPoint(e.latlng);
+  let best=null, bestD=14;
+  systemsUser.forEach(s=>{
+    const sp = map.latLngToContainerPoint([s.lat, s.lon]);
+    const d = Math.hypot(sp.x-pt.x, sp.y-pt.y);
+    if(d<bestD){best=s; bestD=d;}
+  });
+  if(best){ dragging=best; UI.paused=true; map.dragging.disable(); map.once('mouseup', ()=>{ dragging=null; map.dragging.enable(); UI.paused=false; }); ping('拖曳中…'); }
+});
+map.on('mousemove', (e)=>{ if(dragging){ dragging.lon=e.latlng.lng; dragging.lat=e.latlng.lat; }});
+map.on('click', (e)=>{ if(e.originalEvent && e.originalEvent.altKey){ addSystemUser('low', e.latlng.lng, e.latlng.lat); }});
+
+// Vector helpers & field
+function coriolisHemSign(lat){ return (lat>=0)?+1:-1; }
+function tangentVec(dx,dy,rot){ const r=Math.hypot(dx,dy)+1e-9; return (rot>0)? [ (dy/r), (-dx/r) ] : [ (-dy/r), (dx/r) ]; }
+function radialVec(dx,dy){ const r=Math.hypot(dx,dy)+1e-9; return [dx/r, dy/r]; }
+function systemFieldAtPx_single(s,x,y){
+  const [sx,sy]=ll2px(s.lon, s.lat); const dx=x-sx, dy=y-sy;
+  const r=Math.hypot(dx,dy)+1e-6; const rc=kmToPxAtLat(s.radiusKm,s.lat); const decay=s.decayKm?kmToPxAtLat(s.decayKm,s.lat):rc*1.8;
+  const vt=s.vmax*(r/rc)*Math.exp(-(r*r)/(decay*decay)); const hem=coriolisHemSign(s.lat); const rot=(s.type==='low'?+1:-1)*hem;
+  const [tx,ty]=tangentVec(dx,dy,rot); const [rx,ry]=radialVec(dx,dy); const vr=(s.spiral ?? (s.type==='low'?0.25:0.12))*vt*(s.type==='low'?-1:+1);
+  return [vt*tx + vr*rx, vt*ty + vr*ry];
+}
+function systemsFieldAtPx(x,y){ let u=0,v=0; for(const s of climo){ const z=systemFieldAtPx_single(s,x,y); u+=z[0]; v+=z[1]; } for(const s of systemsUser){ const z=systemFieldAtPx_single(s,x,y); u+=z[0]; v+=z[1]; } return [u,v]; }
+function fieldAtPx(x,y){ const [lon,lat]=px2ll(x,y); const bg=bgGlobalAt(lon,lat,UI.monthEff); const sys=systemsFieldAtPx(x,y); return [bg[0]+sys[0], bg[1]+sys[1]]; }
+
+// Particles
+let P=new Float32Array(0);
+function resetParticles(full=false){
+  const n=UI.particleCount;
+  if(full || P.length!==n*2){ P=new Float32Array(n*2); }
+  for(let i=0;i<n;i++){ P[2*i]=Math.random()*W; P[2*i+1]=Math.random()*H; }
+}
+
+// Draw helpers
+function speedToColor(s){
+  const t=clamp(s/50,0,1);
+  const stops=[[0,46,109,246],[0.17,59,214,255],[0.34,128,255,177],[0.50,255,239,107],[0.67,255,155,61],[0.84,255,61,61],[1.00,255,255,255]];
+  for(let i=1;i<stops.length;i++){
+    if(t<=stops[i][0]){ const t0=stops[i-1][0], t1=stops[i][0], a=(t-t0)/(t1-t0);
+      const r=Math.round(stops[i-1][1]*(1-a)+stops[i][1]*a);
+      const g=Math.round(stops[i-1][2]*(1-a)+stops[i][2]*a);
+      const b=Math.round(stops[i-1][3]*(1-a)+stops[i][3]*a);
+      return `rgba(${r},${g},${b},0.95)`; }
+  } return 'rgba(255,255,255,0.95)';
+}
+function drawGrid(){
+  if(!UI.showGrid) return;
+  const b=map.getBounds(); const latMin=Math.floor(b.getSouth()/10)*10, latMax=Math.ceil(b.getNorth()/10)*10; const lonMin=Math.floor(b.getWest()/10)*10, lonMax=Math.ceil(b.getEast()/10)*10;
+  ctx.save(); ctx.lineWidth=1; ctx.strokeStyle='rgba(88,118,163,0.35)'; ctx.fillStyle='#87a7d6'; ctx.font=`${12*DPR}px ui-monospace`;
+  for(let lat=latMin; lat<=latMax; lat+=10){ const a=ll2px(lonMin,lat), c=ll2px(lonMax,lat); ctx.beginPath(); ctx.moveTo(a[0],a[1]); ctx.lineTo(c[0],c[1]); ctx.stroke(); ctx.fillText(`${lat}°`, a[0]+6*DPR, a[1]-2*DPR); }
+  for(let lon=lonMin; lon<=lonMax; lon+=10){ const a=ll2px(lon,latMin), c=ll2px(lon,latMax); ctx.beginPath(); ctx.moveTo(a[0],a[1]); ctx.lineTo(c[0],c[1]); ctx.stroke(); }
+  ctx.restore();
+}
+function drawSystems(){
+  ctx.save();
+  // 1) climo H/L: letters only (no rings)
+  for(const s of climo){
+    const [x,y]=ll2px(s.lon,s.lat);
+    ctx.font=`${13*DPR}px ui-monospace`;
+    ctx.lineWidth=3*DPR; ctx.strokeStyle='rgba(5,10,20,0.7)';
+    ctx.strokeText(s.type==='low'?'L':'H', x+4*DPR, y-4*DPR);
+    ctx.fillStyle='#d8e9ff';
+    ctx.fillText(s.type==='low'?'L':'H', x+4*DPR, y-4*DPR);
+  }
+  // 2) user L/H: colored ring + dot + label
+  for(const s of systemsUser){
+    const [x,y] = ll2px(s.lon, s.lat);
+    const rpx = kmToPxAtLat(s.radiusKm, s.lat);
+    ctx.beginPath(); ctx.arc(x,y, rpx, 0, Math.PI*2);
+    ctx.strokeStyle = s.type==='low' ? '#ff8fa3' : '#9ac7ff'; ctx.lineWidth = 1.6*DPR; ctx.stroke();
+    ctx.beginPath(); ctx.arc(x,y, 3*DPR, 0, Math.PI*2);
+    ctx.fillStyle = s.type==='low' ? '#ffb3c1' : '#b3d7ff'; ctx.fill();
+    ctx.font = `${12*DPR}px ui-monospace`; ctx.fillStyle = s.type==='low' ? '#ffd8df' : '#d8e9ff';
+    ctx.fillText(s.type==='low'?'L':'H', x+5*DPR, y-5*DPR);
+  }
+  ctx.restore();
+}
+
+// Animation
+let last=performance.now(); const K=14;
+function advectRK2(x,y,dt){
+  const k=K*UI.visSpeed*DPR; let u1=0,v1=0; [u1,v1]=fieldAtPx(x,y);
+  const xm=x+0.5*dt*k*u1, ym=y+0.5*dt*k*v1; let u2=0,v2=0; [u2,v2]=fieldAtPx(xm,ym);
+  const nx=x+dt*k*u2, ny=y+dt*k*v2; return [nx,ny,Math.hypot(u2,v2)];
+}
+function tick(now){
+  if(W===0||H===0){ resize(); requestAnimationFrame(tick); return; }
+  const dt = Math.min(0.05, (now - last)/1000); last = now;
+  if(!UI.paused) stepMonthEff(dt);
+  ctx.globalCompositeOperation='destination-in'; const alpha=1-UI.trail; ctx.fillStyle=`rgba(0,0,0,${alpha})`; ctx.fillRect(0,0,W,H);
+  ctx.globalCompositeOperation='source-over';
+  drawGrid();
+  const n=P.length/2; ctx.lineWidth=Math.max(1*DPR,1);
+  for(let i=0;i<n;i++){
+    const idx=2*i, x=P[idx], y=P[idx+1];
+    let nx,ny,spd; [nx,ny,spd]=advectRK2(x,y,dt);
+    if(spd>25){ let mx,my; [mx,my]=advectRK2(x,y,dt*0.5); [nx,ny,spd]=advectRK2(mx,my,dt*0.5); }
+    ctx.strokeStyle=speedToColor(spd); ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(nx,ny); ctx.stroke();
+    if(nx<0||nx>=W||ny<0||ny>=H){ P[idx]=Math.random()*W; P[idx+1]=Math.random()*H; continue; }
+    P[idx]=nx; P[idx+1]=ny;
+  }
+  drawSystems();
+  requestAnimationFrame(tick);
+}
+
+// Field
+function systemsFieldAtPx(x,y){ let u=0,v=0; for(const s of climo){ const z=systemFieldAtPx_single(s,x,y); u+=z[0]; v+=z[1]; } for(const s of systemsUser){ const z=systemFieldAtPx_single(s,x,y); u+=z[0]; v+=z[1]; } return [u,v]; }
+function fieldAtPx(x,y){ const [lon,lat]=px2ll(x,y); const bg=bgGlobalAt(lon,lat,UI.monthEff); const sys=systemsFieldAtPx(x,y); return [bg[0]+sys[0], bg[1]+sys[1]]; }
+
+// Export / Import / Snapshot
+exportBtn.onclick = () => {
+  const data = JSON.stringify({UI, systemsUser}, null, 2);
+  const blob = new Blob([data], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = 'eastasia_wpac_v0_413_settings.json'; a.click();
+  URL.revokeObjectURL(url); ping('已匯出設定。');
+};
+importBtn.onclick = ()=> fileInput.click();
+fileInput.onchange = e => {
+  const f = e.target.files[0]; if(!f) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try{
+      const obj = JSON.parse(reader.result);
+      if(obj.UI){
+        for(const k of ['visSpeed','trail','particleCount','showGrid','monthDesired','monthEff']) if(typeof obj.UI[k] !== 'undefined'){ UI[k]=obj.UI[k]; }
+        visSpeed.value=UI.visSpeed; trailRange.value=UI.trail; particlesRange.value=UI.particleCount; showGrid.checked=!!UI.showGrid;
+      }
+      if(Array.isArray(obj.systemsUser)){ systemsUser = obj.systemsUser; rebuildSystemCards(); }
+      setLabels(); ping('設定已載入。');
+    }catch(err){ ping('載入失敗：' + err.message); }
+  };
+  reader.readAsText(f);
+};
+snapBtn.onclick = ()=>{
+  const out = document.createElement('canvas'); out.width=canvas.width; out.height=canvas.height;
+  const octx = out.getContext('2d'); octx.drawImage(canvas,0,0);
+  out.toBlob(blob=>{ const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = 'wind_overlay_v0_413.png'; a.click(); URL.revokeObjectURL(url); });
+};
+
+// Climo regen
+let lastClimoM=-999;
+function regenClimoIfNeeded(force=false){
+  const diff = Math.abs(wrapDiff(lastClimoM<0?UI.monthDesired:lastClimoM, UI.monthDesired));
+  if(force || diff>0.25 || lastClimoM<0){ generateClimo(UI.monthDesired); lastClimoM=UI.monthDesired; }
+}
+
+// Boot
+function initParticles(){ const n=UI.particleCount; P=new Float32Array(n*2); for(let i=0;i<n;i++){ P[2*i]=Math.random()*W; P[2*i+1]=Math.random()*H; } }
+map.whenReady(()=>{
+  resize(); setLabels(); regenClimoIfNeeded(true); initParticles(); rebuildSystemCards();
+  requestAnimationFrame((t)=>{ last=t; tick(t); });
+});
+</script>
+</body>
+</html>
