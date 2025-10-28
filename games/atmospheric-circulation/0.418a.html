@@ -34,13 +34,6 @@ input[type="range"]{width:100%}
 .sys .hdr{display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:6px}
 .sys .hdr h3{font-size:13px; color:#d9e6ff; margin:0}
 </style>
-
-<style>
-/* v0.418b-full drag fix */
-.is-dragging #map, .is-dragging .leaflet-container { touch-action: none !important; }
-canvas#overlay, .wind-overlay, .particles-overlay { pointer-events: none !important; }
-</style>
-
 </head>
 <body>
 <div id="app">
@@ -831,101 +824,5 @@ map.whenReady(()=>{
   requestAnimationFrame((t)=>{ last=t; tick(t); });
 });
 </script>
-
-<!-- v0.418b-full drag fix begin -->
-<script>
-(function(){
-  const map = (typeof map !== 'undefined') ? map : window.map;
-  if(!map) return;
-
-  const mapEl = map.getContainer();
-  const DPR = Math.max(1, Math.min(2, window.devicePixelRatio||1));
-  const HIT = 44; // px
-  function ll2pxAll(lon, lat){
-    const shifts = [-360, 0, +360];
-    const out = [];
-    for(const s of shifts){
-      const p = map.latLngToContainerPoint([lat, lon + s]);
-      out.push([p.x*DPR, p.y*DPR, lon+s]);
-    }
-    return out;
-  }
-  function clientToLatLng(ev){
-    const rect = mapEl.getBoundingClientRect();
-    const x = ev.clientX - rect.left;
-    const y = ev.clientY - rect.top;
-    return map.containerPointToLatLng([x, y]);
-  }
-  function findSystemsArray(){
-    try{ return systemsUser; }catch(e){}
-    try{ return window.systemsUser; }catch(e){}
-    try{ return window.systemsUser || window.userSystems || window.systems || window.activeSystems || window.lhSystems; }catch(e){}
-    return null;
-  }
-  function hitTest(ll, arr){
-    if(!arr || !arr.length) return null;
-    const pt = map.latLngToContainerPoint(ll);
-    let best=null, bestD=HIT;
-    for(const s of arr){
-      if(s==null) continue;
-      const lon = (s.lon !== undefined) ? s.lon : (s.center && s.center.lon);
-      const lat = (s.lat !== undefined) ? s.lat : (s.center && s.center.lat);
-      if(typeof lon!=='number' || typeof lat!=='number') continue;
-      const copies = ll2pxAll(lon, lat);
-      for(const a of copies){
-        const d = Math.hypot(pt.x*DPR - a[0], pt.y*DPR - a[1]);
-        if(d < bestD) { best = s; bestD = d; }
-      }
-    }
-    return best;
-  }
-  function wrap180(lon){ return ((lon+180)%360+360)%360 - 180; }
-
-  let dragging=null;
-  function onPointerDown(ev){
-    const arr = findSystemsArray();
-    const ll = clientToLatLng(ev);
-    const hit = hitTest(ll, arr);
-    if(hit){
-      dragging = hit;
-      try{ map.dragging.disable(); map.boxZoom.disable(); map.touchZoom.disable(); map.doubleClickZoom.disable(); }catch{}
-      document.body.classList.add('is-dragging');
-      ev.preventDefault();
-    }
-  }
-  function onPointerMove(ev){
-    if(!dragging) return;
-    const ll = clientToLatLng(ev);
-    if('lon' in dragging) dragging.lon = wrap180(ll.lng);
-    else if(dragging.center) dragging.center.lon = wrap180(ll.lng);
-    if('lat' in dragging) dragging.lat = Math.max(-90, Math.min(90, ll.lat));
-    else if(dragging.center) dragging.center.lat = Math.max(-90, Math.min(90, ll.lat));
-    ev.preventDefault();
-  }
-  function onPointerUp(ev){
-    if(!dragging) return;
-    dragging = null;
-    try{ map.dragging.enable(); map.boxZoom.enable(); map.touchZoom.enable(); map.doubleClickZoom.enable(); }catch{}
-    document.body.classList.remove('is-dragging');
-    ev.preventDefault();
-  }
-
-  mapEl.addEventListener('pointerdown', onPointerDown, {passive:false});
-  mapEl.addEventListener('pointermove', onPointerMove, {passive:false});
-  mapEl.addEventListener('pointerup',   onPointerUp,   {passive:false});
-  mapEl.addEventListener('pointercancel', onPointerUp, {passive:false});
-
-  // Fallback touch/mouse
-  mapEl.addEventListener('touchstart', (e)=>{ if(e.touches&&e.touches[0]) onPointerDown(e.touches[0]); }, {passive:false});
-  mapEl.addEventListener('touchmove',  (e)=>{ if(e.touches&&e.touches[0]) onPointerMove(e.touches[0]); }, {passive:false});
-  mapEl.addEventListener('touchend',   (e)=>{ onPointerUp(e.changedTouches?e.changedTouches[0]:e); }, {passive:false});
-  mapEl.addEventListener('mousedown', onPointerDown, {passive:false});
-  window.addEventListener('mousemove', onPointerMove, {passive:false});
-  window.addEventListener('mouseup',   onPointerUp,   {passive:false});
-
-})();
-</script>
-<!-- v0.418b-full drag fix end -->
-
 </body>
 </html>
