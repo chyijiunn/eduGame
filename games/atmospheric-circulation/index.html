@@ -3,17 +3,17 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-<title>大氣環流觀察器</title>
+<title>v0.418｜風場模擬（太平洋隨機 L/H＋氣候月份參數）</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="anonymous">
 <style>
 :root{ --bg:#070c16; --panel:#0e1726; --ink:#e6eefb; --muted:#8aa0c5; }
 *{box-sizing:border-box}
 html,body{height:100%; margin:0; background:var(--bg); color:var(--ink); font-family:"Noto Sans TC",ui-sans-serif,system-ui,Segoe UI,Arial}
-#app{position:fixed; inset:0; display:grid; grid-template-columns: 1fr min(440px, 40vw);}
+#app{position:fixed; inset:0; display:grid; grid-template-columns: minmax(0,1fr) minmax(260px,25vw);}
 #map{position:relative; background:transparent; transition:background 200ms ease; min-height:0; overflow:hidden}
 #map .leaflet-container{position:absolute; inset:0}
 #overlay{pointer-events:none; position:absolute; inset:0; width:100%; height:100%; display:block; z-index:100000}
-#ui{background:linear-gradient(180deg,rgba(17,26,44,.96),rgba(14,23,38,.96)); border-left:1px solid #16213c; padding:14px 14px 18px; overflow:auto}
+#ui{background:linear-gradient(180deg,rgba(17,26,44,.96),rgba(14,23,38,.96)); border-left:1px solid #16213c; padding:14px 12px 18px; overflow:auto}
 h1{margin:0 0 8px; font-size:18px; letter-spacing:.5px; color:#9cc9ff; display:flex; align-items:center; gap:8px}
 .badge{font:600 11px/1.8 ui-monospace,monospace; padding:2px 8px; border-radius:999px; background:#12213c; color:#7fbfff; border:1px solid #1a3a63}
 .row{display:flex; align-items:center; gap:8px; margin:10px 0 8px; flex-wrap:wrap}
@@ -26,62 +26,58 @@ input[type="range"]{width:100%}
 .small{font-size:12px; color:#8aa0c5}
 .kv{display:flex; align-items:center; justify-content:space-between; font:600 12px/1 ui-monospace,monospace; color:#cfe4ff}
 .toast{position:absolute; left:50%; transform:translateX(-50%); bottom:12px; background:rgba(0,0,0,.45); border:1px solid #1a2b4d; border-radius:10px; padding:6px 10px; font-size:12px; color:#d7e8ff; pointer-events:none; z-index:100001}
-#hud{position:absolute; top:10px; left:10px; z-index:100001; background:rgba(10,16,30,.55); border:1px solid #1a2b4d; border-radius:10px; padding:8px 10px; font-size:12px; color:#bcd1ff}
-#timeline{
-  position:absolute; left:50%; bottom:6px; transform:translateX(-50%);
-  z-index:100002; display:flex; align-items:center; gap:10px; flex-wrap:wrap; justify-content:center;
-  background:rgba(8,12,22,.65); border:1px solid #1a2b4d; padding:8px 12px; border-radius:12px; min-width:min(66vw,880px);
-}
-#timeline .label{min-width:200px; text-align:center; font-weight:800; color:#e6f0ff; letter-spacing:.5px}
-#daySlider{width:min(56vw,700px)}
+.legend{height:10px; border-radius:6px; border:1px solid #294060; margin-top:6px; position:relative}
+.timebox{display:grid; grid-template-columns: 1fr auto; gap:8px; align-items:center}
 #playBtn{border-radius:999px; width:34px; height:34px; display:grid; place-items:center}
-#yearBox{display:flex; align-items:center; gap:6px; padding:4px 8px; border:1px solid #1a2b4d; border-radius:10px; background:rgba(12,18,32,.55)}
-#yearInput{width:86px; background:#0b1424; color:#dfe9ff; border:1px solid #294060; border-radius:8px; padding:4px 6px; font:700 13px ui-monospace,monospace}
 .tag{display:inline-grid; place-items:center; width:18px; height:18px; border-radius:999px; font:700 12px ui-monospace; margin-right:6px}
 .tag.user{background:#2b2133; color:#ffd6e5; border:1px solid #61345b}
 .sys .hdr{display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:6px}
 .sys .hdr h3{font-size:13px; color:#d9e6ff; margin:0}
-.legend{height:10px; border-radius:6px; border:1px solid #294060; margin-top:6px; position:relative}
-.legend .ticks{display:flex; justify-content:space-between; font:600 10px/1 ui-monospace; color:#9bb8e4; margin-top:4px}
 </style>
 </head>
 <body>
 <div id="app">
   <div id="map">
-    <div id="hud" class="mono">大氣環流觀察器</div>
     <canvas id="overlay"></canvas>
-    <div id="timeline">
-      <button id="playBtn" title="播放 / 暫停">⏵</button>
-      <div id="yearBox">
-        <span style="color:#9bb8e4;font:600 12px ui-monospace,monospace">年份</span>
-        <input id="yearInput" type="number" min="1950" max="2100" step="1">
-        <button id="applyYear">套用</button>
-      </div>
-      <div class="label" id="dateLabel">—</div>
-      <input id="daySlider" type="range" min="1" max="366" step="1">
-    </div>
     <div id="toast" class="toast" style="display:none"></div>
   </div>
   <aside id="ui">
-    <h1>高低氣壓製造機<span class="badge">v0.416.3</span></h1>
-    <div class="small">每個 L/H 都可以拖拉唷</div>
+    <h1>東亞＋西太平洋風場 <span class="badge">v0.418</span></h1>
+    <div class="card">
+      <h3>時間</h3>
+      <div class="row timebox">
+        <div class="row" style="gap:6px">
+          <span style="color:#9bb8e4;font:600 12px ui-monospace,monospace">年份</span>
+          <input id="yearInput" type="number" min="1950" max="2100" step="1" style="width:92px;background:#0b1424;color:#dfe9ff;border:1px solid #294060;border-radius:8px;padding:4px 6px;font:700 13px ui-monospace,monospace">
+          <button id="applyYear">套用</button>
+        </div>
+        <button id="playBtn" title="播放 / 暫停">⏵</button>
+      </div>
+      <div class="row kv"><span>日期</span><span id="dateLabel" class="mono">—</span></div>
+      <input id="daySlider" type="range" min="1" max="366" step="1">
+      <div class="row kv"><span>時間倍率</span><span id="tMulLabel" class="mono">1.0×</span></div>
+      <input id="timeSpeed" type="range" min="0.1" max="10" step="0.1" value="1">
+      <div class="small">每幀＝一天；時間倍率影響播放速度（0.1×–10×），不改變單幀步長。</div>
+    </div>
+
+    <div class="small">「新增 L/H」會隨機放在**太平洋**（依月份偏好區域），並套用該月份的氣候參數。</div>
     <div class="row">
       <button id="addLow">新增低壓（L）</button>
       <button id="addHigh">新增高壓（H）</button>
       <button id="reset">清空自訂 L/H</button>
-      <button id="toggleMap">關閉地圖</button>
+      <button id="toggleMap">關閉底圖</button>
     </div>
+
     <div class="card">
       <h3>顯示與效能</h3>
-      <div class="row kv"><span>粒子數</span><span id="pcnt" class="mono"></span></div>
+      <div class="row kv"><span>粒子數（上限 10,000）</span><span id="pcnt" class="mono"></span></div>
       <input id="particles" type="range" min="200" max="10000" step="100" value="2000">
       <div class="row kv"><span>尾跡長度</span><span id="trailLen" class="mono">0.08</span></div>
       <input id="trail" type="range" min="0.02" max="0.2" step="0.01" value="0.08">
       <div class="row kv"><span>可視速度（倍速）</span><span id="vSpd" class="mono">1×</span></div>
-      <input id="visSpeed" type="range" min="1" max="20" step="1" value="1">
+      <input id="visSpeed" type="range" min="1" max="10" step="1" value="1">
       <div class="small">顏色對照（0–50 m/s）：</div>
       <div id="legendWrap" class="legend"></div>
-      <div class="ticks" id="legendTicks"></div>
       <div class="row"><label><input type="checkbox" id="showGrid"> 顯示緯經格網</label></div>
     </div>
 
@@ -103,7 +99,7 @@ input[type="range"]{width:100%}
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin="anonymous"></script>
 <script>
 // Map
-const map = L.map('map', { center:[23.5,121], zoom:4.2, zoomControl:true, attributionControl:true });
+const map = L.map('map', { center:[23.5,121], zoom:4.2, zoomControl:true, attributionControl:true, worldCopyJump:true });
 const tiles = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', {
   maxZoom: 11, minZoom: 3, attribution: '&copy; OpenStreetMap contributors &copy; CARTO'
 }).addTo(map);
@@ -149,10 +145,11 @@ const importBtn = document.getElementById('importBtn');
 const fileInput = document.getElementById('fileInput');
 const snapBtn = document.getElementById('snapBtn');
 const legendWrap = document.getElementById('legendWrap');
-const legendTicks = document.getElementById('legendTicks');
 const toast = document.getElementById('toast');
 const yearInput = document.getElementById('yearInput');
 const applyYearBtn = document.getElementById('applyYear');
+const timeSpeed = document.getElementById('timeSpeed');
+const tMulLabel = document.getElementById('tMulLabel');
 
 // Date helpers
 function isLeap(y){ return (y%4===0 && y%100!==0) || (y%400===0); }
@@ -174,10 +171,13 @@ daySlider.value = String(dateToDOY(simDate));
 yearInput.value = String(SIM_YEAR);
 
 // animation loop state
-let autoPlay=true, autoTimer=null;
+let autoPlay=true;
+let timeAccum=0; // ms accumulated for day stepping
+const FRAME_MS = 180; // base 1x speed: 1 day / 180 ms
 const UI = {
   particleCount:+particlesRange.value, trail:+trailRange.value, visSpeed:+visSpeed.value,
-  showGrid:false, monthDesired: monthFracFromDate(simDate), monthEff: monthFracFromDate(simDate), paused:false, version:'0.416.3'
+  showGrid:false, monthDesired: monthFracFromDate(simDate), monthEff: monthFracFromDate(simDate),
+  paused:false, version:'0.418', timeMul:+timeSpeed.value
 };
 const MONTH_NAMES = ['一月','二月','三月','四月','五月','六月','七月','八月','九月','十月','十一月','十二月'];
 
@@ -185,6 +185,7 @@ function setLabels(){
   pcnt.textContent = UI.particleCount.toLocaleString();
   trailLenLabel.textContent = UI.trail.toFixed(2);
   vSpdLabel.textContent = `${UI.visSpeed}×`;
+  tMulLabel.textContent = `${(+UI.timeMul).toFixed(1)}×`;
   const y=simDate.getFullYear(), m=simDate.getMonth(), d=simDate.getDate();
   dateLabel.textContent = `${y} 年 ${MONTH_NAMES[m]} ${d} 日`;
   daySlider.value = String(dateToDOY(simDate));
@@ -195,6 +196,7 @@ function ping(msg){ toast.textContent=msg; toast.style.display='block'; clearTim
 particlesRange.oninput = e=>{ UI.particleCount=+e.target.value; resetParticles(true); setLabels(); softClear(0.04); };
 trailRange.oninput = e=>{ UI.trail=+e.target.value; setLabels(); softClear(0.04); };
 visSpeed.oninput = e=>{ UI.visSpeed=+e.target.value; setLabels(); softClear(0.04); };
+timeSpeed.oninput = e=>{ UI.timeMul=+e.target.value; setLabels(); };
 showGrid.onchange = e=>{ UI.showGrid = e.target.checked; softClear(0.04); };
 daySlider.oninput = e=>{
   const doy = +e.target.value;
@@ -217,7 +219,8 @@ applyYearBtn.onclick = ()=>{
   YEAR_NOISE = SIM_YEAR; // update stochastic year key
   setLabels(); regenClimoIfNeeded(true); ping(`年份已切換：${SIM_YEAR}`);
 };
-playBtn.onclick = ()=>{ autoPlay=!autoPlay; playBtn.textContent = autoPlay ? '⏸' : '⏵'; if(autoPlay) startAuto(); else stopAuto(); };
+playBtn.onclick = ()=>{ autoPlay=!autoPlay; playBtn.textContent = autoPlay ? '⏸' : '⏵'; };
+
 toggleMapBtn.onclick = ()=>{
   mapVisible = !mapVisible;
   if(mapVisible){ tiles.addTo(map); document.getElementById('map').style.background='transparent'; }
@@ -225,18 +228,6 @@ toggleMapBtn.onclick = ()=>{
   toggleMapBtn.textContent = mapVisible ? '關閉底圖' : '開啟底圖';
   softClear(0.08);
 };
-function startAuto(){
-  stopAuto(); playBtn.textContent='⏸';
-  autoTimer=setInterval(()=>{
-    const doy = dateToDOY(simDate) + 1;
-    const maxd = isLeap(SIM_YEAR) ? 366 : 365;
-    simDate = doyToDate(SIM_YEAR, (doy>maxd?1:doy));
-    UI.monthDesired = monthFracFromDate(simDate);
-    setLabels(); regenClimoIfNeeded();
-  }, 180);
-}
-function stopAuto(){ if(autoTimer){ clearInterval(autoTimer); autoTimer=null; } playBtn.textContent='⏵'; }
-startAuto();
 
 // Math helpers
 function ll2px(lon, lat){ const p = map.latLngToContainerPoint([lat, lon]); return [p.x*DPR, p.y*DPR]; }
@@ -256,6 +247,35 @@ function rndSeed(seed){ let s=seed>>>0; return ()=>{ s=hash32(s+0x9e3779b9); ret
 function cycTri(m, peak, w){ let d=((m-peak+6)%12+12)%12-6; d=Math.abs(d); return clamp(1-d/w,0,1); }
 function wrapLon180(lon){ let L = ((lon + 180) % 360 + 360) % 360 - 180; return L; }
 function deg2rad(a){ return a*Math.PI/180; }
+// --- Antimeridian wrapping helpers ---
+function ll2pxAll(lon, lat){
+  const shifts = [-360, 0, +360];
+  const out = [];
+  for(const s of shifts){
+    const p = map.latLngToContainerPoint([lat, lon + s]);
+    out.push([p.x*DPR, p.y*DPR, lon+s]);
+  }
+  return out;
+}
+function ll2pxWrap(lon, lat){
+  const arr = ll2pxAll(lon, lat);
+  let best = arr[0], bestd = Infinity;
+  const cx = (W||canvas.width||1)/2;
+  for(const a of arr){
+    const d = Math.abs(a[0]-cx);
+    if(d<bestd){best=a; bestd=d;}
+  }
+  return best;
+}
+function ll2pxNearestTo(x, y, lon, lat){
+  const arr = ll2pxAll(lon, lat);
+  let best = arr[0], bestd = Infinity;
+  for(const a of arr){
+    const d = Math.hypot(a[0]-x, a[1]-y);
+    if(d<bestd){best=a; bestd=d;}
+  }
+  return best;
+}
 
 // Legend
 function speedToColor(s){
@@ -274,7 +294,8 @@ function drawLegend(){
   const h = legendWrap.clientHeight || 10;
   legendWrap.innerHTML='';
   const c = document.createElement('canvas');
-  c.width = Math.floor(w*DPR); c.height = Math.floor(h*DPR); c.style.width=w+'px'; c.style.height=h+'px';
+  const cw = Math.floor(w*DPR), ch = Math.floor(h*DPR);
+  c.width = cw; c.height = ch; c.style.width=w+'px'; c.style.height=h+'px';
   const g = c.getContext('2d');
   for(let x=0;x<c.width;x++){
     const t = x / c.width;
@@ -283,15 +304,10 @@ function drawLegend(){
     g.beginPath(); g.moveTo(x,0); g.lineTo(x,c.height); g.stroke();
   }
   legendWrap.appendChild(c);
-  legendTicks.innerHTML='';
-  const labels = [0,5,10,15,20,25,30,35,40,45,50];
-  const frag = document.createDocumentFragment();
-  labels.forEach(val=>{ const sp=document.createElement('span'); sp.textContent=String(val); frag.appendChild(sp); });
-  legendTicks.appendChild(frag);
 }
 
-// Stochastic/seasonal
-let YEAR_NOISE = SIM_YEAR; // updated when changing year
+// Seasonal background
+let YEAR_NOISE = SIM_YEAR;
 function monthPhase(m){ return (m/12.0) * Math.PI*2; }
 function noise2(lon, lat, m, seedA, seedB){
   const x = lon * Math.PI/180, y = lat * Math.PI/180;
@@ -338,12 +354,13 @@ function bgGlobalAt(lon, lat, m){
   return [u,v];
 }
 
-// Land/terrain masks
+// Land/terrain masks (coarse)
 function sRect(lon,lat,W,E,S,N,pad){
   const sx = smoothstep(W-pad,W,lon) * (1 - smoothstep(E,E+pad,lon));
   const sy = smoothstep(S-pad,S,lat) * (1 - smoothstep(N,N+pad,lat));
   return clamp(sx*sy,0,1);
 }
+// retain previous detailed East Asia land/orog; sufficient for West Pac sampling
 function landMask(lon,lat){
   let m=0;
   m = 1 - (1 - 0.9*sRect(lon,lat,100,150,15,55,2))
@@ -403,6 +420,63 @@ function generateClimo(m){
   climo = L;
 }
 
+// === NEW: Pacific-random placement & climate-aware defaults ===
+function rand(a,b){ return a + Math.random()*(b-a); }
+function choose(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+
+// pick a Pacific ocean position (focus West/Central Pacific near our domain);
+function randomPacificSpot(type, m){
+  // seasonal lat band preference: NH TC season JASO; SH DJF-MAM
+  const nhPeak = cycTri(m, 8.5, 2.5);
+  const shPeak = cycTri((m+6)%12, 8.5, 2.5);
+  let lon, lat;
+  if(type==='low'){
+    if(nhPeak >= shPeak){
+      // West North Pacific genesis belt 120E–170E, 5–25N (shift poleward into peak)
+      const beltLat = rand(6, 22) + 6*nhPeak;
+      lon = rand(120, 170);
+      lat = beltLat;
+    }else{
+      // South Pacific 150E–170W (i.e., 150..180, -180..-170), 5–20S
+      const useWest = Math.random()<0.7;
+      if(useWest){ lon = rand(150, 179.5); } else { lon = rand(-179.5, -170); }
+      lat = -rand(6, 22);
+    }
+  }else{
+    // Subtropical Pacific High belt 130E–170E, 15–35N; stronger in MJJAS
+    lon = rand(130, 170);
+    const belt = 15 + 18*cycTri(m, 6.0, 3.0); // 15..33
+    lat = rand(Math.max(12, belt-5), Math.min(38, belt+5));
+  }
+  // avoid immediate land using coarse East-Asia mask; if land, nudge eastward
+  for(let i=0;i<6;i++){
+    if(landMask(lon, lat) < 0.4) break;
+    lon += 2.5; if(lon>180) lon -= 360;
+  }
+  return [wrapLon180(lon), clamp(lat, -40, 55)];
+}
+
+function climateDefaults(type, lon, lat, m){
+  // weights
+  const nh = lat>=0;
+  const nhTC = nh ? Math.pow(cycTri(m, 8.5, 2.5),1.1) : Math.pow(cycTri((m+6)%12, 8.5, 2.5),1.1);
+  const subtHigh = Math.pow(cycTri(m, 6.0, 3.0),1.0);
+  if(type==='low'){
+    // stronger in peak TC season & warm SST zones
+    const warmBoost = clamp(0.5 + 0.8*nhTC + 0.3*sstBoost(lon,lat,m), 0.4, 1.5);
+    const radius = 160 + 260*nhTC;   // 160..420 km
+    const vmax   = 18 + 28*nhTC;     // 18..46 m/s
+    const spiral = 0.30 + 0.10*nhTC; // 0.30..0.40
+    return { radiusKm: radius*warmBoost, vmax: vmax*warmBoost, spiral, baseR: radius, baseVRef: 30 };
+  }else{
+    // Pacific High larger/stronger in MJJAS
+    const size = 600 + 750*subtHigh; // 600..1350 km
+    const vmax = 8 + 8*subtHigh;     // 8..16 m/s
+    const spiral = 0.10 + 0.03*subtHigh;
+    return { radiusKm: size, vmax, spiral, baseR: size, baseVRef: 15 };
+  }
+}
+
 // User systems
 let SID=1; let systemsUser=[];
 function makeRow(labelText, min, max, step, value, on){
@@ -435,58 +509,75 @@ function rebuildSystemCards(){
     systemsWrap.append(card);
   });
 }
-function addSystemUser(type, lon=121, lat=23.5){
-  const baseR = (type==='low'?180:500);
-  const baseVRef = (type==='low'?30:15);
+function addSystemUser(type, lon, lat){
+  // If no lon/lat, sample Pacific & set climate defaults by month
+  if(typeof lon === 'undefined' || typeof lat === 'undefined'){
+    const [rlon, rlat] = randomPacificSpot(type, UI.monthEff);
+    lon = rlon; lat = rlat;
+  }
+  const def = climateDefaults(type, lon, lat, UI.monthEff);
   const s = { id:SID++, type, lon, lat,
-    radiusKm: baseR, vmax: type==='low'?40:20,
-    spiral: type==='low'?0.35:0.12, decayKm: baseR*1.8, isClimo:false,
-    baseR, baseVRef,
+    radiusKm: def.radiusKm, vmax: def.vmax,
+    spiral: def.spiral, decayKm: (def.radiusKm||300)*1.8, isClimo:false,
+    baseR: def.baseR||def.radiusKm, baseVRef: def.baseVRef||(type==='low'?30:15),
     mobility:1.00, envGain:1.00, radiusGain:1.00
   };
   systemsUser.push(s); rebuildSystemCards(); ping((type==='low'?'低壓':'高壓')+' 已新增'); return s;
 }
-addLowBtn.onclick = ()=> addSystemUser('low', 121, 23.5);
-addHighBtn.onclick = ()=> addSystemUser('high', 140, 25);
+addLowBtn.onclick = ()=> addSystemUser('low');
+addHighBtn.onclick = ()=> addSystemUser('high');
 resetBtn.onclick = ()=>{ systemsUser=[]; rebuildSystemCards(); ping('已清空自訂 L/H。'); };
 
-// Drag user centers (more robust)
+// Drag user centers (mouse + touch + pointer) with antimeridian wrap
 let dragging=null;
-function startDrag(e){
-  const pt = map.latLngToContainerPoint(e.latlng);
-  let best=null, bestD=22; // bigger hit radius
+function findDraggableAt(latlng){
+  const pt = map.latLngToContainerPoint(latlng);
+  let best=null, bestD=26;
   systemsUser.forEach(s=>{
-    const sp = map.latLngToContainerPoint([s.lat, s.lon]);
-    const d = Math.hypot(sp.x-pt.x, sp.y-pt.y);
-    if(d<bestD){best=s; bestD=d;}
+    const arr = ll2pxAll(s.lon, s.lat);
+    for(const a of arr){ const dx=a[0]/DPR-pt.x, dy=a[1]/DPR-pt.y; const d=Math.hypot(dx,dy); if(d<bestD){best=s; bestD=d;} }
   });
-  if(best){
-    dragging=best; UI.paused=true; map.dragging.disable();
+  return best;
+}
+function startDragFromEvent(e){
+  if(!e.latlng) return;
+  const target = findDraggableAt(e.latlng);
+  if(target){
+    dragging=target; UI.paused=true; map.dragging.disable();
     document.body.style.cursor='grabbing';
-    ping('拖曳中…（放開滑鼠以結束）');
+    ping('拖曳中…');
+    if(e.originalEvent && e.originalEvent.preventDefault) e.originalEvent.preventDefault();
   }
 }
-function moveDrag(e){
-  if(!dragging) return;
+function moveDragFromEvent(e){
+  if(!dragging || !e.latlng) return;
   dragging.lon=e.latlng.lng; dragging.lat=e.latlng.lat;
 }
-function endDrag(){
+function endDragGeneric(){
   if(!dragging) return;
   dragging=null; UI.paused=false; map.dragging.enable();
   document.body.style.cursor='';
   ping('已放置。');
 }
-map.on('mousedown', startDrag);
-map.on('mousemove', moveDrag);
-map.on('mouseup', endDrag);
-window.addEventListener('mouseup', endDrag);
+map.on('pointerdown', startDragFromEvent);
+map.on('pointermove', moveDragFromEvent);
+map.on('pointerup',   endDragGeneric);
+map.on('mousedown', startDragFromEvent);
+map.on('mousemove', moveDragFromEvent);
+map.on('mouseup',   endDragGeneric);
+map.on('touchstart', startDragFromEvent);
+map.on('touchmove',  moveDragFromEvent);
+map.on('touchend',   endDragGeneric);
+window.addEventListener('pointerup', endDragGeneric);
+window.addEventListener('mouseup', endDragGeneric);
+window.addEventListener('touchend', endDragGeneric);
 
 // Field helpers
 function coriolisHemSign(lat){ return (lat>=0)?+1:-1; }
 function tangentVec(dx,dy,rot){ const r=Math.hypot(dx,dy)+1e-9; return (rot>0)? [ (dy/r), (-dx/r) ] : [ (-dy/r), (dx/r) ]; }
 function radialVec(dx,dy){ const r=Math.hypot(dx,dy)+1e-9; return [dx/r, dy/r]; }
 function systemFieldAtPx_single(s,x,y){
-  const [sx,sy]=ll2px(s.lon, s.lat); const dx=x-sx, dy=y-sy;
+  const [_sx,_sy,_lonUsed]=ll2pxNearestTo(x,y,s.lon, s.lat); const dx=x-_sx, dy=y-_sy;
   const r=Math.hypot(dx,dy)+1e-6; const rc=kmToPxAtLat(s.radiusKm,s.lat); const decay=s.decayKm?kmToPxAtLat(s.decayKm,s.lat):rc*1.8;
   const vt=s.vmax*(r/rc)*Math.exp(-(r*r)/(decay*decay)); const hem=coriolisHemSign(s.lat); const rot=(s.type==='low'?+1:-1)*hem;
   const [tx,ty]=tangentVec(dx,dy,rot); const [rx,ry]=radialVec(dx,dy); const vr=(s.spiral ?? (s.type==='low'?0.25:0.12))*vt*(s.type==='low'?-1:+1);
@@ -603,41 +694,68 @@ function drawGrid(){
 }
 function drawSystems(){
   ctx.save();
+  const margin = 120*DPR;
   for(const s of climo){
-    const [x,y]=ll2px(s.lon,s.lat);
-    ctx.font=`${13*DPR}px ui-monospace`;
-    ctx.lineWidth=3*DPR; ctx.strokeStyle='rgba(5,10,20,0.7)';
-    ctx.strokeText(s.type==='low'?'L':'H', x+4*DPR, y-4*DPR);
-    ctx.fillStyle='#d8e9ff';
-    ctx.fillText(s.type==='low'?'L':'H', x+4*DPR, y-4*DPR);
+    const arr = ll2pxAll(s.lon,s.lat);
+    for(const a of arr){ const x=a[0], y=a[1]; if(x<-margin||x>W+margin||y<-margin||y>H+margin) continue;
+      ctx.font=`${13*DPR}px ui-monospace`;
+      ctx.lineWidth=3*DPR; ctx.strokeStyle='rgba(5,10,20,0.7)';
+      ctx.strokeText(s.type==='low'?'L':'H', x+4*DPR, y-4*DPR);
+      ctx.fillStyle='#d8e9ff';
+      ctx.fillText(s.type==='low'?'L':'H', x+4*DPR, y-4*DPR);
+    }
   }
   for(const s of systemsUser){
-    const [x,y] = ll2px(s.lon, s.lat);
-    const rpx = (s.radiusKm>0)? kmToPxAtLat(s.radiusKm, s.lat) : 0;
-    if(rpx>0){
-      ctx.beginPath(); ctx.arc(x,y, rpx, 0, Math.PI*2);
-      ctx.strokeStyle = s.type==='low' ? '#ff8fa3' : '#9ac7ff'; ctx.lineWidth = 1.6*DPR; ctx.stroke();
+    const arr = ll2pxAll(s.lon,s.lat);
+    for(const a of arr){ const x=a[0], y=a[1]; if(x<-margin||x>W+margin||y<-margin||y>H+margin) continue;
+      const rpx = (s.radiusKm>0)? kmToPxAtLat(s.radiusKm, s.lat) : 0;
+      if(rpx>0){
+        ctx.beginPath(); ctx.arc(x,y, rpx, 0, Math.PI*2);
+        ctx.strokeStyle = s.type==='low' ? '#ff8fa3' : '#9ac7ff'; ctx.lineWidth = 1.6*DPR; ctx.stroke();
+      }
+      ctx.beginPath(); ctx.arc(x,y, 3*DPR, 0, Math.PI*2);
+      ctx.fillStyle = s.type==='low' ? '#ffb3c1' : '#b3d7ff'; ctx.fill();
+      ctx.font = `${12*DPR}px ui-monospace`; ctx.fillStyle = s.type==='low' ? '#ffd8df' : '#d8e9ff';
+      ctx.fillText(s.type==='low'?'L':'H', x+5*DPR, y-5*DPR);
     }
-    ctx.beginPath(); ctx.arc(x,y, 3*DPR, 0, Math.PI*2);
-    ctx.fillStyle = s.type==='low' ? '#ffb3c1' : '#b3d7ff'; ctx.fill();
-    ctx.font = `${12*DPR}px ui-monospace`; ctx.fillStyle = s.type==='low' ? '#ffd8df' : '#d8e9ff';
-    ctx.fillText(s.type==='low'?'L':'H', x+5*DPR, y-5*DPR);
   }
   ctx.restore();
 }
 
 // Animation
-let last=performance.now(); const K=14;
+let last=performance.now();
+const K=14;
 function advectRK2(x,y,dt){
   const k=K*UI.visSpeed*DPR; let u1=0,v1=0; [u1,v1]=fieldAtPx(x,y);
   const xm=x+0.5*dt*k*u1, ym=y+0.5*dt*k*v1; let u2=0,v2=0; [u2,v2]=fieldAtPx(xm,ym);
   const nx=x+dt*k*u2, ny=y+dt*k*v2;
   return [nx,ny,Math.hypot(u2,v2)];
 }
+function stepSimDay(){
+  let doy = dateToDOY(simDate) + 1;
+  const maxd = isLeap(SIM_YEAR) ? 366 : 365;
+  if(doy>maxd){
+    SIM_YEAR += 1;
+    yearInput.value = String(SIM_YEAR);
+    YEAR_NOISE = SIM_YEAR;
+    daySlider.max = String(isLeap(SIM_YEAR)?366:365);
+    doy = 1;
+    regenClimoIfNeeded(true);
+  }
+  simDate = doyToDate(SIM_YEAR, doy);
+  UI.monthDesired = monthFracFromDate(simDate);
+  setLabels();
+}
 function tick(now){
   if(W===0||H===0){ resize(); requestAnimationFrame(tick); return; }
   const dt = Math.min(0.05, (now - last)/1000); last = now;
-  if(!UI.paused){
+
+  if(autoPlay && !UI.paused){
+    timeAccum += dt*1000 * (UI.timeMul||1);
+    while(timeAccum >= FRAME_MS){
+      stepSimDay();
+      timeAccum -= FRAME_MS;
+    }
     const tau=0.35; const k=clamp(dt/tau,0,1); const d=wrapDiff(UI.monthEff, UI.monthDesired); UI.monthEff=(UI.monthEff+k*d+12)%12;
   }
 
@@ -664,7 +782,7 @@ exportBtn.onclick = () => {
   const data = JSON.stringify({UI, systemsUser, SIM_YEAR, simDOY: dateToDOY(simDate)}, null, 2);
   const blob = new Blob([data], {type:'application/json'});
   const url = URL.createObjectURL(blob);
-  const a = document.createElement('a'); a.href = url; a.download = 'eastasia_wpac_v0_416_3_settings.json'; a.click();
+  const a = document.createElement('a'); a.href = url; a.download = 'eastasia_wpac_v0_418_settings.json'; a.click();
   URL.revokeObjectURL(url); ping('已匯出設定。');
 };
 importBtn.onclick = ()=> fileInput.click();
@@ -677,8 +795,8 @@ fileInput.onchange = e => {
       if(typeof obj.SIM_YEAR==='number'){ SIM_YEAR=obj.SIM_YEAR; yearInput.value=String(SIM_YEAR); daySlider.max = isLeap(SIM_YEAR)?366:365; YEAR_NOISE=SIM_YEAR; }
       if(typeof obj.simDOY==='number'){ simDate = doyToDate(SIM_YEAR, obj.simDOY); }
       if(obj.UI){
-        for(const k of ['visSpeed','trail','particleCount','showGrid','monthDesired','monthEff','paused']) if(typeof obj.UI[k] !== 'undefined'){ UI[k]=obj.UI[k]; }
-        visSpeed.value=UI.visSpeed; trailRange.value=UI.trail; particlesRange.value=UI.particleCount; showGrid.checked=!!UI.showGrid;
+        for(const k of ['visSpeed','trail','particleCount','showGrid','monthDesired','monthEff','paused','timeMul']) if(typeof obj.UI[k] !== 'undefined'){ UI[k]=obj.UI[k]; }
+        visSpeed.value=UI.visSpeed; trailRange.value=UI.trail; particlesRange.value=UI.particleCount; showGrid.checked=!!UI.showGrid; timeSpeed.value=UI.timeMul||1;
       }
       if(Array.isArray(obj.systemsUser)){ systemsUser = obj.systemsUser; rebuildSystemCards(); }
       setLabels(); drawLegend(); regenClimoIfNeeded(true); ping('設定已載入。');
@@ -689,7 +807,7 @@ fileInput.onchange = e => {
 snapBtn.onclick = ()=>{
   const out = document.createElement('canvas'); out.width=canvas.width; out.height=canvas.height;
   const octx = out.getContext('2d'); octx.drawImage(canvas,0,0);
-  out.toBlob(blob=>{ const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = 'wind_overlay_v0_416_3.png'; a.click(); URL.revokeObjectURL(url); });
+  out.toBlob(blob=>{ const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = 'wind_overlay_v0_418.png'; a.click(); URL.revokeObjectURL(url); });
 };
 
 // Climo regen
