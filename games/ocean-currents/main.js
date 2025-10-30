@@ -59,7 +59,7 @@ class Particles{
 
 class Ducks{
   constructor(){ this.items=[]; }
-  add(lon,lat){ this.items.push({lon,lat,trail:[],following:false,drag:false}); }
+  add(lon,lat){ this.items.push({lon,lat,trail:[],following:true,drag:false}); }
   clear(){ this.items.length=0; }
   step(dt, month, field){ for(const d of this.items){ if(d.following && !d.drag){ const [u,v]=field.sample(d.lon,d.lat); const nx=wrapLon(d.lon + u*dt), ny=clamp(d.lat + v*dt, -85,85); if(isWaterCoord(nx,ny)){ d.lon=nx; d.lat=ny; } else { d.following=false; } } const last=d.trail[d.trail.length-1]; if(!last || Math.hypot(last[0]-d.lon,last[1]-d.lat)>0.02){ d.trail.push([d.lon,d.lat]); if(d.trail.length>1200) d.trail.shift(); } } }
 }
@@ -275,7 +275,7 @@ class CesiumRenderer{
   const mode3dBtn = document.getElementById('mode3d');
 
   let place=false, play=true;
-  placeBtn.onclick=()=>{ place=!place; placeBtn.textContent = "放鴨模式："+(place?"開":"關"); };
+  placeBtn.onclick = ()=>{  place=!place; placeBtn.textContent = "放鴨模式："+(place?"開":"關");  console.log('[place]', place); };
   dropTWBtn.onclick=()=>{ ducks.add(123.3,24.0); if(mode==="3d" && renderer.addDuckEntity) renderer.addDuckEntity(123.3,24.0); };
   goBtn.onclick=()=>{ ducks.items.forEach(d=>d.following=true); };
   stopBtn.onclick=()=>{ ducks.items.forEach(d=>d.following=false); };
