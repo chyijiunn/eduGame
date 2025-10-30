@@ -267,9 +267,17 @@ class CesiumRenderer{
     const dsec = (t-last)/1000; last = t;
 
     // Fade or clear
-    const a= +fadeEl.value;
-    if(a>0){ ctx.fillStyle = `rgba(4,9,17,${a.toFixed(3)})`; ctx.fillRect(0,0,overlay.width,overlay.height); }
-    else { ctx.clearRect(0,0,overlay.width,overlay.height); }
+    const a = +fadeEl.value;
+if(a>0){
+  ctx.save();
+  ctx.globalCompositeOperation = 'destination-in';
+  // Keep a fraction of previous frame (1-a), fade the rest to transparent
+  ctx.fillStyle = `rgba(255,255,255,${(1-a).toFixed(3)})`;
+  ctx.fillRect(0,0,overlay.width,overlay.height);
+  ctx.restore();
+} else {
+  ctx.clearRect(0,0,overlay.width,overlay.height);
+}
 
     // Step particles & ducks
     particles.step(dt, +monthEl.value|0);
