@@ -158,30 +158,22 @@ class MapLibreRenderer{
     this.ctx = canvas.getContext('2d');
     this.map = null;
   }
+  worldWidth(){ return 512 * Math.pow(2, this.map.getZoom()); }
   async init(){
     // Night style with OSM raster tiles (no key)
+    
     this.map = new maplibregl.Map({
       container: document.getElementById('map'),
-      style: {
-        "version": 8,
-        "sources": {
-          "osm": {
-            "type":"raster",
-            "tiles":["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
-            "tileSize":256,
-            "attribution":"© OpenStreetMap"
-          }
-        },
-        "layers": [
-          {"id":"bg","type":"background","paint":{"background-color":"#050b16"}},
-          {"id":"osm","type":"raster","source":"osm","minzoom":0,"maxzoom":19},
-          // dark overlay
-          {"id":"shade","type":"background","paint":{"background-color":"#000000","background-opacity":0.15}}
-        ]
-      },
-      center: [130,22], zoom: 3.5
+      style: { "version":8, "sources":{}, "layers":[{"id":"bg","type":"background","paint":{"background-color":"#050b16"}}] },
+      center:[130,22], zoom:3.5, renderWorldCopies:true
     });
+    
     await new Promise(res=> this.map.on('load', res));
+    const landPolys=[]; for(const k in LAND_POLYS){ landPolys.push([ LAND_POLYS[k].map(p=>[p[0],p[1]]) ]); }
+    const landGeo={type:'FeatureCollection',features:[{type:'Feature',properties:{},geometry:{type:'MultiPolygon',coordinates:landPolys}}]};
+    this.map.addSource('land',{type:'geojson',data:landGeo});
+    this.map.addLayer({id:'land-fill',type:'fill',source:'land',paint:{'fill-color':'#0c172d','fill-opacity':0.9}});
+
     const resize = ()=>{
       const r = Math.min(2, window.devicePixelRatio||1);
       this.canvas.width = Math.round(this.map.getContainer().clientWidth * r);
@@ -243,8 +235,8 @@ class CesiumRenderer{
   const overlay = document.getElementById('overlay');
   const ctx = overlay.getContext('2d');
   // Place mode uses overlay to capture clicks so MapLibre doesn't swallow events
-  overlay.style.pointerEvents = 'none';
-  overlay.style.cursor = 'default';
+  overlay.style.pointerEvents = 'auto';
+  overlay.style.cursor = 'crosshair';
 
   const field = new CurrentsField();
   await field.loadMonth(7);
@@ -252,6 +244,7 @@ class CesiumRenderer{
   let mode = "2d";
   let renderer = new MapLibreRenderer(overlay);
   await renderer.init();
+  try{ if(renderer.map){ renderer.map.on('click', (e)=>{ if(place){ if(isWaterCoord(e.lngLat.lng,e.lngLat.lat)){ ducks.add(e.lngLat.lng,e.lngLat.lat); } } }); } }catch(_){}
 
   let particles = new Particles(10000, field);
   let ducks = new Ducks();
@@ -274,7 +267,7 @@ class CesiumRenderer{
   const mode2dBtn = document.getElementById('mode2d');
   const mode3dBtn = document.getElementById('mode3d');
 
-  let place=false, play=true;
+  let place=true, play=true;
   placeBtn.onclick = ()=>{  place=!place; placeBtn.textContent = "放鴨模式："+(place?"開":"關");  console.log('[place]', place); };
   dropTWBtn.onclick=()=>{ ducks.add(123.3,24.0); if(mode==="3d" && renderer.addDuckEntity) renderer.addDuckEntity(123.3,24.0); };
   goBtn.onclick=()=>{ ducks.items.forEach(d=>d.following=true); };
@@ -320,12 +313,14 @@ class CesiumRenderer{
     if(renderer.viewer){ /* Cesium present */ }
     renderer = new MapLibreRenderer(overlay);
     await renderer.init();
+  try{ if(renderer.map){ renderer.map.on('click', (e)=>{ if(place){ if(isWaterCoord(e.lngLat.lng,e.lngLat.lat)){ ducks.add(e.lngLat.lng,e.lngLat.lat); } } }); } }catch(_){}
   };
   mode3dBtn.onclick = async ()=>{
     try{
       mode="3d";
       renderer = new CesiumRenderer(overlay);
       await renderer.init();
+  try{ if(renderer.map){ renderer.map.on('click', (e)=>{ if(place){ if(isWaterCoord(e.lngLat.lng,e.lngLat.lat)){ ducks.add(e.lngLat.lng,e.lngLat.lat); } } }); } }catch(_){}
       // Add 3D models for existing ducks
       ducks.items.forEach(d=> renderer.addDuckEntity(d.lon,d.lat));
     }catch(err){
@@ -334,6 +329,7 @@ class CesiumRenderer{
       mode="2d";
       renderer = new MapLibreRenderer(overlay);
       await renderer.init();
+  try{ if(renderer.map){ renderer.map.on('click', (e)=>{ if(place){ if(isWaterCoord(e.lngLat.lng,e.lngLat.lat)){ ducks.add(e.lngLat.lng,e.lngLat.lat); } } }); } }catch(_){}
     }
   };
 
@@ -361,6 +357,7 @@ class CesiumRenderer{
 
   // Main loop
   let last = performance.now();
+  function drawPointWrapped(x,y,drawFn){ const w=(renderer.worldWidth&&renderer.worldWidth())||overlay.width; for(const k of [-1,0,1]){ const xx=x+k*w; if(xx>=-50&&xx<=overlay.width+50) drawFn(xx,y);} }
   function loop(t){
     const dt = 0.09 * (+speedEl.value);
     const dsec = (t-last)/1000; last = t;
@@ -383,11 +380,8 @@ if(a>0){
     ducks.step(dt, +monthEl.value|0, field);
 
     // Draw particles
-    ctx.fillStyle = 'rgba(11,61,145,0.95)';
-    for(const q of particles.p){
-      const P = renderer.project(q.lon,q.lat);
-      if(P && P.x===P.x && P.y===P.y) ctx.fillRect(P.x, P.y, 1, 1);
-    }
+    ctx.fillStyle='rgba(11,61,145,0.95)';
+    for(const q of particles.p){ const P=renderer.project(q.lon,q.lat); if(P&&Number.isFinite(P.x)&&Number.isFinite(P.y)){ drawPointWrapped(P.x,P.y,(xx,yy)=>ctx.fillRect(xx,yy,1,1)); } }
 
     // Draw duck trails & ducks (2D only; 3D has real models)
     if(mode==="2d"){
