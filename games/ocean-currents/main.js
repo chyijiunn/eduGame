@@ -145,6 +145,9 @@ class CesiumRenderer{
 (async function(){
   const overlay = document.getElementById('overlay');
   const ctx = overlay.getContext('2d');
+  // Place mode uses overlay to capture clicks so MapLibre doesn't swallow events
+  overlay.style.pointerEvents = 'none';
+  overlay.style.cursor = 'default';
 
   const field = new CurrentsField();
   await field.loadMonth(7);
@@ -188,7 +191,7 @@ class CesiumRenderer{
   fadeEl.oninput = ()=>{ fval.textContent = (+fadeEl.value).toFixed(2); };
 
   // Place ducks by click
-  document.getElementById('map').addEventListener('pointerdown', (e)=>{
+  overlay.addEventListener('pointerdown', (e)=>{
     if(!place) return;
     const rect = overlay.getBoundingClientRect();
     const x = e.clientX - rect.left, y = e.clientY - rect.top;
