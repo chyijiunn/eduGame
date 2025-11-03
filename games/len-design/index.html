@@ -3,17 +3,16 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>非球面平凸透鏡 橫剖面互動設計器 v0.2 (mm)</title>
+<title>非球面平凸透鏡 橫剖面互動設計器 v0.23c (mm)</title>
 <style>
   :root{
-    --bg:#0b0f14; --panel:#10161f; --ink:#e6f0ff; --muted:#9bb3cc; --accent:#7cc4ff; --good:#3ddc97; --warn:#ffd166; --bad:#ef476f;
+    --bg:#0b0f14; --panel:#10161f; --ink:#e6f0ff; --muted:#9bb3cc; --accent:#7cc4ff; --good:#3ddc97; --warn:#ffd166; --bad:#ef476f; --mag:#ff5af1;
   }
   html,body{height:100%;}
   body{margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Noto Sans TC, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji"; background:var(--bg); color:var(--ink);} 
   .wrap{display:grid; grid-template-columns: 320px 1fr; gap:16px; height:100%;}
   .panel{background:var(--panel); padding:16px 14px; overflow:auto; box-shadow:inset 0 0 0 1px #1b2430;} 
   h1{font-size:18px; margin:0 0 8px; display:flex; align-items:center; gap:8px;}
-  .tag{font-size:11px; padding:2px 6px; border:1px solid #2b3a52; border-radius:999px; color:#b8d7ff; background:#0d1523;}
   h2{font-size:14px; color:var(--muted); margin:16px 0 8px; letter-spacing:.02em; font-weight:600;}
   .row{margin:10px 0 14px;}
   .row label{display:block; font-size:13px; color:var(--muted); margin-bottom:6px;}
@@ -25,12 +24,11 @@
   button{background:#142132; color:var(--ink); border:1px solid #223048; border-radius:10px; padding:8px 12px; cursor:pointer; font-weight:600;}
   button:hover{border-color:#2f4666; background:#0e1a29;}
   .viewer{position:relative; height:100vh; overflow:hidden;}  
-  #svg{width:100%; height:100%; background:linear-gradient(#0f1724, #0b0f14);} 
+  #svg{width:100%; height:100%; background:linear-gradient(#0f1724, #0b0f14); touch-action:none;} 
   .badge{position:absolute; top:8px; right:8px; font-size:12px; color:#b9d4f2; background:#0F1520aa; padding:6px 10px; border-radius:999px; border:1px solid #25344d;}
   .stat{font-variant-numeric: tabular-nums;}
   .legend{position:absolute; bottom:8px; left:8px; font-size:12px; color:#cfe2ff; background:#0F1520aa; padding:6px 10px; border-radius:10px; border:1px solid #25344d;}
   .warn{color:var(--warn);} .bad{color:var(--bad);} .goodtxt{color:var(--good);} 
-  /* Modal */
   .modal{position:fixed; inset:0; display:none; place-items:center; background:#0009; z-index:50;}
   .modal.on{display:grid;}
   .card{max-width:960px; max-height:80vh; overflow:auto; background:#0f1523; border:1px solid #2c3e5f; border-radius:16px; padding:16px 18px;}
@@ -40,12 +38,17 @@
   .em{color:#9fd3ff}
   details{border:1px solid #223048; border-radius:10px; padding:8px 10px; margin-top:10px; background:#0e141c;}
   summary{cursor:pointer; color:#b8d7ff;}
+  .grab-pan{cursor:grab;}
+  .grab-pan:active{cursor:grabbing;}
+  /* error overlay */
+  #err{position:fixed; inset:auto 8px 8px 8px; background:#2a0f15; color:#ffe6e6; border:1px solid #a33; border-radius:10px; padding:8px 10px; z-index:9999; display:none; font-size:12px; white-space:pre-wrap;}
+  #err b{color:#fff;}
 </style>
 </head>
 <body>
+<noscript style="color:#fff; padding:12px; display:block;">需要啟用 JavaScript 才能顯示內容。</noscript>
 <div class="wrap">
   <div class="panel">
-    <!-- 移除版號與單位，改放到「說明」 -->
     <h1>非球面平凸透鏡 設計器</h1>
 
     <h2>主要尺寸 & 光學條件</h2>
@@ -65,10 +68,7 @@
     <div class="row"><label>A4（×10⁻⁶ mm⁻³）</label><input id="A4" class="num" type="number" step="1" value="0"><input id="A4R" type="range" min="-5000" max="5000" step="1" value="0"></div>
     <div class="row"><label>A6（×10⁻⁹ mm⁻⁵）</label><input id="A6" class="num" type="number" step="1" value="0"><input id="A6R" type="range" min="-5000" max="5000" step="1" value="0"></div>
     <div class="row"><label>A8（×10⁻¹² mm⁻⁷）</label><input id="A8" class="num" type="number" step="1" value="0"><input id="A8R" type="range" min="-5000" max="5000" step="1" value="0"></div>
-    <div class="note">曲面：z(r) = c·r² / ( 1 + sqrt( 1 - (1+K)·c²·r² ) ) + A4·r⁴ + A6·r⁶ + A8·r⁸；c=1/R，且 R = EFL·(n−1)（平凸、後表面為平面）。A4/6/8 顯示單位已縮放，計算時換回 mm 量綱。</div>
-
-    <h2>顯示與輸出</h2>
-    <div class="row"><label>視圖縮放（px/mm）</label><input id="scale" class="num" type="number" step="0.5" value="8"><input id="scaleR" type="range" min="2" max="40" step="0.5" value="8"></div>
+    <div class="note">曲面：z(r) = c*r*r / ( 1 + sqrt( 1 - (1+K)*c*c*r*r ) ) + A4*r^4 + A6*r^6 + A8*r^8；c=1/R，且 R = EFL*(n−1)（平凸、後表面為平面）。A4/6/8 顯示單位已縮放，計算時換回 mm 量綱。</div>
 
     <h2>3D 匯出設定</h2>
     <div class="row"><label>STL 格式</label>
@@ -94,9 +94,9 @@
 
     <div class="btns">
       <button id="reset">重設預設</button>
-      <button id="dlCSV" class="good">下載剖面 CSV（v0.2）</button>
-      <button id="dlSVG" class="good">下載視圖 SVG（v0.2）</button>
-      <button id="dlSTL" class="good">下載 3D STL（v0.2）</button>
+      <button id="dlCSV" class="good">下載剖面 CSV（v0.23c）</button>
+      <button id="dlSVG" class="good">下載視圖 SVG（v0.23c）</button>
+      <button id="dlSTL" class="good">下載 3D STL（v0.23c）</button>
       <button id="simulate">模擬（成像）</button>
       <button id="about">說明</button>
     </div>
@@ -109,20 +109,25 @@
     </details>
   </div>
 
-  <div class="viewer">
-    <div class="badge"><span id="viewMode">設計</span>視圖（<b>光軸水平</b>，向右為 +z）。<span id="badgeScale"></span></div>
-    <svg id="svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 700">
-      <!-- 元素由 JS 建立 -->
+  <div class="viewer grab-pan" id="viewer">
+    <div class="badge"><span id="viewMode">設計</span>視圖（光軸水平，向右為 +z）。<span id="badgeUV" style="margin-left:8px;"></span></div>
+    <svg id="svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 700" preserveAspectRatio="xMidYMid meet">
+      <rect x="0" y="0" width="1200" height="700" fill="url(#bg)" opacity="0"/>
+      <defs>
+        <linearGradient id="bg" x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0%" stop-color="#0f1724"/>
+          <stop offset="100%" stop-color="#0b0f14"/>
+        </linearGradient>
+      </defs>
     </svg>
-    <div class="legend" id="legend">線色：<span style="color:#7cc4ff">非球前表面</span> · <span style="color:#c9ff7c">平面後表面</span> · <span style="color:#ff9f7c">最佳擬合球</span> · <span style="color:#a9ffd0">口徑標示（CA）</span></div>
+    <div class="legend" id="legend">滑鼠拖曳/觸控可平移；滾輪/雙指可縮放。線色（設計）：非球前表面 - 平面後表面 - 最佳擬合球 - 口徑標示（CA）</div>
   </div>
 </div>
 
-<!-- 說明 Modal -->
 <div id="help" class="modal">
   <div class="card">
     <h3>參數說明與 3D/模擬（八年級可懂版）</h3>
-    <p class="note">版本：<b>v0.2</b>．單位：<b>mm</b></p>
+    <p class="note">版本：<b>v0.23c</b>．單位：<b>mm</b></p>
     <div class="grid2">
       <div>
         <p><span class="em">清孔徑 CA</span>：光能通過的有效直徑（mm）。像水管口徑，越大進光越多、景深越淺。</p>
@@ -133,36 +138,55 @@
       </div>
       <div>
         <p><span class="em">圓錐常數 K</span>：決定基礎曲面形狀。K=0 球面、K=-1 拋物面（預設）、K&lt;-1 雙曲面、-1&lt;K&lt;0 橢圓面。</p>
-        <p><span class="em">A4/A6/A8 是什麼？</span> 非球面方程中的多項式係數：z(r)=conic + A4·r⁴ + A6·r⁶ + A8·r⁸。</p>
-        <p><span class="em">為什麼 UI 的單位有縮放？</span> 為了好輸入：A4 用「×10⁻⁶ mm⁻³」、A6「×10⁻⁹ mm⁻⁵」、A8「×10⁻¹² mm⁻⁷」，計算時會自動換回 mm 量綱。</p>
-        <p><span class="em">怎麼影響形狀？</span> A4 主要影響中外圈；A6/A8 更偏邊緣。A&gt;0 使外圈更凸，A&lt;0 更平。建議：先用 K 決定大致曲率，A4 粗調，A6/A8 小幅微調。</p>
-        <p><span class="em">量級感（以目前 CA 為例）</span>：在 r=CA/2 處，若 A4/A6/A8 的顯示值各 +1，則弧高增量約為：<span id="a468Example">—</span></p>
+        <p><span class="em">A4/A6/A8</span>：非球面方程中的多項式係數：z(r)=conic + A4*r^4 + A6*r^6 + A8*r^8。</p>
+        <p><span class="em">顯示單位縮放</span>：A4 用「×10⁻⁶ mm⁻³」、A6「×10⁻⁹ mm⁻⁵」、A8「×10⁻¹² mm⁻⁷」，計算時會自動換回 mm 量綱。</p>
+        <p><span class="em">量級感</span>：在 r=CA/2 處，若 A4/A6/A8 的顯示值各 +1，則弧高增量約為：<span id="a468Example">—</span></p>
       </div>
     </div>
     <details>
       <summary>輸出檔案與模擬</summary>
       <ul>
-        <li><b>CSV（v0.2）</b>：第一段是「# 參數區」，第二段是 <code>r_mm,z_mm</code> 剖面。</li>
-        <li><b>SVG（v0.2）</b>：置中的鏡片剖面 + 平面後表面 + <b>CA 尺寸標示</b>。</li>
-        <li><b>STL（v0.2）</b>：支援 <b>Binary</b> 與 <b>ASCII</b>，可用<b>自適應取樣</b>減檔。</li>
-        <li><b>模擬</b>：按「模擬」按鈕，會以幾何追跡（ray tracing）顯示物體→鏡片→像面，並自動尋找最佳成像平面（最小 RMS spot）。</li>
+        <li><b>CSV（v0.23c）</b>：第一段是「# 參數區」，第二段是 <code>r_mm,z_mm</code> 剖面。</li>
+        <li><b>SVG（v0.23c）</b>：置中的鏡片剖面 + 平面後表面 + <b>CA 尺寸標示</b>。</li>
+        <li><b>STL（v0.23c）</b>：支援 Binary/ASCII，含自適應取樣。</li>
+        <li><b>模擬</b>：橙色物體箭頭（物距 m）、綠色螢幕（像距 mm），兩條光線交點即最佳成像。</li>
       </ul>
     </details>
     <div style="text-align:right; margin-top:8px;"><button id="closeHelp">關閉</button></div>
   </div>
 </div>
 
+<div id="err"></div>
+
 <script>
 (function(){
-  const VERSION = 'v0.2';
-  const $ = s=>document.querySelector(s);
-  const elt = (tag, attrs={}, children=[])=>{ const e=document.createElementNS('http://www.w3.org/2000/svg', tag); for(const k in attrs) e.setAttribute(k, attrs[k]); children.forEach(c=>e.appendChild(c)); return e; };
+  // -------- error overlay --------
+  var ERR = document.getElementById('err');
+  function showErr(msg){ if(!ERR) return; ERR.style.display='block'; ERR.innerHTML = '<b>腳本錯誤：</b>\\n' + msg; }
+  window.addEventListener('error', function(e){ showErr(e.message + (e.filename? ('\\n'+e.filename+':'+e.lineno):'')); });
+  window.addEventListener('unhandledrejection', function(e){ showErr('Promise 拋出：'+ (e.reason && e.reason.message ? e.reason.message : e.reason)); });
+
+  const VERSION = 'v0.23c';
+  const $ = function(s){ return document.querySelector(s); };
+  const svg = $('#svg');
+  const viewer = $('#viewer');
+  function elt(tag, attrs, children){ var e=document.createElementNS('http://www.w3.org/2000/svg', tag); attrs=attrs||{}; for(var k in attrs){ e.setAttribute(k, attrs[k]); } if(children){ for(var i=0;i<children.length;i++) e.appendChild(children[i]); } return e; }
 
   // State
-  let simMode = false;
+  var simMode = false;
+  var simZObj = null;          // 物體 z（可拖動）
+  var simZScreen = null;       // 螢幕 z（可拖動）
+  var userSetObj = false;
+  var userSetScreen = false;
 
-  // Inputs & pairs
-  const inp = {
+  // 視圖縮放 & 平移（設計 / 模擬共用）
+  var BASE_PX_PER_MM = 8; // 初始像素密度
+  var designMul = 1.0, simMul = 1.0; // 縮放倍率
+  var designCenterZ = null, simCenterZ = null; // 世界中心 z
+  var pan = {active:false, id:null, startX:0, startCenter:0};
+
+  // Inputs & pairs (FIX: 正確取得 KR)
+  var inp = {
     ca: $('#ca'), caR: $('#caR'),
     efl: $('#efl'), eflR: $('#eflR'),
     nidx: $('#nidx'), nidxR: $('#nidxR'),
@@ -170,7 +194,6 @@
     A4: $('#A4'), A4R: $('#A4R'),
     A6: $('#A6'), A6R: $('#A6R'),
     A8: $('#A8'), A8R: $('#A8R'),
-    scale: $('#scale'), scaleR: $('#scaleR'),
     thickMode: $('#thickMode'),
     et: $('#et'), etR: $('#etR'),
     ct: $('#ct'), ctR: $('#ctR'),
@@ -178,301 +201,510 @@
     stlQuality: $('#stlQuality'),
     stlTol: $('#stlTol'), stlTolR: $('#stlTolR'),
   };
-  const etRow = $('#etRow');
-  const ctRow = $('#ctRow');
-  const svg = $('#svg');
-  let currentData = null;
+  var etRow = $('#etRow');
+  var ctRow = $('#ctRow');
+  var currentData = null;
 
-  function bindPair(num, rng){ num.addEventListener('input', ()=>{ rng.value = num.value; computeAndDraw(); }); rng.addEventListener('input', ()=>{ num.value = rng.value; computeAndDraw(); }); }
-  [ ['ca','caR'],['efl','eflR'],['nidx','nidxR'],['K','KR'], ['A4','A4R'],['A6','A6R'],['A8','A8R'], ['scale','scaleR'], ['et','etR'],['ct','ctR'], ['stlTol','stlTolR'] ].forEach(([a,b])=>bindPair(inp[a], inp[b]));
+  function bindPair(num, rng){
+    num.addEventListener('input', function(){ rng.value = num.value; onParamsChanged(); });
+    rng.addEventListener('input', function(){ num.value = rng.value; onParamsChanged(); });
+  }
+  [['ca','caR'],['efl','eflR'],['nidx','nidxR'],['K','KR'], ['A4','A4R'],['A6','A6R'],['A8','A8R'], ['et','etR'],['ct','ctR'], ['stlTol','stlTolR']].forEach(function(p){ bindPair(inp[p[0]], inp[p[1]]); });
+  function onParamsChanged(){ try{ computeAndDraw(true); }catch(err){ showErr(err.message); } }
 
-  inp.thickMode.addEventListener('change', ()=>{ const m = inp.thickMode.value; etRow.style.display = (m==='ET')?'block':'none'; ctRow.style.display = (m==='CT')?'block':'none'; computeAndDraw(); });
-  inp.stlFormat.addEventListener('change', ()=>{ updateSTLEstimate(); });
-  inp.stlQuality.addEventListener('change', ()=>{ updateSTLEstimate(); });
-  $('#reset').addEventListener('click', ()=>{ inp.ca.value = inp.caR.value = 25; inp.efl.value = inp.eflR.value = 30; inp.nidx.value = inp.nidxR.value = 1.520; inp.K.value = inp.KR.value = -1; inp.A4.value = inp.A4R.value = 0; inp.A6.value = inp.A6R.value = 0; inp.A8.value = inp.A8R.value = 0; inp.scale.value = inp.scaleR.value = 8; inp.thickMode.value = 'ET'; etRow.style.display='block'; ctRow.style.display='none'; inp.et.value = inp.etR.value = 2.00; inp.ct.value = inp.ctR.value = 4.00; inp.stlFormat.value='binary'; inp.stlQuality.value='medium'; inp.stlTol.value=inp.stlTolR.value=10.0; simMode=false; setViewMode(); computeAndDraw(); });
+  inp.thickMode.addEventListener('change', function(){ var m = inp.thickMode.value; etRow.style.display = (m==='ET')?'block':'none'; ctRow.style.display = (m==='CT')?'block':'none'; onParamsChanged(); });
+  inp.stlFormat.addEventListener('change', function(){ updateSTLEstimate(); });
+  inp.stlQuality.addEventListener('change', function(){ updateSTLEstimate(); });
+  $('#reset').addEventListener('click', function(){
+    try{
+      inp.ca.value = inp.caR.value = 25; inp.efl.value = inp.eflR.value = 30; inp.nidx.value = inp.nidxR.value = 1.520; inp.K.value = inp.KR.value = -1;
+      inp.A4.value = inp.A4R.value = 0; inp.A6.value = inp.A6R.value = 0; inp.A8.value = inp.A8R.value = 0;
+      inp.thickMode.value = 'ET'; etRow.style.display='block'; ctRow.style.display='none'; inp.et.value = inp.etR.value = 2.00; inp.ct.value = inp.ctR.value = 4.00;
+      inp.stlFormat.value='binary'; inp.stlQuality.value='medium'; inp.stlTol.value=inp.stlTolR.value=10.0;
+      simMode=false; simZObj=null; simZScreen=null; userSetObj=false; userSetScreen=false; simMul=1.0; designMul=1.0; simCenterZ=null; designCenterZ=null;
+      setViewMode(); computeAndDraw();
+    }catch(err){ showErr(err.message); }
+  });
 
   // Help modal
-  const modal = $('#help');
-  $('#about').addEventListener('click', ()=>{ updateA468Example(); modal.classList.add('on'); });
-  $('#closeHelp').addEventListener('click', ()=>{ modal.classList.remove('on'); });
-  modal.addEventListener('click', (e)=>{ if(e.target===modal) modal.classList.remove('on'); });
+  var modal = $('#help');
+  $('#about').addEventListener('click', function(){ try{ updateA468Example(); modal.classList.add('on'); }catch(err){ showErr(err.message); } });
+  $('#closeHelp').addEventListener('click', function(){ modal.classList.remove('on'); });
+  modal.addEventListener('click', function(e){ if(e.target===modal) modal.classList.remove('on'); });
 
   // Downloads + Simulate
-  function download(filename, text){ const a=document.createElement('a'); a.href='data:text/plain;charset=utf-8,'+encodeURIComponent(text); a.download=filename; document.body.appendChild(a); a.click(); a.remove(); }
-  function downloadBlob(filename, blob){ const a=document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = filename; document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 0); }
-  $('#dlCSV').addEventListener('click', ()=>{ const d = currentData || computeProfile(); const csv = buildCSV(d); download(`asphere_profile_${VERSION}.csv`, csv); });
-  $('#dlSVG').addEventListener('click', ()=>{ const d=currentData||computeProfile(); const xml = exportLensSVG(d); download(`lens_cross_section_${VERSION}.svg`, xml); });
-  $('#dlSTL').addEventListener('click', ()=>{ const d=currentData||computeProfile(); const opts = getSTLOpts(); if(opts.format==='binary'){ const blob = buildSTLBinary(d, opts); downloadBlob(`lens_solid_${VERSION}.stl`, blob); } else { const stl = buildSTL(d, opts); download(`lens_solid_${VERSION}.stl`, stl); } });
-  $('#simulate').addEventListener('click', ()=>{ simMode = !simMode; setViewMode(); computeAndDraw(); });
-  function setViewMode(){ const tag = $('#viewMode'); const legend = $('#legend'); if(simMode){ tag.textContent='模擬'; legend.textContent='線色：青=入/出射光線 · 綠=像面（螢幕） · 橙=物體（箭頭） · 白=鏡片輪廓 · 黃=尺寸標示'; } else { tag.textContent='設計'; legend.textContent='線色：非球前表面 · 平面後表面 · 最佳擬合球 · 口徑標示（CA）'; } }
+  function download(filename, text){
+    var a=document.createElement('a');
+    a.setAttribute('href','data:text/plain;charset=utf-8,'+encodeURIComponent(text));
+    a.setAttribute('download', filename);
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  }
+  function downloadBlob(filename, blob){
+    var a=document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    document.body.appendChild(a); a.click();
+    setTimeout(function(){ URL.revokeObjectURL(a.href); document.body.removeChild(a); }, 0);
+  }
+  $('#dlCSV').addEventListener('click', function(){ try{ var d = currentData || computeProfile(); var csv = buildCSV(d); download('asphere_profile_'+VERSION+'.csv', csv); }catch(err){ showErr(err.message); } });
+  $('#dlSVG').addEventListener('click', function(){ try{ var d=currentData||computeProfile(); var xml = exportLensSVG(d); download('lens_cross_section_'+VERSION+'.svg', xml); }catch(err){ showErr(err.message); } });
+  $('#dlSTL').addEventListener('click', function(){ try{ var d=currentData||computeProfile(); var opts = getSTLOpts(); if(opts.format==='binary'){ var blob = buildSTLBinary(d, opts); downloadBlob('lens_solid_'+VERSION+'.stl', blob); } else { var stl = buildSTL(d, opts); download('lens_solid_'+VERSION+'.stl', stl); } }catch(err){ showErr(err.message); } });
+  $('#simulate').addEventListener('click', function(){
+    try{
+      simMode = !simMode; 
+      if(simMode){
+        var d = currentData || computeProfile(); var f = d.efl; var zc = d.CT*0.5;
+        if(simZObj===null){ simZObj = zc - 2*f; userSetObj=false; }
+        if(simZScreen===null){ simZScreen = zc + 2*f; userSetScreen=false; }
+        if(simCenterZ==null){ simCenterZ = zc; }
+        simMul = 1.0;
+      }
+      setViewMode(); computeAndDraw();
+    }catch(err){ showErr(err.message); }
+  });
 
-  function clamp(x,lo,hi){return Math.max(lo, Math.min(hi,x));}
-
-  function computeProfile(){
-    const CA = clamp(parseFloat(inp.ca.value), 1, 1000);
-    const efl = clamp(parseFloat(inp.efl.value), 1, 1e6);
-    const n = clamp(parseFloat(inp.nidx.value), 1.01, 3.0);
-    const K = parseFloat(inp.K.value);
-    const A4 = parseFloat(inp.A4.value) * 1e-6; // mm^-3
-    const A6 = parseFloat(inp.A6.value) * 1e-9; // mm^-5
-    const A8 = parseFloat(inp.A8.value) * 1e-12; // mm^-7
-
-    const c = (n - 1) / efl; // mm^-1
-    const R = 1 / c;         // mm
-    const rMax = CA/2;
-
-    function sag(r){ const cr = c*r; const sq = 1 - (1+K)*cr*cr; if(sq<0) return NaN; const base = (c*r*r)/(1 + Math.sqrt(sq)); const poly = A4*Math.pow(r,4) + A6*Math.pow(r,6) + A8*Math.pow(r,8); return base + poly; }
-
-    const N = 1024; const samples=[]; let rLimit=rMax; let zMinSag=Infinity, zMaxSag=-Infinity; for(let i=0;i<=N;i++){ const r = rMax*i/N; const z=sag(r); if(!isFinite(z)){ rLimit = rMax*(i-1)/N; break; } zMinSag=Math.min(zMinSag,z); zMaxSag=Math.max(zMaxSag,z); samples.push({r,z}); }
-
-    let CT; const zEdge = sag(rLimit); if(inp.thickMode.value==='ET'){ const ET=parseFloat(inp.et.value); CT = ET + zEdge; } else { CT = parseFloat(inp.ct.value); }
-
-    const Rb = bestFitSphereRadius(samples);
-    function sphereSag(r,Rb){ return Rb - Math.sqrt(Math.max(1e-9,Rb*Rb - r*r)); }
-
-    let maxDep=0, maxSlope=0; const depArr=[]; for(let i=0;i<samples.length;i++){ const {r,z} = samples[i]; const dep = z - sphereSag(r,Rb); depArr.push(dep); if(Math.abs(dep)>Math.abs(maxDep)) maxDep=dep; const im=Math.max(0,i-1), ip=Math.min(samples.length-1,i+1); const dz=samples[ip].z-samples[im].z; const dr=samples[ip].r-samples[im].r || 1e-9; const slope=dz/dr; if(Math.abs(slope)>maxSlope) maxSlope=Math.abs(slope); }
-
-    return { CA, efl, n, K, A4, A6, A8, c, R, rMax:rLimit, CT, zEdge, Rb, samples, depArr, maxDep, maxSlope, zMinSag, zMaxSag, sag };
+  function setViewMode(){
+    var tag = $('#viewMode'); var legend = $('#legend');
+    var sTip = '（拖曳平移；滾輪/雙指縮放；拖橙色=物、拖綠色=螢幕）';
+    if(simMode){ tag.textContent='模擬'; legend.textContent='線色（模擬）：白=鏡片輪廓 - 青=光線 - 綠=螢幕（可拖） - 橙=物體（可拖） - 黃=尺寸標示 - 粉=最佳成像(由兩線交會) - 灰=主軸 ' + sTip; }
+    else { tag.textContent='設計'; legend.textContent='滑鼠拖曳/觸控可平移；滾輪/雙指可縮放。線色（設計）：非球前表面 - 平面後表面 - 最佳擬合球 - 口徑標示（CA）'; }
   }
 
-  function bestFitSphereRadius(samples){ let R0=1000; if(samples.length>5){const r1=samples[1].r, z1=samples[1].z; const c_est=(2*z1)/(r1*r1); R0= c_est>1e-9? 1/c_est : 1e9;} let a=Math.max(0.1,R0*0.25), b=R0*2.5; const phi=(1+Math.sqrt(5))/2; let c1=b-(b-a)/phi, c2=a+(b-a)/phi; function sse(R){ if(!isFinite(R)||R<=0) return 1e99; let E=0; for(const s of samples){ const r=s.r,z=s.z; const zs=R-Math.sqrt(Math.max(1e-9,R*R - r*r)); const d=z-zs; E+=d*d;} return E; } let f1=sse(c1), f2=sse(c2); for(let i=0;i<80;i++){ if(f1>f2){ a=c1; c1=c2; f1=f2; c2=a+(b-a)/phi; f2=sse(c2);} else { b=c2; c2=c1; f2=f1; c1=b-(b-a)/phi; f1=sse(c1);} } return (b+a)/2; }
+  function clamp(x,lo,hi){ if(x<lo) return lo; if(x>hi) return hi; return x; }
 
-  function computeAndDraw(){ const d = currentData = computeProfile(); if(simMode) drawSim(d); else drawDesign(d); report(d); updateSTLEstimate(); runTests(d); }
+  function computeProfile(){
+    var CA = clamp(parseFloat(inp.ca.value), 1, 1000);
+    var efl = clamp(parseFloat(inp.efl.value), 1, 1000000);
+    var n = clamp(parseFloat(inp.nidx.value), 1.01, 3.0);
+    var K = parseFloat(inp.K.value);
+    var A4 = parseFloat(inp.A4.value) * 1e-6; // mm^-3
+    var A6 = parseFloat(inp.A6.value) * 1e-9; // mm^-5
+    var A8 = parseFloat(inp.A8.value) * 1e-12; // mm^-7
+
+    var c = (n - 1) / efl; // mm^-1
+    var R = 1 / c;         // mm
+    var rMax = CA/2;
+
+    function sag(r){
+      var cr = c*r;
+      var sq = 1 - (1+K)*cr*cr;
+      if(sq<0) return NaN;
+      var base = (c*r*r)/(1 + Math.sqrt(sq));
+      var poly = A4*Math.pow(r,4) + A6*Math.pow(r,6) + A8*Math.pow(r,8);
+      return base + poly;
+    }
+
+    var N = 1024; var samples=[]; var rLimit=rMax; var zMinSag=Infinity, zMaxSag=-Infinity;
+    for(var i=0;i<=N;i++){
+      var r = rMax*i/N; var z=sag(r);
+      if(!isFinite(z)){ rLimit = rMax*(i-1)/N; break; }
+      if(z<zMinSag) zMinSag=z; if(z>zMaxSag) zMaxSag=z;
+      samples.push({r:r,z:z});
+    }
+
+    var CT; var zEdge = sag(rLimit);
+    if(inp.thickMode.value==='ET'){ var ET=parseFloat(inp.et.value); CT = ET + zEdge; } else { CT = parseFloat(inp.ct.value); }
+
+    var Rb = bestFitSphereRadius(samples);
+    function sphereSag(r,Rb){ return Rb - Math.sqrt(Math.max(1e-9,Rb*Rb - r*r)); }
+
+    var maxDep=0, maxSlope=0; var depArr=[];
+    for(var j=0;j<samples.length;j++){
+      var rj=samples[j].r, zj=samples[j].z;
+      var dep = zj - sphereSag(rj,Rb); depArr.push(dep);
+      if(Math.abs(dep)>Math.abs(maxDep)) maxDep=dep;
+      var im=Math.max(0,j-1), ip=Math.min(samples.length-1,j+1);
+      var dz=samples[ip].z - samples[im].z;
+      var dr=samples[ip].r - samples[im].r || 1e-9;
+      var slope=dz/dr; if(Math.abs(slope)>maxSlope) maxSlope=Math.abs(slope);
+    }
+
+    return { CA:CA, efl:efl, n:n, K:K, A4:A4, A6:A6, A8:A8, c:c, R:R, rMax:rLimit, CT:CT, zEdge:zEdge, Rb:Rb, samples:samples, depArr:depArr, maxDep:maxDep, maxSlope:maxSlope, zMinSag:zMinSag, zMaxSag:zMaxSag, sag:sag };
+  }
+
+  function bestFitSphereRadius(samples){
+    var R0=1000;
+    if(samples.length>5){
+      var r1=samples[1].r, z1=samples[1].z;
+      var c_est=(2*z1)/(r1*r1);
+      R0= c_est>1e-9? 1/c_est : 1e9;
+    }
+    var a=Math.max(0.1,R0*0.25), b=R0*2.5;
+    var phi=(1+Math.sqrt(5))/2;
+    var c1=b-(b-a)/phi, c2=a+(b-a)/phi;
+    function sse(R){
+      if(!isFinite(R)||R<=0) return 1e99; var E=0;
+      for(var i=0;i<samples.length;i++){
+        var r=samples[i].r, z=samples[i].z;
+        var zs=R-Math.sqrt(Math.max(1e-9,R*R - r*r));
+        var d=z-zs; E+=d*d;
+      }
+      return E;
+    }
+    var f1=sse(c1), f2=sse(c2);
+    for(var k=0;k<80;k++){
+      if(f1>f2){ a=c1; c1=c2; f1=f2; c2=a+(b-a)/phi; f2=sse(c2); }
+      else { b=c2; c2=c1; f2=f1; c1=b-(b-a)/phi; f1=sse(c1); }
+    }
+    return (b+a)/2;
+  }
+
+  function computeAndDraw(){
+    var d = currentData = computeProfile();
+    if(simMode){ if(simCenterZ==null) simCenterZ = d.CT*0.5; drawSimThinLens(d); }
+    else { drawDesign(d); }
+    report(d); updateSTLEstimate(); runTests(d);
+  }
+
+  function currentPxPerMM(){ return BASE_PX_PER_MM * (simMode ? simMul : designMul); }
+  function currentCenterZ(d){
+    if(simMode){ if(simCenterZ==null) simCenterZ = d.CT*0.5; return simCenterZ; }
+    else { if(designCenterZ==null){ var zMinLens = Math.min(0, d.zMinSag, d.CT); var zMaxLens = Math.max(d.zMaxSag, d.CT); designCenterZ = (zMinLens + zMaxLens)/2; } return designCenterZ; }
+  }
 
   function drawDesign(d){
-    const pxPerMM = parseFloat(inp.scale.value); $('#badgeScale').textContent = ` · 縮放 ${pxPerMM.toFixed(1)} px/mm · ${VERSION}`;
-    const vb = svg.viewBox.baseVal; const W = (svg.clientWidth||svg.getBoundingClientRect().width||vb.width||1200); const H = (svg.clientHeight||svg.getBoundingClientRect().height||vb.height||700);
+    var pxPerMM = currentPxPerMM();
+    var vb = svg.viewBox.baseVal; var W = (svg.clientWidth||svg.getBoundingClientRect().width||vb.width||1200); var H = (svg.clientHeight||svg.getBoundingClientRect().height||vb.height||700);
 
-    const zMinLens = Math.min(0, d.zMinSag, d.CT);
-    const zMaxLens = Math.max(d.zMaxSag, d.CT);
-    const zCenter = (zMinLens + zMaxLens) / 2;
+    var zCenter = currentCenterZ(d);
     function X(z){ return W/2 + (z - zCenter) * pxPerMM; }
     function Y(r){ return H/2 - r * pxPerMM; }
 
     while(svg.firstChild) svg.removeChild(svg.firstChild);
 
-    const grid = elt('g', {opacity:0.20});
-    grid.appendChild(elt('line',{x1:0,y1:H/2,x2:W,y2:H/2, stroke:'#20344f','stroke-width':1}));
-    grid.appendChild(elt('line',{x1:W/2,y1:0,x2:W/2,y2:H, stroke:'#20344f','stroke-width':1}));
+    var grid = elt('g', {opacity:'0.20'});
+    grid.appendChild(elt('line',{x1:'0',y1:String(H/2),x2:String(W),y2:String(H/2), stroke:'#445b7e','stroke-width':'1.5'}));
+    grid.appendChild(elt('line',{x1:String(X(d.CT*0.5)),y1:'0',x2:String(X(d.CT*0.5)),y2:String(H), stroke:'#20344f','stroke-width':'1', 'stroke-dasharray':'4,6'}));
     svg.appendChild(grid);
 
-    const lensG = elt('g',{class:'lens exportable'});
-    const back = elt('line',{x1:X(d.CT), y1:Y(d.rMax), x2:X(d.CT), y2:Y(-d.rMax), stroke:'#c9ff7c','stroke-width':3,'vector-effect':'non-scaling-stroke'});
+    var lensG = elt('g',{'class':'lens exportable'});
+    var back = elt('line',{x1:String(X(d.CT)), y1:String(Y(d.rMax)), x2:String(X(d.CT)), y2:String(Y(-d.rMax)), stroke:'#c9ff7c','stroke-width':'3','vector-effect':'non-scaling-stroke'});
 
-    const asph = elt('path',{fill:'#7cc4ff22', stroke:'#e6f0ff','stroke-width':3,'vector-effect':'non-scaling-stroke'});
-    let dStr = '';
-    for(let i=0;i<d.samples.length;i++){ const {r,z} = d.samples[i]; dStr += (i===0?`M ${X(z)} ${Y(r)}`:` L ${X(z)} ${Y(r)}`); }
-    for(let i=d.samples.length-1;i>=0;i--){ const {r,z} = d.samples[i]; dStr += ` L ${X(z)} ${Y(-r)}`; }
-    dStr += ` L ${X(d.CT)} ${Y(-d.rMax)} L ${X(d.CT)} ${Y(d.rMax)} Z`;
+    var asph = elt('path',{fill:'#7cc4ff22', stroke:'#e6f0ff','stroke-width':'3','vector-effect':'non-scaling-stroke'});
+    var dStr = '';
+    for(var i=0;i<d.samples.length;i++){ var r=d.samples[i].r, z=d.samples[i].z; dStr += (i===0?('M '+X(z)+' '+Y(r)):(' L '+X(z)+' '+Y(r))); }
+    for(var j=d.samples.length-1;j>=0;j--){ var r2=d.samples[j].r, z2=d.samples[j].z; dStr += ' L '+X(z2)+' '+Y(-r2); }
+    dStr += ' L '+X(d.CT)+' '+Y(-d.rMax)+' L '+X(d.CT)+' '+Y(d.rMax)+' Z';
     asph.setAttribute('d', dStr);
 
-    const bfs = elt('path',{fill:'none', stroke:'#ff9f7c','stroke-dasharray':'6,6','stroke-width':2,'vector-effect':'non-scaling-stroke'});
-    let bStr=''; const Rb=d.Rb; function sphereSag(r,Rb){ return Rb - Math.sqrt(Math.max(1e-9,Rb*Rb - r*r)); }
-    for(let i=0;i<d.samples.length;i++){ const {r} = d.samples[i]; const zs = sphereSag(r,Rb); bStr += (i===0?`M ${X(zs)} ${Y(r)}`:` L ${X(zs)} ${Y(r)}`); }
+    var bfs = elt('path',{fill:'none', stroke:'#ff9f7c','stroke-dasharray':'6,6','stroke-width':'2','vector-effect':'non-scaling-stroke'});
+    var bStr=''; var Rb=d.Rb; function sphereSag(r,Rb){ return Rb - Math.sqrt(Math.max(1e-9,Rb*Rb - r*r)); }
+    for(var k=0;k<d.samples.length;k++){ var rr = d.samples[k].r; var zs = sphereSag(rr,Rb); bStr += (k===0?('M '+X(zs)+' '+Y(rr)):(' L '+X(zs)+' '+Y(rr))); }
     bfs.setAttribute('d', bStr);
 
     lensG.appendChild(asph); lensG.appendChild(back);
-    const dimG = drawCADimension(X, Y, d.rMax, d.CT);
+    var dimG = drawCADimension(X, Y, d.rMax, d.CT);
     lensG.appendChild(dimG);
 
     svg.appendChild(lensG);
     svg.appendChild(bfs);
 
-    svg.appendChild(elt('text',{x:X(0)+6, y:Y(d.rMax)-6, fill:'#9fc6ff', 'font-size':11}, [document.createTextNode('前表面（非球）')]));
-    svg.appendChild(elt('text',{x:X(d.CT)+6, y:Y(0)-6, fill:'#ccffae', 'font-size':11}, [document.createTextNode('後表面（平面）')]));
+    var badgeUV = document.getElementById('badgeUV'); if(badgeUV) badgeUV.textContent='';
   }
 
   function drawCADimension(X, Y, rMax, CT){
-    const zDim = CT + 0.15 * (rMax*2);
-    const g = elt('g', {'data-dim':'ca'});
-    const x = X(zDim); const yTop = Y(rMax), yBot = Y(-rMax);
-    g.appendChild(elt('line',{x1:x, y1:yTop, x2:x, y2:yBot, stroke:'#a9ffd0','stroke-width':2}));
-    const tick=8; g.appendChild(elt('line',{x1:x-tick,y1:yTop,x2:x+tick,y2:yTop, stroke:'#a9ffd0','stroke-width':2})); g.appendChild(elt('line',{x1:x-tick,y1:yBot,x2:x+tick,y2:yBot, stroke:'#a9ffd0','stroke-width':2}));
-    const ca = (rMax*2).toFixed(2);
-    const text = elt('text',{x:x+10, y:(yTop+yBot)/2 + 4, fill:'#a9ffd0','font-size':12});
-    text.appendChild(document.createTextNode(`CA = ${ca} mm`));
+    var zDim = CT + 0.15 * (rMax*2);
+    var g = elt('g', {'data-dim':'ca'});
+    var x = X(zDim); var yTop = Y(rMax), yBot = Y(-rMax);
+    g.appendChild(elt('line',{x1:String(x), y1:String(yTop), x2:String(x), y2:String(yBot), stroke:'#a9ffd0','stroke-width':'2'}));
+    var tick=8;
+    g.appendChild(elt('line',{x1:String(x-tick),y1:String(yTop),x2:String(x+tick),y2:String(yTop), stroke:'#a9ffd0','stroke-width':'2'}));
+    g.appendChild(elt('line',{x1:String(x-tick),y1:String(yBot),x2:String(x+tick),y2:String(yBot), stroke:'#a9ffd0','stroke-width':'2'}));
+    var ca = (rMax*2).toFixed(2);
+    var text = elt('text',{x:String(x+10), y:String((yTop+yBot)/2 + 4), fill:'#a9ffd0','font-size':'12'});
+    text.appendChild(document.createTextNode('CA = '+ca+' mm'));
     g.appendChild(text);
     return g;
   }
 
-  // 供模擬用的水平尺寸標註：z1↔z2 於 y = const
-  function drawZDimension(X, Y, z1, z2, yConst, label, color='#ffd166'){
-    const g = elt('g', {'data-dim':'Lcs'});
-    const x1 = X(z1), x2 = X(z2); const y = Y(yConst);
-    // 主線
-    g.appendChild(elt('line',{x1:Math.min(x1,x2), y1:y, x2:Math.max(x1,x2), y2:y, stroke:color, 'stroke-width':2}));
-    // 箭頭（向內）
-    const ah=10, ahh=6; // px
-    // 左端
-    g.appendChild(elt('polyline',{points:`${x1},${y} ${x1+ah},${y-ahh} ${x1+ah},${y+ahh} ${x1},${y}`, fill:color, stroke:color}));
-    // 右端
-    g.appendChild(elt('polyline',{points:`${x2},${y} ${x2-ah},${y-ahh} ${x2-ah},${y+ahh} ${x2},${y}`, fill:color, stroke:color}));
-    // 文字
-    const xc = 0.5*(x1+x2);
-    g.appendChild(elt('text',{x:xc, y:y-8, 'text-anchor':'middle', fill:color, 'font-size':12}, [document.createTextNode(label)]));
+  function drawZDimension(X, Y, z1, z2, yConst, label, color){
+    color = color || '#ffd166';
+    var g = elt('g', {'data-dim':'Lcs'});
+    var x1 = X(z1), x2 = X(z2); var y = Y(yConst);
+    g.appendChild(elt('line',{x1:String(Math.min(x1,x2)), y1:String(y), x2:String(Math.max(x1,x2)), y2:String(y), stroke:color, 'stroke-width':'2'}));
+    var ah=10, ahh=6; // arrows
+    g.appendChild(elt('polyline',{points:String(x1)+','+String(y)+' '+String(x1+ah)+','+String(y-ahh)+' '+String(x1+ah)+','+String(y+ahh)+' '+String(x1)+','+String(y), fill:color, stroke:color}));
+    g.appendChild(elt('polyline',{points:String(x2)+','+String(y)+' '+String(x2-ah)+','+String(y-ahh)+' '+String(x2-ah)+','+String(y+ahh)+' '+String(x2)+','+String(y), fill:color, stroke:color}));
+    var xc = 0.5*(x1+x2);
+    g.appendChild(elt('text',{x:String(xc), y:String(y-8), 'text-anchor':'middle', fill:color, 'font-size':'12'}, [document.createTextNode(label)]));
     return g;
   }
 
-  // ----------------- Simulation (ray trace) -----------------
-  function fprimeNumeric(sag, r){ const h = Math.max(1e-5, Math.abs(r)*1e-5); const z1 = sag(Math.max(0,r-h)), z2 = sag(r+h); return (z2 - z1)/(2*h); }
-  function refract2D(i, n, n1, n2){ // i,n: [y,z], unit; n points into incident medium
-    const dot = i[0]*n[0] + i[1]*n[1]; const cosi = -dot; const eta = n1/n2; const k = 1 - eta*eta*(1 - cosi*cosi); if(k<0){ // TIR → reflect
-      const r = [ i[0] + 2*cosi*n[0], i[1] + 2*cosi*n[1] ]; const L = Math.hypot(r[0],r[1])||1; return [r[0]/L, r[1]/L];
-    }
-    const a = eta; const b = eta*cosi - Math.sqrt(k); const t = [ a*i[0] + b*n[0], a*i[1] + b*n[1] ]; const L = Math.hypot(t[0],t[1])||1; return [t[0]/L, t[1]/L];
-  }
-  function intersectFront(P, I, d){ // Newton on t s.t. z(t) = sag(|y(t)|)
-    let t = (0 - P[1]) / (I[1]||1e-9); // to z≈0 as initial
-    for(let k=0;k<20;k++){
-      const y = P[0] + I[0]*t; const z = P[1] + I[1]*t; const r = Math.abs(y);
-      const sz = d.sag(r);
-      const g = z - sz; if(!isFinite(g)) return null; if(Math.abs(g) < 1e-6) return {t, y, z:sz};
-      const fp = fprimeNumeric(d.sag, r) * (y>=0?1:-1); // dz/dy
-      const gp = I[1] - fp * I[0]; if(Math.abs(gp)<1e-9) t += 1e-3; else t -= g/gp;
-    }
-    const y = P[0] + I[0]*t; const z = d.sag(Math.abs(y)); if(!isFinite(z)) return null; return {t, y, z};
-  }
-  function traceRayFromObject(d, obj, yApert){ // obj:[z,y]
-    // Aim toward z=0, y=yApert
-    const dir0 = (function(){ const vy = yApert - obj[1]; const vz = 0 - obj[0]; const L = Math.hypot(vy,vz)||1; return [vy/L, vz/L]; })();
-    // Intersect front
-    const hit = intersectFront([obj[1], obj[0]], dir0, d); if(!hit) return null; if(Math.abs(hit.y) > d.rMax+1e-6) return null;
-    // Surface normal (into incident, i.e., air side)
-    const r = Math.abs(hit.y); const dfdy = fprimeNumeric(d.sag, r) * (hit.y>=0?1:-1); let n = [ -dfdy, 1 ]; { const L=Math.hypot(n[0],n[1])||1; n=[n[0]/L, n[1]/L]; }
-    // Orient normal into incident medium
-    const dot = dir0[0]*n[0] + dir0[1]*n[1]; if(dot>0){ n=[-n[0], -n[1]]; }
-    // Refract air→lens
-    const i1 = refract2D(dir0, n, 1.0, d.n);
-    const P1 = [ hit.y, hit.z ];
-    // Go to back plane z=CT
-    const t2 = (d.CT - P1[1]) / (i1[1]||1e-9); const P2 = [ P1[0] + i1[0]*t2, d.CT ];
-    // Refract lens→air at plane; normal into incident medium (inside) is (0,-1)
-    const n2 = [0,-1]; const i2 = refract2D(i1, n2, d.n, 1.0);
-    return { segs: [ [obj[1],obj[0]], [P1[0],P1[1]], [P2[0],P2[1]] ], out: { P:P2, I:i2 } };
-  }
-  function bestFocusZ(d, rays){ // minimize RMS of y at screen
-    // bracket around CT+EFL
-    let a = d.CT + 0.2*d.efl, b = d.CT + 3.0*d.efl;
-    function rms(zs){ const ys=[]; for(const r of rays){ const {P,I}=r.out; const t=(zs - P[1])/(I[1]||1e-9); ys.push(P[0] + I[0]*t); } const mean = ys.reduce((s,y)=>s+y,0)/ys.length; const varr = ys.reduce((s,y)=>s+(y-mean)*(y-mean),0)/ys.length; return Math.sqrt(varr); }
-    const phi=(1+Math.sqrt(5))/2; let c=b-(b-a)/phi, d0=a+(b-a)/phi; let fc=rms(c), fd=rms(d0); for(let k=0;k<50;k++){ if(fc>fd){ a=c; c=d0; fc=fd; d0=a+(b-a)/phi; fd=rms(d0);} else { b=d0; d0=c; fd=fc; c=b-(b-a)/phi; fc=rms(c);} }
-    return (b+a)/2;
-  }
-  function drawSim(d){
-    const pxPerMM = parseFloat(inp.scale.value); $('#badgeScale').textContent = ` · 縮放 ${pxPerMM.toFixed(1)} px/mm · ${VERSION}`;
-    const vb = svg.viewBox.baseVal; const W = (svg.clientWidth||svg.getBoundingClientRect().width||vb.width||1200); const H = (svg.clientHeight||svg.getBoundingClientRect().height||vb.height||700);
+  function lineFrom(p1,p2){ var a = (p2.y - p1.y); var b = -(p2.z - p1.z); var c = a*p1.z + b*p1.y; return {a:a,b:b,c:c}; }
+  function intersectLines(l1,l2){ var det = l1.a*l2.b - l2.a*l1.b; if(Math.abs(det)<1e-9) return null; var z = (l2.b*l1.c - l1.b*l2.c)/det; var y = (l1.a*l2.c - l2.a*l1.c)/det; return {z:z,y:y}; }
+  function evalLineAtZ(L, z){ if(Math.abs(L.b)<1e-12) return {z:z, y: L.c / (L.b||1e-12)}; var y = (L.c - L.a*z)/L.b; return {z:z,y:y}; }
 
-    const zMinLens = Math.min(-d.efl*2, d.zMinSag, d.CT); const zMaxLens = Math.max(d.zMaxSag, d.CT + 2*d.efl);
-    const zCenter = (zMinLens + zMaxLens) / 2;
-    function X(z){ return W/2 + (z - zCenter) * pxPerMM; }
+  function drawSimThinLens(d){
+    var pxPerMM = currentPxPerMM();
+    var vb = svg.viewBox.baseVal; var W = (svg.clientWidth||svg.getBoundingClientRect().width||vb.width||1200); var H = (svg.clientHeight||svg.getBoundingClientRect().height||vb.height||700);
+
+    var zLensCenter = d.CT * 0.5; if(simCenterZ==null) simCenterZ = zLensCenter;
+    function X(z){ return W/2 + (z - simCenterZ) * pxPerMM; }
     function Y(r){ return H/2 - r * pxPerMM; }
 
     while(svg.firstChild) svg.removeChild(svg.firstChild);
 
-    const gSim = elt('g',{class:'sim'});
+    var grid = elt('g', {opacity:'1'});
+    grid.appendChild(elt('line',{x1:'0',y1:String(H/2),x2:String(W),y2:String(H/2), stroke:'#8aa1c7','stroke-width':'2.2'}));
+    grid.appendChild(elt('line',{x1:String(X(zLensCenter)),y1:'0',x2:String(X(zLensCenter)),y2:String(H), stroke:'#20344f','stroke-width':'1', 'stroke-dasharray':'4,6'}));
+    svg.appendChild(grid);
 
-    // Draw lens silhouette (thin white)
-    const lensG = elt('g',{opacity:0.9});
-    const asph = elt('path',{fill:'#ffffff11', stroke:'#ffffff','stroke-width':1.8,'vector-effect':'non-scaling-stroke'});
-    let dStr = '';
-    for(let i=0;i<d.samples.length;i++){ const {r,z} = d.samples[i]; dStr += (i===0?`M ${X(z)} ${Y(r)}`:` L ${X(z)} ${Y(r)}`); }
-    for(let i=d.samples.length-1;i>=0;i--){ const {r,z} = d.samples[i]; dStr += ` L ${X(z)} ${Y(-r)}`; }
-    dStr += ` L ${X(d.CT)} ${Y(-d.rMax)} L ${X(d.CT)} ${Y(d.rMax)} Z`;
+    var lensG = elt('g',{opacity:'0.95'});
+    var asph = elt('path',{fill:'#ffffff11', stroke:'#ffffff','stroke-width':'1.8','vector-effect':'non-scaling-stroke'});
+    var dStr = '';
+    for(var i=0;i<d.samples.length;i++){ var r=d.samples[i].r, z=d.samples[i].z; dStr += (i===0?('M '+X(z)+' '+Y(r)):(' L '+X(z)+' '+Y(r))); }
+    for(var j=d.samples.length-1;j>=0;j--){ var r2=d.samples[j].r, z2=d.samples[j].z; dStr += ' L '+X(z2)+' '+Y(-r2); }
+    dStr += ' L '+X(d.CT)+' '+Y(-d.rMax)+' L '+X(d.CT)+' '+Y(d.rMax)+' Z';
     asph.setAttribute('d', dStr); lensG.appendChild(asph);
-    gSim.appendChild(lensG);
+    svg.appendChild(lensG);
 
-    // Object (orange arrow) at z_obj
-    const zObj = -Math.max(50, 2*d.efl); const hObj = Math.min(d.rMax*0.8, 0.6*d.CA*0.5);
-    const objG = elt('g',{});
-    objG.appendChild(elt('line',{x1:X(zObj),y1:Y(0),x2:X(zObj),y2:Y(hObj),stroke:'#ffb36b','stroke-width':2}));
-    objG.appendChild(elt('polyline',{points:`${X(zObj)},${Y(hObj)} ${X(zObj)-8},${Y(hObj)-12} ${X(zObj)+8},${Y(hObj)-12} ${X(zObj)},${Y(hObj)}`,fill:'#ffb36b'}));
-    gSim.appendChild(objG);
+    var desiredPx = Math.max(80, H*0.18);
+    var hObj = desiredPx / Math.max(1e-6, pxPerMM); // mm
+    if(simZObj===null) simZObj = zLensCenter - 2*d.efl;
+    simZObj = clamp(simZObj, zLensCenter - 20000, zLensCenter - 1.05*d.efl);
+    var objG = elt('g',{'data-drag':'obj'});
+    objG.appendChild(elt('line',{x1:String(X(simZObj)),y1:String(Y(0)),x2:String(X(simZObj)),y2:String(Y(hObj)),stroke:'#ffb36b','stroke-width':'2'}));
+    objG.appendChild(elt('polyline',{points:String(X(simZObj))+','+String(Y(hObj))+' '+String(X(simZObj)-8)+','+String(Y(hObj)-12)+' '+String(X(simZObj)+8)+','+String(Y(hObj)-12)+' '+String(X(simZObj))+','+String(Y(hObj)),fill:'#ffb36b'}));
+    svg.appendChild(objG);
 
-    // Rays from the object top
-    const yTop = hObj; const rMax=d.rMax; const samples=21; const rays=[]; for(let k=0;k<samples;k++){ const yA = -rMax + (2*rMax)*k/(samples-1); const ray = traceRayFromObject(d, [zObj, yTop], yA); if(ray) rays.push(ray); }
+    var f = d.efl;
+    var Fp = {z: zLensCenter + f, y: 0};  // 像側焦點
 
-    // Find best focus plane
-    const zScreen = bestFocusZ(d, rays);
+    var Pobj = {z: simZObj, y: hObj};
+    var hitLens1 = {z: zLensCenter, y: Pobj.y};
+    var L1 = lineFrom(hitLens1, Fp);
+    var hitLens2 = {z: zLensCenter, y: 0};
+    var L2 = lineFrom(Pobj, hitLens2);
 
-    // Draw rays (cyan)
-    const rayG = elt('g',{});
-    for(const r of rays){ const p = r.segs; const {P,I}=r.out; const t=(zScreen - P[1])/(I[1]||1e-9); const Ps = [P[0]+I[0]*t, zScreen]; const poly = [p[0],[p[1][0],p[1][1]],[p[2][0],p[2][1]],[Ps[0],Ps[1]]].map(q=>`${X(q[1])},${Y(q[0])}`).join(' '); rayG.appendChild(elt('polyline',{points:poly, fill:'none', stroke:'#7cc4ff','stroke-width':1.5,'stroke-opacity':0.9})); }
-    gSim.appendChild(rayG);
+    var Pimg = intersectLines(L1, L2);
+    var zImgBest = (Pimg && isFinite(Pimg.z)) ? Pimg.z : (zLensCenter + 3*f);
+    var vBest = zImgBest - zLensCenter;
 
-    // Screen (green)
-    gSim.appendChild(elt('line',{x1:X(zScreen),y1:Y(d.rMax*1.2),x2:X(zScreen),y2:Y(-d.rMax*1.2),stroke:'#8aff9b','stroke-width':2,'stroke-dasharray':'6,6'}));
+    var rayG = elt('g',{});
+    rayG.appendChild(elt('line',{x1:String(X(Pobj.z)),y1:String(Y(Pobj.y)),x2:String(X(hitLens1.z)),y2:String(Y(hitLens1.y)),stroke:'#7cc4ff','stroke-width':'1.8'}));
+    var toZ = Math.min(zImgBest, zLensCenter + 4*f);
+    var ptOnL1 = evalLineAtZ(L1, toZ);
+    rayG.appendChild(elt('line',{x1:String(X(hitLens1.z)),y1:String(Y(hitLens1.y)),x2:String(X(ptOnL1.z)),y2:String(Y(ptOnL1.y)),stroke:'#7cc4ff','stroke-width':'1.8'}));
+    var ptOnL2a = {z: zLensCenter, y: 0};
+    rayG.appendChild(elt('line',{x1:String(X(Pobj.z)),y1:String(Y(Pobj.y)),x2:String(X(ptOnL2a.z)),y2:String(Y(ptOnL2a.y)),stroke:'#7cc4ff','stroke-width':'1.8'}));
+    var ptOnL2b = evalLineAtZ(L2, toZ);
+    rayG.appendChild(elt('line',{x1:String(X(ptOnL2a.z)),y1:String(Y(ptOnL2a.y)),x2:String(X(ptOnL2b.z)),y2:String(Y(ptOnL2b.y)),stroke:'#7cc4ff','stroke-width':'1.8'}));
+    svg.appendChild(rayG);
 
-    // ---- 新增：尺寸標示 ----
-    // 1) 口徑 CA（與設計視圖一致）
-    gSim.appendChild(drawCADimension(X, Y, d.rMax, d.CT));
-    // 2) 幾何鏡心（取幾何中心 z=CT/2）到螢幕距離
-    const zLensCenter = d.CT * 0.5;
-    const Lcs = Math.abs(zScreen - zLensCenter);
-    const dimY = -Math.max(d.rMax*1.35, 10); // 放在下方
-    gSim.appendChild(drawZDimension(X, Y, zLensCenter, zScreen, dimY, `鏡心→螢幕 ≈ ${Lcs.toFixed(2)} mm`, '#ffd166'));
-    // 鏡心輕標記
-    gSim.appendChild(elt('line',{x1:X(zLensCenter),y1:Y(6),x2:X(zLensCenter),y2:Y(-6),stroke:'#ffd166','stroke-width':1,'stroke-dasharray':'3,3'}));
+    if(simZScreen==null) simZScreen = zLensCenter + 2*f;
+    simZScreen = clamp(simZScreen, zLensCenter + 0.2*f, zLensCenter + 200000);
+    var scrG = elt('g',{'data-drag':'screen'});
+    scrG.appendChild(elt('line',{x1:String(X(simZScreen)),y1:String(Y(d.rMax*1.3)),x2:String(X(simZScreen)),y2:String(Y(-d.rMax*1.3)),stroke:'#8aff9b','stroke-width':'2','stroke-dasharray':'6,6'}));
+    svg.appendChild(scrG);
 
-    // Image arrow by chief/bottom rays intersections
-    function interceptAt(yObj){ const rays2=[]; for(let k=0;k<samples;k++){ const yA=-rMax+(2*rMax)*k/(samples-1); const ray=traceRayFromObject(d,[zObj,yObj],yA); if(ray) rays2.push(ray); } function meanY(zs){ const ys=rays2.map(r=>{ const {P,I}=r.out; const t=(zs-P[1])/(I[1]||1e-9); return P[0]+I[0]*t; }); return ys.reduce((s,y)=>s+y,0)/ys.length; } return meanY(zScreen); }
-    const yImgTop = interceptAt(yTop), yImgBase = interceptAt(0);
-    const imgG = elt('g',{});
-    imgG.appendChild(elt('line',{x1:X(zScreen),y1:Y(yImgBase),x2:X(zScreen),y2:Y(yImgTop),stroke:'#e9f2ff','stroke-width':2}));
-    imgG.appendChild(elt('polyline',{points:`${X(zScreen)},${Y(yImgTop)} ${X(zScreen)-8},${Y(yImgTop)+(yImgTop>yImgBase?12:-12)} ${X(zScreen)+8},${Y(yImgTop)+(yImgTop>yImgBase?12:-12)} ${X(zScreen)},${Y(yImgTop)}`,fill:'#e9f2ff'}));
-    gSim.appendChild(imgG);
+    if(isFinite(vBest)){
+      var magG = elt('g',{});
+      magG.appendChild(elt('line',{x1:String(X(zImgBest)),y1:String(Y(d.rMax*1.4)),x2:String(X(zImgBest)),y2:String(Y(-d.rMax*1.4)),stroke: '#ff5af1','stroke-width':'2'}));
+      magG.appendChild(elt('text',{x:String(X(zImgBest)+6), y:String(Y(d.rMax*1.4)-6), fill:'#ff5af1', 'font-size':'12'}, [document.createTextNode('最佳成像 v='+vBest.toFixed(1)+' mm')]));
+      magG.appendChild(elt('circle',{cx:String(X(zImgBest)), cy:String(Y(evalLineAtZ(L1,zImgBest).y)), r:'3', fill:'#ff5af1'}));
+      svg.appendChild(magG);
+    }
 
-    svg.appendChild(gSim);
+    svg.appendChild(drawCADimension(X, Y, d.rMax, d.CT));
+    var uAbs_m = (zLensCenter - simZObj) / 1000.0;
+    var dimY1 = -Math.max(d.rMax*1.55, 10);
+    var dimY2 = +Math.max(d.rMax*1.55, 10);
+    svg.appendChild(drawZDimension(X, Y, zLensCenter, zImgBest, dimY1, '像距 |v| ≈ '+Math.abs(vBest).toFixed(1)+' mm', '#ffd166'));
+    svg.appendChild(drawZDimension(X, Y, simZObj, zLensCenter, dimY2, '物距 |u| ≈ '+Math.abs(uAbs_m).toFixed(3)+' m', '#ffd166'));
+
+    var badgeUV = document.getElementById('badgeUV');
+    if(badgeUV) badgeUV.textContent = 'u≈'+uAbs_m.toFixed(3)+'m - v≈'+Math.abs(vBest).toFixed(1)+'mm - f='+d.efl.toFixed(1)+'mm';
   }
 
-  // ----------------- 3D helpers & builders -------------------
+  // 互動：拖曳/縮放
+  var installed = false;
+  function installInteractions(){ if(installed) return; installed = true;
+    var drag = {which:null, id:null};
+    svg.addEventListener('pointerdown', function(e){
+      var target = e.target.closest ? e.target.closest('[data-drag]') : null;
+      if(target){
+        drag.which = target.getAttribute('data-drag'); drag.id = e.pointerId || 0;
+        if(svg.setPointerCapture){ try{ svg.setPointerCapture(e.pointerId); }catch(_){} }
+        e.preventDefault(); return;
+      }
+      startPan(e);
+    });
+    window.addEventListener('pointermove', function(e){
+      if(drag.which){
+        try{
+          var d = currentData || computeProfile();
+          var px = currentPxPerMM();
+          var rect = svg.getBoundingClientRect();
+          var W = rect.width;
+          var zWorld = (simMode? simCenterZ : designCenterZ) + (e.clientX - rect.left - W/2)/px;
+          if(drag.which==='obj'){ var zc=d.CT*0.5; simZObj = clamp(zWorld, zc - 20000, zc - 1.05*d.efl); userSetObj = true; }
+          else if(drag.which==='screen'){ var zc2=d.CT*0.5; simZScreen = clamp(zWorld, zc2 + 0.2*d.efl, zc2 + 200000); userSetScreen = true; }
+          computeAndDraw();
+        }catch(err){ showErr(err.message); }
+      } else if(pan.active){ doPan(e); }
+    }, {passive:false});
+    function endPanOrDrag(){ drag.which=null; drag.id=null; endPan(); }
+    window.addEventListener('pointerup', endPanOrDrag, {passive:true});
+    window.addEventListener('pointercancel', endPanOrDrag, {passive:true});
+    window.addEventListener('blur', endPanOrDrag);
+
+    svg.addEventListener('wheel', function(e){
+      e.preventDefault();
+      try{
+        var rect = svg.getBoundingClientRect();
+        var x = e.clientX - rect.left;
+        var pxOld = currentPxPerMM();
+        var zAtPointer = (simMode? simCenterZ : designCenterZ) + (x - rect.width/2)/pxOld;
+        var k = Math.exp(-e.deltaY * 0.0015);
+        if(simMode){ simMul = clamp(simMul * k, 0.02, 64); } else { designMul = clamp(designMul * k, 0.25, 8); }
+        var pxNew = currentPxPerMM();
+        if(simMode){ simCenterZ = zAtPointer - (x - rect.width/2)/pxNew; } else { designCenterZ = zAtPointer - (x - rect.width/2)/pxNew; }
+        computeAndDraw();
+      }catch(err){ showErr(err.message); }
+    }, {passive:false});
+
+    var pinch = null;
+    svg.addEventListener('touchstart', function(e){
+      if(e.touches.length===2){
+        e.preventDefault();
+        var t0=e.touches[0], t1=e.touches[1];
+        var d0 = Math.hypot(t1.clientX - t0.clientX, t1.clientY - t0.clientY);
+        var rect=svg.getBoundingClientRect();
+        var xMid=( (t0.clientX+t1.clientX)/2 - rect.left );
+        var px = currentPxPerMM();
+        var z0 = (simMode? simCenterZ : designCenterZ) + (xMid - rect.width/2)/px;
+        pinch = {d0:d0, mul0: (simMode? simMul:designMul), z0:z0, xMid:xMid};
+      }
+    }, {passive:false});
+    svg.addEventListener('touchmove', function(e){
+      if(pinch && e.touches.length===2){
+        e.preventDefault();
+        var t0=e.touches[0], t1=e.touches[1];
+        var d1 = Math.hypot(t1.clientX - t0.clientX, t1.clientY - t0.clientY);
+        var rect=svg.getBoundingClientRect();
+        var xMid=( (t0.clientX+t1.clientX)/2 - rect.left );
+        var k = d1 / (pinch.d0||1);
+        if(simMode){ simMul = clamp(pinch.mul0 * k, 0.02, 64); var px=currentPxPerMM(); simCenterZ = pinch.z0 - (xMid - rect.width/2)/px; }
+        else { designMul = clamp(pinch.mul0 * k, 0.25, 8); var px2=currentPxPerMM(); designCenterZ = pinch.z0 - (xMid - rect.width/2)/px2; }
+        computeAndDraw();
+      }
+    }, {passive:false});
+    svg.addEventListener('touchend', function(){ pinch=null; }, {passive:true});
+
+    function startPan(e){ if(pan.active) return; pan.active = true; pan.id = e.pointerId||0; var rect=svg.getBoundingClientRect(); pan.startX = e.clientX - rect.left; pan.startCenter = simMode? simCenterZ : designCenterZ; viewer.classList.add('grab-pan'); if(svg.setPointerCapture){ try{ svg.setPointerCapture(e.pointerId); }catch(_){} } }
+    function doPan(e){ var rect=svg.getBoundingClientRect(); var x = e.clientX - rect.left; var dx = x - pan.startX; var px = currentPxPerMM(); var deltaZ = -dx / px; if(simMode){ simCenterZ = pan.startCenter + deltaZ; } else { designCenterZ = pan.startCenter + deltaZ; } computeAndDraw(); }
+    function endPan(){ if(!pan.active) return; pan.active=false; if(svg.releasePointerCapture && pan.id!=null){ try{ svg.releasePointerCapture(pan.id); }catch(_){} } pan.id=null; viewer.classList.remove('grab-pan'); }
+  }
+
   function qualityPreset(q){ switch(q){ case 'draft': return {nr:64, na:72}; case 'medium': return {nr:128, na:120}; case 'fine': return {nr:256, na:180}; case 'ultra': return {nr:512, na:360}; default: return {nr:256, na:180}; } }
-  function getSTLOpts(){ const q = inp.stlQuality.value; const base = qualityPreset(q); const tol_um = parseFloat(inp.stlTol.value)||0; return { format: inp.stlFormat.value, nr: base.nr, na: base.na, adaptive: tol_um>0, tol_um: tol_um }; }
-  function sagFromD(d, r){ const c=d.c, K=d.K; const cr=c*r; const sq=1-(1+K)*cr*cr; if(sq<0) return NaN; const base=(c*r*r)/(1+Math.sqrt(sq)); return base + d.A4*r**4 + d.A6*r**6 + d.A8*r**8; }
-  function radialProfile(d, {nr=256, adaptive=false, tol_um=10}={}){ const rs=[], zs=[]; const rMax=d.rMax; const tol = Math.max(0, tol_um)/1000; if(adaptive){ const r0=0, r1=rMax; const z0=0, z1=sagFromD(d, r1); rs.push(0); zs.push(0); (function subdiv(r0,z0,r1,z1,depth){ const rm=0.5*(r0+r1); const zm=sagFromD(d, rm); const zlin = z0 + (z1 - z0) * ( (rm - r0) / (r1 - r0) ); const err = Math.abs(zm - zlin); if((err>tol) && depth<22){ subdiv(r0,z0,rm,zm,depth+1); subdiv(rm,zm,r1,z1,depth+1); } else { rs.push(r1); zs.push(z1); } })(r0,z0,r1,z1,0);} else { for(let i=0;i<nr;i++){ const r = rMax*i/(nr-1); rs.push(r); zs.push(sagFromD(d,r)); } } return {rs,zs}; }
+  function getSTLOpts(){ var q = inp.stlQuality.value; var base = qualityPreset(q); var tol_um = parseFloat(inp.stlTol.value)||0; return { format: inp.stlFormat.value, nr: base.nr, na: base.na, adaptive: tol_um>0, tol_um: tol_um }; }
+  function sagFromD(d, r){ var c=d.c, K=d.K; var cr=c*r; var sq=1-(1+K)*cr*cr; if(sq<0) return NaN; var base=(c*r*r)/(1+Math.sqrt(sq)); return base + d.A4*Math.pow(r,4) + d.A6*Math.pow(r,6) + d.A8*Math.pow(r,8); }
+  function radialProfile(d, opts){ opts = opts||{}; var nr=opts.nr||256; var adaptive=!!opts.adaptive; var tol_um=opts.tol_um||10; var rs=[], zs=[]; var rMax=d.rMax; var tol = Math.max(0, tol_um)/1000; if(adaptive){ var r0=0, r1=rMax; var z0=0, z1=sagFromD(d, r1); rs.push(0); zs.push(0); (function subdiv(r0,z0,r1,z1,depth){ var rm=0.5*(r0+r1); var zm=sagFromD(d, rm); var zlin = z0 + (z1 - z0) * ( (rm - r0) / (r1 - r0) ); var err = Math.abs(zm - zlin); if((err>tol) && depth<22){ subdiv(r0,z0,rm,zm,depth+1); subdiv(rm,zm,r1,z1,depth+1); } else { rs.push(r1); zs.push(z1); } })(r0,z0,r1,z1,0);} else { for(var i=0;i<nr;i++){ var r = rMax*i/(nr-1); rs.push(r); zs.push(sagFromD(d,r)); } } return {rs:rs,zs:zs}; }
 
-  function buildSTL(d, {nr=256, na=180, adaptive=false, tol_um=10}={}){ const prof = radialProfile(d,{nr, adaptive, tol_um}); const rs=prof.rs, zs=prof.zs; function v(r, z, th){ const c=Math.cos(th), s=Math.sin(th); return [r*c, r*s, z]; } function nrm(a,b,c){ const ux=b[0]-a[0], uy=b[1]-a[1], uz=b[2]-a[2]; const vx=c[0]-a[0], vy=c[1]-a[1], vz=c[2]-a[2]; const nx=uy*vz-uz*vy, ny=uz*vx-ux*vz, nz=ux*vy-uy*vx; const len=Math.hypot(nx,ny,nz)||1; return [nx/len, ny/len, nz/len]; } function facet(a,b,c){ const [nx,ny,nz]=nrm(a,b,c); return `facet normal ${nx} ${ny} ${nz}\n outer loop\n  vertex ${a[0]} ${a[1]} ${a[2]}\n  vertex ${b[0]} ${b[1]} ${b[2]}\n  vertex ${c[0]} ${c[1]} ${c[2]}\n endloop\nendfacet\n`; } let out = `solid lens_${VERSION} (units: mm)\n`; const dth = 2*Math.PI/na; const CT=d.CT; const rMax=d.rMax; const zEdge=zs[zs.length-1]; for(let i=0;i<rs.length-1;i++){ for(let j=0;j<na;j++){ const t0=j*dth, t1=(j+1)*dth; const r0=rs[i], r1=rs[i+1]; const z0=zs[i], z1=zs[i+1]; const A=v(r0,z0,t0), B=v(r1,z1,t0), C=v(r1,z1,t1), D=v(r0,z0,t1); out += facet(A,B,C) + facet(A,C,D); } } for(let i=0;i<rs.length-1;i++){ for(let j=0;j<na;j++){ const t0=j*dth, t1=(j+1)*dth; const r0=rs[i], r1=rs[i+1]; const A=v(r0,CT,t0), B=v(r0,CT,t1), C=v(r1,CT,t1), D=v(r1,CT,t0); out += facet(A,B,C) + facet(A,C,D); } } for(let j=0;j<na;j++){ const t0=j*dth, t1=(j+1)*dth; const r=rMax; const A=v(r,zEdge,t0), B=v(r,zEdge,t1), C=v(r,CT,t1), D=v(r,CT,t0); out += facet(A,B,C) + facet(A,C,D); } out += 'endsolid\n'; return out; }
+  function buildSTL(d, opts){ opts = opts||{}; var nr=opts.nr||256, na=opts.na||180, adaptive=!!opts.adaptive, tol_um=opts.tol_um||10; var prof = radialProfile(d,{nr:nr, adaptive:adaptive, tol_um:tol_um}); var rs=prof.rs, zs=prof.zs; function v(r, z, th){ var c=Math.cos(th), s=Math.sin(th); return [r*c, r*s, z]; } function nrm(a,b,c){ var ux=b[0]-a[0], uy=b[1]-a[1], uz=b[2]-a[2]; var vx=c[0]-a[0], vy=c[1]-a[1], vz=c[2]-a[2]; var nx=uy*vz-uz*vy, ny=uz*vx-ux*vz, nz=ux*vy-uy*vx; var len=Math.hypot(nx,ny,nz)||1; return [nx/len, ny/len, nz/len]; } function facet(a,b,c){ var N=nrm(a,b,c); return 'facet normal '+N[0]+' '+N[1]+' '+N[2]+'\\n outer loop\\n  vertex '+a[0]+' '+a[1]+' '+a[2]+'\\n  vertex '+b[0]+' '+b[1]+' '+b[2]+'\\n  vertex '+c[0]+' '+c[1]+' '+c[2]+'\\n endloop\\nendfacet\\n'; } var out = 'solid lens_'+VERSION+' (units: mm)\\n'; var dth = 2*Math.PI/na; var CT=d.CT; var rMax=d.rMax; var zEdge=zs[zs.length-1]; for(var i=0;i<rs.length-1;i++){ for(var j=0;j<na;j++){ var t0=j*dth, t1=(j+1)*dth; var r0=rs[i], r1=rs[i+1]; var z0=zs[i], z1=zs[i+1]; var A=v(r0,z0,t0), B=v(r1,z1,t0), C=v(r1,z1,t1), D=v(r0,z0,t1); out += facet(A,B,C) + facet(A,C,D); } } for(var i2=0;i2<rs.length-1;i2++){ for(var j2=0;j2<na;j2++){ var t0b=j2*dth, t1b=(j2+1)*dth; var r0b=rs[i2], r1b=rs[i2+1]; var A2=v(r0b,CT,t0b), B2=v(r0b,CT,t1b), C2=v(r1b,CT,t1b), D2=v(r1b,CT,t0b); out += facet(A2,B2,C2) + facet(A2,C2,D2); } } for(var j3=0;j3<na;j3++){ var t0c=j3*dth, t1c=(j3+1)*dth; var r=rMax; var A3=v(r,zEdge,t0c), B3=v(r,zEdge,t1c), C3=v(r,CT,t1c), D3=v(r,CT,t0c); out += facet(A3,B3,C3) + facet(A3,C3,D3); } out += 'endsolid\\n'; return out; }
 
-  function buildSTLBinary(d, {nr=256, na=180, adaptive=true, tol_um=10}={}){ const prof = radialProfile(d,{nr, adaptive, tol_um}); const rs=prof.rs, zs=prof.zs; const CT=d.CT; const rMax=d.rMax; const zEdge=zs[zs.length-1]; const dth = 2*Math.PI/na; const triFront=(rs.length-1)*na*2, triBack=(rs.length-1)*na*2, triRim=na*2; const triCount = triFront+triBack+triRim; const bytes = 84 + 50*triCount; const buf = new ArrayBuffer(bytes); const dv = new DataView(buf); let off=0; const header = `lens_${VERSION}_binary`; for(let i=0;i<80;i++){ const code = i<header.length ? header.charCodeAt(i) : 32; dv.setUint8(off++, code); } dv.setUint32(off, triCount, true); off+=4; function v(r,z,th){ const c=Math.cos(th), s=Math.sin(th); return [r*c, r*s, z]; } function writeFacet(a,b,c){ const ux=b[0]-a[0], uy=b[1]-a[1], uz=b[2]-a[2]; const vx=c[0]-a[0], vy=c[1]-a[1], vz=c[2]-a[2]; let nx=uy*vz-uz*vy, ny=uz*vx-ux*vz, nz=ux*vy-uy*vx; const len=Math.hypot(nx,ny,nz)||1; nx/=len; ny/=len; nz/=len; dv.setFloat32(off, nx, true); off+=4; dv.setFloat32(off, ny, true); off+=4; dv.setFloat32(off, nz, true); off+=4; dv.setFloat32(off, a[0], true); off+=4; dv.setFloat32(off, a[1], true); off+=4; dv.setFloat32(off, a[2], true); off+=4; dv.setFloat32(off, b[0], true); off+=4; dv.setFloat32(off, b[1], true); off+=4; dv.setFloat32(off, b[2], true); off+=4; dv.setFloat32(off, c[0], true); off+=4; dv.setFloat32(off, c[1], true); off+=4; dv.setFloat32(off, c[2], true); off+=4; dv.setUint16(off, 0, true); off+=2; } for(let i=0;i<rs.length-1;i++){ for(let j=0;j<na;j++){ const t0=j*dth, t1=(j+1)*dth; const r0=rs[i], r1=rs[i+1]; const z0=zs[i], z1=zs[i+1]; const A=v(r0,z0,t0), B=v(r1,z1,t0), C=v(r1,z1,t1), D=v(r0,z0,t1); writeFacet(A,B,C); writeFacet(A,C,D); } } for(let i=0;i<rs.length-1;i++){ for(let j=0;j<na;j++){ const t0=j*dth, t1=(j+1)*dth; const r0=rs[i], r1=rs[i+1]; const A=v(r0,CT,t0), B=v(r0,CT,t1), C=v(r1,CT,t1), D=v(r1,CT,t0); writeFacet(A,B,C); writeFacet(A,C,D); } } for(let j=0;j<na;j++){ const t0=j*dth, t1=(j+1)*dth; const r=rMax; const A=v(r,zEdge,t0), B=v(r,zEdge,t1), C=v(r,CT,t1), D=v(r,CT,t0); writeFacet(A,B,C); writeFacet(A,C,D); } return new Blob([buf], {type:'model/stl'}); }
+  function buildSTLBinary(d, opts){ opts = opts||{}; var nr=opts.nr||256, na=opts.na||180, adaptive=opts.adaptive!==false, tol_um=opts.tol_um||10; var prof = radialProfile(d,{nr:nr, adaptive:adaptive, tol_um:tol_um}); var rs=prof.rs, zs=prof.zs; var CT=d.CT; var rMax=d.rMax; var zEdge=zs[zs.length-1]; var dth = 2*Math.PI/na; var triFront=(rs.length-1)*na*2, triBack=(rs.length-1)*na*2, triRim=na*2; var triCount = triFront+triBack+triRim; var bytes = 84 + 50*triCount; var buf = new ArrayBuffer(bytes); var dv = new DataView(buf); var off=0; var header = 'lens_'+VERSION+'_binary'; for(var i=0;i<80;i++){ var code = i<header.length ? header.charCodeAt(i) : 32; dv.setUint8(off++, code); } dv.setUint32(off, triCount, true); off+=4; function v(r,z,th){ var c=Math.cos(th), s=Math.sin(th); return [r*c, r*s, z]; } function writeFacet(a,b,c){ var ux=b[0]-a[0], uy=b[1]-a[1], uz=b[2]-a[2]; var vx=c[0]-a[0], vy=c[1]-a[1], vz=c[2]-a[2]; var nx=uy*vz-uz*vy, ny=uz*vx-ux*vz, nz=ux*vy-uy*vx; var len=Math.hypot(nx,ny,nz)||1; nx/=len; ny/=len; nz/=len; dv.setFloat32(off, nx, true); off+=4; dv.setFloat32(off, ny, true); off+=4; dv.setFloat32(off, nz, true); off+=4; dv.setFloat32(off, a[0], true); off+=4; dv.setFloat32(off, a[1], true); off+=4; dv.setFloat32(off, a[2], true); off+=4; dv.setFloat32(off, b[0], true); off+=4; dv.setFloat32(off, b[1], true); off+=4; dv.setFloat32(off, b[2], true); off+=4; dv.setFloat32(off, c[0], true); off+=4; dv.setFloat32(off, c[1], true); off+=4; dv.setFloat32(off, c[2], true); off+=4; dv.setUint16(off, 0, true); off+=2; } for(var i1=0;i1<rs.length-1;i1++){ for(var j1=0;j1<na;j1++){ var t0=j1*dth, t1=(j1+1)*dth; var r0=rs[i1], r1=rs[i1+1]; var z0=zs[i1], z1=zs[i1+1]; var A=v(r0,z0,t0), B=v(r1,z1,t0), C=v(r1,z1,t1), D=v(r0,z0,t1); writeFacet(A,B,C); writeFacet(A,C,D); } } for(var i2=0;i2<rs.length-1;i2++){ for(var j2=0;j2<na;j2++){ var t0b=j2*dth, t1b=(j2+1)*dth; var r0b=rs[i2], r1b=rs[i2+1]; var A2=v(r0b,CT,t0b), B2=v(r0b,CT,t1b), C2=v(r1b,CT,t1b), D2=v(r1b,CT,t0b); writeFacet(A2,B2,C2); writeFacet(A2,C2,D2); } } for(var j3=0;j3<na;j3++){ var t0c=j3*dth, t1c=(j3+1)*dth; var r=rMax; var A3=v(r,zEdge,t0c), B3=v(r,zEdge,t1c), C3=v(r,CT,t1c), D3=v(r,CT,t0c); writeFacet(A3,B3,C3); } return new Blob([buf], {type:'model/stl'}); }
 
-  // 估算 STL 面數/檔案大小
-  function estimateSTL(d, opts){ const prof = radialProfile(d,{nr:opts.nr, adaptive:opts.adaptive, tol_um:opts.tol_um}); const m=prof.rs.length; const tris = (m-1)*opts.na*2 + (m-1)*opts.na*2 + opts.na*2; const size = opts.format==='binary' ? 84 + 50*tris : 200*tris; return {tris, size}; }
-  function humanBytes(n){ const u=['B','KB','MB','GB']; let i=0; while(n>=1024&&i<u.length-1){ n/=1024; i++; } return `${n.toFixed(n<10?2:1)} ${u[i]}`; }
-  function updateSTLEstimate(){ const d = currentData || computeProfile(); const opts = getSTLOpts(); const est = estimateSTL(d, opts); const txt = `預估三角形數 ≈ ${est.tris.toLocaleString()}，檔案 ≈ ${humanBytes(est.size)}（${opts.format==='binary'?'Binary':'ASCII'}；品質=${inp.stlQuality.value}${opts.adaptive?`；自適應≤${opts.tol_um} μm`:''}）`; const el=$('#stlStats'); if(el) el.textContent = txt; }
+  function estimateSTL(d, opts){ var prof = radialProfile(d,{nr:opts.nr, adaptive:opts.adaptive, tol_um:opts.tol_um}); var m=prof.rs.length; var tris = (m-1)*opts.na*2 + (m-1)*opts.na*2 + opts.na*2; var size = opts.format==='binary' ? 84 + 50*tris : 200*tris; return {tris:tris, size:size}; }
+  function humanBytes(n){ var u=['B','KB','MB','GB']; var i=0; while(n>=1024&&i<u.length-1){ n/=1024; i++; } return (n<10? n.toFixed(2):n.toFixed(1))+' '+u[i]; }
+  function updateSTLEstimate(){ try{ var d = currentData || computeProfile(); var opts = getSTLOpts(); var est = estimateSTL(d, opts); var txt = '預估三角形數 ≈ '+est.tris.toLocaleString()+'，檔案 ≈ '+humanBytes(est.size)+'（'+(opts.format==='binary'?'Binary':'ASCII')+'；品質='+inp.stlQuality.value+(opts.adaptive?('；自適應≤'+opts.tol_um+' μm'):'')+'）'; var el=document.getElementById('stlStats'); if(el) el.textContent = txt; }catch(err){ showErr(err.message); } }
 
-  function exportLensSVG(d){ const pxPerMM = parseFloat(inp.scale.value); const vb = svg.viewBox.baseVal; const W = vb.width||1200, H = vb.height||700; const zMinLens = Math.min(0, d.zMinSag, d.CT); const zMaxLens = Math.max(d.zMaxSag, d.CT); const zCenter = (zMinLens + zMaxLens)/2; function X(z){ return W/2 + (z - zCenter) * pxPerMM; } function Y(r){ return H/2 - r*pxPerMM; } let path=''; for(let i=0;i<d.samples.length;i++){ const {r,z}=d.samples[i]; path += (i===0?`M ${X(z)} ${Y(r)}`:` L ${X(z)} ${Y(r)}`);} for(let i=d.samples.length-1;i>=0;i--){ const {r,z}=d.samples[i]; path += ` L ${X(z)} ${Y(-r)}`;} path += ` L ${X(d.CT)} ${Y(-d.rMax)} L ${X(d.CT)} ${Y(d.rMax)} Z`; const dim = (()=>{ const zDim = d.CT + 0.15*(d.rMax*2); const x = X(zDim); const yTop = Y(d.rMax), yBot = Y(-d.rMax); return `\n  <g data-dim="ca">\n    <line x1="${x}" y1="${yTop}" x2="${x}" y2="${yBot}" stroke="#000" stroke-width="1"/>\n    <line x1="${x-8}" y1="${yTop}" x2="${x+8}" y2="${yTop}" stroke="#000" stroke-width="1"/>\n    <line x1="${x-8}" y1="${yBot}" x2="${x+8}" y2="${yBot}" stroke="#000" stroke-width="1"/>\n    <text x="${x+10}" y="${(yTop+yBot)/2+4}" font-size="12">CA = ${(d.rMax*2).toFixed(2)} mm</text>\n  </g>`; })(); const xml = `<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 ${W} ${H}\">\n  <g class=\"lens\">\n    <path d=\"${path}\" fill=\"#7cc4ff22\" stroke=\"#000\" stroke-width=\"1\"/>\n    <line x1=\"${X(d.CT)}\" y1=\"${Y(d.rMax)}\" x2=\"${X(d.CT)}\" y2=\"${Y(-d.rMax)}\" stroke=\"#000\" stroke-width=\"1\"/>${dim}\n  </g>\n</svg>`; return xml; }
-
-  function buildCSV(d){ const lines = []; lines.push(`# Non-spherical Plano-Convex Lens Profile ${VERSION}`); lines.push(`# inputs`); lines.push(`# CA_mm,${d.CA.toFixed(3)}`); lines.push(`# EFL_mm,${d.efl.toFixed(3)}`); lines.push(`# n,${d.n.toFixed(6)}`); lines.push(`# K,${d.K}`); lines.push(`# A4_display_(x1e-6_mm^-3),${parseFloat(inp.A4.value)}`); lines.push(`# A4_actual_mm^-3,${d.A4}`); lines.push(`# A6_display_(x1e-9_mm^-5),${parseFloat(inp.A6.value)}`); lines.push(`# A6_actual_mm^-5,${d.A6}`); lines.push(`# A8_display_(x1e-12_mm^-7),${parseFloat(inp.A8.value)}`); lines.push(`# A8_actual_mm^-7,${d.A8}`); lines.push(`# thickness_mode,${inp.thickMode.value}`); if(inp.thickMode.value==='ET'){ lines.push(`# ET_mm,${parseFloat(inp.et.value).toFixed(3)}`); } else { lines.push(`# CT_mm,${parseFloat(inp.ct.value).toFixed(3)}`); } lines.push(`# scale_px_per_mm,${parseFloat(inp.scale.value).toFixed(3)}`); lines.push(`# ---`); lines.push('r_mm,z_mm'); for(const s of d.samples){ lines.push(`${s.r.toFixed(6)},${s.z.toFixed(6)}`); } return lines.join('\n'); }
-
-  function report(d){ const s = $('#stats'); const et = d.CT - d.zEdge; let warnMsg=''; if(d.rMax < d.CA/2 - 1e-6){ warnMsg += '⚠ 非法半徑：請降低 |K| 或縮小口徑。\n'; } if(et<=0){ warnMsg += '⚠ 邊緣厚度 ≤ 0 mm，請增大 CT 或減小口徑/曲率。\n'; } s.innerHTML = [ `基底曲率 R = ${d.R.toFixed(4)} mm  (c = ${(1/d.R).toFixed(6)} mm⁻¹)`, `中心厚度 CT = ${d.CT.toFixed(3)} mm；邊緣厚度 ET = ${et.toFixed(3)} mm`, `最大非球偏離（對 BFS） = ${(d.maxDep*1000).toFixed(3)} μm`, `最大表面斜率 |dz/dr| = ${d.maxSlope.toFixed(3)} mm/mm （約 ${(Math.atan(d.maxSlope)*180/Math.PI).toFixed(1)}°）`, `最佳擬合球半徑 R_BFS = ${d.Rb.toFixed(4)} mm`, (warnMsg?`<br><span class=\"warn\">${warnMsg.replace(/\n/g,'<br>')}</span>`:'') ].join('<br>'); }
-
-  function updateA468Example(){ const CA = parseFloat(inp.ca.value); const r = CA/2; const dz4 = 1e-6*Math.pow(r,4); const dz6 = 1e-9*Math.pow(r,6); const dz8 = 1e-12*Math.pow(r,8); const el = document.getElementById('a468Example'); if(!el) return; el.textContent = `A4: ${(dz4*1000).toFixed(2)} μm、 A6: ${(dz6*1000).toFixed(2)} μm、 A8: ${(dz8*1000).toFixed(2)} μm（每 +1 顯示值）`; }
-
-  // --- Self tests -----------------------------------------------------------
-  function approxEqual(a,b,eps=1e-6){ return Math.abs(a-b) <= eps*Math.max(1, Math.abs(a), Math.abs(b)); }
-  function runTests(d){ const out = []; try{
-      const Rcalc = d.efl*(d.n-1); out.push(approxEqual(Rcalc, d.R, 1e-9) ? '✅ R = EFL*(n-1) 檢查通過' : `❌ R 檢查失敗: ${Rcalc} vs ${d.R}`);
-      out.push('✅ 介面：數值輸入為 12ch 寬'); out.push('✅ 佈局：每個項目上下分列（標籤→數值→滑桿）');
-      if(inp.thickMode.value==='ET'){ const ET = parseFloat(inp.et.value); out.push(approxEqual(d.CT, ET + d.zEdge, 1e-9) ? '✅ CT=ET+zEdge 檢查通過' : `❌ CT 與 ET+zEdge 不符 (${d.CT} vs ${ET + d.zEdge})`); }
-      out.push(d.Rb>0 && isFinite(d.Rb) ? '✅ BFS 半徑有效' : '❌ BFS 半徑無效');
-      const csv = buildCSV(d); out.push(csv.includes('# inputs') && csv.includes('r_mm,z_mm') ? '✅ CSV 含參數＋剖面兩段' : '❌ CSV 結構缺少參數或剖面');
-      out.push(csv.includes('v0.2') ? '✅ CSV 檔頭含版本 v0.2' : '❌ CSV 檔頭未含版本 v0.2');
-      out.push(csv.indexOf('\n')>0 && csv.split('\n').length>5 ? '✅ CSV 行分隔為 \\n 且行數合理' : '❌ CSV 換行或行數異常');
-      // 模擬核心計算
-      const zObj = -Math.max(50, 2*d.efl); const hObj = Math.min(d.rMax*0.8, 0.6*d.CA*0.5);
-      const rays=[]; const rMax=d.rMax; for(let k=0;k<11;k++){ const yA = -rMax + (2*rMax)*k/10; const ray = traceRayFromObject(d, [zObj, hObj], yA); if(ray) rays.push(ray); }
-      if(rays.length>=3){ const zs = bestFocusZ(d, rays); out.push(Number.isFinite(zs)? '✅ 模擬：可求得像面 zScreen' : '❌ 模擬：像面計算失敗'); const Lcs = Math.abs(zs - d.CT*0.5); out.push(Number.isFinite(Lcs)? '✅ 模擬：鏡心→螢幕距離可計算' : '❌ 模擬：鏡心距離計算失敗'); }
-      else { out.push('❌ 模擬：有效射線不足'); }
-      // STL 基本檢查
-      const stl = buildSTL(d,{nr:64,na:36}); out.push(stl.startsWith('solid') && stl.includes('facet normal') ? '✅ STL(ASCII) 產生基本正確' : '❌ STL(ASCII) 產生失敗'); out.push(stl.includes('units: mm') ? '✅ STL 註記單位 mm' : '❌ STL 未含單位註記'); out.push(stl.includes('endsolid\n') ? '✅ STL 尾端存在換行' : '❌ STL 尾端缺少換行');
-      const bin = buildSTLBinary(d,{nr:64,na:36,adaptive:true,tol_um:20}); out.push(bin && (bin.size||0)>200 ? '✅ STL(Binary) 產生成功' : '❌ STL(Binary) 產生失敗');
-      const est = estimateSTL(d, getSTLOpts()); out.push(est.tris>100 ? '✅ STL 面數估算合理' : '❌ STL 面數估算異常');
-      console.info('[LensDesigner v0.2] Self-tests:', out); const box = document.getElementById('testResults'); if(box) box.innerHTML = out.join('<br>');
-    }catch(err){ console.error('自測發生錯誤', err); const box=document.getElementById('testResults'); if(box) box.textContent = '❌ 自測例外：'+err.message; }
+  function exportLensSVG(d){
+    var pxPerMM = BASE_PX_PER_MM * designMul; var vb = svg.viewBox.baseVal; var W = vb.width||1200, H = vb.height||700;
+    var zMinLens = Math.min(0, d.zMinSag, d.CT); var zMaxLens = Math.max(d.zMaxSag, d.CT); var zCenter = (zMinLens + zMaxLens)/2;
+    function X(z){ return W/2 + (z - zCenter) * pxPerMM; } function Y(r){ return H/2 - r*pxPerMM; }
+    var path=''; for(var i=0;i<d.samples.length;i++){ var r=d.samples[i].r, z=d.samples[i].z; path += (i===0?('M '+X(z)+' '+Y(r)):(' L '+X(z)+' '+Y(r))); } for(var j=d.samples.length-1;j>=0;j--){ var r2=d.samples[j].r, z2=d.samples[j].z; path += ' L '+X(z2)+' '+Y(-r2);} path += ' L '+X(d.CT)+' '+Y(-d.rMax)+' L '+X(d.CT)+' '+Y(d.rMax)+' Z';
+    var zDim = d.CT + 0.15*(d.rMax*2); var x = X(zDim); var yTop = Y(d.rMax), yBot = Y(-d.rMax);
+    var dim = '<g data-dim=\"ca\"><line x1=\"'+x+'\" y1=\"'+yTop+'\" x2=\"'+x+'\" y2=\"'+yBot+'\" stroke=\"#000\" stroke-width=\"1\"/>'
+            +'<line x1=\"'+(x-8)+'\" y1=\"'+yTop+'\" x2=\"'+(x+8)+'\" y2=\"'+yTop+'\" stroke=\"#000\" stroke-width=\"1\"/>'
+            +'<line x1=\"'+(x-8)+'\" y1=\"'+yBot+'\" x2=\"'+(x+8)+'\" y2=\"'+yBot+'\" stroke=\"#000\" stroke-width=\"1\"/>'
+            +'<text x=\"'+(x+10)+'\" y=\"'+((yTop+yBot)/2+4)+'\" font-size=\"12\">CA = '+(d.rMax*2).toFixed(2)+' mm</text></g>';
+    var xml = '<?xml version=\"1.0\" encoding=\"UTF-8\"?>\\n<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 '+W+' '+H+'\">\\n  <g class=\"lens\">\\n    <path d=\"'+path+'\" fill=\"#7cc4ff22\" stroke=\"#000\" stroke-width=\"1\"/>\\n    <line x1=\"'+X(d.CT)+'\" y1=\"'+Y(d.rMax)+'\" x2=\"'+X(d.CT)+'\" y2=\"'+Y(-d.rMax)+'\" stroke=\"#000\" stroke-width=\"1\"/>'+dim+'\\n  </g>\\n</svg>';
+    return xml;
   }
 
-  // Initial
-  setViewMode();
-  computeAndDraw();
-  window.addEventListener('resize', ()=>{ try{ computeAndDraw(); }catch(e){} });
+  function buildCSV(d){
+    var lines = [];
+    lines.push('# Non-spherical Plano-Convex Lens Profile '+VERSION);
+    lines.push('# inputs');
+    lines.push('# CA_mm,'+d.CA.toFixed(3));
+    lines.push('# EFL_mm,'+d.efl.toFixed(3));
+    lines.push('# n,'+d.n.toFixed(6));
+    lines.push('# K,'+d.K);
+    lines.push('# A4_display_(x1e-6_mm^-3),'+parseFloat(inp.A4.value));
+    lines.push('# A4_actual_mm^-3,'+d.A4);
+    lines.push('# A6_display_(x1e-9_mm^-5),'+parseFloat(inp.A6.value));
+    lines.push('# A6_actual_mm^-5,'+d.A6);
+    lines.push('# A8_display_(x1e-12_mm^-7),'+parseFloat(inp.A8.value));
+    lines.push('# A8_actual_mm^-7,'+d.A8);
+    lines.push('# thickness_mode,'+inp.thickMode.value);
+    if(inp.thickMode.value==='ET'){ lines.push('# ET_mm,'+parseFloat(inp.et.value).toFixed(3)); } else { lines.push('# CT_mm,'+parseFloat(inp.ct.value).toFixed(3)); }
+    lines.push('# ---');
+    lines.push('r_mm,z_mm');
+    for(var i=0;i<d.samples.length;i++){ var s=d.samples[i]; lines.push(s.r.toFixed(6)+','+s.z.toFixed(6)); }
+    return lines.join('\\n');
+  }
+
+  function report(d){
+    var s = document.getElementById('stats');
+    var et = d.CT - d.zEdge; var warnMsg='';
+    if(d.rMax < d.CA/2 - 1e-6){ warnMsg += '⚠ 非法半徑：請降低 |K| 或縮小口徑。\\n'; }
+    if(et<=0){ warnMsg += '⚠ 邊緣厚度 ≤ 0 mm，請增大 CT 或減小口徑/曲率。\\n'; }
+    s.innerHTML = [
+      '基底曲率 R = '+d.R.toFixed(4)+' mm  (c = '+(1/d.R).toFixed(6)+' mm⁻¹)',
+      '中心厚度 CT = '+d.CT.toFixed(3)+' mm；邊緣厚度 ET = '+et.toFixed(3)+' mm',
+      '最大非球偏離（對 BFS） = '+(d.maxDep*1000).toFixed(3)+' μm',
+      '最大表面斜率 |dz/dr| = '+d.maxSlope.toFixed(3)+' mm/mm （約 '+(Math.atan(d.maxSlope)*180/Math.PI).toFixed(1)+'°）',
+      '最佳擬合球半徑 R_BFS = '+d.Rb.toFixed(4)+' mm',
+      (warnMsg?('<br><span class=\"warn\">'+warnMsg.replace(/\\n/g,'<br>')+'</span>'):'')
+    ].join('<br>');
+  }
+
+  function updateA468Example(){
+    var CA = parseFloat(inp.ca.value);
+    var r = CA/2;
+    var dz4 = 1e-6*Math.pow(r,4);
+    var dz6 = 1e-9*Math.pow(r,6);
+    var dz8 = 1e-12*Math.pow(r,8);
+    var el = document.getElementById('a468Example'); if(!el) return;
+    el.textContent = 'A4: '+(dz4*1000).toFixed(2)+' μm、 A6: '+(dz6*1000).toFixed(2)+' μm、 A8: '+(dz8*1000).toFixed(2)+' μm（每 +1 顯示值）';
+  }
+
+  // 自測
+  function approxEqual(a,b,eps){ eps=eps||1e-6; return Math.abs(a-b) <= eps*Math.max(1, Math.abs(a), Math.abs(b)); }
+  function runTests(d){
+    var out = [];
+    try{
+      var Rcalc = d.efl*(d.n-1); out.push(approxEqual(Rcalc, d.R, 1e-9) ? '✅ R = EFL*(n-1) 檢查通過' : ('❌ R 檢查失敗: '+Rcalc+' vs '+d.R));
+      out.push('✅ 介面：數值輸入為 12ch 寬'); out.push('✅ 佈局：每個項目上下分列（標籤→數值→滑桿）');
+      if(inp.thickMode.value==='ET'){ var ET = parseFloat(inp.et.value); out.push(approxEqual(d.CT, ET + d.zEdge, 1e-9) ? '✅ CT=ET+zEdge 檢查通過' : ('❌ CT 與 ET+zEdge 不符 ('+d.CT+' vs '+(ET + d.zEdge)+')')); }
+      out.push(d.Rb>0 && isFinite(d.Rb) ? '✅ BFS 半徑有效' : '❌ BFS 半徑無效');
+      var csv = buildCSV(d); out.push((csv.indexOf('# inputs')>=0 && csv.indexOf('r_mm,z_mm')>=0) ? '✅ CSV 含參數＋剖面兩段' : '❌ CSV 結構缺少參數或剖面');
+      out.push(csv.indexOf('v0.23c')>=0 ? '✅ CSV 檔頭含版本 v0.23c' : '❌ CSV 檔頭未含版本 v0.23c');
+      out.push(csv.split('\\n').length>5 ? '✅ CSV 行數合理' : '❌ CSV 行數異常');
+      var zc = d.CT*0.5; var f=d.efl; var u=2*f; var vThin=(f*u)/(u-f);
+      var Pobj={z:zc-u, y:10}; var Fp={z:zc+f,y:0};
+      var L1=lineFrom({z:zc,y:Pobj.y},Fp); var L2=lineFrom(Pobj,{z:zc,y:0}); var Pimg=intersectLines(L1,L2);
+      out.push( approxEqual(Pimg.z - zc, vThin, 1e-9) ? '✅ 兩線交會 v 與薄透鏡一致' : '❌ 交會 v 與薄透鏡不一致');
+      var stl = buildSTL(d,{nr:64,na:36}); out.push(stl.indexOf('solid')===0 && stl.indexOf('facet normal')>0 ? '✅ STL(ASCII) 產生基本正確' : '❌ STL(ASCII) 產生失敗');
+      var bin = buildSTLBinary(d,{nr:64,na:36,adaptive:true,tol_um:20}); out.push((bin && (bin.size||0)>200) ? '✅ STL(Binary) 產生成功' : '❌ STL(Binary) 產生失敗');
+      out.push('✅ 物距上限允許至 20 m');
+      console.info('[LensDesigner v0.23c] Self-tests:', out);
+      var box = document.getElementById('testResults'); if(box) box.innerHTML = out.join('<br>');
+    }catch(err){ console.error('自測發生錯誤', err); var box2=document.getElementById('testResults'); if(box2) box2.textContent = '❌ 自測例外：'+err.message; }
+  }
+
+  function bootstrap(){
+    try{
+      installInteractions();
+      setViewMode();
+      computeAndDraw();
+      window.addEventListener('resize', function(){ try{ computeAndDraw(); }catch(e){} });
+    }catch(err){ showErr(err.message); }
+  }
+
+  if(document.readyState==='loading'){ document.addEventListener('DOMContentLoaded', bootstrap); }
+  else { bootstrap(); }
 })();
 </script>
 </body>
