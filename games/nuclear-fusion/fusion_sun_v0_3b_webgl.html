@@ -1,0 +1,755 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>太陽核融合互動模擬 v0.3b（WebGL 實體球 + 透明反應爐 + 修正）</title>
+<style>
+  html,body{margin:0;height:100%;background:#060910;color:#e9f1ff;font-family:system-ui,-apple-system,Segoe UI,Inter,Roboto,Arial}
+  #gl{position:fixed;inset:0 360px 0 0;touch-action:none;display:block}
+  #ui{position:fixed;right:0;top:0;bottom:0;width:360px;max-width:90vw;background:rgba(8,12,20,.92);backdrop-filter:blur(6px);border-left:1px solid #182235;display:flex;flex-direction:column}
+  #header{padding:10px 12px;border-bottom:1px solid #182235;display:flex;gap:8px;align-items:center}
+  .tag{font-size:12px;padding:2px 8px;border-radius:999px;background:#15213a;color:#9bdcff;border:1px solid #223359}
+  #panel{padding:10px 12px;overflow:auto;flex:1}
+  .card{border:1px solid #27324a;border-radius:10px;padding:10px;background:#0e1626;margin-bottom:10px}
+  .legend{display:flex;gap:10px;flex-wrap:wrap;margin-top:6px}
+  .pill{display:inline-flex;align-items:center;gap:6px;border:1px solid #2a3d6b;border-radius:999px;padding:4px 8px;background:#0f1625;font-size:12px}
+  .dot{width:10px;height:10px;border-radius:50%}
+  .p{background:#ff4d4d;box-shadow:0 0 8px #ff4d4d80}
+  .n{background:#58a6ff;box-shadow:0 0 8px #58a6ff80}
+  .e{background:#6cff8f;box-shadow:0 0 8px #6cff8f80}
+  button{background:#1a2743;color:#e6f0ff;border:1px solid #2a3d6b;padding:8px 10px;border-radius:8px;cursor:pointer}
+  button:hover{background:#22345b}
+  button.primary{background:#2b6cb0;border-color:#2b6cb0}
+  button.danger{background:#9b2c2c;border-color:#9b2c2c}
+  .row{display:flex;gap:8px;flex-wrap:wrap}
+  .small{font-size:12px;color:#9bb3ff}
+  .stat{font-variant-numeric:tabular-nums}
+  .log{font-size:12px;line-height:1.4;background:#0b131f;border:1px solid #1a2743;padding:8px;border-radius:8px;max-height:180px;overflow:auto;white-space:normal}
+  .log div{margin-bottom:4px}
+  .palette{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+  .chip{border:1px solid #2a3d6b;border-radius:999px;padding:3px 8px;background:#0f1625;font-size:12px}
+  .kbd{padding:1px 6px;border:1px solid #2a3d6b;border-bottom-width:2px;border-radius:6px;background:#0b131f;font-family:ui-monospace,Consolas,Menlo,monospace}
+  #footer{padding:8px 12px;border-top:1px solid #182235;color:#8ea7ff;font-size:12px}
+  @media (max-width:1000px){
+    #gl{inset:0 0 45% 0}
+    #ui{inset:auto 0 0 0;height:45%;width:100%;border-left:none;border-top:1px solid #182235}
+  }
+</style>
+</head>
+<body>
+<canvas id="gl"></canvas>
+<div id="ui" role="complementary" aria-label="控制面板">
+  <div id="header">
+    <span class="tag">太陽核融合模擬</span>
+    <span class="tag">v0.3b WebGL</span>
+  </div>
+  <div id="panel">
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+        <div>
+          <div class="small">反應器狀態</div>
+          <div id="status" class="stat">拖兩顆原子進透明球體內，輕點選 A/B 後按「融合」。</div>
+        </div>
+        <button id="reset" class="danger">全部清除</button>
+      </div>
+      <div class="legend">
+        <span class="pill"><span class="dot p"></span>質子</span>
+        <span class="pill"><span class="dot n"></span>中子</span>
+        <span class="pill"><span class="dot e"></span>電子</span>
+      </div>
+      <div class="row" style="margin-top:6px">
+        <button id="fuse" class="primary" disabled>融合（選兩個）</button>
+        <button id="predict" disabled>預測產物</button>
+        <button id="deleteSel" disabled>刪除選取</button>
+      </div>
+      <div class="row" style="margin-top:6px">
+        <label><input id="showElectrons" type="checkbox" checked> 顯示電子</label>
+        <label style="margin-left:8px"><input id="ppOnly" type="checkbox" checked> pp-鏈模式</label>
+        <label style="margin-left:8px"><input id="hiParticles" type="checkbox" checked> 高粒子數</label>
+      </div>
+      <div class="small" style="margin-top:6px">手勢：<span class="kbd">單指拖曳</span>移動原子、<span class="kbd">輕點</span>選取 A/B、<span class="kbd">雙指張合</span>縮放、<span class="kbd">雙指旋轉</span>旋轉視角、<span class="kbd">雙擊空白</span>重置視角。</div>
+    </div>
+
+    <div class="card">
+      <div class="small">原子調色盤（點一下加入一顆）</div>
+      <div class="palette" id="palette"></div>
+      <div class="small" style="margin-top:6px">內建穩定同位素 + H-3（不穩定）。</div>
+    </div>
+
+    <div class="card">
+      <div class="small">選取資訊</div>
+      <div id="selA" class="stat">A：未選取</div>
+      <div id="selB" class="stat">B：未選取</div>
+      <div id="predictText" class="small" style="margin-top:6px"></div>
+    </div>
+
+    <div class="card">
+      <div class="small">事件紀錄</div>
+      <div id="log" class="log"></div>
+    </div>
+  </div>
+  <div id="footer">教育用途模型。pp-鏈：p+p→D+e<sup>+</sup>+ν；D+p→He-3+γ；He-3+He-3→He-4+p+p。</div>
+</div>
+
+<script>
+/* ===== 常數 & 狀態 ===== */
+const REACTOR_R = 120; // 透明反應爐球半徑
+const canvas = document.getElementById('gl');
+let gl;
+let W,H, DPR = Math.min(2, window.devicePixelRatio||1);
+
+const camera = {yaw:0, pitch:0, dist:600, fov:55*Math.PI/180, zoom:1};
+const lightDir=[0.8,0.6,1.0];
+const ambient=[0.12,0.16,0.25];
+const showElectronsEl=document.getElementById('showElectrons');
+const ppOnlyEl=document.getElementById('ppOnly');
+const hiParticlesEl=document.getElementById('hiParticles');
+
+function esc(s){ return s.replace(/[&<>]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[m])); }
+function setStatus(msg){ document.getElementById('status').innerHTML=msg; }
+function log(msg){
+  const el=document.getElementById('log');
+  const line = '<div>'+new Date().toLocaleTimeString()+'　'+esc(msg)+'</div>';
+  el.innerHTML = line + el.innerHTML;
+}
+
+/* ===== GL 初始化 ===== */
+function initGL(){
+  gl = canvas.getContext('webgl', {antialias:true, alpha:false, premultipliedAlpha:false});
+  if (!gl){ alert('此裝置不支援 WebGL'); return; }
+  gl.enable(gl.DEPTH_TEST);
+  gl.enable(gl.CULL_FACE);
+  gl.clearColor(0.05,0.07,0.12,1.0);
+  resize();
+}
+function resize(){
+  const uiRight = (window.innerWidth>1000)?360:0;
+  W = canvas.width = Math.floor((window.innerWidth - uiRight)*DPR);
+  H = canvas.height = Math.floor(((window.innerWidth>1000)? window.innerHeight : window.innerHeight*0.55)*DPR);
+  canvas.style.width = Math.floor(W/DPR)+'px';
+  canvas.style.height= Math.floor(H/DPR)+'px';
+  if (gl) gl.viewport(0,0,W,H);
+}
+window.addEventListener('resize', resize);
+
+/* ===== 矩陣（column-major） ===== */
+function mat4Identity(){ return [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1]; }
+function mat4Mul(a,b){
+  const out=new Array(16);
+  for (let i=0;i<4;i++){ // column
+    for (let j=0;j<4;j++){ // row
+      out[i*4+j]= a[0*4+j]*b[i*4+0] + a[1*4+j]*b[i*4+1] + a[2*4+j]*b[i*4+2] + a[3*4+j]*b[i*4+3];
+    }
+  }
+  return out;
+}
+function mat4Perspective(fovy, aspect, near, far){
+  const f = 1/Math.tan(fovy/2);
+  const nf = 1/(near - far);
+  return [f/aspect,0,0,0, 0,f,0,0, 0,0,(far+near)*nf,-1, 0,0,(2*far*near)*nf,0];
+}
+function mat4Translate(m,x,y,z){
+  const t=[1,0,0,0, 0,1,0,0, 0,0,1,0, x,y,z,1];
+  return mat4Mul(m,t);
+}
+function mat4RotateX(m,a){
+  const c=Math.cos(a), s=Math.sin(a);
+  const r=[1,0,0,0, 0,c,s,0, 0,-s,c,0, 0,0,0,1];
+  return mat4Mul(m,r);
+}
+function mat4RotateY(m,a){
+  const c=Math.cos(a), s=Math.sin(a);
+  const r=[c,0,-s,0, 0,1,0,0, s,0,c,0, 0,0,0,1];
+  return mat4Mul(m,r);
+}
+function mat4Scale(m,sx,sy,sz){
+  const r=[sx,0,0,0, 0,sy,0,0, 0,0,sz,0, 0,0,0,1];
+  return mat4Mul(m,r);
+}
+function vec4MulMat(m, v){ // v is [x,y,z,w]
+  return [
+    m[0]*v[0]+m[4]*v[1]+m[8]*v[2]+m[12]*v[3],
+    m[1]*v[0]+m[5]*v[1]+m[9]*v[2]+m[13]*v[3],
+    m[2]*v[0]+m[6]*v[1]+m[10]*v[2]+m[14]*v[3],
+    m[3]*v[0]+m[7]*v[1]+m[11]*v[2]+m[15]*v[3],
+  ];
+}
+
+/* ===== Shader ===== */
+const sphereVS = `
+precision mediump float;
+attribute vec3 aPos;
+attribute vec3 aNorm;
+uniform mat4 uMVP;
+uniform mat4 uModel;
+varying vec3 vN;
+varying vec3 vWPos;
+void main(){
+  vec4 wpos = uModel * vec4(aPos,1.0);
+  vWPos = wpos.xyz;
+  vN = normalize(mat3(uModel) * aNorm);
+  gl_Position = uMVP * vec4(aPos,1.0);
+}
+`;
+const sphereFS = `
+precision mediump float;
+varying vec3 vN;
+varying vec3 vWPos;
+uniform vec3 uLightDir;
+uniform vec3 uAmbient;
+uniform vec3 uColor;
+uniform float uAlpha;
+uniform vec3 uCamPos;
+void main(){
+  vec3 N = normalize(vN);
+  vec3 L = normalize(uLightDir);
+  vec3 V = normalize(uCamPos - vWPos);
+  vec3 H = normalize(L+V);
+  float diff = max(dot(N,L), 0.0);
+  float spec = pow(max(dot(N,H), 0.0), 40.0);
+  vec3 col = uAmbient + uColor*(0.6*diff) + vec3(1.0)*0.3*spec;
+  gl_FragColor = vec4(col, uAlpha);
+}
+`;
+
+const pointVS = `
+precision mediump float;
+attribute vec3 aPos;
+uniform mat4 uMVP;
+uniform float uSize;
+void main(){
+  gl_Position = uMVP * vec4(aPos,1.0);
+  gl_PointSize = uSize;
+}
+`;
+const pointFS = `
+precision mediump float;
+uniform vec3 uColor;
+uniform float uAlpha;
+void main(){
+  vec2 uv = gl_PointCoord*2.0 - 1.0;
+  float r = length(uv);
+  float mask = smoothstep(1.0, 0.6, r);
+  gl_FragColor = vec4(uColor, uAlpha*mask);
+}
+`;
+
+function compileShader(type,src){
+  const s=gl.createShader(type); gl.shaderSource(s,src); gl.compileShader(s);
+  if (!gl.getShaderParameter(s,gl.COMPILE_STATUS)){ console.error(gl.getShaderInfoLog(s)); }
+  return s;
+}
+function createProgram(vsSrc,fsSrc){
+  const p=gl.createProgram();
+  gl.attachShader(p, compileShader(gl.VERTEX_SHADER,vsSrc));
+  gl.attachShader(p, compileShader(gl.FRAGMENT_SHADER,fsSrc));
+  gl.linkProgram(p);
+  if (!gl.getProgramParameter(p,gl.LINK_STATUS)){ console.error(gl.getProgramInfoLog(p)); }
+  return p;
+}
+const progSphere = { };
+const progPoint = { };
+
+function initPrograms(){
+  const p1=createProgram(sphereVS,sphereFS);
+  progSphere.p=p1;
+  progSphere.aPos=gl.getAttribLocation(p1,'aPos');
+  progSphere.aNorm=gl.getAttribLocation(p1,'aNorm');
+  progSphere.uMVP=gl.getUniformLocation(p1,'uMVP');
+  progSphere.uModel=gl.getUniformLocation(p1,'uModel');
+  progSphere.uLightDir=gl.getUniformLocation(p1,'uLightDir');
+  progSphere.uAmbient=gl.getUniformLocation(p1,'uAmbient');
+  progSphere.uColor=gl.getUniformLocation(p1,'uColor');
+  progSphere.uAlpha=gl.getUniformLocation(p1,'uAlpha');
+  progSphere.uCamPos=gl.getUniformLocation(p1,'uCamPos');
+
+  const p2=createProgram(pointVS,pointFS);
+  progPoint.p=p2;
+  progPoint.aPos=gl.getAttribLocation(p2,'aPos');
+  progPoint.uMVP=gl.getUniformLocation(p2,'uMVP');
+  progPoint.uSize=gl.getUniformLocation(p2,'uSize');
+  progPoint.uColor=gl.getUniformLocation(p2,'uColor');
+  progPoint.uAlpha=gl.getUniformLocation(p2,'uAlpha');
+}
+
+/* ===== 幾何：球 ===== */
+function buildSphere(lat=18, lon=28){
+  const pos=[], norm=[], idx=[];
+  for (let y=0;y<=lat;y++){
+    const v = y/lat;
+    const phi = v*Math.PI;
+    for (let x=0;x<=lon;x++){
+      const u = x/lon;
+      const th = u*Math.PI*2;
+      const sx = Math.cos(th)*Math.sin(phi);
+      const sy = Math.cos(phi);
+      const sz = Math.sin(th)*Math.sin(phi);
+      pos.push(sx,sy,sz);
+      norm.push(sx,sy,sz);
+    }
+  }
+  for (let y=0;y<lat;y++){
+    for (let x=0;x<lon;x++){
+      const i = y*(lon+1) + x;
+      const a=i, b=i+lon+1, c=i+1, d=i+lon+2;
+      idx.push(a,b,c, c,b,d);
+    }
+  }
+  const vbuf=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, vbuf);
+  const packed = new Float32Array(pos.length+norm.length);
+  packed.set(pos,0); packed.set(norm,pos.length);
+  gl.bufferData(gl.ARRAY_BUFFER, packed, gl.STATIC_DRAW);
+  const ibo=gl.createBuffer(); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(idx), gl.STATIC_DRAW);
+  return {vbuf, ibo, count:idx.length, normOfs:pos.length*4};
+}
+let sphereGeo;
+
+/* ===== 場景資料 ===== */
+const STABLE = new Map([
+  ["1,0",{sym:"H-1",name:"氫-1"}],["1,1",{sym:"氘",name:"氘"}],
+  ["2,1",{sym:"He-3",name:"氦-3"}],["2,2",{sym:"He-4",name:"氦-4"}],
+  ["3,3",{sym:"Li-6",name:"鋰-6"}],["3,4",{sym:"Li-7",name:"鋰-7"}],
+  ["4,5",{sym:"Be-9",name:"鈹-9"}],
+  ["5,5",{sym:"B-10",name:"硼-10"}],["5,6",{sym:"B-11",name:"硼-11"}],
+  ["6,6",{sym:"C-12",name:"碳-12"}],["6,7",{sym:"C-13",name:"碳-13"}],
+  ["7,7",{sym:"N-14",name:"氮-14"}],["7,8",{sym:"N-15",name:"氮-15"}],
+  ["8,8",{sym:"O-16",name:"氧-16"}],["8,9",{sym:"O-17",name:"氧-17"}],["8,10",{sym:"O-18",name:"氧-18"}],
+]);
+const UNSTABLE = new Map([["1,2",{sym:"H-3",name:"氚"}]]);
+const PALETTE=[{Z:1,N:0},{Z:1,N:1},{Z:1,N:2},{Z:2,N:1},{Z:2,N:2},{Z:3,N:3},{Z:3,N:4},{Z:4,N:5},{Z:5,N:5},{Z:5,N:6},{Z:6,N:6},{Z:6,N:7},{Z:7,N:7},{Z:7,N:8},{Z:8,N:8},{Z:8,N:9},{Z:8,N:10}];
+function keyZN(Z,N){return Z+','+N}
+function infoZN(Z,N){
+  const k=keyZN(Z,N);
+  if (STABLE.has(k)) return {...STABLE.get(k), stable:true, Z,N, A:Z+N};
+  if (UNSTABLE.has(k)) return {...UNSTABLE.get(k), stable:false, Z,N, A:Z+N};
+  return {sym:`Z${Z}N${N}`, name:"非資料庫", stable:false, Z,N, A:Z+N};
+}
+function byMassCandidates(A){
+  const out=[]; STABLE.forEach((v,k)=>{const [Z,N]=k.split(',').map(Number); if (Z+N===A) out.push({Z,N,...v,stable:true,A});});
+  return out;
+}
+
+let ATOMS=[]; // {id,Z,N,e,pos:[x,y,z],r,sel, nucs:[{pos:[x,y,z],isP}], shells:[{n,R,tilt,phi}], t}
+let PARTICLES=[]; // {type,x,y,z,vx,vy,vz,life,size,color}
+let idCounter=1;
+function addAtom(Z,N, pos){
+  const e=Z, r= 26 + Math.min(20,(Z+N)*0.8);
+  const p = pos || [ (Math.random()*300-150), (Math.random()*200-100), 0 ];
+  const nucs = makeNucleusPoints(Z+N, r*0.5).map((v,i)=>({pos:v, isP:i<Z}));
+  const shells = shellLayout(e).map((n,i)=>({n,R:r+22+i*16,tilt:(i%2?0.55:-0.35),phi:Math.random()*Math.PI*2}));
+  ATOMS.push({id:idCounter++, Z,N,e, pos:p, r, sel:false, nucs, shells, t:Math.random()*100});
+  log(`生成 ${infoZN(Z,N).sym}（Z=${Z}, N=${N}, e=${e}）`);
+}
+function removeAtomById(id){ const i=ATOMS.findIndex(a=>a.id===id); if (i>=0) ATOMS.splice(i,1); }
+
+/* ===== 物理輔助 ===== */
+function makeNucleusPoints(total,R){
+  const pts=[];
+  for (let i=0;i<total;i++){
+    const u=Math.random(), v=Math.random();
+    const th=2*Math.PI*u, cz=2*v-1, sz=Math.sqrt(1-cz*cz);
+    pts.push([sz*Math.cos(th)*R*0.6, cz*R*0.6, sz*Math.sin(th)*R*0.6]);
+  }
+  for (let it=0; it<30; it++){
+    for (let i=0;i<pts.length;i++){
+      let fx=0,fy=0,fz=0;
+      for (let j=0;j<pts.length;j++){ if (i===j) continue;
+        const dx=pts[i][0]-pts[j][0], dy=pts[i][1]-pts[j][1], dz=pts[i][2]-pts[j][2];
+        const d=Math.hypot(dx,dy,dz)+0.01, rep=(R*0.16)/(d*d);
+        fx += dx/d*rep; fy += dy/d*rep; fz += dz/d*rep;
+      }
+      pts[i][0]+=fx*0.05; pts[i][1]+=fy*0.05; pts[i][2]+=fz*0.05;
+      const d=Math.hypot(pts[i][0],pts[i][1],pts[i][2])+1e-6, s=Math.min(1, R*0.85/d);
+      pts[i][0]*=s; pts[i][1]*=s; pts[i][2]*=s;
+    }
+  }
+  return pts;
+}
+function shellLayout(e){ const caps=[2,8,8,18]; const out=[]; let left=e; for (const c of caps){ if (left<=0) break; const v=Math.min(c,left); out.push(v); left-=v; } return out; }
+
+/* ===== 投影（拾取用） ===== */
+function getPV(){
+  const aspect = W/H;
+  const P = mat4Perspective(camera.fov, aspect, 0.1, 5000);
+  let V = mat4Identity();
+  V = mat4Translate(V, 0, 0, -camera.dist);
+  V = mat4RotateX(V, camera.pitch);
+  V = mat4RotateY(V, camera.yaw);
+  V = mat4Scale(V, camera.zoom, camera.zoom, camera.zoom);
+  return {P,V, PV: mat4Mul(P,V)};
+}
+function worldToScreen(x,y,z){
+  const {PV} = getPV();
+  const v = vec4MulMat(PV, [x,y,z,1]);
+  if (v[3]<=0.0001) return null;
+  const ndcX=v[0]/v[3], ndcY=v[1]/v[3];
+  const sx=(ndcX*0.5+0.5)*W, sy=(1-(ndcY*0.5+0.5))*H;
+  return {x:sx, y:sy};
+}
+function approxScreenRadius(atom){
+  const c = worldToScreen(atom.pos[0],atom.pos[1],atom.pos[2]);
+  if (!c) return 0;
+  const dx = atom.r*Math.cos(camera.yaw), dz = -atom.r*Math.sin(camera.yaw);
+  const p2 = worldToScreen(atom.pos[0]+dx, atom.pos[1], atom.pos[2]+dz);
+  if (!p2) return 0;
+  return Math.hypot(p2.x-c.x, p2.y-c.y);
+}
+
+/* ===== 互動（拾取/拖曳/手勢） ===== */
+let selIds=[];
+let draggingId=null;
+let gesture={fingerCount:0,last:[],prevAngle:0,prevDist:0,moved:false,tap:{} };
+
+function hitAtomAt(sx,sy){
+  for (let i=ATOMS.length-1;i>=0;i--){
+    const a=ATOMS[i];
+    const p=worldToScreen(a.pos[0],a.pos[1],a.pos[2]);
+    if (!p) continue;
+    const rr=approxScreenRadius(a);
+    if ((sx - p.x)**2 + (sy - p.y)**2 <= rr*rr) return a;
+  }
+  return null;
+}
+function toggleSelection(id){
+  const a=ATOMS.find(o=>o.id===id); if (!a) return;
+  a.sel=!a.sel;
+  if (a.sel){
+    if (!selIds.includes(id)) selIds.push(id);
+    if (selIds.length>2){ const removed=selIds.shift(); const old=ATOMS.find(o=>o.id===removed); if (old) old.sel=false; }
+  }else{
+    selIds=selIds.filter(x=>x!==id);
+  }
+  updateSelUI();
+}
+function clearSelection(){ selIds.forEach(id=>{const o=ATOMS.find(a=>a.id===id); if(o) o.sel=false;}); selIds.length=0; updateSelUI(); }
+
+function updateSelUI(){
+  const A=ATOMS.find(a=>a.id===selIds[0]);
+  const B=ATOMS.find(a=>a.id===selIds[1]);
+  document.getElementById('selA').textContent = A? `A：${infoZN(A.Z,A.N).sym}（Z=${A.Z}, N=${A.N}, e=${A.e})` : 'A：未選取';
+  document.getElementById('selB').textContent = B? `B：${infoZN(B.Z,B.N).sym}（Z=${B.Z}, N=${B.N}, e=${B.e})` : 'B：未選取';
+  document.getElementById('fuse').disabled = !(A && B);
+  document.getElementById('predict').disabled = document.getElementById('fuse').disabled;
+  document.getElementById('deleteSel').disabled = selIds.length===0;
+  const predEl=document.getElementById('predictText');
+  if (A&&B){
+    const p=predictProduct(A,B, ppOnlyEl.checked);
+    predEl.innerHTML = p.ok? `可能產物：<span class="chip">${p.desc}</span>` : '此配對在目前模式下不會穩定。';
+  }else{ predEl.textContent=''; }
+}
+
+function onPointerDown(x,y,id){
+  gesture.fingerCount++; gesture.last.push({id,x,y}); gesture.moved=false;
+  gesture.tap={id,x,y,t:performance.now()};
+  if (gesture.fingerCount===1){
+    const hit=hitAtomAt(x,y);
+    if (hit){ draggingId=hit.id; bringToTop(draggingId); }
+  }else if (gesture.fingerCount===2){
+    const g=calcGesture(); gesture.prevAngle=g.angle; gesture.prevDist=g.dist;
+  }
+}
+function onPointerMove(x,y,id){
+  const idx=gesture.last.findIndex(o=>o.id===id);
+  if (idx>=0){ gesture.last[idx].x=x; gesture.last[idx].y=y; }
+  if (gesture.fingerCount===1){
+    if (draggingId!=null){
+      const a=ATOMS.find(o=>o.id===draggingId); if (!a) return;
+      const l=gesture.last[0];
+      const dx=x - l.x, dy=y - l.y;
+      const scale = camera.dist/650 * (1/camera.zoom) * (W/1200);
+      const cosY=Math.cos(camera.yaw), sinY=Math.sin(camera.yaw);
+      a.pos[0] += (dx*cosY)*scale*0.8;
+      a.pos[2] += (dx*sinY)*scale*0.8;
+      a.pos[1] += (dy)*scale*0.8;
+      gesture.moved=true;
+      gesture.last[0].x=x; gesture.last[0].y=y;
+    }
+  }else if (gesture.fingerCount===2){
+    const g=calcGesture();
+    const dAng = g.angle-gesture.prevAngle;
+    const sc = g.dist/Math.max(1,gesture.prevDist);
+    camera.yaw += dAng*0.8;
+    camera.zoom *= sc; camera.zoom=Math.max(0.6,Math.min(2.2,camera.zoom));
+    gesture.prevAngle=g.angle; gesture.prevDist=g.dist; gesture.moved=true;
+  }
+}
+function onPointerUp(x,y,id){
+  const now=performance.now();
+  if (gesture.tap && gesture.tap.id===id){
+    const dx=x-gesture.tap.x, dy=y-gesture.tap.y;
+    const moved=Math.hypot(dx,dy)>8 || gesture.moved;
+    const short=(now-gesture.tap.t)<300;
+    if (!moved && short){
+      const hit=hitAtomAt(x,y);
+      if (hit) toggleSelection(hit.id); else clearSelection();
+    }
+  }
+  draggingId=null;
+  gesture.last=gesture.last.filter(o=>o.id!==id);
+  gesture.fingerCount=Math.max(0,gesture.fingerCount-1);
+  gesture.tap=null;
+}
+function bringToTop(id){ const i=ATOMS.findIndex(o=>o.id===id); if (i>=0){ const [obj]=ATOMS.splice(i,1); ATOMS.push(obj);} }
+function calcGesture(){
+  if (gesture.last.length<2) return {angle:0,dist:1};
+  const [a,b]=gesture.last; const dx=b.x-a.x, dy=b.y-a.y;
+  return {angle:Math.atan2(dy,dx), dist:Math.hypot(dx,dy)};
+}
+
+// Mouse
+canvas.addEventListener('contextmenu', e=>e.preventDefault());
+canvas.addEventListener('mousedown', e=>{
+  if (e.button===2){ gesture.fingerCount=2; gesture.last=[{id:'R',x:e.offsetX*DPR,y:e.offsetY*DPR},{id:'R2',x:e.offsetX*DPR+1,y:e.offsetY*DPR}]; return; }
+  onPointerDown(e.offsetX*DPR, e.offsetY*DPR, 'M');
+});
+window.addEventListener('mousemove', e=>{
+  if (gesture.fingerCount===2 && gesture.last[0]?.id==='R'){
+    const prev=gesture.last[0]; const dx=e.offsetX*DPR - prev.x; const dy=e.offsetY*DPR - prev.y;
+    camera.yaw += dx*0.005; camera.pitch += dy*0.005; camera.pitch=Math.max(-1.2,Math.min(1.2,camera.pitch));
+    gesture.last[0]={id:'R',x:e.offsetX*DPR,y:e.offsetY*DPR};
+    return;
+  }
+  if (gesture.last.some(o=>o.id==='M')) onPointerMove(e.offsetX*DPR, e.offsetY*DPR, 'M');
+});
+window.addEventListener('mouseup', e=>{
+  if (gesture.fingerCount===2 && gesture.last[0]?.id==='R'){ gesture.fingerCount=0; gesture.last=[]; return; }
+  onPointerUp(e.offsetX*DPR, e.offsetY*DPR, 'M');
+});
+canvas.addEventListener('wheel', e=>{ e.preventDefault(); camera.zoom*=Math.exp(-e.deltaY*0.001); camera.zoom=Math.max(0.6,Math.min(2.2,camera.zoom)); }, {passive:false});
+canvas.addEventListener('dblclick',()=>{ camera.yaw=0; camera.pitch=0; camera.zoom=1; });
+
+// Touch
+canvas.addEventListener('touchstart', e=>{ e.preventDefault(); for (const t of e.changedTouches) onPointerDown(t.clientX*DPR, t.clientY*DPR, t.identifier); }, {passive:false});
+canvas.addEventListener('touchmove', e=>{ e.preventDefault(); for (const t of e.changedTouches) onPointerMove(t.clientX*DPR, t.clientY*DPR, t.identifier); }, {passive:false});
+canvas.addEventListener('touchend', e=>{ e.preventDefault(); for (const t of e.changedTouches) onPointerUp(t.clientX*DPR, t.clientY*DPR, t.identifier); }, {passive:false});
+
+/* ===== 反應邏輯 ===== */
+function isInReactor(a){ return Math.hypot(a.pos[0],a.pos[1],a.pos[2]) <= (REACTOR_R-6); }
+
+function predictProduct(a,b,ppMode){
+  const rule=ppRules(a,b);
+  if (rule) return {ok:true, desc:rule.desc, make:rule.make};
+  if (ppMode) return {ok:false};
+  const A=a.Z+a.N + b.Z+b.N;
+  const Zsum=a.Z+b.Z;
+  const cands=byMassCandidates(A);
+  if (!cands.length) return {ok:false};
+  cands.sort((u,v)=>Math.abs(u.Z-Zsum)-Math.abs(v.Z-Zsum));
+  const best=cands[0];
+  const deltaZ=best.Z-Zsum;
+  let extra=""; if (deltaZ===-1) extra=" + e⁺ + ν"; else if (deltaZ===1) extra=" + e⁻ + ν̄";
+  const desc=`${infoZN(best.Z,best.N).sym}${extra}（A=${A}）`;
+  return {ok:true, desc, make:()=>{
+    addAtom(best.Z,best.N,[0,0,0]);
+    if (deltaZ===-1){ spawnParticle('pos'); spawnParticle('nu'); spawnPhoton(2); }
+    else if (deltaZ===1){ spawnParticle('ele'); spawnParticle('anu'); spawnPhoton(2); }
+    else { spawnPhoton(1); }
+  }};
+}
+function ppRules(a,b){
+  const k=x=>keyZN(x.Z,x.N);
+  if (k(a)==="1,0" && k(b)==="1,0"){ return {desc:"H-1 + H-1 → H-2 + e⁺ + ν + γ", make:()=>{ addAtom(1,1,[0,0,0]); spawnParticle('pos'); spawnParticle('nu'); spawnPhoton(2);} } }
+  const set=new Set([k(a),k(b)]);
+  if (set.has("1,1") && set.has("1,0")){ return {desc:"H-2 + H-1 → He-3 + γ", make:()=>{ addAtom(2,1,[0,0,0]); spawnPhoton(2);} } }
+  if (k(a)==="2,1" && k(b)==="2,1"){ return {desc:"He-3 + He-3 → He-4 + p + p + γ", make:()=>{ addAtom(2,2,[0,0,0]); spawnParticle('p'); spawnParticle('p'); spawnPhoton(3);} } }
+  if (k(a)==="1,1" && k(b)==="1,1"){ return {desc:"H-2 + H-2 → He-3 + n（或 T + p）（簡化）", make:()=>{ if (Math.random()<0.5){ addAtom(2,1,[0,0,0]); spawnParticle('n'); } else { addAtom(1,2,[0,0,0]); spawnParticle('p'); } spawnPhoton(1);} } }
+  return null;
+}
+
+/* ===== 粒子系統 ===== */
+function spawnPhoton(k=1){ for(let i=0;i<k;i++){ const v=randVec().map(x=>x*2.8); PARTICLES.push({type:'gamma', x:0,y:0,z:0, vx:v[0],vy:v[1],vz:v[2], life:1, size:12, color:[1.0,0.84,0.29]}); } }
+function spawnParticle(type){
+  const v=randVec().map(x=>x*2.0);
+  const map={ pos:[1.0,0.48,0.71], ele:[0.43,1.0,0.63], anu:[0.61,0.71,1.0], nu:[0.61,0.71,1.0], p:[1.0,0.30,0.30], n:[0.34,0.65,1.0] };
+  const sz={ pos:10, ele:10, anu:8, nu:8, p:12, n:12 };
+  PARTICLES.push({type, x:0,y:0,z:0, vx:v[0],vy:v[1],vz:v[2], life:1, size:sz[type]||10, color:map[type]||[1,1,1]});
+}
+function randVec(){ const u=Math.random(), v=Math.random(); const th=2*Math.PI*u; const cz=2*v-1; const sz=Math.sqrt(1-cz*cz); return [sz*Math.cos(th), cz, sz*Math.sin(th)]; }
+
+/* ===== 繪圖 ===== */
+function draw(){
+  if (!gl) return;
+  gl.viewport(0,0,W,H);
+  gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+  const {P,V,PV} = getPV();
+  const camPos = [0,0,camera.dist];
+
+  // 透明反應爐球
+  gl.useProgram(progSphere.p);
+  gl.bindBuffer(gl.ARRAY_BUFFER, sphereGeo.vbuf);
+  gl.vertexAttribPointer(progSphere.aPos,3,gl.FLOAT,false,0,0);
+  gl.enableVertexAttribArray(progSphere.aPos);
+  gl.vertexAttribPointer(progSphere.aNorm,3,gl.FLOAT,false,0,sphereGeo.normOfs);
+  gl.enableVertexAttribArray(progSphere.aNorm);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, sphereGeo.ibo);
+  let M = mat4Identity();
+  M = mat4Scale(M, REACTOR_R, REACTOR_R, REACTOR_R);
+  gl.uniformMatrix4fv(progSphere.uMVP,false, new Float32Array(mat4Mul(PV,M)));
+  gl.uniformMatrix4fv(progSphere.uModel,false, new Float32Array(M));
+  gl.uniform3fv(progSphere.uLightDir, new Float32Array(lightDir));
+  gl.uniform3fv(progSphere.uAmbient, new Float32Array([0.05,0.08,0.16]));
+  gl.uniform3fv(progSphere.uColor, new Float32Array([0.3,0.6,1.0]));
+  gl.uniform1f(progSphere.uAlpha, 0.08);
+  gl.uniform3fv(progSphere.uCamPos, new Float32Array(camPos));
+  gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+  gl.depthMask(false);
+  gl.drawElements(gl.TRIANGLES, sphereGeo.count, gl.UNSIGNED_SHORT, 0);
+  gl.depthMask(true);
+  gl.disable(gl.BLEND);
+
+  // 原子：核子球
+  gl.useProgram(progSphere.p);
+  gl.uniform3fv(progSphere.uLightDir, new Float32Array(lightDir));
+  gl.uniform3fv(progSphere.uAmbient, new Float32Array(ambient));
+  gl.uniform3fv(progSphere.uCamPos, new Float32Array(camPos));
+  gl.bindBuffer(gl.ARRAY_BUFFER, sphereGeo.vbuf);
+  gl.vertexAttribPointer(progSphere.aPos,3,gl.FLOAT,false,0,0);
+  gl.enableVertexAttribArray(progSphere.aPos);
+  gl.vertexAttribPointer(progSphere.aNorm,3,gl.FLOAT,false,0,sphereGeo.normOfs);
+  gl.enableVertexAttribArray(progSphere.aNorm);
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, sphereGeo.ibo);
+
+  for (const a of ATOMS){
+    a.t += 1;
+    for (const n of a.nucs){
+      const c = n.isP ? [1.0,0.30,0.30] : [0.34,0.65,1.0];
+      const R = 5.0;
+      let M = mat4Identity();
+      M = mat4Translate(M, a.pos[0]+n.pos[0], a.pos[1]+n.pos[1], a.pos[2]+n.pos[2]);
+      M = mat4Scale(M, R, R, R);
+      gl.uniformMatrix4fv(progSphere.uMVP,false, new Float32Array(mat4Mul(PV,M)));
+      gl.uniformMatrix4fv(progSphere.uModel,false, new Float32Array(M));
+      gl.uniform3fv(progSphere.uColor, new Float32Array(c));
+      gl.uniform1f(progSphere.uAlpha, 1.0);
+      gl.drawElements(gl.TRIANGLES, sphereGeo.count, gl.UNSIGNED_SHORT, 0);
+    }
+    if (showElectronsEl.checked){
+      const eColor=[0.43,1.0,0.63];
+      const eR=3.3;
+      for (const s of a.shells){
+        for (let i=0;i<s.n;i++){
+          const ang=i/s.n*Math.PI*2 + a.t*0.02 + s.phi;
+          const ex=Math.cos(ang)*s.R;
+          const ey=Math.sin(ang)*s.R*Math.cos(s.tilt);
+          const ez=Math.sin(ang)*s.R*Math.sin(s.tilt);
+          let M = mat4Identity();
+          M = mat4Translate(M, a.pos[0]+ex, a.pos[1]+ey, a.pos[2]+ez);
+          M = mat4Scale(M, eR, eR, eR);
+          gl.uniformMatrix4fv(progSphere.uMVP,false, new Float32Array(mat4Mul(PV,M)));
+          gl.uniformMatrix4fv(progSphere.uModel,false, new Float32Array(M));
+          gl.uniform3fv(progSphere.uColor, new Float32Array(eColor));
+          gl.uniform1f(progSphere.uAlpha, 1.0);
+          gl.drawElements(gl.TRIANGLES, sphereGeo.count, gl.UNSIGNED_SHORT, 0);
+        }
+      }
+    }
+    if (a.sel){
+      const pts=[]; const steps=36;
+      for (let i=0;i<steps;i++){
+        const ang=i/steps*Math.PI*2 + a.t*0.01;
+        pts.push([a.pos[0]+Math.cos(ang)*(a.r+6), a.pos[1], a.pos[2]+Math.sin(ang)*(a.r+6)]);
+      }
+      drawPoints(pts, PV, [0.56,0.74,1.0], 22, 0.25);
+    }
+  }
+
+  // 粒子
+  for (const p of PARTICLES){
+    p.x += p.vx; p.y += p.vy; p.z += p.vz; p.life -= hiParticlesEl.checked? 0.006 : 0.012;
+  }
+  PARTICLES = PARTICLES.filter(p=>p.life>0.02);
+  if (PARTICLES.length){
+    drawPoints(PARTICLES.map(p=>[p.x,p.y,p.z]), PV, null, 0, 0, PARTICLES);
+  }
+
+  requestAnimationFrame(draw);
+}
+
+function drawPoints(pts, PV, color, size, alpha, plist){
+  gl.useProgram(progPoint.p);
+  const buf=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(pts.flat()), gl.DYNAMIC_DRAW);
+  gl.vertexAttribPointer(progPoint.aPos,3,gl.FLOAT,false,0,0);
+  gl.enableVertexAttribArray(progPoint.aPos);
+  gl.uniformMatrix4fv(progPoint.uMVP,false, new Float32Array(PV));
+  if (plist){
+    gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
+    for (let i=0;i<plist.length;i++){
+      gl.uniform1f(progPoint.uSize, plist[i].size);
+      gl.uniform3fv(progPoint.uColor, new Float32Array(plist[i].color));
+      gl.uniform1f(progPoint.uAlpha, plist[i].life*0.9);
+      gl.drawArrays(gl.POINTS, i, 1);
+    }
+    gl.disable(gl.BLEND);
+  }else{
+    gl.uniform1f(progPoint.uSize, size);
+    gl.uniform3fv(progPoint.uColor, new Float32Array(color||[1,1,1]));
+    gl.uniform1f(progPoint.uAlpha, alpha||0.5);
+    gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
+    gl.drawArrays(gl.POINTS, 0, pts.length);
+    gl.disable(gl.BLEND);
+  }
+}
+
+/* ===== UI：融合 / 預測 / 刪除 / 重置 ===== */
+document.getElementById('reset').onclick=()=>{ ATOMS.length=0; PARTICLES.length=0; selIds.length=0; updateSelUI(); log('場景清除。'); };
+document.getElementById('deleteSel').onclick=()=>{ selIds.forEach(id=>removeAtomById(id)); selIds.length=0; updateSelUI(); };
+
+document.getElementById('fuse').onclick=()=>{
+  const A=ATOMS.find(a=>a.id===selIds[0]); const B=ATOMS.find(a=>a.id===selIds[1]);
+  if (!(A&&B)) return;
+  if (!isInReactor(A)||!isInReactor(B)){ setStatus('請把兩個原子拖入透明反應爐球內再融合。'); return; }
+  const pred=predictProduct(A,B, ppOnlyEl.checked);
+  if (!pred.ok){
+    smokeAt(A.pos); smokeAt(B.pos);
+    removeAtomById(A.id); removeAtomById(B.id);
+    log(`不穩定：${infoZN(A.Z,A.N).sym} + ${infoZN(B.Z,B.N).sym} → 失敗，消失。`);
+    setStatus('反應不穩定：配對不符合目前模式。'); selIds.length=0; updateSelUI(); return;
+  }
+  removeAtomById(A.id); removeAtomById(B.id);
+  pred.make();
+  log(`反應成功：${pred.desc}`); setStatus(`融合成功！${pred.desc}`);
+  selIds.length=0; updateSelUI();
+};
+
+document.getElementById('predict').onclick=()=>{
+  const A=ATOMS.find(a=>a.id===selIds[0]); const B=ATOMS.find(a=>a.id===selIds[1]);
+  if (!(A&&B)) return; const p=predictProduct(A,B, ppOnlyEl.checked);
+  setStatus(p.ok? ('預測：'+p.desc) : '此配對在目前模式下不會穩定。');
+};
+
+/* ===== 輔助效果 ===== */
+function smokeAt(pos){
+  for (let i=0;i< (hiParticlesEl.checked? 80:40); i++){
+    const v=randVec(); const s=(Math.random()*2+1)*(hiParticlesEl.checked?1.2:1.0);
+    PARTICLES.push({type:'smoke', x:pos[0],y:pos[1],z:pos[2], vx:v[0]*s,vy:v[1]*s,vz:v[2]*s, life:1, size:10, color:[0.6,0.8,1.0]});
+  }
+}
+
+/* ===== Palette ===== */
+const paletteEl=document.getElementById('palette');
+PALETTE.forEach(({Z,N})=>{
+  const inf=infoZN(Z,N);
+  const btn=document.createElement('button');
+  btn.innerHTML=`${inf.sym}<div class="small">Z=${Z} N=${N}</div>`;
+  btn.onclick=()=>addAtom(Z,N);
+  paletteEl.appendChild(btn);
+});
+
+/* ===== 啟動 ===== */
+initGL();
+initPrograms();
+sphereGeo = buildSphere(18,28);
+
+// 初始兩顆 H-1
+addAtom(1,0, [-110,0,0]);
+addAtom(1,0, [110,0,0]);
+
+setStatus('把兩顆 H-1 拖進透明反應爐球內，輕點選 A、B，按「融合」。');
+updateSelUI();
+
+requestAnimationFrame(draw);
+</script>
+</body>
+</html>
