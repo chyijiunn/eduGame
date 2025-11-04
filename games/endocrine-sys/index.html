@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1" />
+<title>人體恆定控制中心 v0.1 — 內分泌回饋互動（單一 HTML）</title>
+<style>
+  :root{
+    --bg:#0e0f13; --panel:#14161c; --card:#1a1d25; --muted:#8b92a6; --text:#e7ecf4; --accent:#5be3b6; --danger:#ff6b6b; --warn:#ffd166; --ok:#6ee7a5;
+    --grid-gap:14px; --radius:14px; --shadow:0 6px 20px rgba(0,0,0,.35);
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0; background:radial-gradient(1200px 800px at 70% -10%,#1b2030 0%, #111420 40%, #0b0d12 100%); color:var(--text); font:14px/1.45 system-ui, -apple-system, Segoe UI, Roboto, "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif;
+  }
+  header{
+    display:flex; align-items:center; gap:10px; padding:14px 16px; background:linear-gradient(180deg, #131721, #0f121a); position:sticky; top:0; z-index:4; border-bottom:1px solid #262a35;
+  }
+  .badge{padding:3px 8px; border-radius:999px; background:#212634; color:#aab3c8; border:1px solid #2a3040}
+  .title{font-size:18px; font-weight:700; letter-spacing:.3px}
+  .spacer{flex:1}
+  .btn{display:inline-flex; align-items:center; gap:8px; background:var(--card); color:var(--text); border:1px solid #2a2f3c; border-radius:10px; padding:8px 12px; cursor:pointer; box-shadow:var(--shadow); user-select:none}
+  .btn:hover{filter:brightness(1.05)}
+  .btn:active{transform:translateY(1px)}
+  .btn-ghost{background:#141822; border-color:#273043}
+  .btn-accent{background:linear-gradient(180deg,#22c1a1,#12b189); border:0; color:#041c16}
+  .btn-small{padding:6px 10px; font-size:12px}
+  .icon{width:16px; height:16px; display:inline-block}
+  .row{display:flex; align-items:center; gap:10px}
+  #root{
+    display:grid; grid-template-columns: 1.2fr 1.6fr 1fr; gap:var(--grid-gap); padding:16px; min-height:calc(100vh - 58px);
+  }
+  @media (max-width: 1100px){ #root{grid-template-columns:1fr} .hide-sm{display:none} }
+  .panel{background:rgba(20,22,28,.85); border:1px solid #232836; border-radius:var(--radius); box-shadow:var(--shadow); overflow:hidden}
+  .panel h3{margin:0; padding:10px 14px; font-size:13px; font-weight:700; color:#a9b2c7; background:linear-gradient(180deg,#181c29,#141821); border-bottom:1px solid #262b3a; letter-spacing:.5px}
+  .panel .body{padding:12px}
+  /* 左：人體平面 + 腺體 */
+  #bodyWrap{position:relative; min-height:520px}
+  #humanSvg{display:block; width:100%; height:auto; background:radial-gradient(ellipse at 50% -30%, rgba(91,227,182,.12), transparent 40%), linear-gradient(180deg, #0f1320, #0e1018)}
+  .gland{cursor:pointer}
+  .gland circle{transition:all .2s ease}
+  .gland:hover circle{filter:drop-shadow(0 0 6px rgba(91,227,182,.6))}
+  .legend{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; margin-top:10px}
+  .legend .chip{display:flex; align-items:center; gap:8px; background:#151926; border:1px solid #242a3a; padding:6px 8px; border-radius:10px}
+  .dot{width:10px; height:10px; border-radius:50%}
+  /* 中：儀表板 */
+  .metrics{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px}
+  .metric{background:var(--card); border:1px solid #262c3c; border-radius:12px; padding:10px}
+  .metric .head{display:flex; align-items:baseline; justify-content:space-between; gap:6px}
+  .metric .name{font:600 12px/1.2 system-ui; color:#a9b2c7}
+  .metric .val{font:700 20px/1.1 ui-rounded, system-ui}
+  .status{padding:2px 6px; border-radius:999px; font-size:11px; border:1px solid rgba(255,255,255,.08)}
+  .ok{background:rgba(110,231,165,.14); color:#b4f5cf; border-color:rgba(110,231,165,.4)}
+  .warn{background:rgba(255,209,102,.12); color:#ffe09a; border-color:rgba(255,209,102,.35)}
+  .danger{background:rgba(255,107,107,.12); color:#ff9da1; border-color:rgba(255,107,107,.35)}
+  canvas.spark{width:100%; height:42px; display:block; background:linear-gradient(180deg,#141824,#10131d); border-radius:8px; margin-top:6px}
+  /* 右：控制 */
+  .controls{display:grid; gap:10px}
+  .card{background:var(--card); border:1px solid #262c3c; border-radius:12px; padding:10px}
+  .card h4{margin:0 0 8px; font-size:13px; color:#a9b2c7}
+  .row-between{display:flex; align-items:center; justify-content:space-between; gap:10px}
+  .sliderrow{display:flex; align-items:center; gap:10px; margin:6px 0}
+  input[type="range"]{width:100%}
+  label.small{font-size:12px; color:#a9b2c7}
+  .grid-2{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px}
+  .help{font-size:12px; color:#9aa3ba}
+  details{border:1px dashed #2a3144; padding:8px; border-radius:10px}
+  details[open]{background:#131727}
+  summary{cursor:pointer; color:#b6c0d8}
+  .pill{border-radius:999px; padding:6px 10px; background:#141a28; border:1px solid #273043; display:inline-flex; align-items:center; gap:8px}
+  .kpi{display:flex; gap:8px; flex-wrap:wrap}
+  .kpi .pill strong{font-size:13px}
+  .footer{opacity:.7; font-size:12px; margin-top:8px}
+  .overlay{position:fixed; inset:0; display:none; place-items:center; background:rgba(8,10,14,.6); z-index:999}
+  .overlay.open{display:grid}
+  .modal{width:min(720px,92vw); background:#121624; border:1px solid #2b3348; border-radius:16px; box-shadow:0 14px 50px rgba(0,0,0,.55); overflow:hidden}
+  .modal header{position:unset; background:linear-gradient(180deg,#151a2a,#121624); border-bottom:1px solid #2b3348}
+  .modal .body{padding:14px}
+  .twocol{display:grid; grid-template-columns:1.1fr 1fr; gap:12px}
+  @media (max-width:760px){ .twocol{grid-template-columns:1fr} }
+  .list{margin:0; padding-left:16px}
+  .kv{display:grid; grid-template-columns:1fr auto; gap:8px; align-items:center}
+  .kv .val{font-weight:700}
+</style>
+</head>
+<body>
+  <header>
+    <span class="badge">單檔 HTML</span>
+    <div class="title">人體恆定控制中心 <small class="badge">v0.1</small></div>
+    <div class="spacer"></div>
+    <div class="row">
+      <button id="btnPlay" class="btn btn-accent" title="播放/暫停">▶ 進行</button>
+      <button id="btnReset" class="btn btn-ghost" title="重置">↺ 重置</button>
+      <span class="pill"><label class="small">速度</label><input id="speed" type="range" min="0.25" max="4" step="0.25" value="1"><span id="speedVal" class="small">×1</span></span>
+    </div>
+  </header>
+
+  <main id="root">
+    <!-- 左：人體平面 + 腺體地圖 -->
+    <section class="panel" id="left">
+      <h3>內分泌地圖（點選腺體查看激素與作用）</h3>
+      <div class="body" id="bodyWrap">
+        <!-- 內嵌 SVG 人體平面（簡化造型）-->
+        <svg id="humanSvg" viewBox="0 0 320 720" preserveAspectRatio="xMidYMid meet" aria-label="人體平面">
+          <defs>
+            <radialGradient id="halo" cx="50%" cy="-10%" r="90%">
+              <stop offset="0%" stop-color="#63ffdb" stop-opacity="0.35"/>
+              <stop offset="60%" stop-color="#63ffdb" stop-opacity="0.06"/>
+              <stop offset="100%" stop-color="#63ffdb" stop-opacity="0"/>
+            </radialGradient>
+          </defs>
+          <rect x="0" y="0" width="320" height="720" fill="#0f1320"/>
+          <ellipse cx="160" cy="140" rx="120" ry="80" fill="url(#halo)"/>
+          <!-- 人體輪廓（幾何化） -->
+          <g fill="#1b2133" stroke="#2b3550" stroke-width="2">
+            <circle cx="160" cy="80" r="44" />
+            <rect x="120" y="124" width="80" height="120" rx="28" />
+            <rect x="112" y="244" width="96" height="160" rx="36" />
+            <rect x="118" y="404" width="30" height="140" rx="14" />
+            <rect x="172" y="404" width="30" height="140" rx="14" />
+            <rect x="92" y="144" width="22" height="110" rx="11" />
+            <rect x="206" y="144" width="22" height="110" rx="11" />
+          </g>
+
+          <!-- 腺體標記（以圓表示，外圈半徑顯示激素活性） -->
+          <g id="glands">
+            <!-- 下視丘/腦下垂體 -->
+            <g class="gland" data-id="pituitary" transform="translate(160,110)">
+              <circle r="14" fill="#25324d" stroke="#61e8c2" stroke-width="2"/>
+              <circle class="ring" r="18" fill="none" stroke="#61e8c2" stroke-width="3" stroke-opacity=".6"/>
+              <title>下視丘 / 腦下垂體</title>
+            </g>
+            <!-- 甲狀腺（含濾泡旁細胞）-->
+            <g class="gland" data-id="thyroid" transform="translate(160,154)">
+              <circle r="13" fill="#25324d" stroke="#61e8c2" stroke-width="2"/>
+              <circle class="ring" r="17" fill="none" stroke="#61e8c2" stroke-width="3" stroke-opacity=".6"/>
+              <title>甲狀腺（T3/T4, 降鈣素）</title>
+            </g>
+            <!-- 甲狀旁腺 -->
+            <g class="gland" data-id="parathyroid" transform="translate(196,154)">
+              <circle r="8" fill="#25324d" stroke="#61e8c2" stroke-width="2"/>
+              <circle class="ring" r="12" fill="none" stroke="#61e8c2" stroke-width="3" stroke-opacity=".6"/>
+              <title>甲狀旁腺（PTH）</title>
+            </g>
+            <!-- 腎上腺 -->
+            <g class="gland" data-id="adrenal" transform="translate(116,272)">
+              <circle r="11" fill="#25324d" stroke="#61e8c2" stroke-width="2"/>
+              <circle class="ring" r="15" fill="none" stroke="#61e8c2" stroke-width="3" stroke-opacity=".6"/>
+              <title>腎上腺（E/NE, 皮質醇, 醛固酮）</title>
+            </g>
+            <g class="gland" data-id="adrenalR" transform="translate(204,272)">
+              <circle r="11" fill="#25324d" stroke="#61e8c2" stroke-width="2"/>
+              <circle class="ring" r="15" fill="none" stroke="#61e8c2" stroke-width="3" stroke-opacity=".6"/>
+              <title>腎上腺（右）</title>
+            </g>
+            <!-- 胰臟 -->
+            <g class="gland" data-id="pancreas" transform="translate(160,320)">
+              <circle r="12" fill="#25324d" stroke="#61e8c2" stroke-width="2"/>
+              <circle class="ring" r="16" fill="none" stroke="#61e8c2" stroke-width="3" stroke-opacity=".6"/>
+              <title>胰臟（胰島素/升糖素）</title>
+            </g>
+          </g>
+        </svg>
+        <div class="legend">
+          <div class="chip"><span class="dot" style="background:#61e8c2"></span><span>外圈半徑＝激素活性</span></div>
+          <div class="chip"><span class="dot" style="background:#6ee7a5"></span><span>綠：正常</span></div>
+          <div class="chip"><span class="dot" style="background:#ffd166"></span><span>黃：偏離</span></div>
+          <div class="chip"><span class="dot" style="background:#ff6b6b"></span><span>紅：異常</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 中：儀表板 -->
+    <section class="panel" id="middle">
+      <h3>恆定指標（即時）</h3>
+      <div class="body">
+        <div class="kpi">
+          <span class="pill">自動負回饋 <input id="autoFb" type="checkbox" checked></span>
+          <span class="pill">環境溫度 <input id="ambient" type="range" min="5" max="40" step="0.5" value="24"> <span id="ambientVal">24°C</span></span>
+          <span class="pill">壓力 <input id="stress" type="range" min="0" max="1" step="0.01" value="0.1"> <span id="stressVal">0.10</span></span>
+        </div>
+        <div class="metrics" id="metrics"></div>
+      </div>
+    </section>
+
+    <!-- 右：控制面板 -->
+    <section class="panel" id="right">
+      <h3>情境與病理</h3>
+      <div class="body">
+        <div class="controls">
+          <div class="card">
+            <h4>情境事件</h4>
+            <div class="grid-2">
+              <button class="btn btn-small" id="btnMeal">🍚 餐後（75g 碳水）</button>
+              <button class="btn btn-small" id="btnFast">🥛 斷食 4 小時</button>
+              <button class="btn btn-small" id="btnSprint">🏃 運動（切換）</button>
+              <button class="btn btn-small" id="btnCold">🧊 冷暴露</button>
+              <button class="btn btn-small" id="btnHeat">🔥 熱暴露</button>
+              <button class="btn btn-small" id="btnCalcium">🦴 鈣補充</button>
+            </div>
+            <div class="footer help">提示：情境會以脈衝/持續方式改變血糖、代謝與激素，右上角可調速度。</div>
+          </div>
+
+          <div class="card">
+            <h4>病理滑桿（0＝正常）</h4>
+            <div class="sliderrow"><label class="small">甲狀腺機能：低 ← 0 → 高</label></div>
+            <div class="sliderrow"><input id="dThy" type="range" min="-1" max="1" step="0.01" value="0"><span id="dThyVal" class="small">0.00</span></div>
+            <div class="sliderrow"><label class="small">胰島素阻抗（第二型糖尿病）</label></div>
+            <div class="sliderrow"><input id="dIR" type="range" min="0" max="0.9" step="0.01" value="0"><span id="dIRVal" class="small">0.00</span></div>
+            <div class="sliderrow"><label class="small">第一型糖尿病（胰島素產能↓）</label></div>
+            <div class="sliderrow"><input id="dT1D" type="range" min="0" max="1" step="0.01" value="0"><span id="dT1DVal" class="small">0.00</span></div>
+            <div class="sliderrow"><label class="small">腎上腺皮質（Addison ← 0 → Cushing）</label></div>
+            <div class="sliderrow"><input id="dCort" type="range" min="-1" max="1" step="0.01" value="0"><span id="dCortVal" class="small">0.00</span></div>
+            <div class="sliderrow"><label class="small">甲狀旁腺（低 ← 0 → 高）</label></div>
+            <div class="sliderrow"><input id="dPTH" type="range" min="-1" max="1" step="0.01" value="0"><span id="dPTHVal" class="small">0.00</span></div>
+          </div>
+
+          <div class="card">
+            <h4>腺體基調（可微調）</h4>
+            <div class="sliderrow"><label class="small">胰臟分泌能（β細胞功能）</label></div>
+            <div class="sliderrow"><input id="pancreasStrength" type="range" min="0" max="1" step="0.01" value="1"><span id="pancreasStrengthVal" class="small">1.00</span></div>
+            <div class="sliderrow"><label class="small">運動強度（0~1）</label></div>
+            <div class="sliderrow"><input id="exercise" type="range" min="0" max="1" step="0.01" value="0"><span id="exerciseVal" class="small">0.00</span></div>
+            <div class="row-between">
+              <button id="btnPresetNormal" class="btn btn-small">重置為健康基準</button>
+              <button id="btnPresetHyperT" class="btn btn-small">甲狀腺亢進情境</button>
+            </div>
+          </div>
+
+          <details>
+            <summary>模型假設與教學用途</summary>
+            <div class="help" style="margin-top:8px">
+              此頁為課堂用之簡化互動模型，用 <b>負回饋</b> 與 <b>多腺體交互</b> 概念近似：
+              胰島素/升糖素調節血糖，甲狀腺素影響代謝與體溫，腎上腺素/皮質醇影響心跳、血壓與血糖，PTH/降鈣素調節 Ca/磷。
+              值域與反應時間皆為教學化之近似，非臨床工具。
+            </div>
+          </details>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- 腺體詳情對話框 -->
+  <div class="overlay" id="ov">
+    <div class="modal">
+      <header><div class="title" id="ovTitle">腺體</div><div class="spacer"></div><button class="btn btn-ghost btn-small" id="ovClose">關閉</button></header>
+      <div class="body">
+        <div class="twocol">
+          <div>
+            <h4 style="margin-top:0;color:#a9b2c7">目前激素水準</h4>
+            <div class="kv"><div>主要激素</div><div class="val" id="ovHormone"></div></div>
+            <div class="kv"><div>相對活性</div><div class="val" id="ovLevel"></div></div>
+            <div class="kv"><div>回饋狀態</div><div class="val" id="ovFeedback"></div></div>
+          </div>
+          <div>
+            <h4 style="margin-top:0;color:#a9b2c7">作用重點</h4>
+            <ul class="list" id="ovEffects"></ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+(function(){
+  // ======= 狀態 =======
+  const S = { // 系統狀態（可視）
+    t:0, playing:true, speed:1,
+    temp:37.0, hr:72, map:93, sys:120, dia:80,
+    glucose:90, metabolic:1.0, ca:9.2, po:3.5, mitosis:100,
+  };
+  const H = { // 激素相對活性（0~2 常見）
+    insulin:0.2, glucagon:0.2, epi:0.1, cortisol:0.2, thyroid:0.2, pth:0.2, calcitonin:0.2, gh:0.2, aldo:0.2
+  };
+  const P = { // 參數/外在
+    auto:true,
+    ambient:24, stress:0.1, exercise:0.0,
+    dThy:0, insulinResistance:0, t1d:0, dCort:0, dPTH:0,
+    pancreasStrength:1,
+    // 事件脈衝
+    mealPulse:0, fastPulse:0, calciumPulse:0,
+  };
+  const RANGES = {
+    temp:[36.1,37.8], hr:[60,100], sys:[95,140], dia:[60,90], glucose:[70,110], metabolic:[0.8,1.2], ca:[8.5,10.5], po:[2.5,4.5], mitosis:[90,110]
+  };
+
+  // ======= DOM 參考 =======
+  const el = {
+    play: document.getElementById('btnPlay'), reset:document.getElementById('btnReset'), speed:document.getElementById('speed'), speedVal:document.getElementById('speedVal'),
+    autoFb:document.getElementById('autoFb'), ambient:document.getElementById('ambient'), ambientVal:document.getElementById('ambientVal'), stress:document.getElementById('stress'), stressVal:document.getElementById('stressVal'),
+    metrics:document.getElementById('metrics'),
+    btnMeal:document.getElementById('btnMeal'), btnFast:document.getElementById('btnFast'), btnSprint:document.getElementById('btnSprint'), btnCold:document.getElementById('btnCold'), btnHeat:document.getElementById('btnHeat'), btnCalcium:document.getElementById('btnCalcium'),
+    dThy:document.getElementById('dThy'), dThyVal:document.getElementById('dThyVal'), dIR:document.getElementById('dIR'), dIRVal:document.getElementById('dIRVal'), dT1D:document.getElementById('dT1D'), dT1DVal:document.getElementById('dT1DVal'), dCort:document.getElementById('dCort'), dCortVal:document.getElementById('dCortVal'), dPTH:document.getElementById('dPTH'), dPTHVal:document.getElementById('dPTHVal'),
+    pancreasStrength:document.getElementById('pancreasStrength'), pancreasStrengthVal:document.getElementById('pancreasStrengthVal'), exercise:document.getElementById('exercise'), exerciseVal:document.getElementById('exerciseVal'),
+    btnPresetNormal:document.getElementById('btnPresetNormal'), btnPresetHyperT:document.getElementById('btnPresetHyperT'),
+    humanSvg:document.getElementById('humanSvg'),
+    ov:document.getElementById('ov'), ovClose:document.getElementById('ovClose'), ovTitle:document.getElementById('ovTitle'), ovHormone:document.getElementById('ovHormone'), ovLevel:document.getElementById('ovLevel'), ovFeedback:document.getElementById('ovFeedback'), ovEffects:document.getElementById('ovEffects'),
+  };
+
+  // 指標清單與 sparkline
+  const metrics = [
+    { key:'temp', name:'體溫', unit:'°C', digits:2 },
+    { key:'hr', name:'心跳', unit:'bpm', digits:0 },
+    { key:'bp', name:'血壓', unit:'mmHg', digits:0 },
+    { key:'glucose', name:'血糖', unit:'mg/dL', digits:0 },
+    { key:'metabolic', name:'代謝率', unit:'×', digits:2 },
+    { key:'ca', name:'血鈣', unit:'mg/dL', digits:2 },
+    { key:'po', name:'血磷', unit:'mg/dL', digits:2 },
+    { key:'mitosis', name:'細胞分裂速度', unit:'%', digits:0 },
+  ];
+
+  const history = {}; metrics.forEach(m=>history[m.key]=Array(160).fill(null));
+
+  function fmt(v, digits){ return (digits===0? Math.round(v).toString() : v.toFixed(digits)); }
+  function statusFor(key, value){
+    if(key==='bp'){
+      // 以收縮/舒張判定
+      const okSys = between(S.sys, RANGES.sys[0], RANGES.sys[1]);
+      const okDia = between(S.dia, RANGES.dia[0], RANGES.dia[1]);
+      if(okSys && okDia) return 'ok';
+      const off = (Math.abs(S.sys-120)+Math.abs(S.dia-80))/2;
+      return off<20? 'warn':'danger';
+    }
+    const r = RANGES[key]; if(!r) return 'ok';
+    if(value<r[0]*0.9 || value>r[1]*1.1) return 'danger';
+    if(value<r[0] || value>r[1]) return 'warn';
+    return 'ok';
+  }
+  function between(x,a,b){ return x>=a && x<=b }
+
+  function createMetricCards(){
+    el.metrics.innerHTML = '';
+    metrics.forEach(m=>{
+      const card = document.createElement('div'); card.className='metric';
+      const head = document.createElement('div'); head.className='head';
+      const nm = document.createElement('div'); nm.className='name'; nm.textContent = m.name;
+      const val = document.createElement('div'); val.className='val'; val.id = 'val_'+m.key;
+      const st = document.createElement('span'); st.className='status ok'; st.id='st_'+m.key; st.textContent='正常';
+      head.append(nm, st);
+      card.append(head, val);
+      const c = document.createElement('canvas'); c.className='spark'; c.width=300; c.height=42; c.id='sp_'+m.key; card.appendChild(c);
+      el.metrics.appendChild(card);
+    });
+  }
+  createMetricCards();
+
+  // ======= 模型核心 =======
+  function tick(dt){ // dt: 模擬分鐘
+    S.t += dt;
+
+    // 目標/基調
+    const stress = P.stress; // 0~1
+    const exercise = P.exercise;
+
+    // —— 激素目標（含病理）——
+    const tTone = 0.2 + 0.5*Math.max(0, P.dThy) + 0.0; // 甲狀腺高時基調上升
+    const tOffset = P.dThy; // -1~1
+    const cortBase = 0.2 + 0.5*Math.max(0,P.dCort) - 0.15*Math.max(0,-P.dCort);
+    const pthBase = 0.2 + 0.4*Math.max(0,P.dPTH) - 0.2*Math.max(0,-P.dPTH);
+
+    // 下視丘/腦下垂體（GH 簡化以運動與睡眠近似，這裡用運動＋微噪音）
+    const ghTarget = clamp(0.15 + 0.4*exercise + 0.05*Math.sin(S.t/30), 0, 2);
+
+    // 甲狀腺（T3/T4）：緩慢
+    const thyTarget = clamp(tTone + tOffset*0.8, 0, 2);
+
+    // 皮質醇：受壓力與病理
+    const cortisolTarget = clamp(cortBase + 0.35*stress, 0, 2);
+
+    // 腎上腺素：壓力＋運動
+    const epiTarget = clamp(0.08 + 0.8*exercise + 0.25*stress, 0, 2);
+
+    // 醛固酮：血壓偏低時上升
+    const aldoTarget = clamp(0.15 + (93 - S.map)*0.01, 0, 2);
+
+    // PTH / 降鈣素
+    const caSet = 9.2; const caErr = caSet - S.ca; // 低鈣→PTH ↑
+    const pthTarget = clamp(pthBase + 0.4*pos(caErr), 0, 2);
+    const calcitoninTarget = clamp(0.15 + 0.4*pos(-caErr), 0, 2);
+
+    // 胰島素/升糖素：由血糖偏差決定（含病理）
+    const pancreasK = P.pancreasStrength*(1-P.t1d);
+    const insulinSecrete = clamp(0.02 + 0.9*pos((S.glucose-90)/30)*pancreasK, 0, 2);
+    const glucagonSecrete = clamp(0.02 + 0.9*pos((85 - S.glucose)/25), 0, 2);
+
+    if(P.auto){
+      approach(H, 'gh', ghTarget, 0.03, dt);
+      approach(H, 'thyroid', thyTarget, 0.02, dt);
+      approach(H, 'cortisol', cortisolTarget, 0.03, dt);
+      approach(H, 'epi', epiTarget, 0.2, dt);
+      approach(H, 'aldo', aldoTarget, 0.04, dt);
+      approach(H, 'pth', pthTarget, 0.06, dt);
+      approach(H, 'calcitonin', calcitoninTarget, 0.06, dt);
+      approach(H, 'insulin', insulinSecrete, 0.25, dt);
+      approach(H, 'glucagon', glucagonSecrete, 0.25, dt);
+    } else {
+      // 就算關閉自動，也讓激素逐漸代謝下降
+      decay(H,'gh',0.01,dt); decay(H,'thyroid',0.005,dt); decay(H,'cortisol',0.02,dt); decay(H,'epi',0.2,dt); decay(H,'aldo',0.03,dt);
+      decay(H,'pth',0.04,dt); decay(H,'calcitonin',0.04,dt); decay(H,'insulin',0.3,dt); decay(H,'glucagon',0.3,dt);
+    }
+
+    // —— 代謝率 ——
+    const metabolicTarget = clamp(1.0 + 0.8*H.thyroid + 0.3*H.epi + 0.2*H.cortisol + 0.25*exercise, 0.4, 3);
+    approach(S,'metabolic', metabolicTarget, 0.12, dt);
+
+    // —— 血糖動力學 ——
+    const insulinEff = H.insulin * (1 - P.insulinResistance);
+    const hepaticOutput = (0.6*H.glucagon + 0.25*H.cortisol + 0.35*H.epi) * 0.9; // 製糖/糖原分解
+    const uptake = (0.9*insulinEff + 0.25*(S.metabolic-1) + 0.5*exercise);
+    const basal = 0.12;
+    const meal = P.mealPulse * 1.8; // 轉入血液
+    const fasting = P.fastPulse * 0.3; // 降低肝糖釋放
+    let dG = (hepaticOutput*(1-fasting) + meal) - (uptake + basal);
+    S.glucose += dG * dt * 10; // 調整單位比例
+    S.glucose = clamp(S.glucose, 40, 300);
+
+    // 脈衝衰減
+    P.mealPulse *= Math.exp(-dt/40); // 約 40 分鐘半衰
+    P.fastPulse *= Math.exp(-dt/120);
+    P.calciumPulse *= Math.exp(-dt/60);
+
+    // —— 体溫 ——
+    const envPull = (P.ambient - S.temp) * 0.02; // 對環境的趨近
+    const heatGen = (S.metabolic - 1.0) * 0.25; // 代謝生熱
+    S.temp += (envPull + heatGen) * dt;
+
+    // —— 心跳與血壓 ——
+    const hrTarget = clamp(70 + 22*H.epi + 8*H.thyroid + 5*(S.temp-37) + 18*exercise, 40, 180);
+    approach(S,'hr', hrTarget, 0.3, dt);
+
+    const vasodilation = Math.max(0, S.temp-37) * 4; // 體溫高→擴張→壓降
+    const mapTarget = clamp(93 + 8*H.epi + 6*H.cortisol + 8*H.aldo - vasodilation, 60, 130);
+    approach(S,'map', mapTarget, 0.12, dt);
+    const pulseP = 40 + 15*H.epi + 10*exercise; // 脈壓
+    S.sys = clamp(S.map + pulseP*0.5, 80, 220);
+    S.dia = clamp(S.map - pulseP*0.5, 40, 140);
+
+    // —— 鈣/磷 ——
+    const dCa = (0.22*H.pth - 0.18*H.calcitonin + 0.15*P.calciumPulse) - 0.05*(S.ca-9.2);
+    const dPo = (-0.12*H.pth + 0.06*H.calcitonin) - 0.04*(S.po-3.5);
+    S.ca = clamp(S.ca + dCa*dt, 6.5, 12.5);
+    S.po = clamp(S.po + dPo*dt, 1.0, 6.0);
+
+    // —— 細胞分裂（指標）——
+    const mitTarget = clamp(100 + 22*H.gh + 12*H.thyroid - 12*H.cortisol, 40, 220);
+    approach(S,'mitosis', mitTarget, 0.2, dt);
+
+    // —— 結束：更新圖形 ——
+    draw();
+  }
+
+  function approach(obj, k, target, rate, dt){ obj[k] += (target - obj[k]) * (1 - Math.exp(-rate*dt)); }
+  function decay(obj, k, rate, dt){ obj[k] *= Math.exp(-rate*dt); }
+  function clamp(x,a,b){ return Math.min(b, Math.max(a,x)) }
+  function pos(x){ return Math.max(0,x) }
+
+  // ======= 視覺更新 =======
+  function draw(){
+    // 儀表板數值＋狀態
+    metrics.forEach(m=>{
+      let v;
+      if(m.key==='bp'){
+        v = `${Math.round(S.sys)}/${Math.round(S.dia)} ${m.unit}`;
+      } else if(m.key==='metabolic'){
+        v = `×${fmt(S.metabolic, m.digits)}`;
+      } else {
+        v = `${fmt(S[m.key], m.digits)} ${m.unit}`;
+      }
+      document.getElementById('val_'+m.key).textContent = v;
+      const cls = statusFor(m.key, S[m.key] ?? 0);
+      const st = document.getElementById('st_'+m.key); st.className = 'status '+cls; st.textContent = cls==='ok'?'正常':(cls==='warn'?'偏離':'異常');
+
+      // append history and draw spark
+      const key = m.key;
+      const arr = history[key];
+      const val = key==='bp' ? S.map : (key==='metabolic' ? S.metabolic : S[key]);
+      arr.push(val); if(arr.length>300) arr.shift();
+      const cvs = document.getElementById('sp_'+key); const ctx = cvs.getContext('2d');
+      ctx.clearRect(0,0,cvs.width,cvs.height);
+      // axis baseline
+      ctx.globalAlpha=0.3; ctx.strokeStyle='#2b3348'; ctx.beginPath(); ctx.moveTo(0,cvs.height-12); ctx.lineTo(cvs.width,cvs.height-12); ctx.stroke(); ctx.globalAlpha=1;
+      // find min/max
+      const nonNull = arr.filter(x=>x!=null); const mn = Math.min(...nonNull); const mx = Math.max(...nonNull);
+      const pad = (mx-mn)||1; const ymap = v=>cvs.height-4 - ( (v-mn)/pad )*(cvs.height-10);
+      ctx.beginPath(); ctx.lineWidth=2; ctx.strokeStyle='#61e8c2';
+      arr.forEach((v,i)=>{ if(v==null) return; const x = i/ (arr.length-1) * cvs.width; const y = ymap(v); i?ctx.lineTo(x,y):ctx.moveTo(x,y); });
+      ctx.stroke();
+    });
+
+    // 腺體環形半徑（顯示活性）
+    const glandLevels = {
+      pituitary: H.gh, thyroid: H.thyroid, parathyroid: H.pth, adrenal: (H.epi+H.cortisol+H.aldo)/3, adrenalR:(H.epi+H.cortisol+H.aldo)/3, pancreas:(H.insulin+H.glucagon)/2
+    };
+    [...document.querySelectorAll('#glands .gland')].forEach(g=>{
+      const id = g.getAttribute('data-id'); const ring = g.querySelector('circle.ring');
+      const v = clamp(glandLevels[id]||0,0,2); const r0 = +ring.getAttribute('r');
+      ring.setAttribute('r', (14 + v*6).toFixed(2));
+      ring.setAttribute('stroke-opacity', (0.4 + v*0.25).toFixed(2));
+    });
+  }
+
+  // ======= 互動 =======
+  el.play.addEventListener('click', ()=>{ S.playing = !S.playing; el.play.textContent = S.playing? '⏸ 暫停':'▶ 進行'; });
+  el.reset.addEventListener('click', ()=>{ Object.assign(S,{t:0,playing:true,speed:1,temp:37,hr:72,map:93,sys:120,dia:80,glucose:90,metabolic:1,ca:9.2,po:3.5,mitosis:100}); Object.assign(H,{insulin:0.2,glucagon:0.2,epi:0.1,cortisol:0.2,thyroid:0.2,pth:0.2,calcitonin:0.2,gh:0.2,aldo:0.2}); Object.assign(P,{auto:true,ambient:24,stress:0.1,exercise:0,dThy:0,insulinResistance:0,t1d:0,dCort:0,dPTH:0,pancreasStrength:1,mealPulse:0,fastPulse:0,calciumPulse:0}); syncUI(); });
+  el.speed.addEventListener('input', ()=>{ S.speed = +el.speed.value; el.speedVal.textContent = `×${S.speed}`; });
+  el.autoFb.addEventListener('change', ()=>{ P.auto = el.autoFb.checked; });
+  el.ambient.addEventListener('input', ()=>{ P.ambient = +el.ambient.value; el.ambientVal.textContent = `${P.ambient}°C`; });
+  el.stress.addEventListener('input', ()=>{ P.stress = +el.stress.value; el.stressVal.textContent = P.stress.toFixed(2); });
+
+  // 情境
+  el.btnMeal.addEventListener('click', ()=>{ P.mealPulse += 1.2; flash(el.btnMeal); });
+  el.btnFast.addEventListener('click', ()=>{ P.fastPulse = 1.0; flash(el.btnFast); });
+  let sprintOn=false; el.btnSprint.addEventListener('click', ()=>{ sprintOn=!sprintOn; P.exercise = sprintOn? 0.8:0; el.exercise.value=P.exercise; el.exerciseVal.textContent=P.exercise.toFixed(2); el.btnSprint.textContent = sprintOn? '🏃 停止運動':'🏃 運動（切換）'; });
+  el.btnCold.addEventListener('click', ()=>{ P.ambient = 10; el.ambient.value=P.ambient; el.ambientVal.textContent=`${P.ambient}°C`; flash(el.btnCold); });
+  el.btnHeat.addEventListener('click', ()=>{ P.ambient = 34; el.ambient.value=P.ambient; el.ambientVal.textContent=`${P.ambient}°C`; flash(el.btnHeat); });
+  el.btnCalcium.addEventListener('click', ()=>{ P.calciumPulse += 1.0; flash(el.btnCalcium); });
+
+  // 病理與基調
+  el.dThy.addEventListener('input', ()=>{ P.dThy = +el.dThy.value; el.dThyVal.textContent = P.dThy.toFixed(2); });
+  el.dIR.addEventListener('input', ()=>{ P.insulinResistance = +el.dIR.value; el.dIRVal.textContent = P.insulinResistance.toFixed(2); });
+  el.dT1D.addEventListener('input', ()=>{ P.t1d = +el.dT1D.value; el.dT1DVal.textContent = P.t1d.toFixed(2); });
+  el.dCort.addEventListener('input', ()=>{ P.dCort = +el.dCort.value; el.dCortVal.textContent = P.dCort.toFixed(2); });
+  el.dPTH.addEventListener('input', ()=>{ P.dPTH = +el.dPTH.value; el.dPTHVal.textContent = P.dPTH.toFixed(2); });
+
+  el.pancreasStrength.addEventListener('input', ()=>{ P.pancreasStrength = +el.pancreasStrength.value; el.pancreasStrengthVal.textContent = P.pancreasStrength.toFixed(2); });
+  el.exercise.addEventListener('input', ()=>{ P.exercise = +el.exercise.value; el.exerciseVal.textContent = P.exercise.toFixed(2); });
+
+  el.btnPresetNormal.addEventListener('click', ()=>{ P.dThy=0; P.insulinResistance=0; P.t1d=0; P.dCort=0; P.dPTH=0; P.exercise=0; P.ambient=24; P.stress=0.1; syncUI(); flash(el.btnPresetNormal); });
+  el.btnPresetHyperT.addEventListener('click', ()=>{ P.dThy=0.8; P.insulinResistance=0.1; P.dCort=0.2; P.exercise=0.2; P.ambient=28; P.stress=0.2; syncUI(); flash(el.btnPresetHyperT); });
+
+  function syncUI(){
+    el.autoFb.checked = P.auto;
+    el.ambient.value=P.ambient; el.ambientVal.textContent=`${P.ambient}°C`;
+    el.stress.value=P.stress; el.stressVal.textContent=P.stress.toFixed(2);
+    el.dThy.value=P.dThy; el.dThyVal.textContent=P.dThy.toFixed(2);
+    el.dIR.value=P.insulinResistance; el.dIRVal.textContent=P.insulinResistance.toFixed(2);
+    el.dT1D.value=P.t1d; el.dT1DVal.textContent=P.t1d.toFixed(2);
+    el.dCort.value=P.dCort; el.dCortVal.textContent=P.dCort.toFixed(2);
+    el.dPTH.value=P.dPTH; el.dPTHVal.textContent=P.dPTH.toFixed(2);
+    el.pancreasStrength.value=P.pancreasStrength; el.pancreasStrengthVal.textContent=P.pancreasStrength.toFixed(2);
+    el.exercise.value=P.exercise; el.exerciseVal.textContent=P.exercise.toFixed(2);
+    el.play.textContent = S.playing? '⏸ 暫停':'▶ 進行';
+  }
+
+  function flash(btn){ const o=btn.style.opacity; btn.style.opacity='0.6'; setTimeout(()=>btn.style.opacity=o||'1',150); }
+
+  // 腺體對話框
+  const GLAND_INFO = {
+    pituitary:{ title:'下視丘 / 腦下垂體', hormone:'生長激素（GH）等', level:()=>H.gh, feedback:()=> P.auto?'視周邊需求、運動微增':'自動關閉', effects:[
+      '↑ 細胞分裂、成長（與甲狀腺素協同）', '影響代謝概況（較慢）'] },
+    thyroid:{ title:'甲狀腺（含濾泡旁細胞）', hormone:'T3/T4（甲狀腺素）', level:()=>H.thyroid, feedback:()=> P.auto?'T3/T4 負回饋 ↓ TSH':'自動關閉', effects:[
+      '↑ 代謝率與產熱 → 體溫上升', '↑ 心跳（交感敏感度）', '↑ 葡萄糖利用率'] },
+    parathyroid:{ title:'甲狀旁腺', hormone:'副甲狀腺素（PTH）', level:()=>H.pth, feedback:()=> P.auto?'低血鈣 → PTH↑':'自動關閉', effects:[
+      '↑ 血鈣、↓ 血磷（腎臟與骨作用）'] },
+    adrenal:{ title:'腎上腺（左）', hormone:'腎上腺素/去甲腎上腺素、皮質醇、醛固酮', level:()=> (H.epi+H.cortisol+H.aldo)/3, feedback:()=> P.auto?'壓力/血壓負回饋':'自動關閉', effects:[
+      'E/NE：↑ 心跳、↑ 血壓、↑ 血糖（快速）', '皮質醇：↑ 產糖、↑ 血壓（較慢）', '醛固酮：↑ 鈉/水重吸收 → 血壓上升' ] },
+    adrenalR:{ title:'腎上腺（右）', hormone:'同左側', level:()=> (H.epi+H.cortisol+H.aldo)/3, feedback:()=> P.auto?'壓力/血壓負回饋':'自動關閉', effects:[
+      '與左側相同'] },
+    pancreas:{ title:'胰臟', hormone:'胰島素 / 升糖素', level:()=> (H.insulin+H.glucagon)/2, feedback:()=> P.auto?'血糖負回饋':'自動關閉', effects:[
+      '胰島素：↓ 血糖、↑ 儲存', '升糖素：↑ 血糖（肝醣分解/製糖）' ] },
+  };
+
+  document.querySelectorAll('#glands .gland').forEach(g=>{
+    g.addEventListener('click', ()=>{
+      const id = g.getAttribute('data-id'); const info = GLAND_INFO[id]; if(!info) return;
+      el.ovTitle.textContent = info.title;
+      el.ovHormone.textContent = info.hormone;
+      el.ovLevel.textContent = info.level().toFixed(2);
+      el.ovFeedback.textContent = info.feedback();
+      el.ovEffects.innerHTML = info.effects.map(s=>`<li>${s}</li>`).join('');
+      el.ov.classList.add('open');
+    });
+  });
+  el.ovClose.addEventListener('click', ()=> el.ov.classList.remove('open'));
+  el.ov.addEventListener('click', (e)=>{ if(e.target===el.ov) el.ov.classList.remove('open'); });
+
+  // ======= 主迴圈 =======
+  let last = performance.now();
+  function loop(now){
+    const dtReal = (now - last)/1000; last = now;
+    if(S.playing){
+      const simMin = dtReal * 60 * S.speed * 0.2; // 速度比例（每秒 ~12 分鐘 * speed * 0.2 = 2.4*speed 分鐘）
+      let remain = simMin;
+      // 次步進避免不穩定
+      const step = 0.2; // 分鐘
+      while(remain>0){ const d = Math.min(step, remain); tick(d); remain -= d; }
+    } else {
+      draw();
+    }
+    requestAnimationFrame(loop);
+  }
+
+  // 初始
+  syncUI(); draw(); requestAnimationFrame(loop);
+
+})();
+</script>
+</body>
+</html>
