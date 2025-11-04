@@ -1,0 +1,756 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"/>
+<title>太陽核融合互動模擬 v0.1</title>
+<style>
+  html,body{margin:0;height:100%;background:#0b0f17;color:#e6f0ff;font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial;}
+  #ui{position:fixed;right:0;top:0;bottom:0;width:360px;max-width:90vw;background:rgba(12,16,24,.85);backdrop-filter:blur(6px);border-left:1px solid #182235;display:flex;flex-direction:column}
+  #canvas{position:fixed;left:0;top:0;width:calc(100% - 360px);height:100%;touch-action:none}
+  #header{padding:12px 14px;border-bottom:1px solid #182235;display:flex;gap:8px;align-items:center}
+  .tag{font-size:12px;padding:2px 8px;border-radius:999px;background:#14213d;color:#9bdcff;border:1px solid #1f2f53}
+  #panel{padding:12px 14px;overflow:auto;flex:1}
+  .row{display:flex;gap:8px;flex-wrap:wrap}
+  button{background:#1a2743;color:#e6f0ff;border:1px solid #2a3d6b;padding:8px 10px;border-radius:8px;cursor:pointer}
+  button:hover{background:#22345b}
+  button.primary{background:#2b6cb0;border-color:#2b6cb0}
+  button.danger{background:#9b2c2c;border-color:#9b2c2c}
+  .pill{display:inline-flex;align-items:center;gap:6px;border:1px solid #2a3d6b;border-radius:999px;padding:4px 8px;background:#111827}
+  .legend{display:flex;gap:10px;margin:6px 0 10px 0;flex-wrap:wrap}
+  .dot{width:10px;height:10px;border-radius:50%}
+  .p{background:#ff4d4d;box-shadow:0 0 8px #ff4d4d80}
+  .n{background:#58a6ff;box-shadow:0 0 8px #58a6ff80}
+  .e{background:#6cff8f;box-shadow:0 0 8px #6cff8f80}
+  .palette{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:8px}
+  .card{border:1px solid #27324a;border-radius:10px;padding:8px;background:#0f1625}
+  .label{font-size:12px;color:#a6b5d8}
+  .stat{font-variant-numeric:tabular-nums}
+  .selectHint{font-size:12px;color:#9bb3ff;margin-top:6px}
+  .log{font-size:12px;line-height:1.4;white-space:pre-wrap;background:#0b131f;border:1px solid #1a2743;padding:8px;border-radius:8px;max-height:180px;overflow:auto}
+  .small{font-size:12px;color:#a0aec0}
+  .switch{display:flex;align-items:center;gap:6px}
+  input[type="checkbox"]{transform:scale(1.1)}
+  #footer{padding:8px 12px;border-top:1px solid #182235;color:#8ea7ff;font-size:12px}
+  a, a:visited{color:#8ea7ff}
+  .kbd{padding:1px 6px;border:1px solid #2a3d6b;border-bottom-width:2px;border-radius:6px;background:#0b131f;font-family:ui-monospace,Consolas,Menlo,monospace}
+  .hint{color:#9bb3ff;font-size:12px;margin-top:6px}
+  #reactBtnRow{display:flex;gap:8px;flex-wrap:wrap}
+  .chip{border:1px solid #2a3d6b;border-radius:999px;padding:4px 8px;background:#0f1625;font-size:12px}
+  @media (max-width:1000px){
+    #canvas{width:100%}
+    #ui{position:fixed;inset:auto 0 0 0;height:45%;width:100%;border-left:none;border-top:1px solid #182235}
+  }
+</style>
+</head>
+<body>
+<canvas id="canvas"></canvas>
+<div id="ui" role="complementary" aria-label="控制面板">
+  <div id="header">
+    <span class="tag">太陽核融合模擬</span>
+    <span class="tag">v0.1</span>
+  </div>
+  <div id="panel">
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+        <div>
+          <div class="label">反應器狀態</div>
+          <div id="status" class="stat">請從下方調色盤新增原子，拖入畫面中央的「反應器圈」後，點選兩個原子進行融合。</div>
+        </div>
+        <button id="reset" class="danger">全部清除</button>
+      </div>
+      <div class="legend">
+        <span class="pill"><span class="dot p"></span>質子</span>
+        <span class="pill"><span class="dot n"></span>中子</span>
+        <span class="pill"><span class="dot e"></span>電子</span>
+      </div>
+      <div class="row" id="reactBtnRow">
+        <button id="fuse" class="primary" disabled>融合（選兩個）</button>
+        <button id="predict" disabled>預測產物</button>
+        <button id="deleteSel" disabled>刪除選取</button>
+      </div>
+      <div class="row" style="margin-top:6px">
+        <label class="switch"><input id="showElectrons" type="checkbox" checked/>顯示電子</label>
+        <label class="switch"><input id="ppOnly" type="checkbox" checked/>太陽 pp-鏈模式</label>
+      </div>
+      <div class="hint">小撇步：<span class="kbd">滑鼠滾輪</span> 或 <span class="kbd">雙指張合</span> ＝縮放；<span class="kbd">右鍵拖曳</span> 或 <span class="kbd">雙指旋轉</span> ＝旋轉視角；<span class="kbd">雙擊空白</span> ＝重置視角。</div>
+    </div>
+
+    <div class="card" style="margin-top:10px">
+      <div class="label">原子調色盤（點一下加入一顆）</div>
+      <div class="palette" id="palette"></div>
+      <div class="selectHint">支援的穩定同位素：H‑1、H‑2、He‑3、He‑4、Li‑6、Li‑7、Be‑9、B‑10、B‑11、C‑12、C‑13、N‑14、N‑15、O‑16、O‑17、O‑18。也包含 H‑3（不穩定）。</div>
+    </div>
+
+    <div class="card" style="margin-top:10px">
+      <div class="label">選取資訊</div>
+      <div id="selA" class="stat">A：未選取</div>
+      <div id="selB" class="stat">B：未選取</div>
+      <div id="predictText" class="small" style="margin-top:6px"></div>
+    </div>
+
+    <div class="card" style="margin-top:10px">
+      <div class="label">事件紀錄</div>
+      <div id="log" class="log"></div>
+    </div>
+  </div>
+  <div id="footer">教育用途模型，非完整核物理計算。pp-鏈步驟：p+p→D+e<sup>+</sup>+ν；D+p→He‑3+γ；He‑3+He‑3→He‑4+p+p。</div>
+</div>
+
+<script>
+// ======= 資料定義 =======
+const STABLE = new Map([
+  // Z, N => {sym, name}
+  ["1,0", {sym:"H-1", name:"氫-1"}],
+  ["1,1", {sym:"H-2", name:"氘 / 氫-2"}],
+  // H-3 不穩定，但可用於過程
+  ["2,1", {sym:"He-3", name:"氦-3"}],
+  ["2,2", {sym:"He-4", name:"氦-4"}],
+  ["3,3", {sym:"Li-6", name:"鋰-6"}],
+  ["3,4", {sym:"Li-7", name:"鋰-7"}],
+  ["4,5", {sym:"Be-9", name:"鈹-9"}],
+  ["5,5", {sym:"B-10", name:"硼-10"}],
+  ["5,6", {sym:"B-11", name:"硼-11"}],
+  ["6,6", {sym:"C-12", name:"碳-12"}],
+  ["6,7", {sym:"C-13", name:"碳-13"}],
+  ["7,7", {sym:"N-14", name:"氮-14"}],
+  ["7,8", {sym:"N-15", name:"氮-15"}],
+  ["8,8", {sym:"O-16", name:"氧-16"}],
+  ["8,9", {sym:"O-17", name:"氧-17"}],
+  ["8,10", {sym:"O-18", name:"氧-18"}],
+]);
+const UNSTABLE_NAMED = new Map([
+  ["1,2", {sym:"H-3", name:"氚 / 氫-3"}],
+]);
+
+const PALETTE = [
+  {Z:1,N:0},{Z:1,N:1},{Z:1,N:2},
+  {Z:2,N:1},{Z:2,N:2},
+  {Z:3,N:3},{Z:3,N:4},
+  {Z:4,N:5},
+  {Z:5,N:5},{Z:5,N:6},
+  {Z:6,N:6},{Z:6,N:7},
+  {Z:7,N:7},{Z:7,N:8},
+  {Z:8,N:8},{Z:8,N:9},{Z:8,N:10},
+];
+
+function keyZN(Z,N){return Z+","+N}
+function infoZN(Z,N){
+  const k=keyZN(Z,N);
+  if (STABLE.has(k)) return {...STABLE.get(k), stable:true, Z,N, A:Z+N};
+  if (UNSTABLE_NAMED.has(k)) return {...UNSTABLE_NAMED.get(k), stable:false, Z,N, A:Z+N};
+  return {sym:`Z${Z}N${N}`, name:"非資料庫", stable:false, Z,N, A:Z+N};
+}
+
+function byMassCandidates(A){
+  const out=[];
+  STABLE.forEach((v,k)=>{
+    const [Z,N]=k.split(",").map(Number);
+    if (Z+N===A) out.push({Z,N,...v,stable:true,A});
+  });
+  return out;
+}
+
+// ======= 介面元素 =======
+const canvas=document.getElementById('canvas');
+const ctx=canvas.getContext('2d');
+let W=canvas.width=window.innerWidth - Math.min(360, window.innerWidth*0.9);
+let H=canvas.height=window.innerHeight;
+function resize(){
+  if (window.innerWidth<=1000){
+    // UI bottom mode
+    canvas.width=window.innerWidth;
+    canvas.height=window.innerHeight*0.55;
+  }else{
+    canvas.width=window.innerWidth-360;
+    canvas.height=window.innerHeight;
+  }
+  W=canvas.width; H=canvas.height;
+}
+window.addEventListener('resize',resize);
+
+// 視角控制（平移/縮放/旋轉）
+let view={x:0,y:0,scale:1,rot:0};
+function resetView(){view={x:0,y:0,scale:1,rot:0}}
+canvas.addEventListener('dblclick', (e)=>{
+  if (e.target===canvas) resetView();
+});
+
+// 反應器圈
+const REACTOR={x:0,y:0,r:120};
+
+// 物件（原子、飛出粒子）
+let ATOMS=[]; // {id,Z,N,electrons,x,y,r,sel,angle,dead, fade}
+let PARTICLES=[]; // byproducts {type:'gamma'|'pos'|'nu'|'p', x,y,vx,vy,life}
+let idCounter=1;
+
+// 選取
+let selIds=[];
+function setStatus(s){document.getElementById('status').innerHTML=s}
+function log(msg){
+  const el=document.getElementById('log');
+  el.textContent = (new Date()).toLocaleTimeString()+"  "+msg+"\n"+el.textContent;
+}
+
+// UI 控制
+const fuseBtn=document.getElementById('fuse');
+const predictBtn=document.getElementById('predict');
+const delBtn=document.getElementById('deleteSel');
+const showElectrons=document.getElementById('showElectrons');
+const ppOnly=document.getElementById('ppOnly');
+
+document.getElementById('reset').onclick=()=>{
+  ATOMS.length=0; PARTICLES.length=0; selIds.length=0; updateSelUI();
+  log("場景清除。");
+};
+
+function addAtom(Z,N, pos){
+  const electrons=Z;
+  const r = 26 + Math.min(20, (Z+N)*0.8);
+  const id=idCounter++;
+  const angle=Math.random()*Math.PI*2;
+  const x=pos?.x ?? (Math.random()*W - W/2);
+  const y=pos?.y ?? (Math.random()*H - H/2);
+  ATOMS.push({id,Z,N,electrons,x,y,r,sel:false,angle,dead:false,fade:1});
+  log(`生成 ${infoZN(Z,N).sym}（Z=${Z}, N=${N}, e=${electrons}）。`);
+}
+
+function removeAtomById(id){
+  const idx=ATOMS.findIndex(a=>a.id===id);
+  if (idx>=0) ATOMS.splice(idx,1);
+}
+
+// Palette buttons
+const paletteEl=document.getElementById('palette');
+PALETTE.forEach(({Z,N})=>{
+  const inf=infoZN(Z,N);
+  const btn=document.createElement('button');
+  btn.innerHTML=`${inf.sym}<div class="label">Z=${Z} N=${N}</div>`;
+  btn.onclick=()=>addAtom(Z,N);
+  paletteEl.appendChild(btn);
+});
+
+// 選取資訊
+const selAEl=document.getElementById('selA');
+const selBEl=document.getElementById('selB');
+const predictText=document.getElementById('predictText');
+function updateSelUI(){
+  const A=ATOMS.find(a=>a.id===selIds[0]);
+  const B=ATOMS.find(a=>a.id===selIds[1]);
+  selAEl.textContent = A ? `A：${infoZN(A.Z,A.N).sym}（Z=${A.Z}, N=${A.N}, e=${A.electrons}）` : "A：未選取";
+  selBEl.textContent = B ? `B：${infoZN(B.Z,B.N).sym}（Z=${B.Z}, N=${B.N}, e=${B.electrons}）` : "B：未選取";
+  fuseBtn.disabled = !(A && B);
+  predictBtn.disabled = fuseBtn.disabled;
+  delBtn.disabled = selIds.length===0;
+  // 預測
+  if (A && B){
+    const pred = predictProduct(A,B, ppOnly.checked);
+    if (pred.ok){
+      predictText.innerHTML = `可能產物：<span class="chip">${pred.desc}</span>`;
+    }else{
+      predictText.textContent = "此配對在目前模式下不會穩定，可能失敗或短暫存在。";
+    }
+  }else{
+    predictText.textContent = "";
+  }
+}
+document.getElementById('deleteSel').onclick=()=>{
+  selIds.forEach(id=>removeAtomById(id));
+  selIds.length=0; updateSelUI();
+};
+
+// ======= 觸控/滑鼠 交互 =======
+let draggingId=null;
+let lastX=0,lastY=0;
+let isRightDragging=false;
+
+canvas.addEventListener('contextmenu', e=>e.preventDefault());
+
+canvas.addEventListener('mousedown', e=>{
+  const pos = screenToWorld(e.offsetX,e.offsetY);
+  if (e.button===2){ isRightDragging=true; lastX=e.clientX; lastY=e.clientY; return; }
+  // 命中測試
+  const hit = hitTest(pos.x,pos.y);
+  if (hit){
+    draggingId=hit.id;
+    bringToTop(draggingId);
+    lastX=pos.x; lastY=pos.y;
+  }else{
+    // 空白處清選
+    selIds.length=0; ATOMS.forEach(a=>a.sel=false); updateSelUI();
+  }
+});
+
+window.addEventListener('mousemove', e=>{
+  if (isRightDragging){
+    const dx=e.clientX-lastX, dy=e.clientY-lastY;
+    view.rot += (dx)*0.005;
+    view.x += dy*0.2; // 右鍵上下＝輕微平移，讓旋轉手感更好
+    lastX=e.clientX; lastY=e.clientY;
+    return;
+  }
+  if (draggingId!=null){
+    const pos = screenToWorld(e.offsetX,e.offsetY);
+    const a = ATOMS.find(o=>o.id===draggingId);
+    if (a){ a.x += (pos.x-lastX); a.y += (pos.y-lastY); lastX=pos.x; lastY=pos.y; }
+  }
+});
+
+window.addEventListener('mouseup', e=>{
+  if (isRightDragging){ isRightDragging=false; return; }
+  draggingId=null;
+});
+
+// 滾輪縮放
+canvas.addEventListener('wheel', e=>{
+  e.preventDefault();
+  const scaleBefore=view.scale;
+  const delta = Math.exp(-e.deltaY*0.001);
+  const mouse = screenToWorld(e.offsetX,e.offsetY);
+  view.scale *= delta;
+  view.scale = Math.max(0.4, Math.min(2.8, view.scale));
+  // 以滑鼠位置為中心縮放
+  const after = worldToScreen(mouse.x,mouse.y);
+  view.x += (e.offsetX - after.x);
+  view.y += (e.offsetY - after.y);
+}, {passive:false});
+
+// 點擊選取
+canvas.addEventListener('click', e=>{
+  if (isRightDragging) return; // 旋轉中不觸發
+  const pos=screenToWorld(e.offsetX,e.offsetY);
+  const hit=hitTest(pos.x,pos.y);
+  if (hit){
+    hit.sel = !hit.sel;
+    if (hit.sel){
+      if (!selIds.includes(hit.id)) selIds.push(hit.id);
+      if (selIds.length>2){
+        const idRemoved=selIds.shift();
+        const old=ATOMS.find(a=>a.id===idRemoved);
+        if (old) old.sel=false;
+      }
+    }else{
+      selIds=selIds.filter(id=>id!==hit.id);
+    }
+    updateSelUI();
+  }
+});
+
+// 觸控：拖曳 + 雙指 旋轉/縮放
+let activeTouches=new Map(); // id -> {x,y}
+let prevGesture=null;
+
+canvas.addEventListener('touchstart', ev=>{
+  ev.preventDefault();
+  for (const t of ev.changedTouches){
+    activeTouches.set(t.identifier, {x:t.clientX, y:t.clientY});
+  }
+  if (activeTouches.size===1){
+    const t=ev.changedTouches[0];
+    const pos=screenToWorld(t.clientX - canvas.getBoundingClientRect().left, t.clientY - canvas.getBoundingClientRect().top);
+    const hit=hitTest(pos.x,pos.y);
+    if (hit){ draggingId=hit.id; bringToTop(draggingId); lastX=pos.x; lastY=pos.y; }
+  }else if (activeTouches.size===2){
+    prevGesture=calcGesture();
+  }
+},{passive:false});
+
+canvas.addEventListener('touchmove', ev=>{
+  ev.preventDefault();
+  if (activeTouches.size===1 && draggingId!=null){
+    const t=ev.touches[0];
+    const pos=screenToWorld(t.clientX - canvas.getBoundingClientRect().left, t.clientY - canvas.getBoundingClientRect().top);
+    const a=ATOMS.find(o=>o.id===draggingId);
+    if (a){ a.x += (pos.x-lastX); a.y += (pos.y-lastY); lastX=pos.x; lastY=pos.y; }
+  }else if (activeTouches.size===2){
+    const g=calcGesture();
+    if (prevGesture){
+      view.rot += (g.angle - prevGesture.angle);
+      const newScale = view.scale * (g.dist / prevGesture.dist);
+      view.scale = Math.max(0.4, Math.min(2.8, newScale));
+      // 平移中點
+      const dx=g.cx - prevGesture.cx;
+      const dy=g.cy - prevGesture.cy;
+      view.x += dx;
+      view.y += dy;
+    }
+    prevGesture=g;
+  }
+},{passive:false});
+
+window.addEventListener('touchend', ev=>{
+  for (const t of ev.changedTouches){ activeTouches.delete(t.identifier); }
+  if (activeTouches.size<2) prevGesture=null;
+  if (activeTouches.size===0){ draggingId=null; }
+},{passive:false});
+
+function calcGesture(){
+  const arr=[...activeTouches.values()];
+  if (arr.length<2) return null;
+  const [a,b]=arr;
+  const angle=Math.atan2(b.y-a.y, b.x-a.x);
+  const dist=Math.hypot(b.x-a.x, b.y-a.y);
+  const cx=(a.x+b.x)/2, cy=(a.y+b.y)/2;
+  return {angle, dist, cx, cy};
+}
+
+// 命中測試
+function hitTest(wx,wy){
+  for (let i=ATOMS.length-1;i>=0;i--){
+    const a=ATOMS[i];
+    if (Math.hypot(wx-a.x, wy-a.y) <= a.r) return a;
+  }
+  return null;
+}
+function bringToTop(id){
+  const idx=ATOMS.findIndex(o=>o.id===id);
+  if (idx>=0){ const [obj]=ATOMS.splice(idx,1); ATOMS.push(obj); }
+}
+
+// 轉換
+function screenToWorld(sx,sy){
+  const cx = sx - W/2 - view.x;
+  const cy = sy - H/2 - view.y;
+  const cos=Math.cos(-view.rot), sin=Math.sin(-view.rot);
+  const x = (cx*cos - cy*sin)/view.scale;
+  const y = (cx*sin + cy*cos)/view.scale;
+  return {x,y};
+}
+function worldToScreen(x,y){
+  const cos=Math.cos(view.rot), sin=Math.sin(view.rot);
+  const X = (x*view.scale)*cos - (y*view.scale)*sin + W/2 + view.x;
+  const Y = (x*view.scale)*sin + (y*view.scale)*cos + H/2 + view.y;
+  return {x:X,y:Y};
+}
+
+// ======= 反應邏輯 =======
+function isInReactor(a){
+  const d=Math.hypot(a.x-REACTOR.x, a.y-REACTOR.y);
+  return d <= REACTOR.r - 6;
+}
+
+function predictProduct(a,b, ppMode){
+  // pp-鏈顯式規則優先
+  const rule = ppRules(a,b);
+  if (rule) return {ok:true, desc:rule.desc, make:rule.make, products:rule.products};
+  if (ppMode) return {ok:false};
+  // 一般合成：A守恆，尋找穩定核素（允許 Z 調整 ±1 尋找最鄰近的穩定）
+  const A = a.Z+a.N + b.Z+b.N;
+  const Zsum = a.Z + b.Z;
+  const cands=byMassCandidates(A);
+  if (cands.length===0){ return {ok:false}; }
+  // 選 Z 差距最小者
+  cands.sort((u,v)=>Math.abs(u.Z-Zsum)-Math.abs(v.Z-Zsum));
+  const best=cands[0];
+  const deltaZ = best.Z - Zsum;
+  let extra = "";
+  if (deltaZ===-1) extra=" + e⁺ + ν";
+  else if (deltaZ===1) extra=" + e⁻ + ν̄";
+  const desc = `${infoZN(best.Z,best.N).sym}${extra}（質量數守恆 A=${A}）`;
+  return {ok:true, desc, make:()=>{
+    // 產生主產物
+    addAtom(best.Z, best.N, {x:0,y:0});
+    // 附產物動畫
+    if (deltaZ===-1){ // 發生β+
+      spawnParticle('pos',0,0); spawnParticle('nu',0,0); spawnPhoton(2);
+    }else if (deltaZ===1){ // β-
+      spawnParticle('ele',0,0); spawnParticle('anu',0,0); spawnPhoton(2);
+    }else{
+      spawnPhoton(1);
+    }
+  }, products:[{Z:best.Z,N:best.N}]};
+}
+
+function ppRules(a,b){
+  const ZN = (x)=>keyZN(x.Z,x.N);
+  const A = (Z,N)=>({Z,N});
+  // 規則 1：p + p -> D + e+ + ν
+  if (ZN(a)==="1,0" && ZN(b)==="1,0"){
+    return {
+      desc:"H‑1 + H‑1 → H‑2 + e⁺ + ν + γ",
+      make:()=>{ addAtom(1,1,{x:0,y:0}); spawnParticle('pos',0,0); spawnParticle('nu',0,0); spawnPhoton(2); },
+      products:[A(1,1)]
+    };
+  }
+  // 規則 2：D + p -> He-3 + γ
+  const set = new Set([ZN(a), ZN(b)]);
+  if (set.has("1,1") && set.has("1,0")){
+    return {
+      desc:"H‑2 + H‑1 → He‑3 + γ",
+      make:()=>{ addAtom(2,1,{x:0,y:0}); spawnPhoton(2); },
+      products:[A(2,1)]
+    };
+  }
+  // 規則 3：He-3 + He-3 → He-4 + p + p
+  if (ZN(a)==="2,1" && ZN(b)==="2,1"){
+    return {
+      desc:"He‑3 + He‑3 → He‑4 + p + p + γ",
+      make:()=>{ addAtom(2,2,{x:0,y:0}); spawnProton(0,0); spawnProton(0,0); spawnPhoton(3); },
+      products:[A(2,2), A(1,0), A(1,0)]
+    };
+  }
+  // 選配：D + D 常見分支（簡化）
+  if (ZN(a)==="1,1" && ZN(b)==="1,1"){
+    return {
+      desc:"H‑2 + H‑2 → He‑3 + n（或 T + p）（簡化隨機分支）",
+      make:()=>{
+        if (Math.random()<0.5){ addAtom(2,1,{x:0,y:0}); spawnNeutron(0,0); }
+        else { addAtom(1,2,{x:0,y:0}); spawnProton(0,0); }
+        spawnPhoton(1);
+      },
+      products:[]
+    };
+  }
+  return null;
+}
+
+// 產生副產物動畫
+function spawnPhoton(k=1){ for(let i=0;i<k;i++) PARTICLES.push({type:'gamma',x:0,y:0,...randVel(2.5),life:1}); }
+function spawnParticle(type,x,y){ PARTICLES.push({type,x,y,...randVel(2),life:1}); }
+function spawnProton(x,y){ PARTICLES.push({type:'p',x,y,...randVel(2),life:1}); }
+function spawnNeutron(x,y){ PARTICLES.push({type:'nfree',x,y,...randVel(2),life:1}); }
+function randVel(s=2){ const ang=Math.random()*Math.PI*2; return {vx:Math.cos(ang)*s, vy:Math.sin(ang)*s}; }
+
+// 按鈕事件
+document.getElementById('fuse').onclick=()=>{
+  const A=ATOMS.find(a=>a.id===selIds[0]);
+  const B=ATOMS.find(a=>a.id===selIds[1]);
+  if (!(A&&B)) return;
+  // 需在反應器圈內
+  if (!isInReactor(A) || !isInReactor(B)){
+    setStatus('請將兩個原子拖入畫面中央的「反應器圈」內再融合。');
+    return;
+  }
+  const pred=predictProduct(A,B, ppOnly.checked);
+  if (!pred.ok){
+    // 不穩定 → 淡出
+    A.dead=true; B.dead=true;
+    log(`不穩定：${infoZN(A.Z,A.N).sym} + ${infoZN(B.Z,B.N).sym} 反應失敗，消失。`);
+    setStatus('反應不穩定：配對不符合本模式。');
+    spawnPhoton(1);
+    selIds.length=0; updateSelUI();
+    return;
+  }
+  // 執行反應
+  removeAtomById(A.id); removeAtomById(B.id);
+  pred.make();
+  log(`反應成功：${pred.desc}`);
+  setStatus(`融合成功！${pred.desc}`);
+  selIds.length=0; updateSelUI();
+};
+
+document.getElementById('predict').onclick=()=>{
+  const A=ATOMS.find(a=>a.id===selIds[0]);
+  const B=ATOMS.find(a=>a.id===selIds[1]);
+  if (!(A&&B)) return;
+  const p=predictProduct(A,B, ppOnly.checked);
+  if (p.ok) setStatus('預測：'+p.desc); else setStatus('此配對在目前模式下不會穩定。');
+};
+
+// ======= 繪圖 =======
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  // 背景星芒
+  drawBackground();
+  // 反應器圈
+  drawReactor();
+
+  // 事物繪製（套用視角）
+  ctx.save();
+  ctx.translate(W/2 + view.x, H/2 + view.y);
+  ctx.rotate(view.rot);
+  ctx.scale(view.scale, view.scale);
+
+  // 粒子
+  for (const p of PARTICLES){
+    p.x+=p.vx; p.y+=p.vy; p.life-=0.01;
+  }
+  PARTICLES = PARTICLES.filter(p=>p.life>0);
+  for (const p of PARTICLES){
+    const s=1+(1-p.life)*2;
+    ctx.save();
+    ctx.globalAlpha=Math.max(0,p.life);
+    ctx.translate(p.x,p.y);
+    if (p.type==='gamma'){
+      ctx.strokeStyle='#ffd54a'; ctx.lineWidth=2/s;
+      ctx.beginPath(); ctx.moveTo(-8,0); ctx.lineTo(8,0); ctx.stroke();
+      ctx.beginPath(); ctx.arc(0,0,3,0,Math.PI*2); ctx.stroke();
+    }else if (p.type==='pos'){
+      ctx.fillStyle='#ff7ab6'; circle(0,0,4); ctx.fill();
+      drawPlus();
+    }else if (p.type==='ele'){
+      ctx.fillStyle='#6cff8f'; circle(0,0,4); ctx.fill();
+      drawMinus();
+    }else if (p.type==='anu'){ // 反中微子
+      ctx.fillStyle='#9bb3ff'; circle(0,0,3); ctx.fill();
+    }else if (p.type==='nu'){
+      ctx.fillStyle='#9bb3ff'; circle(0,0,3); ctx.fill();
+    }else if (p.type==='p'){
+      ctx.fillStyle='#ff4d4d'; circle(0,0,5); ctx.fill();
+    }else if (p.type==='nfree'){
+      ctx.fillStyle='#58a6ff'; circle(0,0,5); ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  // 原子
+  for (const a of ATOMS){
+    if (a.dead){
+      a.fade -= 0.02;
+      if (a.fade<=0){ a._remove=true; continue; }
+    }
+    drawAtom(a);
+    a.angle += 0.01;
+  }
+  ATOMS = ATOMS.filter(a=>!a._remove);
+
+  ctx.restore();
+
+  requestAnimationFrame(draw);
+}
+function drawBackground(){
+  const grd=ctx.createRadialGradient(W/2,H/2,40, W/2,H/2, Math.max(W,H)*0.9);
+  grd.addColorStop(0,'#0e1726');
+  grd.addColorStop(1,'#05080f');
+  ctx.fillStyle=grd;
+  ctx.fillRect(0,0,W,H);
+  // reactor glow
+  const c=worldToScreen(REACTOR.x,REACTOR.y);
+  const rad=REACTOR.r*view.scale;
+  const g=ctx.createRadialGradient(c.x,c.y, rad*0.2, c.x,c.y, rad*1.2);
+  g.addColorStop(0,'#1a2b55aa'); g.addColorStop(1,'#00000000');
+  ctx.fillStyle=g; ctx.beginPath(); ctx.arc(c.x,c.y,rad*1.2,0,Math.PI*2); ctx.fill();
+}
+function drawReactor(){
+  const c=worldToScreen(REACTOR.x,REACTOR.y);
+  const r=REACTOR.r*view.scale;
+  ctx.save();
+  ctx.translate(c.x,c.y);
+  ctx.strokeStyle='#2b6cb0'; ctx.setLineDash([6,6]); ctx.lineWidth=2;
+  ctx.globalAlpha=0.9;
+  ctx.beginPath(); ctx.arc(0,0,r,0,Math.PI*2); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle='#9bb3ff';
+  ctx.font='12px ui-monospace,monospace';
+  ctx.textAlign='center';
+  ctx.fillText('反應器圈（請把兩個原子拖進來）',0,-r-10);
+  ctx.restore();
+}
+function drawAtom(a){
+  const label = infoZN(a.Z,a.N).sym + (STABLE.has(keyZN(a.Z,a.N)) ? '' : '★');
+  ctx.save();
+  ctx.translate(a.x,a.y);
+  // 光暈
+  ctx.globalAlpha=0.4*a.fade;
+  const glow=ctx.createRadialGradient(0,0,2,0,0,a.r*1.4);
+  glow.addColorStop(0,'#1b2a4e'); glow.addColorStop(1,'#00000000');
+  ctx.fillStyle=glow; circle(0,0,a.r*1.4); ctx.fill();
+  ctx.globalAlpha=1*a.fade;
+
+  // 核心圓
+  ctx.fillStyle='#0b131f'; ctx.strokeStyle=a.sel?'#8ea7ff':'#2a3d6b';
+  ctx.lineWidth= a.sel? 3:1.5;
+  circle(0,0,a.r); ctx.fill(); ctx.stroke();
+
+  // 繪制核子（質子/中子）
+  const total=a.Z + a.N;
+  const ringR = Math.max(10, a.r*0.55);
+  const layers = Math.ceil(total/12);
+  let count=0;
+  for (let L=0; L<layers; L++){
+    const rr = ringR * (1 - L*0.4);
+    const onRing = Math.min(12, total-count);
+    for (let i=0;i<onRing;i++){
+      const ang = a.angle*0.5 + i/onRing*Math.PI*2;
+      const x = Math.cos(ang)*rr;
+      const y = Math.sin(ang)*rr;
+      const isProton = count < a.Z;
+      ctx.fillStyle=isProton? '#ff4d4d' : '#58a6ff';
+      circle(x,y, isProton? 5:5);
+      ctx.fill();
+      count++;
+    }
+  }
+
+  // 電子殼層
+  if (showElectrons.checked){
+    const e=a.electrons;
+    const shells = shellLayout(e);
+    for (let s=0;s<shells.length;s++){
+      const n = shells[s];
+      const R = a.r + 10 + s*12;
+      ctx.strokeStyle='#244064'; ctx.lineWidth=1; ctx.globalAlpha=0.6*a.fade;
+      circle(0,0,R); ctx.stroke(); ctx.globalAlpha=1*a.fade;
+      for (let i=0;i<n;i++){
+        const ang = a.angle*1.5 + i/n*Math.PI*2;
+        ctx.fillStyle='#6cff8f';
+        circle(Math.cos(ang)*R, Math.sin(ang)*R, 3.3);
+        ctx.fill();
+      }
+    }
+  }
+
+  // 文字
+  ctx.fillStyle='#dbe9ff'; ctx.font='bold 12px ui-monospace,monospace';
+  ctx.textAlign='center';
+  ctx.fillText(label,0,-a.r-14);
+  ctx.fillStyle='#9bb3ff'; ctx.font='11px ui-monospace,monospace';
+  ctx.fillText(`Z=${a.Z}  N=${a.N}  e=${a.electrons}`,0,-a.r-2);
+
+  // Reactor hint
+  if (isInReactor(a)){
+    ctx.fillStyle='#9bb3ff88'; ctx.font='10px ui-monospace,monospace';
+    ctx.fillText('在反應器內',0,a.r+12);
+  }
+
+  ctx.restore();
+}
+
+function shellLayout(e){
+  // 2, 8, 18 ... 這裡簡化：只用 2,8,8,18（足夠低 Z）
+  const caps=[2,8,8,18];
+  const out=[];
+  let left=e;
+  for (let c of caps){
+    if (left<=0) break;
+    const v=Math.min(c,left); out.push(v); left-=v;
+  }
+  return out;
+}
+
+function circle(x,y,r){ ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); }
+
+function drawPlus(){ ctx.strokeStyle='#0b131f'; ctx.lineWidth=1.5; ctx.beginPath(); ctx.moveTo(-3,0); ctx.lineTo(3,0); ctx.moveTo(0,-3); ctx.lineTo(0,3); ctx.stroke(); }
+function drawMinus(){ ctx.strokeStyle='#0b131f'; ctx.lineWidth=1.5; ctx.beginPath(); ctx.moveTo(-3,0); ctx.lineTo(3,0); ctx.stroke(); }
+
+// ======= 主循環 =======
+resize();
+requestAnimationFrame(draw);
+
+// 預放兩顆氫原子
+addAtom(1,0, {x:-80,y:0});
+addAtom(1,0, {x:80,y:0});
+setStatus('把兩顆 H‑1 拖進反應器圈，選取後按「融合」。');
+
+// ======= 融合時輔助：自動將選取原子靠攏到反應器中心 =======
+setInterval(()=>{
+  const A=ATOMS.find(a=>a.id===selIds[0]);
+  const B=ATOMS.find(a=>a.id===selIds[1]);
+  if (A&&B){
+    for (const a of [A,B]){
+      const dx = (REACTOR.x - a.x)*0.05;
+      const dy = (REACTOR.y - a.y)*0.05;
+      if (!isInReactor(a)){ a.x += dx; a.y += dy; }
+    }
+  }
+}, 60);
+
+// ======= 點擊畫布空白雙擊清視角輔助 =======
+canvas.addEventListener('dblclick', (e)=>{
+  if (e.target!==canvas) return;
+  resetView();
+});
+
+</script>
+</body>
+</html>
