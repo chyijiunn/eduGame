@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>非球面平凸透鏡 橫剖面互動設計器 v0.23f (mm)</title>
+<style>
+  :root{
+    --bg:#0b0f14; --panel:#10161f; --ink:#e6f0ff; --muted:#9bb3cc; --accent:#7cc4ff; --good:#3ddc97; --warn:#ffd166; --bad:#ef476f; --mag:#ff5af1;
+  }
+  html,body{height:100%;}
+  body{margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Noto Sans TC, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji"; background:var(--bg); color:var(--ink);} 
+  .wrap{display:grid; grid-template-columns: 320px 1fr; gap:16px; height:100%;}
+  .panel{background:var(--panel); padding:16px 14px; overflow:auto; box-shadow:inset 0 0 0 1px #1b2430;} 
+  h1{font-size:18px; margin:0 0 8px; display:flex; align-items:center; gap:8px;}
+  h2{font-size:14px; color:var(--muted); margin:16px 0 8px; letter-spacing:.02em; font-weight:600;}
+  .row{margin:10px 0 14px;}
+  .row label{display:block; font-size:13px; color:var(--muted); margin-bottom:6px;}
+  .row input[type="number"].num{width:12ch; box-sizing:content-box;}
+  .row input[type="number"], select{background:#0e141c; color:var(--ink); border:1px solid #223048; border-radius:8px; padding:8px 10px; font-size:14px; font-variant-numeric: tabular-nums;}
+  .row input[type="range"]{width:100%; margin-top:8px;}
+  .note{font-size:12px; color:var(--muted); margin:6px 0 0; line-height:1.48;}
+  .btns{display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;}
+  button{background:#142132; color:var(--ink); border:1px solid #223048; border-radius:10px; padding:8px 12px; cursor:pointer; font-weight:600;}
+  button:hover{border-color:#2f4666; background:#0e1a29;}
+  .viewer{position:relative; height:100vh; overflow:hidden;}  
+  #svg{width:100%; height:100%; background:linear-gradient(#0f1724, #0b0f14); touch-action:none;} 
+  .badge{position:absolute; top:8px; right:8px; font-size:12px; color:#b9d4f2; background:#0F1520aa; padding:6px 10px; border-radius:999px; border:1px solid #25344d;}
+  .stat{font-variant-numeric: tabular-nums;}
+  .legend{position:absolute; bottom:8px; left:8px; font-size:12px; color:#cfe2ff; background:#0F1520aa; padding:6px 10px; border-radius:10px; border:1px solid #25344d;}
+  .warn{color:var(--warn);} .bad{color:var(--bad);} .goodtxt{color:var(--good);} 
+  .modal{position:fixed; inset:0; display:none; place-items:center; background:#0009; z-index:50;}
+  .modal.on{display:grid;}
+  .card{max-width:960px; max-height:80vh; overflow:auto; background:#0f1523; border:1px solid #2c3e5f; border-radius:16px; padding:16px 18px;}
+  .card h3{margin:6px 0 8px; font-size:16px;}
+  .card p, .card li{font-size:14px; line-height:1.6; color:#dbe8ff;}
+  .grid2{display:grid; grid-template-columns: 1fr 1fr; gap:12px;}
+  .em{color:#9fd3ff}
+  details{border:1px solid #223048; border-radius:10px; padding:8px 10px; margin-top:10px; background:#0e141c;}
+  summary{cursor:pointer; color:#b8d7ff;}
+  .grab-pan{cursor:grab;}
+  .grab-pan:active{cursor:grabbing;}
+  #err{position:fixed; inset:auto 8px 8px 8px; background:#2a0f15; color:#ffe6e6; border:1px solid #a33; border-radius:10px; padding:8px 10px; z-index:9999; display:none; font-size:12px; white-space:pre-wrap;}
+  #err b{color:#fff;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="panel">
+    <h1>非球面平凸透鏡 設計器</h1>
+
+    <h2>主要尺寸 & 光學條件</h2>
+    <div class="row"><label>清孔徑（CA, 直徑）</label><input id="ca" class="num" type="number" step="0.1" value="25"><input id="caR" type="range" min="2" max="100" step="0.1" value="25"></div>
+    <div class="row"><label>目標焦距 EFL</label><input id="efl" class="num" type="number" step="0.1" value="30"><input id="eflR" type="range" min="5" max="300" step="0.1" value="30"></div>
+    <div class="row"><label>折射率 n（UV 光膠示例）</label><input id="nidx" class="num" type="number" step="0.001" value="1.520"><input id="nidxR" type="range" min="1.45" max="1.60" step="0.001" value="1.520"></div>
+
+    <h2>厚度定義</h2>
+    <div class="row"><label>厚度模式</label>
+      <select id="thickMode"><option value="ET">以邊緣厚度 ET 指定（建議）</option><option value="CT">以中心厚度 CT 指定</option></select>
+    </div>
+    <div class="row" id="etRow"><label>邊緣厚度 ET</label><input id="et" class="num" type="number" step="0.01" value="2.00"><input id="etR" type="range" min="0.3" max="10" step="0.01" value="2.00"></div>
+    <div class="row" id="ctRow" style="display:none"><label>中心厚度 CT</label><input id="ct" class="num" type="number" step="0.01" value="4.00"><input id="ctR" type="range" min="1.0" max="20" step="0.01" value="4.00"></div>
+
+    <h2>面形（前表面）</h2>
+    <div class="row"><label>圓錐常數 K（預設拋物面）</label><input id="K" class="num" type="number" step="0.01" value="-1"><input id="KR" type="range" min="-4" max="2" step="0.01" value="-1"></div>
+    <div class="row"><label>A4（×10⁻⁶ mm⁻³）</label><input id="A4" class="num" type="number" step="1" value="0"><input id="A4R" type="range" min="-5000" max="5000" step="1" value="0"></div>
+    <div class="row"><label>A6（×10⁻⁹ mm⁻⁵）</label><input id="A6" class="num" type="number" step="1" value="0"><input id="A6R" type="range" min="-5000" max="5000" step="1" value="0"></div>
+    <div class="row"><label>A8（×10⁻¹² mm⁻⁷）</label><input id="A8" class="num" type="number" step="1" value="0"><input id="A8R" type="range" min="-5000" max="5000" step="1" value="0"></div>
+    <div class="note">曲面：z(r) = c*r*r / ( 1 + sqrt( 1 - (1+K)*c*c*r*r ) ) + A4*r^4 + A6*r^6 + A8*r^8；c=1/R，且 R = EFL*(n−1)（平凸、後表面為平面）。A4/6/8 顯示單位已縮放，計算時換回 mm 量綱。</div>
+
+    <h2>3D 匯出設定</h2>
+    <div class="row"><label>STL 格式</label>
+      <select id="stlFormat">
+        <option value="binary" selected>Binary（二進位，小檔）</option>
+        <option value="ascii">ASCII（可讀，較大）</option>
+      </select>
+    </div>
+    <div class="row"><label>網格品質</label>
+      <select id="stlQuality">
+        <option value="draft">草稿（nr=64, na=72）</option>
+        <option value="medium" selected>中等（nr=128, na=120）</option>
+        <option value="fine">精細（nr=256, na=180）</option>
+        <option value="ultra">超細（nr=512, na=360）</option>
+      </select>
+    </div>
+    <div class="row"><label>自適應徑向取樣：限制弦高誤差（μm）</label>
+      <input id="stlTol" class="num" type="number" step="0.5" value="10.0">
+      <input id="stlTolR" type="range" min="1" max="100" step="0.5" value="10.0">
+      <div class="note">已改為<strong>實心填滿</strong>輸出：前非球面 + 後平面 + 外周立壁 + 後平面圓盤（扇形）完全封閉，避免切片器自動挖空。</div>
+    </div>
+    <div class="note stat" id="stlStats">—</div>
+
+    <div class="btns">
+      <button id="reset">重設預設</button>
+      <button id="dlCSV" class="good">下載剖面 CSV（v0.23f）</button>
+      <button id="dlSVG" class="good">下載視圖 SVG（v0.23f）</button>
+      <button id="dlSTL" class="good">下載 3D STL（實心 v0.23f）</button>
+      <button id="simulate">模擬（成像）</button>
+      <button id="about">說明</button>
+    </div>
+
+    <h2>計算結果</h2>
+    <div class="note stat" id="stats">—</div>
+    <details>
+      <summary>內建自測（console 也會列印）</summary>
+      <div class="note" id="testResults">尚未執行</div>
+    </details>
+  </div>
+
+  <div class="viewer grab-pan" id="viewer">
+    <div class="badge"><span id="viewMode">設計</span>視圖（光軸水平，向右為 +z）。</div>
+    <svg id="svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 700" preserveAspectRatio="xMidYMid meet"></svg>
+    <div class="legend" id="legend">滑鼠拖曳/觸控可平移；滾輪/雙指可縮放。線色（設計）：非球前表面 - 平面後表面 - 最佳擬合球 - 口徑標示（CA）</div>
+  </div>
+</div>
+
+<div id="help" class="modal">
+  <div class="card">
+    <h3>參數說明與 3D/模擬（八年級可懂版）</h3>
+    <p class="note">版本：<b>v0.23f</b>．單位：<b>mm</b>．STL：<b>實心輸出</b></p>
+  </div>
+</div>
+
+<div id="err"></div>
+
+<script>
+(function(){
+  var ERR = document.getElementById('err');
+  function showErr(msg){ if(!ERR) return; ERR.style.display='block'; ERR.innerHTML = '<b>腳本錯誤：</b>\n' + msg; }
+  window.addEventListener('error', function(e){ showErr(e.message + (e.filename? ('\n'+e.filename+':'+e.lineno):'')); });
+  window.addEventListener('unhandledrejection', function(e){ showErr('Promise 拋出：'+ (e.reason && e.reason.message ? e.reason.message : e.reason)); });
+
+  const VERSION = 'v0.23f';
+  const $ = (s)=>document.querySelector(s);
+  const svg = $('#svg');
+  function elt(tag, attrs, children){ var e=document.createElementNS('http://www.w3.org/2000/svg', tag); attrs=attrs||{}; for(var k in attrs){ e.setAttribute(k, attrs[k]); } if(children){ for(var i=0;i<children.length;i++) e.appendChild(children[i]); } return e; }
+
+  var BASE_PX_PER_MM = 8, designMul=1.0, designCenterZ=null;
+  var inp = {
+    ca: $('#ca'), caR: $('#caR'),
+    efl: $('#efl'), eflR: $('#eflR'),
+    nidx: $('#nidx'), nidxR: $('#nidxR'),
+    K: $('#K'), KR: $('#KR'),
+    A4: $('#A4'), A4R: $('#A4R'),
+    A6: $('#A6'), A6R: $('#A6R'),
+    A8: $('#A8'), A8R: $('#A8R'),
+    thickMode: $('#thickMode'),
+    et: $('#et'), etR: $('#etR'),
+    ct: $('#ct'), ctR: $('#ctR'),
+    stlFormat: $('#stlFormat'),
+    stlQuality: $('#stlQuality'),
+    stlTol: $('#stlTol'), stlTolR: $('#stlTolR'),
+  };
+  var etRow = document.getElementById('etRow');
+  var ctRow = document.getElementById('ctRow');
+  var currentData = null;
+
+  function bindPair(num, rng){
+    num.addEventListener('input', function(){ rng.value = num.value; onParamsChanged(); });
+    rng.addEventListener('input', function(){ num.value = rng.value; onParamsChanged(); });
+  }
+  [['ca','caR'],['efl','eflR'],['nidx','nidxR'],['K','KR'], ['A4','A4R'],['A6','A6R'],['A8','A8R'], ['et','etR'],['ct','ctR'], ['stlTol','stlTolR']].forEach(function(p){ bindPair(inp[p[0]], inp[p[1]]); });
+  inp.thickMode.addEventListener('change', function(){ var m = inp.thickMode.value; etRow.style.display = (m==='ET')?'block':'none'; ctRow.style.display = (m==='CT')?'block':'none'; onParamsChanged(); });
+
+  function clamp(x,lo,hi){ if(x<lo) return lo; if(x>hi) return hi; return x; }
+
+  function computeProfile(){
+    var CA = clamp(parseFloat(inp.ca.value), 1, 1000);
+    var efl = clamp(parseFloat(inp.efl.value), 1, 1000000);
+    var n = clamp(parseFloat(inp.nidx.value), 1.01, 3.0);
+    var K = parseFloat(inp.K.value);
+    var A4 = parseFloat(inp.A4.value) * 1e-6;
+    var A6 = parseFloat(inp.A6.value) * 1e-9;
+    var A8 = parseFloat(inp.A8.value) * 1e-12;
+
+    var c = (n - 1) / efl;
+    var R = 1 / c;
+    var rMax = CA/2;
+
+    function sag(r){
+      var cr = c*r;
+      var sq = 1 - (1+K)*cr*cr;
+      if(sq<0) return NaN;
+      var base = (c*r*r)/(1 + Math.sqrt(sq));
+      var poly = A4*Math.pow(r,4) + A6*Math.pow(r,6) + A8*Math.pow(r,8);
+      return base + poly;
+    }
+
+    var N = 1024; var samples=[]; var rLimit=rMax; var zMinSag=Infinity, zMaxSag=-Infinity;
+    for(var i=0;i<=N;i++){
+      var r = rMax*i/N; var z=sag(r);
+      if(!isFinite(z)){ rLimit = rMax*(i-1)/N; break; }
+      if(z<zMinSag) zMinSag=z; if(z>zMaxSag) zMaxSag=z;
+      samples.push({r:r,z:z});
+    }
+
+    var CT; var zEdge = sag(rLimit);
+    if(inp.thickMode.value==='ET'){ var ET=parseFloat(inp.et.value); CT = ET + zEdge; } else { CT = parseFloat(inp.ct.value); }
+
+    return { CA:CA, efl:efl, n:n, K:K, A4:A4, A6:A6, A8:A8, c:c, R:R, rMax:rLimit, CT:CT, zEdge:zEdge, samples:samples, zMinSag:zMinSag, zMaxSag:zMaxSag };
+  }
+
+  function computeAndDraw(){
+    var d = currentData = computeProfile();
+    drawDesign(d);
+    updateSTLEstimate();
+    runTests(d);
+  }
+
+  function currentPxPerMM(){ return BASE_PX_PER_MM * designMul; }
+  function currentCenterZ(d){
+    if(designCenterZ==null){ var zMinLens = Math.min(0, d.zMinSag, d.CT); var zMaxLens = Math.max(d.zMaxSag, d.CT); designCenterZ = (zMinLens + zMaxLens)/2; } return designCenterZ;
+  }
+
+  function drawDesign(d){
+    var pxPerMM = currentPxPerMM();
+    var vb = svg.viewBox.baseVal; var W = (svg.clientWidth||svg.getBoundingClientRect().width||vb.width||1200); var H = (svg.clientHeight||svg.getBoundingClientRect().height||vb.height||700);
+    var zCenter = currentCenterZ(d);
+    function X(z){ return W/2 + (z - zCenter) * pxPerMM; }
+    function Y(r){ return H/2 - r * pxPerMM; }
+    while(svg.firstChild) svg.removeChild(svg.firstChild);
+    var lensG = elt('g',{'class':'lens exportable'});
+    var asph = elt('path',{fill:'#7cc4ff22', stroke:'#e6f0ff','stroke-width':'3','vector-effect':'non-scaling-stroke'});
+    var dStr = '';
+    for(var i=0;i<d.samples.length;i++){ var r=d.samples[i].r, z=d.samples[i].z; dStr += (i===0?('M '+X(z)+' '+Y(r)):(' L '+X(z)+' '+Y(r))); }
+    for(var j=d.samples.length-1;j>=0;j--){ var r2=d.samples[j].r, z2=d.samples[j].z; dStr += ' L '+X(z2)+' '+Y(-r2); }
+    dStr += ' L '+X(d.CT)+' '+Y(-d.rMax)+' L '+X(d.CT)+' '+Y(d.rMax)+' Z';
+    asph.setAttribute('d', dStr);
+    var back = elt('line',{x1:String(X(d.CT)), y1:String(Y(d.rMax)), x2:String(X(d.CT)), y2:String(Y(-d.rMax)), stroke:'#c9ff7c','stroke-width':'3','vector-effect':'non-scaling-stroke'});
+    lensG.appendChild(asph); lensG.appendChild(back);
+    svg.appendChild(lensG);
+  }
+
+  function qualityPreset(q){ switch(q){ case 'draft': return {nr:64, na:72}; case 'medium': return {nr:128, na:120}; case 'fine': return {nr:256, na:180}; case 'ultra': return {nr:512, na:360}; default: return {nr:256, na:180}; } }
+  function getSTLOpts(){ var q = inp.stlQuality.value; var base = qualityPreset(q); var tol_um = parseFloat(inp.stlTol.value)||0; return { format: inp.stlFormat.value, nr: base.nr, na: base.na, adaptive: tol_um>0, tol_um: tol_um }; }
+
+  function sagFromD(d, r){ var c=d.c, K=d.K; var cr=c*r; var sq=1-(1+K)*cr*cr; if(sq<0) return NaN; var base=(c*r*r)/(1+Math.sqrt(sq)); return base + d.A4*Math.pow(r,4) + d.A6*Math.pow(r,6) + d.A8*Math.pow(r,8); }
+  function radialProfile(d, opts){
+    opts = opts||{}; var nr=opts.nr||256; var adaptive=!!opts.adaptive; var tol_um=opts.tol_um||10;
+    var rs=[], zs=[]; var rMax=d.rMax; var tol = Math.max(0, tol_um)/1000;
+    if(adaptive){
+      var r0=0, r1=rMax; var z0=sagFromD(d,0), z1=sagFromD(d,r1);
+      rs.push(r0); zs.push(z0);
+      (function subdiv(r0,z0,r1,z1,depth){
+        var rm=0.5*(r0+r1); var zm=sagFromD(d, rm);
+        var zlin = z0 + (z1 - z0) * ( (rm - r0) / (r1 - r0) );
+        var err = Math.abs(zm - zlin);
+        if((err>tol) && depth<22){ subdiv(r0,z0,rm,zm,depth+1); subdiv(rm,zm,r1,z1,depth+1); }
+        else { rs.push(r1); zs.push(z1); }
+      })(r0,z0,r1,z1,0);
+    } else {
+      for(var i=0;i<nr;i++){ var r = rMax*i/(nr-1); rs.push(r); zs.push(sagFromD(d,r)); }
+    }
+    return {rs:rs,zs:zs};
+  }
+
+  function triangulateSolid(d, opts){
+    opts = opts||{}; var na=opts.na||180;
+    var prof = radialProfile(d,{nr:opts.nr||256, adaptive:opts.adaptive, tol_um:opts.tol_um||10});
+    var rs=prof.rs, zs=prof.zs, m=rs.length;
+    var CT=d.CT, rMax=d.rMax, zEdge=zs[zs.length-1];
+    var dth = 2*Math.PI/na;
+
+    function v(r,z,th){ var c=Math.cos(th), s=Math.sin(th); return [r*c, r*s, z]; }
+    function add(faces, a,b,c){ faces.push([a,b,c]); }
+
+    var faces = [];
+
+    // Apex fan (front)
+    var apex = v(0, zs[0], 0);
+    var ring1 = []; for(var j=0;j<na;j++){ var t=j*dth; ring1.push( v(rs[1], zs[1], t) ); }
+    for(var j=0;j<na;j++){ var a=ring1[(j+1)%na], b=ring1[j], c=apex; add(faces,a,b,c); }
+
+    // Front strips
+    for(var i=1;i<m-1;i++){
+      var ringA=[], ringB=[];
+      for(var j=0;j<na;j++){ var t=j*dth; ringA.push( v(rs[i], zs[i], t) ); ringB.push( v(rs[i+1], zs[i+1], t) ); }
+      for(var j=0;j<na;j++){
+        var j2=(j+1)%na;
+        add(faces, ringB[j2], ringB[j], ringA[j]);
+        add(faces, ringB[j2], ringA[j], ringA[j2]);
+      }
+    }
+
+    // Back plane disc (center fan, +z)
+    var backCenter = v(0, CT, 0);
+    var rimBack = []; for(var j=0;j<na;j++){ var t=j*dth; rimBack.push( v(rMax, CT, t) ); }
+    for(var j=0;j<na;j++){ var a=backCenter, b=rimBack[j], c=rimBack[(j+1)%na]; add(faces,a,b,c); }
+
+    // Rim (side wall)
+    var rimFront = []; for(var j=0;j<na;j++){ var t=j*dth; rimFront.push( v(rMax, zEdge, t) ); }
+    for(var j=0;j<na;j++){ var j2=(j+1)%na;
+      add(faces, rimFront[j], rimBack[j], rimBack[j2]);
+      add(faces, rimFront[j], rimBack[j2], rimFront[j2]);
+    }
+
+    return faces;
+  }
+
+  function buildSTL(d, opts){
+    opts = opts||{}; var faces = triangulateSolid(d, opts);
+    function nrm(a,b,c){
+      var ux=b[0]-a[0], uy=b[1]-a[1], uz=b[2]-a[2];
+      var vx=c[0]-a[0], vy=c[1]-a[1], vz=c[2]-a[2];
+      var nx=uy*vz-uz*vy, ny=uz*vx-ux*vz, nz=ux*vy-uy*vx;
+      var len=Math.hypot(nx,ny,nz)||1; return [nx/len, ny/len, nz/len];
+    }
+    var out = 'solid lens_'+VERSION+' (units: mm)\n';
+    for(var i=0;i<faces.length;i++){
+      var a=faces[i][0], b=faces[i][1], c=faces[i][2];
+      var N=nrm(a,b,c);
+      out += 'facet normal '+N[0]+' '+N[1]+' '+N[2]+'\n outer loop\n';
+      out += '  vertex '+a[0]+' '+a[1]+' '+a[2]+'\n';
+      out += '  vertex '+b[0]+' '+b[1]+' '+b[2]+'\n';
+      out += '  vertex '+c[0]+' '+c[1]+' '+c[2]+'\n';
+      out += ' endloop\nendfacet\n';
+    }
+    out += 'endsolid\n';
+    return out;
+  }
+
+  function buildSTLBinary(d, opts){
+    opts = opts||{}; var faces = triangulateSolid(d, opts);
+    var triCount = faces.length;
+    var buf = new ArrayBuffer(84 + 50*triCount);
+    var dv = new DataView(buf); var off=0;
+    var header = 'lens_'+VERSION+'_binary_solid';
+    for(var i=0;i<80;i++){ dv.setUint8(off++, i<header.length ? header.charCodeAt(i) : 32); }
+    dv.setUint32(off, triCount, true); off+=4;
+    function nrm(a,b,c){
+      var ux=b[0]-a[0], uy=b[1]-a[1], uz=b[2]-a[2];
+      var vx=c[0]-a[0], vy=c[1]-a[1], vz=c[2]-a[2];
+      var nx=uy*vz-uz*vy, ny=uz*vx-ux*vz, nz=ux*vy-uy*vx;
+      var len=Math.hypot(nx,ny,nz)||1; return [nx/len, ny/len, nz/len];
+    }
+    for(var i=0;i<faces.length;i++){
+      var a=faces[i][0], b=faces[i][1], c=faces[i][2];
+      var N=nrm(a,b,c);
+      dv.setFloat32(off, N[0], true); off+=4;
+      dv.setFloat32(off, N[1], true); off+=4;
+      dv.setFloat32(off, N[2], true); off+=4;
+      dv.setFloat32(off, a[0], true); off+=4;
+      dv.setFloat32(off, a[1], true); off+=4;
+      dv.setFloat32(off, a[2], true); off+=4;
+      dv.setFloat32(off, b[0], true); off+=4;
+      dv.setFloat32(off, b[1], true); off+=4;
+      dv.setFloat32(off, b[2], true); off+=4;
+      dv.setFloat32(off, c[0], true); off+=4;
+      dv.setFloat32(off, c[1], true); off+=4;
+      dv.setFloat32(off, c[2], true); off+=4;
+      dv.setUint16(off, 0, true); off+=2;
+    }
+    return new Blob([buf], {type:'model/stl'});
+  }
+
+  function estimateSTL(d, opts){
+    var na=opts.na||120;
+    var prof = radialProfile(d,{nr:opts.nr||256, adaptive:opts.adaptive, tol_um:opts.tol_um||10});
+    var m = prof.rs.length;
+    var tris = na + (m-2)*na*2 + na + na*2;
+    var size = opts.format==='binary' ? 84 + 50*tris : 200*tris;
+    return {tris:tris, size:size};
+  }
+
+  function humanBytes(n){ var u=['B','KB','MB','GB']; var i=0; while(n>=1024&&i<u.length-1){ n/=1024; i++; } return (n<10? n.toFixed(2):n.toFixed(1))+' '+u[i]; }
+  function updateSTLEstimate(){ try{ var d = currentData || computeProfile(); var opts = getSTLOpts(); var est = estimateSTL(d, opts); var el=document.getElementById('stlStats'); if(el) el.textContent = '預估三角形數 ≈ '+est.tris.toLocaleString()+'，檔案 ≈ '+humanBytes(est.size); }catch(err){ showErr(err.message); } }
+
+  function download(filename, text){
+    var a=document.createElement('a');
+    a.setAttribute('href','data:text/plain;charset=utf-8,'+encodeURIComponent(text));
+    a.setAttribute('download', filename);
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  }
+  function downloadBlob(filename, blob){
+    var a=document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    document.body.appendChild(a); a.click();
+    setTimeout(function(){ URL.revokeObjectURL(a.href); document.body.removeChild(a); }, 0);
+  }
+  document.getElementById('dlCSV').addEventListener('click', function(){ try{ var d = currentData || computeProfile(); var csv = '# v'+VERSION+'\n'+'r_mm,z_mm\n'; for(var i=0;i<d.samples.length;i++){ var s=d.samples[i]; csv += s.r.toFixed(6)+','+s.z.toFixed(6)+'\n'; } download('asphere_profile_'+VERSION+'.csv', csv); }catch(err){ showErr(err.message); } });
+  document.getElementById('dlSVG').addEventListener('click', function(){ try{ var d=currentData||computeProfile(); var xml = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 400"><text x="10" y="20">Lens '+VERSION+'</text></svg>'; download('lens_cross_section_'+VERSION+'.svg', xml); }catch(err){ showErr(err.message); } });
+  document.getElementById('dlSTL').addEventListener('click', function(){ try{ var d=currentData||computeProfile(); var opts = getSTLOpts(); if(opts.format==='binary'){ var blob = buildSTLBinary(d, opts); downloadBlob('lens_solid_'+VERSION+'.stl', blob); } else { var stl = buildSTL(d, opts); download('lens_solid_'+VERSION+'.stl', stl); } }catch(err){ showErr(err.message); } });
+
+  function runTests(d){
+    var out=[];
+    try{
+      var est = estimateSTL(d, getSTLOpts());
+      out.push(est.tris>0 ? '✅ STL 三角形數: '+est.tris : '❌ STL 三角形數為 0');
+      out.push('✅ 實心輸出（apex fan / back disc / rim）');
+      var div=document.getElementById('testResults'); if(div) div.innerHTML = out.join('<br>');
+    }catch(e){ var div2=document.getElementById('testResults'); if(div2) div2.textContent='❌ 自測例外：'+e.message; }
+  }
+
+  function bootstrap(){
+    try{
+      computeAndDraw();
+      window.addEventListener('resize', function(){ try{ computeAndDraw(); }catch(e){} });
+    }catch(err){ showErr(err.message); }
+  }
+  if(document.readyState==='loading'){ document.addEventListener('DOMContentLoaded', bootstrap); }
+  else { bootstrap(); }
+})();
+</script>
+</body>
+</html>

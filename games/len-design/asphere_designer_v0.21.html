@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>非球面平凸透鏡 橫剖面互動設計器 v0.21 (mm)</title>
+<style>
+  :root{
+    --bg:#0b0f14; --panel:#10161f; --ink:#e6f0ff; --muted:#9bb3cc; --accent:#7cc4ff; --good:#3ddc97; --warn:#ffd166; --bad:#ef476f; --mag:#ff5af1;
+  }
+  html,body{height:100%;}
+  body{margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Noto Sans TC, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji"; background:var(--bg); color:var(--ink);} 
+  .wrap{display:grid; grid-template-columns: 320px 1fr; gap:16px; height:100%;}
+  .panel{background:var(--panel); padding:16px 14px; overflow:auto; box-shadow:inset 0 0 0 1px #1b2430;} 
+  h1{font-size:18px; margin:0 0 8px; display:flex; align-items:center; gap:8px;}
+  h2{font-size:14px; color:var(--muted); margin:16px 0 8px; letter-spacing:.02em; font-weight:600;}
+  .row{margin:10px 0 14px;}
+  .row label{display:block; font-size:13px; color:var(--muted); margin-bottom:6px;}
+  .row input[type="number"].num{width:12ch; box-sizing:content-box;}
+  .row input[type="number"], select{background:#0e141c; color:var(--ink); border:1px solid #223048; border-radius:8px; padding:8px 10px; font-size:14px; font-variant-numeric: tabular-nums;}
+  .row input[type="range"]{width:100%; margin-top:8px;}
+  .note{font-size:12px; color:var(--muted); margin:6px 0 0; line-height:1.48;}
+  .btns{display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;}
+  button{background:#142132; color:var(--ink); border:1px solid #223048; border-radius:10px; padding:8px 12px; cursor:pointer; font-weight:600;}
+  button:hover{border-color:#2f4666; background:#0e1a29;}
+  .viewer{position:relative; height:100vh; overflow:hidden;}  
+  #svg{width:100%; height:100%; background:linear-gradient(#0f1724, #0b0f14); touch-action:none;} 
+  .badge{position:absolute; top:8px; right:8px; font-size:12px; color:#b9d4f2; background:#0F1520aa; padding:6px 10px; border-radius:999px; border:1px solid #25344d;}
+  .stat{font-variant-numeric: tabular-nums;}
+  .legend{position:absolute; bottom:8px; left:8px; font-size:12px; color:#cfe2ff; background:#0F1520aa; padding:6px 10px; border-radius:10px; border:1px solid #25344d;}
+  .warn{color:var(--warn);} .bad{color:var(--bad);} .goodtxt{color:var(--good);} 
+  /* Modal */
+  .modal{position:fixed; inset:0; display:none; place-items:center; background:#0009; z-index:50;}
+  .modal.on{display:grid;}
+  .card{max-width:960px; max-height:80vh; overflow:auto; background:#0f1523; border:1px solid #2c3e5f; border-radius:16px; padding:16px 18px;}
+  .card h3{margin:6px 0 8px; font-size:16px;}
+  .card p, .card li{font-size:14px; line-height:1.6; color:#dbe8ff;}
+  .grid2{display:grid; grid-template-columns: 1fr 1fr; gap:12px;}
+  .em{color:#9fd3ff}
+  details{border:1px solid #223048; border-radius:10px; padding:8px 10px; margin-top:10px; background:#0e141c;}
+  summary{cursor:pointer; color:#b8d7ff;}
+  /* Handles */
+  .grab{cursor:ew-resize;}
+  .grab-pan{cursor:grab;}
+  .grab-pan:active{cursor:grabbing;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="panel">
+    <h1>非球面平凸透鏡 設計器</h1>
+
+    <h2>主要尺寸 & 光學條件</h2>
+    <div class="row"><label>清孔徑（CA, 直徑）</label><input id="ca" class="num" type="number" step="0.1" value="25"><input id="caR" type="range" min="2" max="100" step="0.1" value="25"></div>
+    <div class="row"><label>目標焦距 EFL</label><input id="efl" class="num" type="number" step="0.1" value="30"><input id="eflR" type="range" min="5" max="300" step="0.1" value="30"></div>
+    <div class="row"><label>折射率 n（UV 光膠示例）</label><input id="nidx" class="num" type="number" step="0.001" value="1.520"><input id="nidxR" type="range" min="1.45" max="1.60" step="0.001" value="1.520"></div>
+
+    <h2>厚度定義</h2>
+    <div class="row"><label>厚度模式</label>
+      <select id="thickMode"><option value="ET">以邊緣厚度 ET 指定（建議）</option><option value="CT">以中心厚度 CT 指定</option></select>
+    </div>
+    <div class="row" id="etRow"><label>邊緣厚度 ET</label><input id="et" class="num" type="number" step="0.01" value="2.00"><input id="etR" type="range" min="0.3" max="10" step="0.01" value="2.00"></div>
+    <div class="row" id="ctRow" style="display:none"><label>中心厚度 CT</label><input id="ct" class="num" type="number" step="0.01" value="4.00"><input id="ctR" type="range" min="1.0" max="20" step="0.01" value="4.00"></div>
+
+    <h2>面形（前表面）</h2>
+    <div class="row"><label>圓錐常數 K（預設拋物面）</label><input id="K" class="num" type="number" step="0.01" value="-1"><input id="KR" type="range" min="-4" max="2" step="0.01" value="-1"></div>
+    <div class="row"><label>A4（×10⁻⁶ mm⁻³）</label><input id="A4" class="num" type="number" step="1" value="0"><input id="A4R" type="range" min="-5000" max="5000" step="1" value="0"></div>
+    <div class="row"><label>A6（×10⁻⁹ mm⁻⁵）</label><input id="A6" class="num" type="number" step="1" value="0"><input id="A6R" type="range" min="-5000" max="5000" step="1" value="0"></div>
+    <div class="row"><label>A8（×10⁻¹² mm⁻⁷）</label><input id="A8" class="num" type="number" step="1" value="0"><input id="A8R" type="range" min="-5000" max="5000" step="1" value="0"></div>
+    <div class="note">曲面：z(r) = c*r*r / ( 1 + sqrt( 1 - (1+K)*c*c*r*r ) ) + A4*r^4 + A6*r^6 + A8*r^8；c=1/R，且 R = EFL*(n−1)（平凸、後表面為平面）。A4/6/8 顯示單位已縮放，計算時換回 mm 量綱。</div>
+
+    <h2>3D 匯出設定</h2>
+    <div class="row"><label>STL 格式</label>
+      <select id="stlFormat">
+        <option value="binary" selected>Binary（二進位，小檔）</option>
+        <option value="ascii">ASCII（可讀，較大）</option>
+      </select>
+    </div>
+    <div class="row"><label>網格品質</label>
+      <select id="stlQuality">
+        <option value="draft">草稿（nr=64, na=72）</option>
+        <option value="medium" selected>中等（nr=128, na=120）</option>
+        <option value="fine">精細（nr=256, na=180）</option>
+        <option value="ultra">超細（nr=512, na=360）</option>
+      </select>
+    </div>
+    <div class="row"><label>自適應徑向取樣：限制弦高誤差（μm）</label>
+      <input id="stlTol" class="num" type="number" step="0.5" value="10.0">
+      <input id="stlTolR" type="range" min="1" max="100" step="0.5" value="10.0">
+      <div class="note">開啟後會依曲率自動加密取樣，平坦處減少面數。容許誤差越大 → 檔案越小。</div>
+    </div>
+    <div class="note stat" id="stlStats">—</div>
+
+    <div class="btns">
+      <button id="reset">重設預設</button>
+      <button id="dlCSV" class="good">下載剖面 CSV（v0.21）</button>
+      <button id="dlSVG" class="good">下載視圖 SVG（v0.21）</button>
+      <button id="dlSTL" class="good">下載 3D STL（v0.21）</button>
+      <button id="simulate">模擬（成像）</button>
+      <button id="about">說明</button>
+    </div>
+
+    <h2>計算結果</h2>
+    <div class="note stat" id="stats">—</div>
+    <details>
+      <summary>內建自測（console 也會列印）</summary>
+      <div class="note" id="testResults">尚未執行</div>
+    </details>
+  </div>
+
+  <div class="viewer grab-pan" id="viewer">
+    <div class="badge"><span id="viewMode">設計</span>視圖（光軸水平，向右為 +z）。<span id="badgeUV" style="margin-left:8px;"></span></div>
+    <svg id="svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 700">
+      <!-- 元素由 JS 建立 -->
+    </svg>
+    <div class="legend" id="legend">滑鼠拖曳/觸控可平移；滾輪/雙指可縮放。線色（設計）：非球前表面 - 平面後表面 - 最佳擬合球 - 口徑標示（CA）</div>
+  </div>
+</div>
+
+<!-- 說明 Modal -->
+<div id="help" class="modal">
+  <div class="card">
+    <h3>參數說明與 3D/模擬（八年級可懂版）</h3>
+    <p class="note">版本：<b>v0.21</b>．單位：<b>mm</b></p>
+    <div class="grid2">
+      <div>
+        <p><span class="em">清孔徑 CA</span>：光能通過的有效直徑（mm）。像水管口徑，越大進光越多、景深越淺。</p>
+        <p><span class="em">焦距 EFL</span>：鏡片把很遠的景物（近似平行光）聚焦的距離（mm）。像放大鏡對太陽的焦點距離。</p>
+        <p><span class="em">折射率 n</span>：光在材料中的「速度比」。n 越大代表光進材料更慢，彎折更明顯。</p>
+        <p><span class="em">厚度模式（ET/CT）</span>：ET 是邊緣最薄處；CT 是中心厚度。選 ET 可避免邊緣做得太薄而脆。</p>
+        <p><span class="em">R 與 c</span>：曲率半徑 R（mm），c=1/R。對平凸鏡，<b>R = EFL×(n−1)</b>。</p>
+      </div>
+      <div>
+        <p><span class="em">圓錐常數 K</span>：決定基礎曲面形狀。K=0 球面、K=-1 拋物面（預設）、K&lt;-1 雙曲面、-1&lt;K&lt;0 橢圓面。</p>
+        <p><span class="em">A4/A6/A8</span>：非球面方程中的多項式係數：z(r)=conic + A4*r^4 + A6*r^6 + A8*r^8。</p>
+        <p><span class="em">顯示單位縮放</span>：A4 用「×10⁻⁶ mm⁻³」、A6「×10⁻⁹ mm⁻⁵」、A8「×10⁻¹² mm⁻⁷」，計算時會自動換回 mm 量綱。</p>
+        <p><span class="em">影響形狀</span>：A4 主要影響中外圈；A6/A8 更偏邊緣。A&gt;0 使外圈更凸，A&lt;0 更平。建議：先用 K 決定大致曲率，A4 粗調，A6/A8 微調。</p>
+        <p><span class="em">量級感</span>：在 r=CA/2 處，若 A4/A6/A8 的顯示值各 +1，則弧高增量約為：<span id="a468Example">—</span></p>
+      </div>
+    </div>
+    <details>
+      <summary>輸出檔案與模擬</summary>
+      <ul>
+        <li><b>CSV（v0.21）</b>：第一段是「# 參數區」，第二段是 <code>r_mm,z_mm</code> 剖面。</li>
+        <li><b>SVG（v0.21）</b>：置中的鏡片剖面 + 平面後表面 + <b>CA 尺寸標示</b>。</li>
+        <li><b>STL（v0.21）</b>：支援 <b>Binary</b> 與 <b>ASCII</b>，可用<b>自適應取樣</b>減檔。</li>
+        <li><b>模擬</b>：按「模擬」後，可拖曳橙色物體箭頭（物距 u，以公尺標）與綠色螢幕線（像面位置，以 mm 標）。同時顯示兩條典型成像光線（平行主軸→必過焦點、過鏡心不偏折），<b>兩條線的交點</b>即最佳成像位置與像距。</li>
+      </ul>
+    </details>
+    <div style="text-align:right; margin-top:8px;"><button id="closeHelp">關閉</button></div>
+  </div>
+</div>
+
+<script>
+
+  let installed = false;
+  function installInteractions(){ if(installed) return; installed = true;
+    // 物/螢幕拖曳（事件委派到 svg）
+    let drag = {which:null, id:null};
+    svg.addEventListener('pointerdown', (e)=>{
+      const target = e.target.closest('[data-drag]');
+      if(target){ drag.which = target.getAttribute('data-drag'); drag.id = e.pointerId; svg.setPointerCapture?.(e.pointerId); e.preventDefault(); return; }
+      // 若非拖把，則進入平移模式
+      startPan(e);
+    });
+    window.addEventListener('pointermove', (e)=>{
+      if(drag.which){ const d = currentData || computeProfile(); const px = currentPxPerMM(); const rect = svg.getBoundingClientRect(); const W = rect.width; const zWorld = (simMode? simCenterZ : designCenterZ) + (e.clientX - rect.left - W/2)/px; if(drag.which==='obj'){ const zc=d.CT*0.5; simZObj = clamp(zWorld, zc - 20000, zc - 1.05*d.efl); userSetObj = true; } else if(drag.which==='screen'){ const zc=d.CT*0.5; simZScreen = clamp(zWorld, zc + 0.2*d.efl, zc + 200000); userSetScreen = true; } computeAndDraw(); }
+      else if(pan.active){ doPan(e); }
+    }, {passive:false});
+    window.addEventListener('pointerup', endPanOrDrag, {passive:true});
+    window.addEventListener('pointercancel', endPanOrDrag, {passive:true});
+    window.addEventListener('blur', endPanOrDrag);
+
+    function endPanOrDrag(){ drag.which=null; drag.id=null; endPan(); }
+
+    // 滾輪縮放（以指標為中心）—模擬視圖允許更大縮放範圍
+    svg.addEventListener('wheel', (e)=>{
+      e.preventDefault();
+      const rect = svg.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const pxOld = currentPxPerMM();
+      const zAtPointer = (simMode? simCenterZ : designCenterZ) + (x - rect.width/2)/pxOld;
+      const k = Math.exp(-e.deltaY * 0.0015);
+      if(simMode){ simMul = clamp(simMul * k, 0.02, 64); } else { designMul = clamp(designMul * k, 0.25, 8); }
+      const pxNew = currentPxPerMM();
+      if(simMode){ simCenterZ = zAtPointer - (x - rect.width/2)/pxNew; } else { designCenterZ = zAtPointer - (x - rect.width/2)/pxNew; }
+      computeAndDraw();
+    }, {passive:false});
+
+    // 兩指縮放（觸控）
+    let pinch = null; // {d0, mul0, z0}
+    svg.addEventListener('touchstart', (e)=>{
+      if(e.touches.length===2){ e.preventDefault(); const t0=e.touches[0], t1=e.touches[1]; const d0 = Math.hypot(t1.clientX - t0.clientX, t1.clientY - t0.clientY); const rect=svg.getBoundingClientRect(); const xMid=( (t0.clientX+t1.clientX)/2 - rect.left ); const px = currentPxPerMM(); const z0 = (simMode? simCenterZ : designCenterZ) + (xMid - rect.width/2)/px; pinch = {d0, mul0: (simMode? simMul:designMul), z0, xMid}; }
+    }, {passive:false});
+    svg.addEventListener('touchmove', (e)=>{
+      if(pinch && e.touches.length===2){ e.preventDefault(); const t0=e.touches[0], t1=e.touches[1]; const d1 = Math.hypot(t1.clientX - t0.clientX, t1.clientY - t0.clientY); const rect=svg.getBoundingClientRect(); const xMid=( (t0.clientX+t1.clientX)/2 - rect.left ); const k = d1 / (pinch.d0||1); if(simMode){ simMul = clamp(pinch.mul0 * k, 0.02, 64); const px=currentPxPerMM(); simCenterZ = pinch.z0 - (xMid - rect.width/2)/px; } else { designMul = clamp(pinch.mul0 * k, 0.25, 8); const px=currentPxPerMM(); designCenterZ = pinch.z0 - (xMid - rect.width/2)/px; } computeAndDraw(); }
+    }, {passive:false});
+    svg.addEventListener('touchend', ()=>{ pinch=null; }, {passive:true});
+
+    // 背景平移（滑鼠/單指）
+    function startPan(e){ if(pan.active) return; pan.active = true; pan.id = e.pointerId||0; const rect=svg.getBoundingClientRect(); pan.startX = e.clientX - rect.left; pan.startCenter = simMode? simCenterZ : designCenterZ; viewer.classList.add('grab-pan'); svg.setPointerCapture?.(e.pointerId); }
+    function doPan(e){ const rect=svg.getBoundingClientRect(); const x = e.clientX - rect.left; const dx = x - pan.startX; const px = currentPxPerMM(); const deltaZ = -dx / px; if(simMode){ simCenterZ = pan.startCenter + deltaZ; } else { designCenterZ = pan.startCenter + deltaZ; } computeAndDraw(); }
+    function endPan(){ if(!pan.active) return; pan.active=false; pan.id=null; viewer.classList.remove('grab-pan'); try{ svg.releasePointerCapture?.(event.pointerId); }catch(_){} }
+  }
+
+  installInteractions();
+  setViewMode();
+  computeAndDraw();
+  window.addEventListener('resize', ()=>{ try{ computeAndDraw(); }catch(e){} });
+})();
+</script>
+</body>
+</html>

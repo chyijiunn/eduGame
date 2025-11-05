@@ -1,0 +1,830 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
+<title>caseMaker v0.13 — 盒子展開圖產生器（單檔）</title>
+<style>
+  :root{
+    --bg:#0b0f14;
+    --panel:#121821;
+    --card:#0f1520;
+    --text:#e6edf3;
+    --muted:#9fb3c8;
+    --accent:#7cc4ff;
+    --ok:#7ee787;
+    --warn:#ffd476;
+    --danger:#ff6b6b;
+    --border:#1e2633;
+  }
+  html,body{height:100%;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--text);
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans TC", "Helvetica Neue", Arial, "Apple Color Emoji", "Segoe UI Emoji";
+  }
+  .wrap{
+    display:grid;
+    grid-template-columns: 1fr 360px;
+    gap:12px;
+    height:100dvh;
+    padding:12px;
+    box-sizing:border-box;
+  }
+  #view{
+    position:relative;
+    background: radial-gradient(1200px 800px at 30% 25%, #111a24, #0b0f14);
+    border:1px solid var(--border);
+    border-radius:12px;
+    overflow:hidden;
+    min-height:300px;
+  }
+  #canvas{
+    width:100%;
+    height:100%;
+    display:block;
+    touch-action: none;
+    cursor: grab;
+  }
+  #hud{
+    position:absolute;
+    left:10px;
+    bottom:10px;
+    font-size:12px;
+    color:var(--muted);
+    background: rgba(10,15,22,.6);
+    border:1px solid var(--border);
+    border-radius:8px;
+    padding:6px 8px;
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+  }
+  #inset{
+    position:absolute;
+    right:10px; bottom:10px;
+    width:220px; height:140px;
+    background: rgba(12,18,26,.55);
+    border:1px solid var(--border);
+    border-radius:10px;
+    padding:6px;
+    box-sizing:border-box;
+  }
+  #inset canvas{ width:100%; height:100%; display:block; }
+  .panel{
+    background: var(--panel);
+    border:1px solid var(--border);
+    border-radius:12px;
+    padding:12px;
+    overflow:auto;
+  }
+  .row{
+    display:grid;
+    grid-template-columns: 1fr 1fr;
+    gap:8px;
+    align-items:center;
+  }
+  label{font-size:13px;color:var(--muted)}
+  input[type="number"], input[type="text"], select{
+    width:100%; box-sizing:border-box;
+    background:var(--card); border:1px solid var(--border);
+    color:var(--text); border-radius:8px; padding:8px 10px; font-size:14px;
+    outline:none;
+  }
+  input[type="range"]{ width:100%; }
+  .section{margin:10px 0 12px; padding-top:8px; border-top:1px dashed var(--border);}
+  .title{font-size:16px; font-weight:700; margin-bottom:6px}
+  .sub{font-size:12px; color:var(--muted);}
+  .btn{
+    background: linear-gradient(180deg, #1a2432, #101724);
+    color:var(--text);
+    border:1px solid var(--border);
+    border-radius:10px;
+    padding:10px 12px;
+    font-weight:600;
+    cursor:pointer;
+  }
+  .btn:active{ transform: translateY(1px); }
+  .btnRow{display:flex; gap:8px; flex-wrap:wrap;}
+  .badge{display:inline-block; font-size:11px; padding:2px 6px; border:1px solid var(--border); border-radius:999px; color:var(--muted);}
+  .k{ color: var(--accent); font-weight:600; }
+  .help{font-size:12px; color:var(--muted); margin-top:4px;}
+  .footer{font-size:11px; color:var(--muted); opacity:.85; margin-top:12px}
+  .switch{display:flex; align-items:center; gap:8px}
+  .switch input{transform: scale(1.1);}
+  .unit{opacity:.7; font-size:12px}
+  .hint{font-size:12px; color:var(--muted);}
+  .mono{font-variant-numeric: tabular-nums; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;}
+  .valueChip{font-size:12px; padding:2px 6px; border-radius:999px; border:1px solid var(--border); background:var(--card); display:inline-block; margin-left:6px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div id="view">
+    <canvas id="canvas"></canvas>
+    <div id="hud">
+      <div><span class="badge">caseMaker v0.13</span></div>
+      <div class="mono" id="dimInfo">L×W×H = —</div>
+      <div class="mono" id="modeInfo">外部尺寸</div>
+      <div class="mono" id="extraInfo">板厚 3.00mm · 卡榫 6/邊 · Kerf +0.05mm</div>
+      <div class="help">拖曳旋轉、滾輪縮放；觸控：單指旋轉，雙指縮放</div>
+    </div>
+    <div id="inset">
+      <canvas id="mini"></canvas>
+    </div>
+  </div>
+  <div class="panel">
+    <div class="title">盒子展開圖產生器 <span class="badge">單檔</span></div>
+    <div class="sub">「共享骨架」＋「從中心起始」的方形卡榫；角落一律不開孔；可輸出 SVG。</div>
+
+    <div class="section">
+      <div class="row">
+        <label>尺寸基準</label>
+        <label>盒子形狀</label>
+        <select id="dimMode">
+          <option value="outer">外部尺寸（外徑）</option>
+          <option value="inner">內部尺寸（內徑）</option>
+        </select>
+        <select id="shape">
+          <option value="rect">六面體（穩定）</option>
+          <option value="ngon">n 邊柱（實驗：僅預覽）</option>
+        </select>
+      </div>
+      <div class="row">
+        <label>長 L <span class="unit">(mm)</span></label>
+        <label>寬 W <span class="unit">(mm)</span></label>
+        <input id="len" type="number" step="0.1" min="1" value="120">
+        <input id="wid" type="number" step="0.1" min="1" value="80">
+      </div>
+      <div class="row">
+        <label>高 H <span class="unit">(mm)</span></label>
+        <label>板材厚度 t <span class="unit">(mm)</span></label>
+        <input id="hei" type="number" step="0.1" min="1" value="60">
+        <input id="thk" type="number" step="0.05" min="0.1" value="3.0">
+      </div>
+
+      <div class="row">
+        <label>是否有蓋子</label>
+        <label>卡榫每邊數（垂直亦同）<span class="valueChip mono" id="fingersVal">6</span></label>
+        <div class="switch">
+          <input id="hasLid" type="checkbox">
+          <span class="hint">沒蓋時，開口四邊<span class="k">無卡榫孔</span>。</span>
+        </div>
+        <input id="fingers" type="range" min="1" max="20" step="1" value="6">
+      </div>
+      <div class="row">
+        <label>雷切補償（往外擴張）<span class="unit">(mm)</span></label>
+        <label>n 邊柱邊數（3~12）<span class="unit">(實驗)</span></label>
+        <input id="kerf" type="number" step="0.01" min="0" value="0.05">
+        <input id="ngonN" type="number" step="1" min="3" max="12" value="6">
+      </div>
+
+      <div class="help">規則：每條成對邊共享同一條「骨架」（中心對齊），男邊外突深度 = t+kerf；女邊內凹深度 = t；角落保留整段邊距，不開孔。</div>
+    </div>
+
+    <div class="section">
+      <div class="title">匯出</div>
+      <div class="btnRow">
+        <button id="btnSVG" class="btn">輸出 SVG 展開圖</button>
+        <button id="btnReset" class="btn">重設視角</button>
+      </div>
+      <div class="help">SVG 尺寸以 <span class="mono">mm</span> 為單位；線寬 0.1mm，<span class="k">不填色</span>，可直接供雷射切割。</div>
+      <div id="info" class="footer"></div>
+    </div>
+
+    <div class="footer">v0.13：實作「共享骨架 + 中心起始 + 角落不開孔」。側邊垂直接合、底部接合、上蓋接合三類全部同一邏輯。</div>
+  </div>
+</div>
+
+<script>
+// -------------------------
+// Helpers
+// -------------------------
+const $ = (id)=>document.getElementById(id);
+const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
+function saveState(){
+  const s = {
+    dimMode: $('dimMode').value,
+    shape: $('shape').value,
+    len: +$('len').value,
+    wid: +$('wid').value,
+    hei: +$('hei').value,
+    thk: +$('thk').value,
+    hasLid: $('hasLid').checked,
+    fingers: +$('fingers').value,
+    kerf: +$('kerf').value,
+    ngonN: +$('ngonN').value
+  };
+  localStorage.setItem('caseMaker_v0_13', JSON.stringify(s));
+}
+function loadState(){
+  const s = localStorage.getItem('caseMaker_v0_13');
+  if(!s){ $('fingersVal').textContent = $('fingers').value; return; }
+  try{
+    const o = JSON.parse(s);
+    $('dimMode').value = o.dimMode ?? 'outer';
+    $('shape').value = o.shape ?? 'rect';
+    $('len').value = o.len ?? 120;
+    $('wid').value = o.wid ?? 80;
+    $('hei').value = o.hei ?? 60;
+    $('thk').value = o.thk ?? 3;
+    $('hasLid').checked = !!o.hasLid;
+    $('fingers').value = o.fingers ?? 6;
+    $('kerf').value = o.kerf ?? 0.05;
+    $('ngonN').value = o.ngonN ?? 6;
+    $('fingersVal').textContent = $('fingers').value;
+  }catch(e){ $('fingersVal').textContent = $('fingers').value; }
+}
+
+// -------------------------
+// 3D-ish preview (Canvas 2D)
+// -------------------------
+const canvas = $('canvas');
+const ctx = canvas.getContext('2d');
+const mini = $('mini');
+const mctx = mini.getContext('2d', {alpha:true});
+let W=0, H=0, scalePx=1;
+
+let state = {
+  yaw: Math.PI/6,
+  pitch: -Math.PI/7,
+  zoom: 1.0,
+  dragging:false,
+  lastX:0,lastY:0,
+  touchMode:null,
+  lastPinchDist:0
+};
+
+function resize(){
+  const r = canvas.getBoundingClientRect();
+  W = canvas.width = Math.max(600, Math.floor(r.width*devicePixelRatio));
+  H = canvas.height = Math.max(400, Math.floor(r.height*devicePixelRatio));
+  const r2 = mini.getBoundingClientRect();
+  mini.width = Math.floor(r2.width*devicePixelRatio);
+  mini.height = Math.floor(r2.height*devicePixelRatio);
+  draw();
+}
+window.addEventListener('resize', resize);
+
+// Pointer interactions
+canvas.addEventListener('pointerdown', (e)=>{
+  canvas.setPointerCapture(e.pointerId);
+  state.dragging=true;
+  state.lastX = e.clientX; state.lastY = e.clientY;
+  canvas.style.cursor='grabbing';
+});
+canvas.addEventListener('pointerup', (e)=>{
+  try{ canvas.releasePointerCapture(e.pointerId);}catch(_){}
+  state.dragging=false; canvas.style.cursor='grab';
+  state.touchMode=null;
+});
+canvas.addEventListener('pointermove', (e)=>{
+  if(state.dragging && state.touchMode!=='pinch'){
+    const dx = (e.clientX - state.lastX);
+    const dy = (e.clientY - state.lastY);
+    state.lastX = e.clientX; state.lastY = e.clientY;
+    state.yaw += dx * 0.005;
+    state.pitch = clamp(state.pitch + dy*0.005, -Math.PI/2+0.05, Math.PI/2-0.05);
+    draw();
+  }
+});
+
+// wheel zoom
+canvas.addEventListener('wheel', (e)=>{
+  e.preventDefault();
+  const z = state.zoom * Math.pow(1.001, -e.deltaY);
+  state.zoom = clamp(z, 0.3, 4);
+  draw();
+}, {passive:false});
+
+// Touch pinch (via pointer events)
+let pointers = new Map();
+canvas.addEventListener('pointerdown', (e)=>{
+  pointers.set(e.pointerId, {x:e.clientX,y:e.clientY});
+  if(pointers.size===2){
+    state.touchMode='pinch';
+    state.lastPinchDist = pinchDist();
+  }
+});
+canvas.addEventListener('pointermove', (e)=>{
+  if(!pointers.has(e.pointerId)) return;
+  const p = pointers.get(e.pointerId); p.x=e.clientX; p.y=e.clientY;
+  if(state.touchMode==='pinch' && pointers.size===2){
+    const d = pinchDist();
+    if(state.lastPinchDist>0){
+      const ratio = d/state.lastPinchDist;
+      state.zoom = clamp(state.zoom*ratio, 0.3, 4);
+      draw();
+    }
+    state.lastPinchDist = d;
+  }
+});
+canvas.addEventListener('pointerup', (e)=>{ pointers.delete(e.pointerId); if(pointers.size<2){ state.touchMode=null; }});
+canvas.addEventListener('pointercancel', (e)=>{ pointers.delete(e.pointerId); if(pointers.size<2){ state.touchMode=null; }});
+function pinchDist(){
+  const arr=[...pointers.values()];
+  if(arr.length<2) return 0;
+  const dx=arr[0].x-arr[1].x, dy=arr[0].y-arr[1].y;
+  return Math.hypot(dx,dy);
+}
+
+// Simple 3D math
+function rotY(p,a){ const s=Math.sin(a), c=Math.cos(a); return [ c*p[0]+s*p[2], p[1], -s*p[0]+c*p[2] ]; }
+function rotX(p,a){ const s=Math.sin(a), c=Math.cos(a); return [ p[0], c*p[1]-s*p[2], s*p[1]+c*p[2] ]; }
+function project(p){
+  const x = p[0]*scalePx*state.zoom + W/2;
+  const y = -p[1]*scalePx*state.zoom + H/2;
+  return [x,y];
+}
+
+// Centered rectangular finger preview
+function drawFingerEdgeCenterRect(A, B, male, t, kerf, f){
+  const dx=B[0]-A[0], dy=B[1]-A[1];
+  const L = Math.hypot(dx,dy);
+  if(L<=1 || f<=0){ ctx.beginPath(); ctx.moveTo(A[0],A[1]); ctx.lineTo(B[0],B[1]); ctx.strokeStyle='rgba(230,240,255,0.45)'; ctx.stroke(); return; }
+  const ux=dx/L, uy=dy/L;
+  const nx=-uy, ny=ux;
+  const step = L/(2*f+1);
+  const depthPx = clamp((t + (male?kerf:0)) * scalePx * state.zoom, 1, Math.min(50, L*0.25));
+
+  // start margin
+  let cx=A[0], cy=A[1];
+  ctx.beginPath(); ctx.moveTo(cx,cy);
+  // first margin
+  cx+=ux*step; cy+=uy*step; ctx.lineTo(cx,cy);
+  for(let i=0;i<f;i++){
+    // tooth
+    const sgn = male?1:-1;
+    ctx.lineTo(cx + nx*depthPx*sgn, cy + ny*depthPx*sgn);
+    cx+=ux*step; cy+=uy*step; ctx.lineTo(cx + nx*depthPx*sgn, cy + ny*depthPx*sgn);
+    ctx.lineTo(cx,cy);
+    // gap
+    cx+=ux*step; cy+=uy*step; ctx.lineTo(cx,cy);
+  }
+  ctx.strokeStyle = male ? 'rgba(170,220,255,0.95)' : 'rgba(255,220,170,0.95)';
+  ctx.stroke();
+}
+
+function draw(){
+  ctx.setTransform(1,0,0,1,0,0);
+  ctx.clearRect(0,0,W,H);
+
+  const shape = $('shape').value;
+  const thk = +$('thk').value;
+  const hasLid = $('hasLid').checked;
+  const dimMode = $('dimMode').value;
+  const len = +$('len').value, wid = +$('wid').value, hei = +$('hei').value;
+  const kerf = +$('kerf').value;
+  const fingers = +$('fingers').value|0;
+  const {extL, extW, extH} = computeDims(len,wid,hei,thk,hasLid,dimMode);
+
+  $('dimInfo').textContent = `L×W×H = ${extL.toFixed(1)} × ${extW.toFixed(1)} × ${extH.toFixed(1)} mm`;
+  $('modeInfo').textContent = dimMode==='outer' ? '外部尺寸' : `內部尺寸（外部≈ ${extL.toFixed(1)}×${extW.toFixed(1)}×${extH.toFixed(1)}）`;
+  $('extraInfo').textContent = `板厚 ${thk.toFixed(2)}mm · 卡榫 ${+$('fingers').value}/邊 · Kerf +${(+$('kerf').value).toFixed(2)}mm`;
+  $('fingersVal').textContent = fingers;
+
+  if(shape==='rect'){
+    const L=extL, Wd=extW, Ht=extH;
+    const hx=L/2, hy=Ht/2, hz=Wd/2;
+    const verts=[
+      [-hx,-hy,-hz],[hx,-hy,-hz],[hx,hy,-hz],[-hx,hy,-hz], // back (0..3)
+      [-hx,-hy,hz],[hx,-hy,hz],[hx,hy,hz],[-hx,hy,hz],     // front (4..7)
+    ];
+    const a=state.yaw, b=state.pitch;
+    const rv=verts.map(p=>rotX(rotY(p,a),b));
+    const maxDim = Math.max(L,Wd,Ht);
+    scalePx = (Math.min(W,H)*0.38)/maxDim;
+
+    const faces = [
+      [0,1,2,3], // 0 back
+      [4,5,6,7], // 1 front
+      [0,1,5,4], // 2 bottom
+      [2,3,7,6], // 3 top
+      [1,2,6,5], // 4 right
+      [0,3,7,4], // 5 left
+    ];
+    const normals=[ [0,0,-1],[0,0,1],[0,-1,0],[0,1,0],[1,0,0],[-1,0,0] ];
+    const rvn = normals.map(n=>rotX(rotY(n,a),b));
+
+    const faceDepth = faces.map((f,i)=>({i, z: f.reduce((s,idx)=>s+rv[idx][2],0)/f.length}))
+      .sort((a,b)=>a.z-b.z).map(o=>o.i);
+
+    for(const fi of faceDepth){
+      const f=faces[fi];
+      const pts=f.map(idx=>project(rv[idx]));
+      const n = rvn[fi];
+      const light=[0.4,0.6,0.7];
+      const dp = Math.max(0.1, Math.min(1,(n[0]*light[0]+n[1]*light[1]+n[2]*light[2])*0.8+0.2));
+      let alpha = (fi===3 && !hasLid) ? 0.15:0.26;
+      let fill = `rgba(${Math.round(18*dp)}, ${Math.round(105*dp)}, ${Math.round(200*dp)}, ${alpha})`;
+      ctx.beginPath(); ctx.moveTo(pts[0][0],pts[0][1]); for(let i=1;i<pts.length;i++) ctx.lineTo(pts[i][0],pts[i][1]); ctx.closePath();
+      ctx.fillStyle=fill; ctx.fill();
+      ctx.lineWidth=1.2; ctx.strokeStyle='rgba(180,200,230,0.35)'; ctx.stroke();
+    }
+
+    // Finger preview on visible face edges (center-start, rectangular, corner-safe)
+    for(const fi of faceDepth){
+      const n = rvn[fi];
+      if(n[2] <= 0) continue; // back-facing, skip
+      const f = faces[fi];
+      const p = f.map(idx=>project(rv[idx]));
+      // bottom(0-1), right(1-2), top(2-3), left(3-0)
+      const conf = previewEdgeRole(fi, hasLid);
+      drawFingerEdgeCenterRect(p[0], p[1], conf.bottom==='male', thk, kerf, fingers);
+      drawFingerEdgeCenterRect(p[1], p[2], conf.right==='male', thk, kerf, fingers);
+      drawFingerEdgeCenterRect(p[2], p[3], conf.top==='male',   thk, kerf, fingers);
+      drawFingerEdgeCenterRect(p[3], p[0], conf.left==='male',  thk, kerf, fingers);
+    }
+
+    // axes
+    const axes=[ [ [0,0,0], [maxDim*0.5,0,0], '#88aaff'],
+                 [ [0,0,0], [0,maxDim*0.5,0], '#8aff88'],
+                 [ [0,0,0], [0,0,maxDim*0.5], '#ff8a8a'] ];
+    ctx.lineWidth=1;
+    for(const [p0,p1,col] of axes){
+      const a2=project(rotX(rotY(p0,state.yaw),state.pitch));
+      const b2=project(rotX(rotY(p1,state.yaw),state.pitch));
+      ctx.strokeStyle=col; ctx.beginPath(); ctx.moveTo(a2[0],a2[1]); ctx.lineTo(b2[0],b2[1]); ctx.stroke();
+    }
+  }else{
+    const n = clamp(+$('ngonN').value,3,12)|0;
+    const thk = +$('thk').value;
+    const hasLid = $('hasLid').checked;
+    const dimMode = $('dimMode').value;
+    const len = +$('len').value, wid = +$('wid').value, hei = +$('hei').value;
+    const R = Math.max(len,wid)/2;
+    const {extH} = computeDims(len,wid,hei,thk,hasLid,dimMode);
+    const Ht = extH;
+    scalePx = (Math.min(W,H)*0.40)/Math.max(R*2,Ht);
+    const a = state.yaw, b = state.pitch;
+
+    const top=[], btm=[];
+    for(let i=0;i<n;i++){
+      const ang = i/n*Math.PI*2;
+      const x = Math.cos(ang)*R;
+      const z = Math.sin(ang)*R;
+      top.push([x, Ht/2, z]);
+      btm.push([x,-Ht/2, z]);
+    }
+    const v = [...top,...btm].map(p=>rotX(rotY(p,a),b));
+
+    for(let i=0;i<n;i++){
+      const j=(i+1)%n;
+      const quad=[ v[i], v[j], v[j+n], v[i+n] ].map(p=>project(p));
+      ctx.beginPath(); ctx.moveTo(quad[0][0],quad[0][1]);
+      for(let k=1;k<4;k++) ctx.lineTo(quad[k][0],quad[k][1]);
+      ctx.closePath();
+      ctx.fillStyle='rgba(60,140,220,0.22)'; ctx.fill();
+      ctx.strokeStyle='rgba(180,200,230,0.35)'; ctx.lineWidth=1.2; ctx.stroke();
+    }
+    const top2 = top.map(p=>project(rotX(rotY(p,a),b)));
+    const btm2 = btm.map(p=>project(rotX(rotY(p,a),b)));
+    ctx.beginPath(); ctx.moveTo(top2[0][0],top2[0][1]); for(let i=1;i<n;i++) ctx.lineTo(top2[i][0],top2[i][1]); ctx.closePath();
+    ctx.fillStyle = hasLid ? 'rgba(60,140,220,0.20)' : 'rgba(60,140,220,0.12)'; ctx.fill();
+    ctx.beginPath(); ctx.moveTo(btm2[0][0],btm2[0][1]); for(let i=1;i<n;i++) ctx.lineTo(btm2[i][0],btm2[i][1]); ctx.closePath();
+    ctx.fillStyle='rgba(60,140,220,0.28)'; ctx.fill();
+  }
+
+  drawMiniInset();
+}
+
+function computeDims(L,W,H,t,hasLid,mode){
+  let extL=L, extW=W, extH=H, intL=L, intW=W, intH=H;
+  if(mode==='inner'){
+    extL = L + 2*t;
+    extW = W + 2*t;
+    extH = H + (hasLid? 2*t : 1*t);
+    intL = L; intW=W; intH=H;
+  }else{ // outer
+    intL = L - 2*t;
+    intW = W - 2*t;
+    intH = H - (hasLid? 2*t : 1*t);
+  }
+  return {extL,extW,extH,intL,intW,intH};
+}
+
+// For 3D preview: role map (no skeleton keys needed here)
+function previewEdgeRole(fi, hasLid){
+  switch(fi){
+    case 2: // bottom face
+      return {top:'male', right:'male', bottom:'male', left:'male'};
+    case 1: // front face
+      return {top: hasLid?'male':'straight', right:'male', bottom:'female', left:'female'};
+    case 4: // right face
+      return {top: hasLid?'male':'straight', right:'male', bottom:'female', left:'female'};
+    case 0: // back face
+      return {top:'female', right:'male', bottom: hasLid?'male':'straight', left:'female'};
+    case 5: // left face
+      return {top: hasLid?'male':'straight', right:'male', bottom:'female', left:'female'};
+    case 3: // top face
+      return {top: hasLid?'female':'straight', right: hasLid?'female':'straight', bottom: hasLid?'female':'straight', left: hasLid?'female':'straight'};
+    default:
+      return {top:'straight',right:'straight',bottom:'straight',left:'straight'};
+  }
+}
+
+// -------------------------
+// SVG NET GENERATION (Rectangular + shared skeletons)
+// -------------------------
+function makeSVG(){
+  const shape = $('shape').value;
+  if(shape!=='rect'){
+    alert('目前僅支援「六面體」輸出 SVG（n 邊柱為實驗功能，僅預覽）。');
+    return;
+  }
+  const mode = $('dimMode').value;
+  const L = +$('len').value, Wd = +$('wid').value, Ht = +$('hei').value;
+  const t = +$('thk').value;
+  const kerf = +$('kerf').value;
+  const fingers = +$('fingers').value|0;
+  const hasLid = $('hasLid').checked;
+  const {extL, extW, extH} = computeDims(L,Wd,Ht,t,hasLid,mode);
+  const Lx=extL, Wy=extW, Hz=extH;
+
+  // Layout (free placement; pairs don't have to share edges in flat net)
+  const M = 10; // mm margin
+  const totalW = (Lx + 2*Wy) + 2*M;
+  const totalH = (Hz + Wy + Hz + (hasLid? Wy:0)) + 2*M;
+  const xB = M + Wy;
+  const yB = M + Hz;
+
+  const rects = {
+    bottom: {x:xB, y:yB, w:Lx, h:Wy},
+    front:  {x:xB, y:yB - Hz, w:Lx, h:Hz},
+    back:   {x:xB, y:yB + Wy, w:Lx, h:Hz},
+    left:   {x:xB - Wy, y:yB, w:Wy, h:Hz},
+    right:  {x:xB + Lx, y:yB, w:Wy, h:Hz},
+    lid:    hasLid ? {x:xB, y:yB + Wy + Hz, w:Lx, h:Wy} : null
+  };
+
+  // Shared skeletons map
+  const SK = {};
+  function getSk(key, len, N){
+    if(!SK[key]) SK[key] = {len, N, step: len/(2*N+1)}; // center-start; corner-safe ends
+    return SK[key];
+  }
+
+  // Edge path builder using shared skeleton
+  function edgePathBySk(side, x,y,w,h, role, skKey){
+    if(role==='straight' || fingers<=0){
+      const ex = side==='top'? x+w : side==='bottom'? x-w : x + (side==='right'?0:0);
+      const ey = side==='left'? y-h : side==='right'? y+h : y + (side==='top'?0:0);
+      return `L ${fmt(ex)} ${fmt(ey)}`;
+    }
+    const male = (role==='male');
+    const len = (side==='top'||side==='bottom') ? w : h;
+    const sk = getSk(skKey, len, fingers);
+    const step = sk.step;
+    const depth = male? (t+kerf) : t;
+
+    const dir = {
+      top:    {dx:1, dy:0, nx:0, ny:-1},
+      right:  {dx:0, dy:1, nx:1, ny:0},
+      bottom: {dx:-1,dy:0, nx:0, ny:1},
+      left:   {dx:0, dy:-1,nx:-1,ny:0}
+    }[side];
+
+    let cx=x, cy=y;
+    const d0=[];
+    const forward=(dx,dy,len)=>{ cx += dx*len; cy += dy*len; d0.push(`L ${fmt(cx)} ${fmt(cy)}`); };
+
+    // margin
+    forward(dir.dx,dir.dy, step);
+    for(let i=0;i<sk.N;i++){
+      // tooth (rectangle)
+      forward(dir.nx,dir.ny, depth);
+      forward(dir.dx,dir.dy, step);
+      forward(-dir.nx,-dir.ny, depth);
+      // gap
+      forward(dir.dx,dir.dy, step);
+    }
+    return d0.join(' ');
+  }
+
+  function fmt(n){ return Number(n.toFixed(4)); }
+
+  // Role assignment + skeleton keys
+  // Bottom edges (all male), paired with sides' bottom edges
+  const role = {};
+  role.bottom = { top:'male', right:'male', bottom:'male', left:'male' };
+  role.front  = { top: hasLid?'male':'straight', right:'male', bottom:'female', left:'female' };
+  role.back   = { top:'female', right:'male', bottom: hasLid?'male':'straight', left:'female' };
+  role.left   = { top: hasLid?'male':'straight', right:'female', bottom:'female', left:'male'  }; // left.right mates with front.left (LF seam) => make left.right male
+  role.right  = { top: hasLid?'male':'straight', right:'male', bottom:'female', left:'female' };
+
+  const skKey = {};
+  // bottom to sides
+  skKey.bottom = { top:'sk_bTop_frontBottom', right:'sk_bRight_rightBottom', bottom:'sk_bBottom_backBottom', left:'sk_bLeft_leftBottom' };
+  skKey.front  = { bottom:'sk_bTop_frontBottom', top:'sk_lid_L_frontTop', right:'sk_ring_FR', left:'sk_ring_LF' };
+  skKey.back   = { bottom:'sk_bBottom_backBottom', top:'sk_lid_L_backTop', right:'sk_ring_RB2', left:'sk_ring_BL2' };
+  skKey.left   = { bottom:'sk_bLeft_leftBottom',  top:'sk_lid_W_leftTop',  right:'sk_ring_LF', left:'sk_ring_BL2' };
+  skKey.right  = { bottom:'sk_bRight_rightBottom', top:'sk_lid_W_rightTop', right:'sk_ring_RB2', left:'sk_ring_FR' };
+  if(hasLid){
+    skKey.lid   = { top:'sk_lid_L_frontTop', right:'sk_lid_W_rightTop', bottom:'sk_lid_L_backTop', left:'sk_lid_W_leftTop' };
+  }
+
+  function rectWithFingersPath(name, x,y,w,h, roleMap, keyMap){
+    // clockwise: top, right, bottom, left
+    let d = `M ${fmt(x)} ${fmt(y)} `;
+    d += edgePathBySk('top', x,y,w,h, roleMap.top ?? 'straight', keyMap.top ?? '');
+    d += edgePathBySk('right', x+w, y, w,h, roleMap.right ?? 'straight', keyMap.right ?? '');
+    d += edgePathBySk('bottom', x+w, y+h, w,h, roleMap.bottom ?? 'straight', keyMap.bottom ?? '');
+    d += edgePathBySk('left', x, y+h, w,h, roleMap.left ?? 'straight', keyMap.left ?? '');
+    d += 'Z';
+    return d;
+  }
+
+  const paths = [];
+  const labels = [];
+  function addPanel(name, r, rRole, rKey){
+    const d = rectWithFingersPath(name, r.x, r.y, r.w, r.h, rRole, rKey);
+    paths.push({d});
+    labels.push({ x: r.x + r.w/2, y: r.y + r.h/2, text: name });
+  }
+
+  addPanel('Bottom', rects.bottom, role.bottom, skKey.bottom);
+  addPanel('Front',  rects.front,  role.front,  skKey.front);
+  addPanel('Right',  rects.right,  role.right,  skKey.right);
+  addPanel('Back',   rects.back,   role.back,   skKey.back);
+  addPanel('Left',   rects.left,   role.left,   skKey.left);
+  if(hasLid && rects.lid) addPanel('Lid', rects.lid, { top:'female', right:'female', bottom:'female', left:'female' }, skKey.lid);
+
+  const svgParts = [];
+  svgParts.push(`<?xml version="1.0" encoding="UTF-8" standalone="no"?>`);
+  svgParts.push(`<svg xmlns="http://www.w3.org/2000/svg" width="${fmt(totalW)}mm" height="${fmt(totalH)}mm" viewBox="0 0 ${fmt(totalW)} ${fmt(totalH)}">`);
+  svgParts.push(`<g fill="none" stroke="#000" stroke-width="0.10">`);
+  for(const p of paths) svgParts.push(`<path d="${p.d}"/>`);
+  svgParts.push(`</g>`);
+  svgParts.push(`<g fill="#666" font-size="4" font-family="monospace">`);
+  for(const lb of labels)
+    svgParts.push(`<text x="${fmt(lb.x)}" y="${fmt(lb.y)}" dominant-baseline="middle" text-anchor="middle">${lb.text}</text>`);
+  svgParts.push(`<text x="${fmt(10)}" y="${fmt(totalH-5)}" font-size="3.2" fill="#333">caseMaker v0.13 · L×W×H=${fmt(Lx)}×${fmt(Wy)}×${fmt(Hz)}mm · t=${fmt(t)} · kerf+${fmt(kerf)} · fingers=${fingers} · shared-skeleton center-start</text>`);
+  svgParts.push(`</g>`);
+  svgParts.push(`</svg>`);
+  const svg = svgParts.join('\n');
+
+  const blob = new Blob([svg], {type:'image/svg+xml;charset=utf-8'});
+  const fname = `caseMaker_${fmt(Lx)}x${fmt(Wy)}x${fmt(Hz)}_t${fmt(t)}${hasLid?'_lid':''}.svg`;
+  triggerDownload(blob, fname);
+
+  $('info').innerHTML = `已輸出 <span class="mono">${fname}</span>；尺寸（外部）：<span class="mono">${fmt(Lx)}×${fmt(Wy)}×${fmt(Hz)} mm</span>.`;
+}
+
+function triggerDownload(blob, filename){
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(()=>{
+    URL.revokeObjectURL(url);
+    a.remove();
+  }, 0);
+}
+
+// -------------------------
+// Mini inset drawing (same skeleton logic; light preview)
+// -------------------------
+function drawMiniInset(){
+  const ctx = mctx;
+  const w = mini.width, h = mini.height;
+  ctx.setTransform(1,0,0,1,0,0);
+  ctx.clearRect(0,0,w,h);
+
+  const mode = $('dimMode').value;
+  const L = +$('len').value, Wd= +$('wid').value, Ht= +$('hei').value;
+  const t = +$('thk').value;
+  const kerf = +$('kerf').value;
+  const fingers = +$('fingers').value|0;
+  const hasLid = $('hasLid').checked;
+  const {extL, extW, extH} = computeDims(L,Wd,Ht,t,hasLid,mode);
+  const Lx=extL, Wy=extW, Hz=extH;
+
+  const M=6;
+  const ww = (Lx + 2*Wy);
+  const hh = (Hz + Wy + Hz + (hasLid? Wy:0));
+  const s = Math.min((w-2*M)/ww, (h-2*M)/hh);
+  const ox = (w - ww*s)/2;
+  const oy = (h - hh*s)/2;
+
+  ctx.save();
+  ctx.translate(ox, oy);
+  ctx.scale(s, s);
+
+  function fmt(n){ return Number(n.toFixed(4)); }
+  function strokePath(d){
+    const pp = new Path2D(d);
+    ctx.stroke(pp);
+  }
+  // shared skeletons
+  const SK = {};
+  function getSk(key, len, N){
+    if(!SK[key]) SK[key] = {len, N, step: len/(2*N+1)};
+    return SK[key];
+  }
+  function edgePathBySk(side, x,y,w,h, role, skKey){
+    if(role==='straight' || fingers<=0){
+      const ex = side==='top'? x+w : side==='bottom'? x-w : x;
+      const ey = side==='left'? y-h : side==='right'? y+h : y;
+      return `L ${fmt(ex)} ${fmt(ey)}`;
+    }
+    const male = role==='male';
+    const len = (side==='top'||side==='bottom') ? w : h;
+    const sk = getSk(skKey, len, fingers);
+    const step = sk.step;
+    const depth = male? (t+kerf) : t;
+    const dir = {
+      top:    {dx:1, dy:0, nx:0, ny:-1},
+      right:  {dx:0, dy:1, nx:1, ny:0},
+      bottom: {dx:-1,dy:0, nx:0, ny:1},
+      left:   {dx:0, dy:-1,nx:-1,ny:0}
+    }[side];
+    let cx=x, cy=y;
+    const d0=[];
+    const forward=(dx,dy,len)=>{ cx += dx*len; cy += dy*len; d0.push(`L ${fmt(cx)} ${fmt(cy)}`); };
+    forward(dir.dx,dir.dy, step);
+    for(let i=0;i<sk.N;i++){
+      forward(dir.nx,dir.ny, depth);
+      forward(dir.dx,dir.dy, step);
+      forward(-dir.nx,-dir.ny, depth);
+      forward(dir.dx,dir.dy, step);
+    }
+    return d0.join(' ');
+  }
+  function rectWithFingersPath(x,y,w,h, roleMap, keyMap){
+    let d = `M ${fmt(x)} ${fmt(y)} `;
+    d += edgePathBySk('top', x,y,w,h, roleMap.top ?? 'straight', keyMap.top ?? '');
+    d += edgePathBySk('right', x+w, y, w,h, roleMap.right ?? 'straight', keyMap.right ?? '');
+    d += edgePathBySk('bottom', x+w, y+h, w,h, roleMap.bottom ?? 'straight', keyMap.bottom ?? '');
+    d += edgePathBySk('left', x, y+h, w,h, roleMap.left ?? 'straight', keyMap.left ?? '');
+    d += 'Z';
+    return d;
+  }
+
+  const xB = Wy;
+  const yB = Hz;
+  const rects = {
+    bottom: {x:xB, y:yB, w:Lx, h:Wy},
+    front:  {x:xB, y:yB - Hz, w:Lx, h:Hz},
+    back:   {x:xB, y:yB + Wy, w:Lx, h:Hz},
+    left:   {x:xB - Wy, y:yB, w:Wy, h:Hz},
+    right:  {x:xB + Lx, y:yB, w:Wy, h:Hz},
+    lid:    hasLid ? {x:xB, y:yB + Wy + Hz, w:Lx, h:Wy} : null
+  };
+  const role = {};
+  role.bottom = { top:'male', right:'male', bottom:'male', left:'male' };
+  role.front  = { top: hasLid?'male':'straight', right:'male', bottom:'female', left:'female' };
+  role.back   = { top:'female', right:'male', bottom: hasLid?'male':'straight', left:'female' };
+  role.left   = { top: hasLid?'male':'straight', right:'female', bottom:'female', left:'male'  };
+  role.right  = { top: hasLid?'male':'straight', right:'male', bottom:'female', left:'female' };
+
+  const skKey = {};
+  skKey.bottom = { top:'sk_bTop_frontBottom', right:'sk_bRight_rightBottom', bottom:'sk_bBottom_backBottom', left:'sk_bLeft_leftBottom' };
+  skKey.front  = { bottom:'sk_bTop_frontBottom', top:'sk_lid_L_frontTop', right:'sk_ring_FR', left:'sk_ring_LF' };
+  skKey.back   = { bottom:'sk_bBottom_backBottom', top:'sk_lid_L_backTop', right:'sk_ring_RB2', left:'sk_ring_BL2' };
+  skKey.left   = { bottom:'sk_bLeft_leftBottom',  top:'sk_lid_W_leftTop',  right:'sk_ring_LF', left:'sk_ring_BL2' };
+  skKey.right  = { bottom:'sk_bRight_rightBottom', top:'sk_lid_W_rightTop', right:'sk_ring_RB2', left:'sk_ring_FR' };
+  if(hasLid){
+    skKey.lid   = { top:'sk_lid_L_frontTop', right:'sk_lid_W_rightTop', bottom:'sk_lid_L_backTop', left:'sk_lid_W_leftTop' };
+  }
+
+  ctx.lineWidth = 1.0/devicePixelRatio;
+  ctx.strokeStyle = '#bcd7ff';
+  strokePath(rectWithFingersPath(rects.bottom.x, rects.bottom.y, rects.bottom.w, rects.bottom.h, role.bottom, skKey.bottom));
+  strokePath(rectWithFingersPath(rects.front.x,  rects.front.y,  rects.front.w,  rects.front.h,  role.front,  skKey.front));
+  strokePath(rectWithFingersPath(rects.right.x,  rects.right.y,  rects.right.w,  rects.right.h,  role.right,  skKey.right));
+  strokePath(rectWithFingersPath(rects.back.x,   rects.back.y,   rects.back.w,   rects.back.h,   role.back,   skKey.back));
+  strokePath(rectWithFingersPath(rects.left.x,   rects.left.y,   rects.left.w,   rects.left.h,   role.left,   skKey.left));
+  if(hasLid) strokePath(rectWithFingersPath(rects.lid.x, rects.lid.y, rects.lid.w, rects.lid.h, { top:'female', right:'female', bottom:'female', left:'female' }, skKey.lid));
+
+  ctx.fillStyle='rgba(188,215,255,0.12)';
+  ctx.fillRect(xB, yB, Lx, Wy);
+  ctx.restore();
+
+  ctx.fillStyle='rgba(220,235,255,0.85)';
+  ctx.font = `${Math.max(10, Math.floor(11*devicePixelRatio))}px ui-monospace, monospace`;
+  ctx.fillText(`fingers: ${$('fingers').value}`, 8, 16*devicePixelRatio);
+  ctx.fillText(`t=${t.toFixed(2)} · kerf=+${kerf.toFixed(2)}`, 8, 32*devicePixelRatio);
+}
+
+// -------------------------
+// Hook UI
+// -------------------------
+;['dimMode','shape','len','wid','hei','thk','hasLid','fingers','kerf','ngonN'].forEach(id=>{
+  $(id).addEventListener('input', ()=>{ 
+    if(id==='fingers') $('fingersVal').textContent = $('fingers').value;
+    saveState(); draw(); 
+  });
+});
+$('btnSVG').addEventListener('click', makeSVG);
+$('btnReset').addEventListener('click', ()=>{
+  state.yaw=Math.PI/6; state.pitch=-Math.PI/7; state.zoom=1.0; draw();
+});
+
+// Init
+loadState();
+resize();
+draw();
+</script>
+</body>
+</html>

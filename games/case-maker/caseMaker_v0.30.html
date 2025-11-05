@@ -1,0 +1,687 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
+<title>caseMaker v0.30 — 單一路徑 + 誤切線偵測</title>
+<style>
+  :root{ --bg:#0b0f14; --panel:#121821; --card:#0f1520; --text:#e6edf3; --muted:#9fb3c8; --border:#1e2633; --accent:#8cc2ff; --warn:#ff8080; }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans TC","Helvetica Neue",Arial}
+  .wrap{display:grid;grid-template-columns:minmax(300px,1fr) 360px;gap:12px;height:100vh;padding:12px}
+  #view{position:relative;background:#0c141d;border:1px solid var(--border);border-radius:12px;overflow:hidden;min-height:320px}
+  #canvas{width:100%;height:100%;display:block;touch-action:none;cursor:grab}
+  #hud{position:absolute;left:10px;bottom:10px;font-size:12px;color:var(--muted);background:rgba(10,15,22,.65);border:1px solid var(--border);border-radius:8px;padding:6px 8px;backdrop-filter:blur(4px)}
+  #miniBox{position:absolute;right:10px;bottom:10px;width:260px;height:170px;background:rgba(12,18,26,.55);border:1px solid var(--border);border-radius:10px;padding:6px}
+  #mini{width:100%;height:100%;display:block}
+  #overlayMsg{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#9fb3c8;font-size:14px;pointer-events:none}
+  .panel{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:12px;overflow:auto}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center}
+  label{font-size:13px;color:var(--muted)}
+  input[type="number"],select{width:100%;background:var(--card);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:8px 10px;font-size:14px;outline:none}
+  input[type="range"]{width:100%}
+  .title{font-weight:700;margin:4px 0 6px 0}
+  .badge{display:inline-block;font-size:11px;padding:2px 6px;border:1px solid var(--border);border-radius:999px;color:var(--muted);margin-left:6px}
+  .section{margin:12px 0;padding-top:8px;border-top:1px dashed var(--border)}
+  .btn{background:#1a2432;color:#fff;border:1px solid var(--border);border-radius:10px;padding:10px 12px;font-weight:600;cursor:pointer}
+  .btn:active{transform:translateY(1px)}
+  .btnRow{display:flex;gap:8px;flex-wrap:wrap}
+  .hint{font-size:12px;color:var(--muted)}
+  .mono{font-variant-numeric:tabular-nums;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+  a.link{color:#9bd}
+  .error{color:#ff9898}
+  .ok{color:#8cffc3}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div id="view">
+    <canvas id="canvas"></canvas>
+    <div id="overlayMsg">初始化畫布…</div>
+    <div id="hud">
+      <div><span class="badge">v0.30</span><span class="badge">單一路徑</span><span class="badge">誤切線偵測</span></div>
+      <div class="mono" id="dimInfo">—</div>
+      <div class="mono" id="extraInfo">—</div>
+      <div>拆裝 <span id="explodeStat">OFF</span> · <span class="mono" id="explodeVal">0mm</span></div>
+    </div>
+    <div id="miniBox"><canvas id="mini"></canvas></div>
+  </div>
+
+  <div class="panel">
+    <div class="title">盒子參數</div>
+    <div class="hint">單片輸出為<b>單一封閉 path</b>（無多重 M 子路徑），避免雷切時多餘直線把卡榫切掉。</div>
+
+    <div class="section">
+      <div class="row">
+        <label>尺寸基準</label>
+        <label>有蓋</label>
+        <select id="dimMode">
+          <option value="outer">外徑</option>
+          <option value="inner">內徑</option>
+        </select>
+        <div><input id="hasLid" type="checkbox"><span class="hint"> 勾＝六面（含蓋，網狀 net）</span></div>
+      </div>
+      <div class="row">
+        <label>長 L (mm)</label><label>寬 W (mm)</label>
+        <input id="len" type="number" step="0.1" min="1" value="120">
+        <input id="wid" type="number" step="0.1" min="1" value="80">
+      </div>
+      <div class="row">
+        <label>高 H (mm)</label><label>板厚 t (mm)</label>
+        <input id="hei" type="number" step="0.1" min="1" value="60">
+        <input id="thk" type="number" step="0.05" min="0.1" value="3.0">
+      </div>
+      <div class="row">
+        <label>每邊齒數 <span class="mono" id="fingersVal">6</span></label>
+        <label>Kerf 外擴 (mm)</label>
+        <input id="fingers" type="range" min="1" max="20" step="1" value="6">
+        <input id="kerf" type="number" step="0.01" min="0" value="0.05">
+      </div>
+      <div class="row">
+        <label>齒深模式</label>
+        <label>拆裝距離 (mm)</label>
+        <select id="depthMode">
+          <option value="auto">自動：公=t+kerf；母=t</option>
+          <option value="equal">等深：公=母=t</option>
+        </select>
+        <input id="explodeDist" type="range" min="0" max="80" step="1" value="12">
+      </div>
+      <div class="row">
+        <label>顯示誤切線</label>
+        <div><input id="showBad" type="checkbox"><span class="hint"> 標紅會把卡榫切掉的直線</span></div>
+      </div>
+      <div><input id="explodeOn" type="checkbox"><span class="hint"> 啟用拆裝（Exploded View）</span></div>
+    </div>
+
+    <div class="section">
+      <div class="title">匯出</div>
+      <div class="btnRow">
+        <button id="btnSVG" class="btn">輸出 SVG 展開圖</button>
+        <button id="btnReset" class="btn">重設視角</button>
+      </div>
+      <div id="info" class="hint" style="margin-top:8px"></div>
+      <div id="links" class="hint" style="margin-top:6px"></div>
+      <textarea id="svgText" style="width:100%;height:120px;display:none;background:#0b0f14;border:1px solid var(--border);color:#b5d0ff;border-radius:8px;margin-top:8px"></textarea>
+      <div id="badList" class="hint" style="margin-top:6px"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
+const logInfo = (html)=>{ $('info').innerHTML = html; };
+const showLinks = (html)=>{ $('links').innerHTML = html; };
+const showBadList = (html)=>{ $('badList').innerHTML = html; };
+const mainCanvas = $('canvas'); const ctx = mainCanvas.getContext('2d');
+const mini = $('mini'); const mctx = mini.getContext('2d', {alpha:true});
+const overlay = $('overlayMsg');
+let CW=0, CH=0, scalePx=1;
+let cam = { yaw: Math.PI/6, pitch: -Math.PI/7, zoom: 1.1, dragging:false, lastX:0,lastY:0, touchMode:null, lastPinchDist:0 };
+let pointers = new Map();
+
+function safeSizeCanvas(){
+  const v = document.getElementById('view');
+  let r = v.getBoundingClientRect();
+  let w = r.width, h = r.height;
+  if((!w || !h) && v.parentElement){
+    const rp = v.parentElement.getBoundingClientRect();
+    w = w || (rp.width - 370 - 24) || window.innerWidth - 380;
+    h = h || (rp.height || window.innerHeight - 24);
+  }
+  w = Math.max(320, Math.floor((w||window.innerWidth*0.6) * (window.devicePixelRatio||1)));
+  h = Math.max(320, Math.floor((h||window.innerHeight*0.6) * (window.devicePixelRatio||1)));
+  return [w,h];
+}
+function safeSizeMini(){
+  const box = document.getElementById('miniBox').getBoundingClientRect();
+  const dpr = (window.devicePixelRatio||1);
+  const w = Math.max(200, Math.floor((box.width||260)*dpr));
+  const h = Math.max(120, Math.floor((box.height||170)*dpr));
+  return [w,h];
+}
+function resizeNow(){
+  const [w,h] = safeSizeCanvas();
+  CW = mainCanvas.width = w; CH = mainCanvas.height = h;
+  const [mw,mh] = safeSizeMini();
+  mini.width = mw; mini.height = mh;
+  overlay.style.display = 'none';
+  draw();
+}
+function ensureSized(){ let tries=0; const tick=()=>{ tries++; resizeNow(); if(tries<3) requestAnimationFrame(tick); }; tick(); }
+window.addEventListener('resize', resizeNow);
+
+mainCanvas.addEventListener('pointerdown', (e)=>{
+  mainCanvas.setPointerCapture(e.pointerId);
+  pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  cam.dragging=true; cam.lastX=e.clientX; cam.lastY=e.clientY; mainCanvas.style.cursor='grabbing';
+  if(pointers.size===2){ cam.touchMode='pinch'; cam.lastPinchDist = pinchDist(); }
+});
+mainCanvas.addEventListener('pointerup', (e)=>{
+  try{mainCanvas.releasePointerCapture(e.pointerId);}catch(_){}
+  pointers.delete(e.pointerId);
+  if(pointers.size<2) cam.touchMode=null;
+  cam.dragging=false; mainCanvas.style.cursor='grab';
+});
+mainCanvas.addEventListener('pointermove', (e)=>{
+  if(!pointers.has(e.pointerId)) return;
+  const p = pointers.get(e.pointerId); p.x=e.clientX; p.y=e.clientY;
+  if(cam.touchMode==='pinch' && pointers.size===2){
+    const d = pinchDist(); if(cam.lastPinchDist>0){ cam.zoom = clamp(cam.zoom * d/cam.lastPinchDist, 0.3, 4); cam.lastPinchDist = d; draw(); }
+    return;
+  }
+  if(cam.dragging){
+    const dx=e.clientX-cam.lastX, dy=e.clientY-cam.lastY;
+    cam.lastX=e.clientX; cam.lastY=e.clientY;
+    cam.yaw += dx*0.005; cam.pitch = clamp(cam.pitch + dy*0.005, -Math.PI/2+0.05, Math.PI/2-0.05);
+    draw();
+  }
+});
+mainCanvas.addEventListener('wheel', (e)=>{ e.preventDefault(); cam.zoom = clamp(cam.zoom*Math.pow(1.001,-e.deltaY),0.3,4); draw(); }, {passive:false});
+function pinchDist(){ const a=[...pointers.values()]; if(a.length<2) return 0; const dx=a[0].x-a[1].x, dy=a[0].y-a[1].y; return Math.hypot(dx,dy); }
+
+function rotY(p,a){ const s=Math.sin(a), c=Math.cos(a); return [ c*p[0]+s*p[2], p[1], -s*p[0]+c*p[2] ]; }
+function rotX(p,a){ const s=Math.sin(a), c=Math.cos(a); return [ p[0], c*p[1]-s*p[2], s*p[1]+c*p[2] ]; }
+function project(p){ return [ p[0]*scalePx*cam.zoom + CW/2, -p[1]*scalePx*cam.zoom + CH/2 ]; }
+
+function computeDims(L,W,H,t,hasLid,mode){
+  let extL=L, extW=W, extH=H, intL=L, intW=W, intH=H;
+  if(mode==='inner'){ extL=L+2*t; extW=W+2*t; extH=H+(hasLid?2*t:1*t); }
+  else{ intL=L-2*t; intW=W-2*t; intH=H-(hasLid?2*t:1*t); }
+  return {extL,extW,extH,intL,intW,intH};
+}
+function faceRectCorners(face, Lx, Wy, Hz){
+  let uSpan=0, vSpan=0;
+  if(face==='front'||face==='back'){ uSpan=Lx; vSpan=Hz; }
+  else if(face==='left'||face==='right'){ uSpan=Wy; vSpan=Hz; }
+  else if(face==='bottom'||face==='top'){ uSpan=Lx; vSpan=Wy; }
+  const u0=-uSpan/2, v0=-vSpan/2, u1=uSpan/2, v1=vSpan/2;
+  return [[u0,v1],[u1,v1],[u1,v0],[u0,v0]];
+}
+function uvTo3D(face, u, v, Lx, Wy, Hz, explode){
+  switch(face){
+    case 'front':  return [u, v,  Wy/2 + explode];
+    case 'back':   return [-u, v, -Wy/2 - explode];
+    case 'left':   return [-Lx/2 - explode, v, u];
+    case 'right':  return [ Lx/2 + explode, v, -u];
+    case 'bottom': return [u, -Hz/2 - explode, -v];
+    case 'top':    return [u,  Hz/2 + explode,  v];
+  }
+  return [u,v,0];
+}
+function sideEndpointsUV(face, side, Lx, Wy, Hz){
+  const c = faceRectCorners(face,Lx,Wy,Hz);
+  if(side==='top') return [c[0], c[1]];
+  if(side==='right') return [c[1], c[2]];
+  if(side==='bottom') return [c[2], c[3]];
+  if(side==='left') return [c[3], c[0]];
+  return [c[0],c[1]];
+}
+
+// 幾何比對：相鄰邊 + 方向
+function keyPt(p){ return p.map(v=>v.toFixed(5)).join(','); }
+function keySeg(a,b){ const ka=keyPt(a), kb=keyPt(b); return (ka<kb)? (ka+'|'+kb) : (kb+'|'+ka); }
+function computeAdjAndRev(Lx,Wy,Hz, hasLid){
+  const faces = hasLid? ['bottom','front','back','left','right','top'] : ['bottom','front','back','left','right'];
+  const segMap = new Map();
+  for(const f of faces){
+    const sides = ['top','right','bottom','left'];
+    for(const s of sides){
+      const [uv0,uv1] = sideEndpointsUV(f,s,Lx,Wy,Hz);
+      const P0 = uvTo3D(f, uv0[0], uv0[1], Lx,Wy,Hz, 0);
+      const P1 = uvTo3D(f, uv1[0], uv1[1], Lx,Wy,Hz, 0);
+      const k = keySeg(P0,P1);
+      if(!segMap.has(k)) segMap.set(k, []);
+      segMap.get(k).push({f,s,P0,P1});
+    }
+  }
+  const pairs = [];
+  const revMap = {
+    bottom:{top:false,right:false,bottom:false,left:false},
+    front:{top:false,right:false,bottom:false,left:false},
+    back:{top:false,right:false,bottom:false,left:false},
+    left:{top:false,right:false,bottom:false,left:false},
+    right:{top:false,right:false,bottom:false,left:false},
+    top:{top:false,right:false,bottom:false,left:false},
+  };
+  for(const [k,arr] of segMap){
+    if(arr.length===2){
+      const A=arr[0], B=arr[1];
+      const opp = (keyPt(A.P0)===keyPt(B.P1) && keyPt(A.P1)===keyPt(B.P0));
+      revMap[B.f][B.s] = opp;
+      revMap[A.f][A.s] = false;
+      pairs.push({A:{f:A.f,s:A.s}, B:{f:B.f,s:B.s}});
+    }
+  }
+  return {pairs,revMap};
+}
+
+// 從配對建立每邊角色（互補）
+function buildRolesFromPairs(pairs, hasLid){
+  const role = {
+    bottom:{top:'straight',right:'straight',bottom:'straight',left:'straight'},
+    front:{top:'straight',right:'straight',bottom:'straight',left:'straight'},
+    back:{top:'straight',right:'straight',bottom:'straight',left:'straight'},
+    left:{top:'straight',right:'straight',bottom:'straight',left:'straight'},
+    right:{top:'straight',right:'straight',bottom:'straight',left:'straight'},
+    top:{top:'straight',right:'straight',bottom:'straight',left:'straight'},
+  };
+  const orderKey = ({f,s})=> `${f}:${s}`;
+  for(const p of pairs){
+    const aK = orderKey(p.A), bK = orderKey(p.B);
+    const maleSide = (aK < bK) ? p.A : p.B;
+    const femSide  = (aK < bK) ? p.B : p.A;
+    role[maleSide.f][maleSide.s] = 'male';
+    role[femSide.f][femSide.s]   = 'female';
+  }
+  if(!hasLid){
+    for(const f of ['front','back','left','right']) role[f].top = 'straight';
+  }
+  return role;
+}
+
+// 邊向量/起點
+function edgeVectors(side){
+  if(side==='top')    return {t:[ 1, 0], n:[ 0,-1], start:(x,y,w,h,rev)=> rev? [x+w,y] : [x,y], end:(x,y,w,h,rev)=> rev? [x,y] : [x+w,y]};
+  if(side==='right')  return {t:[ 0, 1], n:[ 1, 0], start:(x,y,w,h,rev)=> rev? [x+w,y+h] : [x+w,y], end:(x,y,w,h,rev)=> rev? [x+w,y] : [x+w,y+h]};
+  if(side==='bottom') return {t:[-1, 0], n:[ 0, 1], start:(x,y,w,h,rev)=> rev? [x,  y+h] : [x+w,y+h], end:(x,y,w,h,rev)=> rev? [x+w,y+h] : [x,  y+h]};
+  if(side==='left')   return {t:[ 0,-1], n:[-1, 0], start:(x,y,w,h,rev)=> rev? [x,  y]   : [x,  y+h], end:(x,y,w,h,rev)=> rev? [x,  y+h] : [x,  y]};
+  return {t:[1,0], n:[0,-1], start:(x,y,w,h,rev)=>[x,y], end:(x,y,w,h,rev)=>[x+w,y]};
+}
+
+// 單邊 polyline（role: male/female/straight）
+function edgePolylineUV(x,y,w,h, side, role, depth, N, rev){
+  const v = edgeVectors(side);
+  let [cx,cy] = v.start(x,y,w,h,rev);
+  let tx=v.t[0], ty=v.t[1]; if(rev){ tx=-tx; ty=-ty; }
+  const nx=v.n[0], ny=v.n[1];
+  const len = ((side==='top'||side==='bottom')? w : h);
+  const step = len/(2*N+1);
+  const pts = [[cx,cy]];
+  const fw=(dx,dy,len)=>{ cx += dx*len; cy += dy*len; pts.push([cx,cy]); };
+  // 直邊
+  if(role==='straight' || (N|0)<=0){
+    const e = v.end(x,y,w,h,rev);
+    pts.push(e);
+    return pts;
+  }
+  const isMale = (role==='male');
+  fw(tx,ty, step);
+  for(let i=0;i<N;i++){
+    fw(nx,ny, isMale? depth : -depth);
+    fw(tx,ty, step);
+    fw(-nx,-ny, isMale? depth : -depth);
+    fw(tx,ty, step);
+  }
+  return pts;
+}
+
+// 組合單一外輪廓（Top→Right→Bottom→Left，確保連續且只用一次 M）
+function rectPathUnified(name, info, hasLid, t, kerf, fingers, role, revMap){
+  const rm = role[name];
+  const depth = ($('depthMode').value==='equal'? t : (t+kerf));
+  const x = info.ix, y = info.iy, w = info.iw, h = info.ih;
+  const rv = (revMap && revMap[name]) ? revMap[name] : {top:false,right:false,bottom:false,left:false};
+  const order = ['top','right','bottom','left'];
+  const ptsAll = [];
+  const eps=1e-6;
+  const same=(a,b)=> Math.abs(a[0]-b[0])<eps && Math.abs(a[1]-b[1])<eps;
+  let last=null;
+  for(let k=0;k<order.length;k++){
+    const side=order[k]; const roleSide = rm[side];
+    let p1 = edgePolylineUV(x,y,w,h, side, roleSide, depth, fingers|0, rv[side]||false);
+    // 讓每邊首點與前一邊末點相接
+    if(last && !same(p1[0], last)){
+      p1 = p1.slice().reverse();
+    }
+    // 追加：首點若與 last 相同，避免重複點
+    if(last && same(p1[0], last)) p1 = p1.slice(1);
+    ptsAll.push(...p1);
+    last = ptsAll[ptsAll.length-1];
+  }
+  // 生成單一路徑
+  const fmt=n=>Number(n.toFixed(4));
+  const d = ['M', fmt(ptsAll[0][0]), fmt(ptsAll[0][1])].join(' ') + ' ' + ptsAll.slice(1).map(p=>`L ${fmt(p[0])} ${fmt(p[1])}`).join(' ') + ' Z';
+  return d;
+}
+
+// 可能造成誤切的「直線基線」（male 邊的內側直線）
+function wouldCutBaselines(name, info, role, revMap){
+  const rm = role[name];
+  const x = info.ix, y = info.iy, w = info.iw, h = info.ih;
+  const rv = (revMap && revMap[name]) ? revMap[name] : {top:false,right:false,bottom:false,left:false};
+  const order = ['top','right','bottom','left'];
+  const lines=[];
+  for(const side of order){
+    if(rm[side] !== 'male') continue; // 只有公齒才會被直線切掉
+    const v = edgeVectors(side);
+    const p0 = v.start(x,y,w,h, rv[side]||false);
+    const p1 = v.end(x,y,w,h, rv[side]||false);
+    lines.push([p0,p1, side]);
+  }
+  return lines;
+}
+
+// 迷你展開圖（使用 unified path；可選紅色誤切線）
+function drawMiniInset(Lx,Wy,Hz, t, kerf, fingers, hasLid, role, revMap, showBad){
+  const w=mini.width, h=mini.height;
+  mctx.setTransform(1,0,0,1,0,0); mctx.clearRect(0,0,w,h);
+
+  const depth = ($('depthMode').value==='equal'? t : (t+kerf));
+  const M=6, GAP = hasLid? 0 : 8;
+  const layout = layoutRects(Lx,Wy,Hz, role, hasLid, GAP, M, depth);
+  const rects = layout.rects, totalW=layout.totalW, totalH=layout.totalH;
+
+  const s=Math.min((w)/(totalW), (h)/(totalH));
+  const ox=(w-totalW*s)/2, oy=(h-totalH*s)/2;
+  mctx.save(); mctx.translate(ox,oy); mctx.scale(s,s);
+  mctx.lineWidth = Math.max(1.0, 1.0/(window.devicePixelRatio||1)); 
+  const stroke = getComputedStyle(document.documentElement).getPropertyValue('--accent') || '#8cc2ff';
+  mctx.strokeStyle = stroke;
+
+  const order = hasLid? ['bottom','front','right','back','left','top'] : ['bottom','front','back','left','right'];
+  try{
+    for(const n of order){
+      const r=rects[n]; if(!r) continue;
+      const d=rectPathUnified(n,r,hasLid,t,kerf,fingers,role,revMap);
+      const p=new Path2D(d);
+      mctx.stroke(p);
+      if(showBad){
+        const bad = wouldCutBaselines(n,r,role,revMap);
+        mctx.save(); mctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--warn') || '#ff8080';
+        mctx.lineWidth = Math.max(1.2, 1.2/(window.devicePixelRatio||1));
+        for(const [a,b] of bad){ mctx.beginPath(); mctx.moveTo(a[0],a[1]); mctx.lineTo(b[0],b[1]); mctx.stroke(); }
+        mctx.restore();
+      }
+    }
+  }catch(e){
+    for(const n of order){ const r=rects[n]; if(!r) continue; mctx.strokeRect(r.x, r.y, r.w, r.h); }
+  }
+  mctx.restore();
+}
+
+// Layout（五面 tiles：外擴與公齒深度） —— 同前版
+function layoutRects(Lx,Wy,Hz, role, hasLid, gap, margin, depth){
+  function baseSize(face){
+    if(face==='front'||face==='back') return {w:Lx, h:Hz};
+    if(face==='left'||face==='right') return {w:Wy, h:Hz};
+    if(face==='bottom'||face==='top') return {w:Lx, h:Wy};
+    return {w:0,h:0};
+  }
+  function extras(face){
+    const r = role[face];
+    return {
+      top:    r.top==='male'    ? depth : 0,
+      right:  r.right==='male'  ? depth : 0,
+      bottom: r.bottom==='male' ? depth : 0,
+      left:   r.left==='male'   ? depth : 0
+    };
+  }
+  if(hasLid){
+    const totalW = (Lx + 2*Wy) + 2*margin;
+    const totalH = (Hz + Wy + Hz + Wy) + 2*margin;
+    const xB = margin + Wy, yB = margin + Hz;
+    const rects = {
+      bottom: {x:xB, y:yB, w:Lx, h:Wy, ix:xB, iy:yB, iw:Lx, ih:Wy, ex:{top:0,right:0,bottom:0,left:0}},
+      front:  {x:xB, y:yB - Hz, w:Lx, h:Hz, ix:xB, iy:yB - Hz, iw:Lx, ih:Hz, ex:{top:0,right:0,bottom:0,left:0}},
+      back:   {x:xB, y:yB + Wy, w:Lx, h:Hz, ix:xB, iy:yB + Wy, iw:Lx, ih:Hz, ex:{top:0,right:0,bottom:0,left:0}},
+      left:   {x:xB - Wy, y:yB, w:Wy, h:Hz, ix:xB - Wy, iy:yB, iw:Wy, ih:Hz, ex:{top:0,right:0,bottom:0,left:0}},
+      right:  {x:xB + Lx, y:yB, w:Wy, h:Hz, ix:xB + Lx, iy:yB, iw:Wy, ih:Hz, ex:{top:0,right:0,bottom:0,left:0}},
+      top:    {x:xB, y:yB + Wy + Hz, w:Lx, h:Wy, ix:xB, iy:yB + Wy + Hz, iw:Lx, ih:Wy, ex:{top:0,right:0,bottom:0,left:0}}
+    };
+    return {rects,totalW,totalH};
+  }else{
+    const faces = ['bottom','front','back','left','right'];
+    const tiles = {};
+    for(const f of faces){
+      const b = baseSize(f); const e = extras(f);
+      const tw = b.w + e.left + e.right;
+      const th = b.h + e.top + e.bottom;
+      tiles[f] = { w:tw, h:th, iw:b.w, ih:b.h, ex:e };
+    }
+    const colGap = gap, rowGap=gap;
+    const row1H = Math.max(tiles.bottom.h, tiles.front.h, tiles.back.h);
+    const row1W = tiles.bottom.w + colGap + tiles.front.w + colGap + tiles.back.w;
+    const row2H = Math.max(tiles.left.h, tiles.right.h);
+    const row2W = tiles.left.w + colGap + tiles.right.w;
+    const totalW = Math.max(row1W, row2W) + 2*margin;
+    const totalH = row1H + rowGap + row2H + 2*margin;
+    const x0 = margin, y0 = margin;
+    let x = x0, y = y0 + (row1H - tiles.bottom.h)/2;
+    const rects = {};
+    rects.bottom = { x:x, y:y, w:tiles.bottom.w, h:tiles.bottom.h, ix: x + tiles.bottom.ex.left, iy: y + tiles.bottom.ex.top, iw: tiles.bottom.iw, ih: tiles.bottom.ih, ex: tiles.bottom.ex };
+    x += tiles.bottom.w + colGap;
+    y = y0 + (row1H - tiles.front.h)/2;
+    rects.front = { x:x, y:y, w:tiles.front.w, h:tiles.front.h, ix: x + tiles.front.ex.left, iy: y + tiles.front.ex.top, iw: tiles.front.iw, ih: tiles.front.ih, ex: tiles.front.ex };
+    x += tiles.front.w + colGap;
+    y = y0 + (row1H - tiles.back.h)/2;
+    rects.back = { x:x, y:y, w:tiles.back.w, h:tiles.back.h, ix: x + tiles.back.ex.left, iy: y + tiles.back.ex.top, iw: tiles.back.iw, ih: tiles.back.ih, ex: tiles.back.ex };
+    x = x0;
+    y = y0 + row1H + rowGap + (row2H - tiles.left.h)/2;
+    rects.left = { x:x, y:y, w:tiles.left.w, h:tiles.left.h, ix: x + tiles.left.ex.left, iy: y + tiles.left.ex.top, iw: tiles.left.iw, ih: tiles.left.ih, ex: tiles.left.ex };
+    x += tiles.left.w + colGap;
+    y = y0 + row1H + rowGap + (row2H - tiles.right.h)/2;
+    rects.right = { x:x, y:y, w:tiles.right.w, h:tiles.right.h, ix: x + tiles.right.ex.left, iy: y + tiles.right.ex.top, iw: tiles.right.iw, ih: tiles.right.ih, ex: tiles.right.ex };
+    return {rects,totalW,totalH};
+  }
+}
+
+// === 主繪製 ===
+function draw(){
+  if(!CW||!CH){ overlay.style.display='flex'; return; }
+  ctx.setTransform(1,0,0,1,0,0);
+  ctx.clearRect(0,0,CW,CH);
+
+  // 背景格線
+  ctx.save();
+  ctx.globalAlpha = 0.12;
+  ctx.strokeStyle = '#9fb3c8';
+  ctx.lineWidth = 1;
+  const step=40*(window.devicePixelRatio||1);
+  for(let x=(CW/2)%step; x<CW; x+=step){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,CH); ctx.stroke(); }
+  for(let y=(CH/2)%step; y<CH; y+=step){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(CW,y); ctx.stroke(); }
+  ctx.restore();
+
+  const thk=+$('thk').value, hasLid=$('hasLid').checked, mode=$('dimMode').value;
+  const len=+$('len').value, wid=+$('wid').value, hei=+$('hei').value;
+  const kerf=+$('kerf').value, fingers=+$('fingers').value|0;
+  const explodeOn=$('explodeOn').checked, explodeDist=+$('explodeDist').value;
+  const showBad = $('showBad').checked;
+  const {extL, extW, extH} = computeDims(len,wid,hei,thk,hasLid,mode);
+  const Lx=Math.max(1e-3,extL), Wy=Math.max(1e-3,extW), Hz=Math.max(1e-3,extH);
+
+  $('dimInfo').textContent = `外形（${mode==='outer'?'外徑':'依內徑換算'}）：${extL.toFixed(1)} × ${extW.toFixed(1)} × ${extH.toFixed(1)} mm`;
+  $('extraInfo').textContent = `t=${thk.toFixed(2)} · fingers=${fingers}/邊 · kerf=+${kerf.toFixed(2)} · ${hasLid?'有蓋':'無蓋'}（五面分離）`;
+  $('fingersVal').textContent = fingers;
+  $('explodeStat').textContent = explodeOn?'ON':'OFF';
+  $('explodeVal').textContent = `${explodeDist|0}mm`;
+
+  const maxDim=Math.max(Lx,Wy,Hz);
+  scalePx = (Math.min(CW,CH)*0.4)/maxDim;
+  const faces = hasLid? ['back','front','bottom','top','right','left'] : ['back','front','bottom','right','left'];
+  const explode = explodeOn? explodeDist : 0;
+
+  // 計算互補角色與方向（一次）
+  const adj = computeAdjAndRev(Lx,Wy,Hz, hasLid);
+  const role = buildRolesFromPairs(adj.pairs, hasLid);
+  const revMap = adj.revMap;
+
+  // 深度排序並畫面（臉填色同前）
+  const depth=[];
+  for(const f of faces){
+    const c = uvTo3D(f, 0, 0, Lx, Wy, Hz, explode);
+    const r = rotX(rotY(c, cam.yaw), cam.pitch);
+    depth.push({f, z:r[2]});
+  }
+  depth.sort((a,b)=>a.z-b.z);
+
+  for(const {f} of depth){
+    const csUV = faceRectCorners(f, Lx, Wy, Hz);
+    const corners = csUV.map(([u,v])=> uvTo3D(f,u,v,Lx,Wy,Hz,explode)).map(p=> rotX(rotY(p,cam.yaw),cam.pitch)).map(project);
+    ctx.beginPath(); ctx.moveTo(corners[0][0], corners[0][1]);
+    for(let i=1;i<corners.length;i++) ctx.lineTo(corners[i][0], corners[i][1]);
+    ctx.closePath();
+    const p0 = rotX(rotY(uvTo3D(f,0,0,Lx,Wy,Hz,explode), cam.yaw), cam.pitch);
+    const pu = rotX(rotY(uvTo3D(f, maxDim*0.1,0,Lx,Wy,Hz,explode), cam.yaw), cam.pitch);
+    const pv = rotX(rotY(uvTo3D(f,0,maxDim*0.1,Lx,Wy,Hz,explode), cam.yaw), cam.pitch);
+    const ux = pu[0]-p0[0], uy=pu[1]-p0[1], uz=pu[2]-p0[2];
+    const vx = pv[0]-p0[0], vy=pv[1]-p0[1], vz=pv[2]-p0[2];
+    const nx = uy*vz-uz*vy, ny = uz*vx-ux*vz, nz = ux*vy-uy*vx;
+    const nl = Math.hypot(nx,ny,nz)||1; const nxx=nx/nl, nyy=ny/nl, nzz=nz/nl;
+    const Lgt=[0.4,0.7,0.9]; let dp = Math.max(0.35, Math.min(0.95,(nxx*Lgt[0]+nyy*Lgt[1]+nzz*Lgt[2])*0.8+0.35));
+    ctx.fillStyle = `rgba(${Math.round(40*dp)}, ${Math.round(130*dp)}, ${Math.round(220*dp)}, 0.55)`;
+    ctx.fill();
+    ctx.lineWidth = 2.0; ctx.strokeStyle = 'rgba(220,235,255,0.95)'; ctx.stroke();
+  }
+
+  // 迷你展開（共用 role / revMap + 紅色誤切線）
+  drawMiniInset(Lx,Wy,Hz, thk, kerf, fingers, hasLid, role, revMap, showBad);
+
+  // 統計誤切線
+  const M=6, GAP = hasLid? 0 : 8;
+  const layout = layoutRects(Lx,Wy,Hz, role, hasLid, GAP, M, ($('depthMode').value==='equal'? thk : (thk+kerf)));
+  const rects = layout.rects;
+  const orderList = hasLid? ['bottom','front','right','back','left','top'] : ['bottom','front','back','left','right'];
+  let total=0; const list=[];
+  for(const n of orderList){
+    const r=rects[n]; if(!r) continue;
+    const bad = wouldCutBaselines(n,r,role,revMap);
+    if(bad.length){ total += bad.length; list.push(`${n}: ${bad.map(b=>b[2]).join(', ')}`); }
+  }
+  if(total>0){
+    showBadList(`<span class="error">偵測到 ${total} 條可能誤切直線</span>（面:邊） → ${list.join(' | ')}`);
+  }else{
+    showBadList(`<span class="ok">未偵測到會把卡榫切掉的直線。</span>`);
+  }
+}
+
+// 匯出 SVG（使用 unified path；保留 v0.29 三層備援）
+function makeSVG(){
+  try{
+    const mode=$('dimMode').value, L=+$('len').value, Wd=+$('wid').value, Ht=+$('hei').value, t=+$('thk').value;
+    const kerf=+$('kerf').value, fingers=+$('fingers').value|0, hasLid=$('hasLid').checked;
+    const {extL, extW, extH} = computeDims(L,Wd,Ht,t,hasLid,mode);
+    const Lx=extL, Wy=extW, Hz=extH;
+    const adj = computeAdjAndRev(Lx,Wy,Hz, hasLid);
+    const role = buildRolesFromPairs(adj.pairs, hasLid);
+    const revMap = adj.revMap;
+
+    let svg='', fname='';
+    if(!hasLid){
+      const depth = ($('depthMode').value==='equal'? t : (t+kerf));
+      const M = 10, GAP = 10;
+      const layout = layoutRects(Lx,Wy,Hz, role, hasLid, GAP, M, depth);
+      const rects = layout.rects, totalW=layout.totalW, totalH=layout.totalH;
+      const order = ['bottom','front','back','left','right'];
+      const parts = [];
+      const lbs=[];
+      for(const n of order){
+        const r = rects[n]; if(!r) continue;
+        parts.push(`<path d="${rectPathUnified(n,r,hasLid,t,kerf,fingers,role,revMap)}" data-closed="true"/>`);
+        lbs.push([r.x+r.w/2, r.y+r.h/2, n]);
+      }
+      svg = [
+        `<?xml version="1.0" encoding="UTF-8" standalone="no"?>`,
+        `<svg xmlns="http://www.w3.org/2000/svg" width="${(totalW).toFixed(3)}mm" height="${(totalH).toFixed(3)}mm" viewBox="0 0 ${(totalW).toFixed(3)} ${(totalH).toFixed(3)}">`,
+        `<g fill="none" stroke="#000" stroke-width="0.10" stroke-linejoin="miter" shape-rendering="geometricPrecision">`,
+        ...parts,
+        `</g>`,
+        `<g fill="#666" font-size="4" font-family="monospace">`,
+        ...lbs.map(([x,y,t])=>`<text x="${x.toFixed(3)}" y="${y.toFixed(3)}" dominant-baseline="middle" text-anchor="middle">${t}</text>`),
+        `<text x="10" y="${(totalH-5).toFixed(3)}" font-size="3.2" fill="#333">caseMaker v0.30 · ${Lx.toFixed(1)}×${Wy.toFixed(1)}×${Hz.toFixed(1)}mm · t=${t.toFixed(2)} · kerf+${kerf.toFixed(2)} · fingers=${fingers} · sep-tiles · single closed path · shared-skeleton</text>`,
+        `</g>`,
+        `</svg>`
+      ].join('\n');
+      fname = `caseMaker_${Lx.toFixed(1)}x${Wy.toFixed(1)}x${Hz.toFixed(1)}_t${t.toFixed(2)}_sepTiles_v030.svg`;
+    }else{
+      const M = 10;
+      const totalW = (Lx + 2*Wy) + 2*M;
+      const totalH = (Hz + Wy + Hz + Wy) + 2*M;
+      const xB = M + Wy, yB = M + Hz;
+      const rects = {
+        bottom: {x:xB, y:yB, w:Lx, h:Wy, ix:xB, iy:yB, iw:Lx, ih:Wy, ex:{top:0,right:0,bottom:0,left:0}},
+        front:  {x:xB, y:yB - Hz, w:Lx, h:Hz, ix:xB, iy:yB - Hz, iw:Lx, ih:Hz, ex:{top:0,right:0,bottom:0,left:0}},
+        back:   {x:xB, y:yB + Wy, w:Lx, h:Hz, ix:xB, iy:yB + Wy, iw:Lx, ih:Hz, ex:{top:0,right:0,bottom:0,left:0}},
+        left:   {x:xB - Wy, y:yB, w:Wy, h:Hz, ix:xB - Wy, iy:yB, iw:Wy, ih:Hz, ex:{top:0,right:0,bottom:0,left:0}},
+        right:  {x:xB + Lx, y:yB, w:Wy, h:Hz, ix:xB + Lx, iy:yB, iw:Wy, ih:Hz, ex:{top:0,right:0,bottom:0,left:0}},
+        top:    {x:xB, y:yB + Wy + Hz, w:Lx, h:Wy, ix:xB, iy:yB + Wy + Hz, iw:Lx, ih:Wy, ex:{top:0,right:0,bottom:0,left:0}}
+      };
+      const order = ['bottom','front','right','back','left','top'];
+      const parts = [];
+      const lbs=[];
+      for(const n of order){
+        const r = rects[n]; if(!r) continue;
+        parts.push(`<path d="${rectPathUnified(n,r,true,t,kerf,fingers,role,revMap)}" data-closed="true"/>`);
+        lbs.push([r.x+r.w/2, r.y+r.h/2, n]);
+      }
+      svg = [
+        `<?xml version="1.0" encoding="UTF-8" standalone="no"?>`,
+        `<svg xmlns="http://www.w3.org/2000/svg" width="${(totalW).toFixed(3)}mm" height="${(totalH).toFixed(3)}mm" viewBox="0 0 ${(totalW).toFixed(3)} ${(totalH).toFixed(3)}">`,
+        `<g fill="none" stroke="#000" stroke-width="0.10" stroke-linejoin="miter" shape-rendering="geometricPrecision">`,
+        ...parts,
+        `</g>`,
+        `<g fill="#666" font-size="4" font-family="monospace">`,
+        ...lbs.map(([x,y,t])=>`<text x="${x.toFixed(3)}" y="${y.toFixed(3)}" dominant-baseline="middle" text-anchor="middle">${t}</text>`),
+        `<text x="10" y="${(totalH-5).toFixed(3)}" font-size="3.2" fill="#333">caseMaker v0.30 · ${Lx.toFixed(1)}×${Wy.toFixed(1)}×${Hz.toFixed(1)}mm · t=${t.toFixed(2)} · kerf+${kerf.toFixed(2)} · fingers=${fingers} · NET · single closed path · shared-skeleton</text>`,
+        `</g>`,
+        `</svg>`
+      ].join('\n');
+      fname = `caseMaker_${Lx.toFixed(1)}x${Wy.toFixed(1)}x${Hz.toFixed(1)}_t${t.toFixed(2)}_NET_v030.svg`;
+    }
+
+    $('svgText').style.display='block';
+    $('svgText').value = svg;
+
+    // Blob 首選
+    let ok=false, url=null;
+    try{
+      const blob = new Blob([svg], {type:'image/svg+xml;charset=utf-8'});
+      url = (window.URL||window.webkitURL).createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download=fname; a.rel='noopener';
+      document.body.appendChild(a);
+      a.click(); a.remove();
+      ok=true;
+      logInfo(`已下載：<span class="mono">${fname}</span>`);
+    }catch(e){
+      console.warn('Blob download failed:', e);
+    }
+
+    // 次選：開新分頁
+    if(!ok){
+      try{
+        const dataUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+        const win = window.open(dataUrl, '_blank');
+        if(win){ ok=true; logInfo('已在新分頁開啟 SVG，請另存。'); }
+      }catch(e){
+        console.warn('Open new tab failed:', e);
+      }
+    }
+
+    // 提供兩個連結
+    const dataUrlInline = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+    showLinks(`<a class="link" href="${dataUrlInline}" target="_blank" rel="noopener">在新分頁開啟 SVG</a> · <a class="link" href="${dataUrlInline}" download="${fname}" rel="noopener">直接下載（若支援）</a>`);
+  }catch(e){
+    logInfo(`<span class="error">匯出發生錯誤：${e?.message||e}</span>`);
+    console.error(e);
+  }
+}
+
+// 綁定
+;['dimMode','len','wid','hei','thk','hasLid','fingers','kerf','explodeOn','explodeDist','depthMode','showBad'].forEach(id=>{
+  $(id).addEventListener('input', ()=>{
+    if(id==='fingers') $('fingersVal').textContent=$('fingers').value;
+    draw();
+  });
+});
+$('btnReset').addEventListener('click', ()=>{ cam.yaw=Math.PI/6; cam.pitch=-Math.PI/7; cam.zoom=1.1; draw(); });
+$('btnSVG').addEventListener('click', makeSVG);
+
+// 初始化
+function init(){ overlay.style.display='flex'; ensureSized(); }
+if(document.readyState==='loading'){ document.addEventListener('DOMContentLoaded', init); }
+else{ init(); }
+</script>
+</body>
+</html>

@@ -1,0 +1,769 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+<title>Leaf & Tree｜場景一＋二 合併（v0.81）</title>
+<style>
+  :root{ --bg:#0b1020; --panel:#0c1324; --ink:#e5eef8; --muted:#9fb0c9; --brand:#22c55e; --accent:#34d399 }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);font-family:ui-sans-serif,system-ui,"Noto Sans TC",Segoe UI,Roboto}
+  .app{display:grid;grid-template-rows:auto 1fr;height:100%}
+  header{display:flex;gap:8px;align-items:center;padding:10px 12px;border-bottom:1px solid #1f2a44;background:linear-gradient(180deg,#0e162a,#0b1222)}
+  header h1{font-size:16px;margin:0 10px 0 0}
+  .tabs{display:flex;gap:6px}
+  .tabs button{padding:8px 12px;border-radius:10px;border:1px solid #24324d;background:#0e1729;color:#e2e8f0;cursor:pointer}
+  .tabs button.on{background:linear-gradient(180deg,#0f2d1c,#0b1f14);border-color:#1e5139}
+  .wrap{display:grid;grid-template-columns:1fr 420px;height:100%}
+  #stage1,#stage2{position:relative;background:#0b1020;height:100%;min-height:360px}
+  canvas{display:block;width:100%;height:100%}
+  .panel{height:100%;overflow:auto;background:linear-gradient(180deg,var(--panel),#0a0f1b 55%);border-left:1px solid #1f2937;padding:14px 16px 120px}
+  h2{font-size:14px;margin:12px 0 6px;color:#cfe4d6}
+  .sec{border:1px solid #1f2937;border-radius:12px;padding:10px 10px;margin:10px 0}
+  .row{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;margin:6px 0}
+  .lbl{font-size:12px;color:var(--muted)}
+  .val{font-size:12px}
+  select,button{padding:8px 10px;border-radius:10px;background:#0e1729;border:1px solid #263142;color:#e2e8f0}
+  button.primary{background:linear-gradient(180deg,#0e2d1b,#0b1f14);border-color:#21543a;cursor:pointer}
+  input[type=range]{width:100%}
+  .kpi{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:8px}
+  .card{border:1px solid #1f2937;border-radius:12px;padding:10px;text-align:center}
+  .card b{display:block;font-size:16px}
+  .card span{display:block;color:#94a3b8;font-size:11px}
+  .io{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+  #diag{position:fixed;right:10px;top:10px;background:#0a1120e6;border:1px solid #1e293b;border-radius:10px;padding:8px 10px;color:#cbd5e1;font-size:12px;max-width:60ch;z-index:9999;display:none}
+  #diag.show{display:block}
+  .hide{display:none}
+  .hint{font-size:12px;color:#93a1b5;margin-top:8px;line-height:1.4}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>葉片設計（場景一）＋ 樹形生成（場景二）｜v0.81</h1>
+    <div class="tabs">
+      <button id="tab1" class="on">場景一：葉片</button>
+      <button id="tab2">場景二：樹形</button>
+    </div>
+  </header>
+
+  <!-- Scene 1 -->
+  <div id="view1" class="wrap">
+    <div id="stage1"></div>
+    <aside class="panel">
+      <h2>場景一：葉片參數</h2>
+      <div class="kpi">
+        <div class="card"><b id="kpiLeafArea">—</b><span>估算葉面積 (m²)</span></div>
+        <div class="card"><b id="kpiLeafVerts">—</b><span>頂點數</span></div>
+        <div class="card"><b id="kpiLeafFaces">—</b><span>面數</span></div>
+        <div class="card"><b id="kpiFPS1">—</b><span>FPS</span></div>
+      </div>
+
+      <section class="sec">
+        <div class="row"><label class="lbl">葉形</label>
+          <select id="leafShape">
+            <option value="ellipse" selected>橢圓</option>
+            <option value="ovate">卵形</option>
+            <option value="lanceolate">披針形</option>
+            <option value="cordate">心形</option>
+          </select>
+        </div>
+        <div class="row"><label class="lbl">葉長 (m)</label><span class="val" id="valLL"></span></div>
+        <input id="leafLen" type="range" min="0.06" max="0.40" step="0.01" value="0.20"/>
+        <div class="row"><label class="lbl">葉寬 (m)</label><span class="val" id="valLW"></span></div>
+        <input id="leafWid" type="range" min="0.03" max="0.25" step="0.005" value="0.10"/>
+        <div class="row"><label class="lbl">厚度 (m)</label><span class="val" id="valTh"></span></div>
+        <input id="leafThk" type="range" min="0.0005" max="0.0035" step="0.0001" value="0.0015"/>
+        <div class="row"><label class="lbl">葉尖收斂</label><span class="val" id="valTip"></span></div>
+        <input id="leafTip" type="range" min="0" max="1" step="0.01" value="0.35"/>
+        <div class="row"><label class="lbl">葉柄半徑 ≈ 厚度 ×</label><span class="val" id="valPetMul"></span></div>
+        <input id="petioleMul" type="range" min="1.5" max="4" step="0.1" value="2.5"/>
+        <div class="row"><label class="lbl">捲曲度（橫向）</label><span class="val" id="valCurveX"></span></div>
+        <input id="curveX" type="range" min="0" max="0.3" step="0.01" value="0"/>
+        <div class="row"><label class="lbl">扭轉度（縱向）</label><span class="val" id="valTwistY"></span></div>
+        <input id="twistY" type="range" min="0" max="1.0" step="0.02" value="0"/>
+        <div class="row"><label class="lbl">波浪幅度</label><span class="val" id="valWaveA"></span></div>
+        <input id="waveAmp" type="range" min="0" max="0.06" step="0.002" value="0"/>
+        <div class="row"><label class="lbl">波浪頻率</label><span class="val" id="valWaveF"></span></div>
+        <input id="waveFreq" type="range" min="0" max="20" step="1" value="0"/>
+        <div class="row"><label class="lbl">非對稱度</label><span class="val" id="valAsym"></span></div>
+        <input id="asym" type="range" min="0" max="0.5" step="0.01" value="0"/>
+      </section>
+
+      <div class="io">
+        <button id="btnLeafExport">匯出葉片 CSV</button>
+        <label style="display:flex;align-items:center;gap:8px;border:1px solid #263142;border-radius:12px;padding:8px 10px;background:#0e1729">
+          <span>匯入葉片 CSV</span>
+          <input id="fileLeafImport" type="file" accept=".csv,text/csv"/>
+        </label>
+      </div>
+      <div class="hint">葉片 CSV 預設檔名：<b>leafPreset.csv</b>（會同步套用到場景二）。</div>
+    </aside>
+  </div>
+
+  <!-- Scene 2 -->
+  <div id="view2" class="wrap hide">
+    <div id="stage2"></div>
+    <aside class="panel">
+      <h2>場景二：樹形生成（葉上限 30,000）</h2>
+      <div class="kpi">
+        <div class="card"><b id="kpiBranches">—</b><span>枝段數</span></div>
+        <div class="card"><b id="kpiLeaves">—</b><span>葉片數</span></div>
+        <div class="card"><b id="kpiFPS2">—</b><span>FPS</span></div>
+        <div class="card"><b id="kpiHeight">—</b><span>樹高 (m)</span></div>
+      </div>
+
+      <section class="sec">
+        <div class="row"><label class="lbl">外觀</label>
+          <select id="form">
+            <option value="rounded">圓傘</option>
+            <option value="oval" selected>橢圓/卵形</option>
+            <option value="columnar">柱形</option>
+            <option value="vase">花瓶/漏斗</option>
+            <option value="conical">圓錐/尖塔</option>
+            <option value="flatTop">扁頂</option>
+            <option value="weeping">垂枝</option>
+            <option value="spreading">擴張不規則</option>
+          </select>
+        </div>
+        <div class="row"><label class="lbl">冠幅 (m)</label><span class="val" id="valCrownR"></span></div>
+        <input id="crownR" type="range" min="1" max="8" step="0.1" value="3.0"/>
+        <div class="row"><label class="lbl">冠高 (m)</label><span class="val" id="valCrownH"></span></div>
+        <input id="crownH" type="range" min="1" max="12" step="0.1" value="4.5"/>
+        <div class="row"><label class="lbl">下垂程度</label><span class="val" id="valWeep"></span></div>
+        <input id="weeping" type="range" min="0" max="1" step="0.01" value="0.2"/>
+        <div class="row"><label class="lbl">頂部扁平</label><span class="val" id="valFlat"></span></div>
+        <input id="flatness" type="range" min="0" max="1" step="0.01" value="0.2"/>
+      </section>
+
+      <section class="sec">
+        <div class="row"><label class="lbl">分枝模式</label>
+          <select id="branchMode">
+            <option value="monopodial" selected>主軸型</option>
+            <option value="sympodial">假二歧/傘形</option>
+            <option value="whorled">輪生層級</option>
+            <option value="tiered">水平層板</option>
+            <option value="pendulous">垂枝</option>
+            <option value="shrubby">叢生灌木</option>
+          </select>
+        </div>
+        <div class="row"><label class="lbl">分枝層數（1–100）</label><span class="val" id="valMaxOrder"></span></div>
+        <input id="maxOrder" type="range" min="1" max="100" step="1" value="12"/>
+        <div class="row"><label class="lbl">平均分枝角 (°)</label><span class="val" id="valAngle"></span></div>
+        <input id="branchAngle" type="range" min="10" max="75" step="1" value="35"/>
+        <div class="row"><label class="lbl">角度變異</label><span class="val" id="valAngVar"></span></div>
+        <input id="branchAngleVar" type="range" min="0" max="30" step="1" value="8"/>
+        <div class="row"><label class="lbl">節間長 (m)</label><span class="val" id="valInternode"></span></div>
+        <input id="internode" type="range" min="0.05" max="0.60" step="0.01" value="0.22"/>
+        <div class="row"><label class="lbl">頂芽優勢</label><span class="val" id="valApical"></span></div>
+        <input id="apical" type="range" min="0" max="1" step="0.01" value="0.6"/>
+      </section>
+
+      <section class="sec">
+        <div class="row"><label class="lbl">葉序</label>
+          <select id="phyllo">
+            <option value="alternate" selected>互生螺旋</option>
+            <option value="opposite">對生</option>
+            <option value="decussate">十字對生</option>
+            <option value="whorled">輪生</option>
+            <option value="distichous">二列互生</option>
+            <option value="pseudoWhorl">假輪生</option>
+          </select>
+        </div>
+        <div class="row"><label class="lbl">互生角度 (°)</label><span class="val" id="valDiv"></span></div>
+        <input id="divergence" type="range" min="80" max="180" step="0.1" value="137.5"/>
+        <div class="row"><label class="lbl">節點密度 (/m)</label><span class="val" id="valNodes"></span></div>
+        <input id="nodesPerM" type="range" min="5" max="60" step="1" value="24"/>
+        <div class="row"><label class="lbl">對/輪生每節葉數</label><span class="val" id="valPairs"></span></div>
+        <input id="leafPairs" type="range" min="2" max="6" step="1" value="2"/>
+      </section>
+
+      <section class="sec">
+        <div class="row"><label class="lbl">葉叢模式</label>
+          <select id="clusterMode">
+            <option value="none" selected>無</option>
+            <option value="fascicles">束生/針葉簇</option>
+            <option value="spur">短枝簇</option>
+            <option value="terminal">枝端簇</option>
+            <option value="pseudoWhorl">假輪生簇</option>
+            <option value="banded">帶狀增密</option>
+          </select>
+        </div>
+        <div class="row"><label class="lbl">簇大小</label><span class="val" id="valCluSize"></span></div>
+        <input id="clusterSize" type="range" min="1" max="8" step="1" value="3"/>
+        <div class="row"><label class="lbl">簇緊密</label><span class="val" id="valCluTight"></span></div>
+        <input id="clusterTight" type="range" min="0" max="1" step="0.01" value="0.6"/>
+        <div class="row"><label class="lbl">端部簇機率</label><span class="val" id="valTermP"></span></div>
+        <input id="terminalP" type="range" min="0" max="1" step="0.01" value="0.2"/>
+      </section>
+
+      <section class="sec">
+        <div class="row"><label class="lbl">目標葉片數（≤30,000）</label><span class="val" id="valLeafCount"></span></div>
+        <input id="leafCount" type="range" min="500" max="30000" step="100" value="10000"/>
+        <div class="row"><label class="lbl">Instancing</label>
+          <select id="instancing">
+            <option value="on" selected>開</option>
+            <option value="off">關</option>
+          </select>
+        </div>
+      </section>
+
+      <div class="io">
+        <button id="btnGenerate" class="primary">生成樹形（用場景一葉片）</button>
+        <button id="btnReset">重設樹參數</button>
+      </div>
+
+      <div class="io">
+        <button id="btnExport">匯出樹形 CSV</button>
+        <label style="display:flex;align-items:center;gap:8px;border:1px solid #263142;border-radius:12px;padding:8px 10px;background:#0e1729">
+          <span>匯入樹形 CSV</span>
+          <input id="fileImport" type="file" accept=".csv,text/csv"/>
+        </label>
+      </div>
+      <div class="hint">樹形 CSV 檔名：<b>treeStructure.csv</b></div>
+    </aside>
+  </div>
+</div>
+
+<div id="diag"></div>
+
+<script type="module">
+import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js?module';
+import { OrbitControls } from 'https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js?module';
+
+// ------------- Utilities -------------
+const diagEl = document.getElementById('diag');
+function diag(msg, ok=false){ diagEl.classList.add('show'); diagEl.innerHTML = (ok?'<b style="color:#22c55e">OK</b> ':'<b style="color:#f97316">LOG</b> ') + String(msg); console.log('[DIAG]', msg); }
+window.addEventListener('error', e=>{ diag('錯誤：'+e.message); });
+window.addEventListener('unhandledrejection', e=>{ diag('Promise 拋錯：'+e.reason); });
+
+function clamp(x,a,b){ return Math.max(a, Math.min(b,x)); }
+function rnd(a,b){ return a + Math.random()*(b-a); }
+function rndi(a,b){ return Math.floor(a + Math.random()*(b-a+1)); }
+
+function label(id, val, fmt=(x)=>x){ const el=document.getElementById(id); if(el) el.textContent = fmt(val); }
+
+// ------------- Tabs -------------
+const tab1 = document.getElementById('tab1'), tab2=document.getElementById('tab2');
+const view1 = document.getElementById('view1'), view2 = document.getElementById('view2');
+tab1.onclick = ()=>{ tab1.classList.add('on'); tab2.classList.remove('on'); view1.classList.remove('hide'); view2.classList.add('hide'); resizeAll(); };
+tab2.onclick = ()=>{ tab2.classList.add('on'); tab1.classList.remove('on'); view2.classList.remove('hide'); view1.classList.add('hide'); resizeAll(); };
+
+// ------------- Scene 1: Leaf Designer -------------
+const stage1 = document.getElementById('stage1');
+const renderer1 = new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});
+renderer1.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer1.outputColorSpace = THREE.SRGBColorSpace;
+renderer1.setClearColor(0x0b1020, 1); stage1.appendChild(renderer1.domElement);
+const scene1 = new THREE.Scene();
+const camera1 = new THREE.PerspectiveCamera(50, 1, 0.001, 1000);
+camera1.position.set(0.4,0.25,0.6);
+const controls1 = new OrbitControls(camera1, renderer1.domElement);
+controls1.enableDamping = true; controls1.dampingFactor=0.06; controls1.target.set(0,0.1,0);
+scene1.add(new THREE.AmbientLight(0xffffff, 0.6));
+const d1 = new THREE.DirectionalLight(0xffffff, 0.9); d1.position.set(1,1.5,1); scene1.add(d1);
+const g1 = new THREE.GridHelper(3, 30, 0x334155, 0x1f2a44); g1.position.y = 0; scene1.add(g1);
+let leafMesh=null, petioleMesh=null;
+
+function getLeafParams(){
+  const p = {
+    leafShape: v('leafShape'),
+    leafLen: vf('leafLen'),
+    leafWid: vf('leafWid'),
+    leafThk: vf('leafThk'),
+    leafTip: vf('leafTip'),
+    petioleMul: vf('petioleMul'),
+    curveX: vf('curveX'),
+    twistY: vf('twistY'),
+    waveAmp: vf('waveAmp'),
+    waveFreq: vf('waveFreq'),
+    asym: vf('asym'),
+  };
+  syncLeafLabels(p);
+  return p;
+}
+function syncLeafLabels(p){
+  label('valLL', p.leafLen.toFixed(2));
+  label('valLW', p.leafWid.toFixed(3));
+  label('valTh', p.leafThk.toFixed(4));
+  label('valTip', p.leafTip.toFixed(2));
+  label('valPetMul', p.petioleMul.toFixed(1));
+  label('valCurveX', p.curveX.toFixed(2));
+  label('valTwistY', p.twistY.toFixed(2));
+  label('valWaveA', p.waveAmp.toFixed(3));
+  label('valWaveF', p.waveFreq.toFixed(0));
+  label('valAsym', p.asym.toFixed(2));
+}
+function v(id){ return document.getElementById(id).value; }
+function vf(id){ return parseFloat(document.getElementById(id).value); }
+
+function makeLeafGeometry(p){
+  // Base plane subdivided then deformed to leaf silhouette
+  const segU = 16, segV = 32;
+  const geo = new THREE.PlaneGeometry(1, 1, segU, segV);
+  // scale to length/width, pivot at petiole end (0,0)
+  geo.translate(0, 0.5, 0);
+  const pos = geo.attributes.position;
+  const tmp = new THREE.Vector3();
+  for(let i=0;i<pos.count;i++){
+    tmp.fromBufferAttribute(pos,i);
+    // tmp.x: [-0.5,0.5] across width; tmp.y: [0,1] along length from petiole (0) to tip (1)
+    let w = (p.leafWid) * (1 - p.leafTip*tmp.y); // tip narrowing
+    // shape factor by type
+    let axial = p.leafLen * (tmp.y);
+    let halfW = 0.5*w * shapeWidthProfile(p.leafShape, tmp.y, p.asym);
+    // wave on edges
+    const wav = p.waveAmp * Math.sin(tmp.y * Math.PI * p.waveFreq);
+    const xSigned = Math.sign(tmp.x);
+    let x = xSigned * (halfW + wav);
+    // transverse curvature (saddle-like when curveX>0)
+    const bendZ = p.curveX * (1 - Math.pow(1 - tmp.y, 2)) * (1 - (Math.abs(tmp.x)*2));
+    // apply twist along length
+    const tw = p.twistY * (tmp.y - 0.5);
+    const cosT = Math.cos(tw), sinT = Math.sin(tw);
+    let X = x*cosT;
+    let Z = x*sinT + bendZ;
+    pos.setXYZ(i, X, axial, Z);
+  }
+  pos.needsUpdate = true;
+  geo.computeVertexNormals();
+  // thickness not modeled in geo; we'll visualize via shading
+  return geo;
+}
+function shapeWidthProfile(kind, t, asym){
+  // t: 0..1 from petiole to tip. return [0..1] width scale profile
+  switch(kind){
+    case 'ovate': return Math.max(0, 1.2*t*(1 - 0.4*t) - 0.1*asym);
+    case 'lanceolate': return Math.max(0, 0.6 + 0.6*(1 - Math.pow(2*t-1,2)) - 0.2*t);
+    case 'cordate': return Math.max(0, 1.1*Math.sin(Math.min(1,t)*Math.PI*0.9) + 0.1*(0.5-t));
+    case 'ellipse':
+    default: return Math.sqrt(Math.max(0, 1 - Math.pow(2*t-1,2))); // ellipse
+  }
+}
+function makeLeafMaterial(){
+  const m = new THREE.MeshStandardMaterial({color:0xffffff, roughness:0.9, metalness:0.02, side:THREE.DoubleSide, vertexColors:true});
+  return m;
+}
+function applyLeafVertexColors(geo){
+  const n = geo.attributes.position.count;
+  const col = new Float32Array(n*3);
+  const cTip = new THREE.Color().setHSL(0.32,0.60,0.50);
+  const cBase = new THREE.Color().setHSL(0.30,0.72,0.42);
+  for(let i=0;i<n;i++){
+    // interpolate by y (axial)
+    const y = geo.attributes.position.getY(i);
+    const t = clamp((y)/getLeafParams().leafLen, 0, 1);
+    const c = cBase.clone().lerp(cTip, t);
+    col[i*3]=c.r; col[i*3+1]=c.g; col[i*3+2]=c.b;
+  }
+  geo.setAttribute('color', new THREE.BufferAttribute(col,3));
+}
+function rebuildLeaf(){
+  const p = getLeafParams();
+  // clear old
+  if(leafMesh){ scene1.remove(leafMesh); leafMesh.geometry.dispose(); leafMesh.material.dispose(); leafMesh=null; }
+  if(petioleMesh){ scene1.remove(petioleMesh); petioleMesh.geometry.dispose(); petioleMesh.material.dispose(); petioleMesh=null; }
+  // geo & mat
+  const geo = makeLeafGeometry(p); applyLeafVertexColors(geo);
+  const mat = makeLeafMaterial();
+  leafMesh = new THREE.Mesh(geo, mat);
+  scene1.add(leafMesh);
+  // petiole
+  const pr = p.leafThk * p.petioleMul;
+  const pl = Math.max(0.04, 0.18 * p.leafLen);
+  const petGeo = new THREE.CylinderGeometry(pr*0.7, pr, pl, 12);
+  petGeo.translate(0, -pl*0.5, 0);
+  const petMat = new THREE.MeshStandardMaterial({color:0x8b7355, roughness:0.95});
+  petioleMesh = new THREE.Mesh(petGeo, petMat);
+  leafMesh.add(petioleMesh);
+  // KPI
+  const verts = geo.attributes.position.count;
+  const faces = geo.index ? geo.index.count/3 : (verts/3);
+  const area = estimateLeafArea(p);
+  label('kpiLeafVerts', verts);
+  label('kpiLeafFaces', Math.round(faces));
+  label('kpiLeafArea', area.toFixed(4));
+  fitCam1(leafMesh, 1.8);
+}
+function estimateLeafArea(p){
+  // approximate ellipse-like area
+  return Math.PI * (p.leafLen*0.5) * (p.leafWid*0.5);
+}
+function fitCam1(obj, pad=1.8){
+  const box = new THREE.Box3().setFromObject(obj);
+  const size = new THREE.Vector3(); const center = new THREE.Vector3();
+  box.getSize(size); box.getCenter(center);
+  const radius = Math.max(size.x,size.y,size.z)/2 || 0.5;
+  const dist = radius / Math.tan((camera1.fov*Math.PI/180)/2) * pad;
+  const dir = new THREE.Vector3(0.8,0.6,0.8).normalize();
+  camera1.position.copy(center).addScaledVector(dir, dist);
+  camera1.near = Math.max(0.001, dist/1000);
+  camera1.far = dist*10 + 10;
+  camera1.updateProjectionMatrix();
+  controls1.target.copy(center); controls1.update();
+}
+
+// CSV for leaf
+const leafKeys = ["leafShape","leafLen","leafWid","leafThk","leafTip","petioleMul","curveX","twistY","waveAmp","waveFreq","asym"];
+function exportLeafCSV(){
+  const p = getLeafParams();
+  const head = leafKeys.join(',');
+  const vals = leafKeys.map(k=>p[k]);
+  const blob = new Blob([head+"\n"+vals.join(',')], {type:"text/csv"});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'leafPreset.csv';
+  a.click(); URL.revokeObjectURL(a.href);
+  diag('已匯出 leafPreset.csv', true);
+}
+function importLeafCSV(file){
+  const reader = new FileReader();
+  reader.onload = ()=>{
+    try{
+      const txt = String(reader.result).trim();
+      const lines = txt.split(/\r?\n/);
+      if(lines.length<2) throw new Error('CSV 無資料列');
+      const header = lines[0].split(',').map(s=>s.trim());
+      const vals = lines[1].split(',').map(s=>s.trim());
+      const map={}; header.forEach((k,i)=> map[k]=vals[i]);
+      leafKeys.forEach(k=>{
+        const el = document.getElementById(k);
+        if(el){
+          if(el.tagName==='SELECT') el.value = map[k];
+          else if(el.type==='range') el.value = map[k];
+        }
+      });
+      rebuildLeaf();
+      diag('葉片 CSV 匯入完成並已套用。', true);
+    }catch(err){ diag('葉片 CSV 匯入錯誤：'+err.message); }
+  };
+  reader.readAsText(file);
+}
+
+// ------------- Scene 2: Tree -------------
+const stage2 = document.getElementById('stage2');
+const renderer2 = new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});
+renderer2.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer2.outputColorSpace = THREE.SRGBColorSpace;
+renderer2.setClearColor(0x0b1020, 1); stage2.appendChild(renderer2.domElement);
+const scene2 = new THREE.Scene();
+const camera2 = new THREE.PerspectiveCamera(50, 1, 0.01, 5000);
+camera2.position.set(6,6,6);
+const controls2 = new OrbitControls(camera2, renderer2.domElement);
+controls2.enableDamping=true; controls2.dampingFactor=0.06; controls2.target.set(0,2,0);
+scene2.add(new THREE.AmbientLight(0xffffff, 0.45));
+const d2a = new THREE.DirectionalLight(0xffffff, 1.0); d2a.position.set(6,10,6); scene2.add(d2a);
+const d2b = new THREE.DirectionalLight(0xffffff, 0.6); d2b.position.set(-10,6,-6); scene2.add(d2b);
+const hemi2 = new THREE.HemisphereLight(0x93c5fd, 0x0b1020, 0.35); scene2.add(hemi2);
+const grid2 = new THREE.GridHelper(200, 100, 0x334155, 0x1f2a44); grid2.position.y=0; scene2.add(grid2);
+let trunkGroup=null, leafGroup=null;
+
+function makeLeafCardFromScene1(){
+  // build a simplified card using scene1 geometry projected to plane
+  const p = getLeafParams();
+  const g = new THREE.PlaneGeometry(p.leafWid*0.9, p.leafLen*0.9, 1, 1);
+  g.translate(0, p.leafLen*0.45, 0); // pivot at petiole end
+  // colors
+  const col = new Float32Array(4*3);
+  const cTop = new THREE.Color().setHSL(0.33,0.65,0.52);
+  const cBot = new THREE.Color().setHSL(0.30,0.70,0.42);
+  for(let i=0;i<4;i++){
+    const c = i<2? cBot : cTop;
+    col[i*3]=c.r; col[i*3+1]=c.g; col[i*3+2]=c.b;
+  }
+  g.setAttribute('color', new THREE.BufferAttribute(col,3));
+  return g;
+}
+function makeLeafMatCard(){
+  return new THREE.MeshStandardMaterial({color:0xffffff, roughness:0.9, metalness:0.02, side:THREE.DoubleSide, vertexColors:true});
+}
+
+function treeParams(){
+  return {
+    form: gv('form'),
+    crownR: gf('crownR'),
+    crownH: gf('crownH'),
+    weeping: gf('weeping'),
+    flatness: gf('flatness'),
+    branchMode: gv('branchMode'),
+    maxOrder: gi('maxOrder'),
+    branchAngle: gf('branchAngle'),
+    branchAngleVar: gf('branchAngleVar'),
+    internode: gf('internode'),
+    apical: gf('apical'),
+    phyllo: gv('phyllo'),
+    divergence: gf('divergence'),
+    nodesPerM: gi('nodesPerM'),
+    leafPairs: gi('leafPairs'),
+    clusterMode: gv('clusterMode'),
+    clusterSize: gi('clusterSize'),
+    clusterTight: gf('clusterTight'),
+    terminalP: gf('terminalP'),
+    leafCount: gi('leafCount'),
+    instancing: gv('instancing'),
+  };
+}
+function gv(id){ return document.getElementById(id).value; }
+function gf(id){ return parseFloat(document.getElementById(id).value); }
+function gi(id){ return parseInt(document.getElementById(id).value); }
+
+function syncTreeLabels(p){
+  label('valCrownR', p.crownR.toFixed(1));
+  label('valCrownH', p.crownH.toFixed(1));
+  label('valWeep', p.weeping.toFixed(2));
+  label('valFlat', p.flatness.toFixed(2));
+  label('valMaxOrder', p.maxOrder);
+  label('valAngle', p.branchAngle.toFixed(0));
+  label('valAngVar', p.branchAngleVar.toFixed(0));
+  label('valInternode', p.internode.toFixed(2));
+  label('valApical', p.apical.toFixed(2));
+  label('valDiv', p.divergence.toFixed(1));
+  label('valNodes', p.nodesPerM);
+  label('valPairs', p.leafPairs);
+  label('valCluSize', p.clusterSize);
+  label('valCluTight', p.clusterTight.toFixed(2));
+  label('valTermP', p.terminalP.toFixed(2));
+  label('valLeafCount', p.leafCount);
+}
+function fitCam2(obj, pad=1.6){
+  const box = new THREE.Box3().setFromObject(obj);
+  const size = new THREE.Vector3(); const center = new THREE.Vector3();
+  box.getSize(size); box.getCenter(center);
+  const radius = Math.max(size.x,size.y,size.z)/2 || 1;
+  const dist = radius / Math.tan((camera2.fov*Math.PI/180)/2) * pad;
+  const dir = new THREE.Vector3(1,0.6,1).normalize();
+  camera2.position.copy(center).addScaledVector(dir, dist);
+  camera2.near = Math.max(0.01, dist/1000);
+  camera2.far = dist*10 + 200;
+  camera2.updateProjectionMatrix();
+  controls2.target.copy(center); controls2.update();
+  label('kpiHeight', size.y.toFixed(2));
+}
+
+function buildTree(){
+  const p = treeParams();
+  syncTreeLabels(p);
+
+  // clean
+  if(trunkGroup){ scene2.remove(trunkGroup); trunkGroup.traverse(o=>{ if(o.geometry) o.geometry.dispose(); if(o.material && !o.material.isShaderMaterial) o.material.dispose(); }); trunkGroup=null; }
+  if(leafGroup){ scene2.remove(leafGroup); if(leafGroup.geometry) leafGroup.geometry.dispose(); if(leafGroup.material) leafGroup.material.dispose(); leafGroup=null; }
+
+  trunkGroup = new THREE.Group(); scene2.add(trunkGroup);
+  const trunkMat = new THREE.MeshStandardMaterial({color:0x8b7355, roughness:0.95});
+  const segs = [];
+
+  const angleMean = THREE.MathUtils.degToRad(p.branchAngle);
+  const angleVar = THREE.MathUtils.degToRad(p.branchAngleVar);
+  const nodeStep = p.internode;
+  const trunkHeight = p.crownH;
+  const trunkSegs = Math.ceil(trunkHeight / nodeStep);
+  const trunkGeom = new THREE.CylinderGeometry(0.18, 0.28, trunkHeight, 10);
+  trunkGeom.translate(0, trunkHeight/2, 0);
+  trunkGroup.add(new THREE.Mesh(trunkGeom, trunkMat));
+
+  const branchPts=[];
+  for(let i=1;i<=trunkSegs;i++){
+    const y = i * nodeStep; if(y>trunkHeight) break;
+    branchPts.push(new THREE.Vector3(0,y,0));
+  }
+  let branchCount=0;
+  const q = new THREE.Quaternion();
+  const tmpV = new THREE.Vector3();
+
+  function spawnBranch(origin, order, yawBase){
+    if(order>p.maxOrder || branchCount>6000) return;
+    const segN = rndi(2, clamp(Math.floor((p.crownR + p.crownH)*1.5),2,12));
+    let cur = origin.clone();
+    let yaw = yawBase;
+    for(let s=0;s<segN;s++){
+      const len = rnd(nodeStep*0.7, nodeStep*1.3);
+      const ang = angleMean + rnd(-angleVar, angleVar);
+      yaw += THREE.MathUtils.degToRad(rnd(40, 160));
+      const up = new THREE.Vector3(0,1,0);
+      const right = new THREE.Vector3(Math.cos(yaw), 0, Math.sin(yaw));
+      tmpV.copy(up).multiplyScalar(Math.cos(ang)).addScaledVector(right, Math.sin(ang));
+      const relH = clamp(cur.y / p.crownH, 0, 1);
+      const flatCap = (p.form==='flatTop') ? (relH>0.8 ? -0.4 : 0) : 0;
+      tmpV.y += -p.weeping*0.6 + flatCap;
+      const nxt = cur.clone().addScaledVector(tmpV.normalize(), len);
+      const radAtY = p.crownR * (p.form==='conical' ? (1 - relH) : p.form==='vase' ? (0.6+0.8*relH) : 1.0);
+      const rxy = Math.hypot(nxt.x, nxt.z);
+      if(rxy>radAtY){ const k = radAtY / (rxy+1e-6); nxt.x*=k; nxt.z*=k; }
+      if(nxt.y<0) nxt.y=0; if(nxt.y>p.crownH) nxt.y=p.crownH;
+      const segLen = nxt.distanceTo(cur);
+      if(segLen<1e-3) continue;
+      const cyl = new THREE.CylinderGeometry(Math.max(0.02, 0.14*Math.pow(0.82,order)), Math.max(0.03, 0.2*Math.pow(0.8,order)), segLen, 6);
+      const m = new THREE.Matrix4();
+      const axis = new THREE.Vector3(0,1,0);
+      const segDir = new THREE.Vector3().subVectors(nxt, cur).normalize();
+      q.setFromUnitVectors(axis, segDir);
+      m.makeRotationFromQuaternion(q);
+      m.setPosition(new THREE.Vector3().addVectors(cur, nxt).multiplyScalar(0.5));
+      cyl.applyMatrix4(m);
+      trunkGroup.add(new THREE.Mesh(cyl, trunkMat));
+      segs.push({pos:nxt.clone(), dir:segDir.clone(), order});
+      cur.copy(nxt);
+      branchCount++; if(branchCount>6000) break;
+    }
+    if(order<p.maxOrder){
+      const childN = rndi(1, (p.branchMode==='whorled'||p.branchMode==='tiered')?3:2);
+      for(let c=0;c<childN;c++){
+        spawnBranch(cur, order+1, THREE.MathUtils.degToRad(rnd(0,360)));
+      }
+    }
+  }
+  branchPts.forEach((pt,i)=>{
+    const chance = 0.6 * (1 - Math.pow(1 - i/branchPts.length, 1.2));
+    if(Math.random()<chance) spawnBranch(pt, 1, THREE.MathUtils.degToRad(rnd(0,360)));
+  });
+
+  // Leaves (instanced or group) using scene1 leaf params (card)
+  const totalLeaves = clamp(gi('leafCount'), 0, 30000);
+  const instanced = (gv('instancing')==='on');
+  const geoLeaf = makeLeafCardFromScene1();
+  const matLeaf = makeLeafMatCard();
+  const spacing = Math.max(1, Math.floor(segs.length / Math.max(totalLeaves,1)));
+
+  if(instanced){
+    const mesh = new THREE.InstancedMesh(geoLeaf, matLeaf, totalLeaves);
+    const m4 = new THREE.Matrix4(); const q4 = new THREE.Quaternion(); const s3 = new THREE.Vector3();
+    for(let i=0;i<totalLeaves;i++){
+      const j = (i*spacing) % segs.length;
+      const {pos,order} = segs[j];
+      const scale = 1.0*Math.pow(0.93, order) * (0.85 + 0.35*Math.random());
+      const yaw = rnd(0, Math.PI*2);
+      const pitch = rnd(-0.8, 0.2);
+      q4.setFromEuler(new THREE.Euler(pitch, yaw, 0));
+      s3.set(scale, scale, scale);
+      m4.compose(new THREE.Vector3(
+        pos.x + rnd(-0.12,0.12), pos.y + rnd(-0.12,0.12), pos.z + rnd(-0.12,0.12)
+      ), q4, s3);
+      mesh.setMatrixAt(i, m4);
+    }
+    mesh.instanceMatrix.needsUpdate = true;
+    leafGroup = mesh; trunkGroup.add(leafGroup);
+  }else{
+    const group = new THREE.Group();
+    for(let i=0;i<totalLeaves;i++){
+      const j = (i*spacing) % segs.length;
+      const {pos,order} = segs[j];
+      const scale = 1.0*Math.pow(0.93, order) * (0.85 + 0.35*Math.random());
+      const yaw = rnd(0, Math.PI*2);
+      const pitch = rnd(-0.8, 0.2);
+      const mleaf = new THREE.Mesh(geoLeaf, matLeaf);
+      mleaf.position.set(pos.x + rnd(-0.12,0.12), pos.y + rnd(-0.12,0.12), pos.z + rnd(-0.12,0.12));
+      mleaf.rotation.set(pitch, yaw, 0);
+      mleaf.scale.setScalar(scale);
+      group.add(mleaf);
+    }
+    leafGroup = group; trunkGroup.add(leafGroup);
+  }
+
+  label('kpiBranches', branchCount);
+  label('kpiLeaves', totalLeaves);
+  fitCam2(trunkGroup, 1.5);
+  diag('場景二：樹形生成完成。枝 '+branchCount+'，葉 '+totalLeaves, true);
+}
+
+// CSV for tree
+const treeKeys = ["form","crownR","crownH","weeping","flatness","branchMode","maxOrder","branchAngle","branchAngleVar","internode","apical","phyllo","divergence","nodesPerM","leafPairs","clusterMode","clusterSize","clusterTight","terminalP","leafCount","instancing"];
+function exportTreeCSV(){
+  const p = treeParams();
+  const head = treeKeys.join(',');
+  const vals = treeKeys.map(k=>p[k]);
+  const blob = new Blob([head+"\n"+vals.join(',')], {type:'text/csv'});
+  const a = document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='treeStructure.csv'; a.click();
+  URL.revokeObjectURL(a.href); diag('已匯出 treeStructure.csv', true);
+}
+function importTreeCSV(file){
+  const reader = new FileReader();
+  reader.onload = ()=>{
+    try{
+      const txt = String(reader.result).trim();
+      const lines = txt.split(/\r?\n/);
+      if(lines.length<2) throw new Error('CSV 無資料列');
+      const header = lines[0].split(',').map(s=>s.trim());
+      const vals = lines[1].split(',').map(s=>s.trim());
+      const map={}; header.forEach((k,i)=> map[k]=vals[i]);
+      treeKeys.forEach(k=>{
+        const el = document.getElementById(k);
+        if(el){
+          if(el.tagName==='SELECT') el.value = map[k];
+          else if(el.type==='range') el.value = map[k];
+        }
+      });
+      syncTreeLabels(treeParams());
+      diag('樹形 CSV 匯入完成（請按 生成樹形 以重建）', true);
+    }catch(err){ diag('樹形 CSV 匯入錯誤：'+err.message); }
+  };
+  reader.readAsText(file);
+}
+
+// ------------- Resize & Loops -------------
+function sizeOf(el){
+  const r = el.getBoundingClientRect();
+  return {w: Math.max(100, Math.floor(r.width)), h: Math.max(100, Math.floor(r.height))};
+}
+function resizeAll(){
+  // scene1
+  if(!view1.classList.contains('hide')){
+    const s = sizeOf(stage1); renderer1.setSize(s.w, s.h); camera1.aspect = s.w/s.h; camera1.updateProjectionMatrix();
+  }
+  // scene2
+  if(!view2.classList.contains('hide')){
+    const s2 = sizeOf(stage2); renderer2.setSize(s2.w, s2.h); camera2.aspect = s2.w/s2.h; camera2.updateProjectionMatrix();
+  }
+}
+window.addEventListener('resize', resizeAll);
+
+let last1=performance.now(), f1=0, last2=performance.now(), f2=0;
+function loop(){
+  // scene1
+  if(!view1.classList.contains('hide')){
+    f1++; const now=performance.now(); if(now-last1>1000){ label('kpiFPS1', f1); f1=0; last1=now; }
+    controls1.update(); renderer1.render(scene1,camera1);
+  }
+  // scene2
+  if(!view2.classList.contains('hide')){
+    f2++; const now2=performance.now(); if(now2-last2>1000){ label('kpiFPS2', f2); f2=0; last2=now2; }
+    controls2.update(); renderer2.render(scene2,camera2);
+  }
+  requestAnimationFrame(loop);
+}
+
+// ------------- UI Bindings -------------
+document.getElementById('btnLeafExport').onclick = exportLeafCSV;
+document.getElementById('fileLeafImport').addEventListener('change', e=>{
+  const f = e.target.files?.[0]; if(f) importLeafCSV(f);
+});
+
+document.getElementById('btnGenerate').onclick = buildTree;
+document.getElementById('btnReset').onclick = ()=>{
+  // reset scene2 controls to defaults (value attributes)
+  ["form","branchMode","phyllo","clusterMode","instancing"].forEach(id=>{
+    const el=document.getElementById(id); el.value = el.querySelector('option[selected]')?el.querySelector('option[selected]').value:el.options[0].value;
+  });
+  ["crownR","crownH","weeping","flatness","maxOrder","branchAngle","branchAngleVar","internode","apical","divergence","nodesPerM","leafPairs","clusterSize","clusterTight","terminalP","leafCount"].forEach(id=>{
+    const el=document.getElementById(id); el.value = el.getAttribute('value');
+  });
+  syncTreeLabels(treeParams());
+  diag('樹形參數已重設。');
+};
+document.getElementById('btnExport').onclick = exportTreeCSV;
+document.getElementById('fileImport').addEventListener('change', e=>{
+  const f = e.target.files?.[0]; if(f) importTreeCSV(f);
+});
+
+// ------------- Init -------------
+function init(){
+  resizeAll();
+  rebuildLeaf();               // Scene 1: build default leaf
+  tab2.click();                // switch to Scene 2 by default so你一打開就能測
+  buildTree();                 // build default tree using Scene 1 leaf
+  diag('v0.81 已啟動：場景一＋二合併。開啟即生成樹（葉上限 30,000）。', true);
+  loop();
+}
+init();
+</script>
+</body>
+</html>

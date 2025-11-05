@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"/>
+<title>leaf_tree_v0.90-online（回復 0.752 場景一＋場景二三整合）</title>
+<style>
+  :root{--bg:#0b1020;--panel:#0c1324;--ink:#eaf2ff;--muted:#9fb0c9}
+  html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);font-family:ui-sans-serif,system-ui,"Noto Sans TC",Segoe UI,Roboto}
+  .app{display:grid;grid-template-columns:1fr 420px;height:100%}
+  #stageWrap{position:relative;height:100%}
+  #s1,#s2,#s3{position:absolute;inset:0;background:#0b1020}
+  canvas{display:block;width:100%;height:100%}
+  aside.panel{height:100%;overflow:auto;background:linear-gradient(180deg,#0c1324,#0a0f1b 60%);border-left:1px solid #1f2937;padding:14px 16px 120px}
+  h2{font-size:14px;margin:10px 0 8px;color:#cfe4d6}
+  .sec{border:1px solid #1f2937;border-radius:12px;padding:10px;margin:10px 0}
+  .row{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;margin:6px 0}
+  .lbl{font-size:12px;color:var(--muted)}
+  .val{font-size:12px}
+  input[type=range]{width:100%}
+  select,button{padding:8px 10px;border-radius:10px;background:#0e1729;border:1px solid #263142;color:#e2e8f0;cursor:pointer}
+  .kpi{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:8px 0}
+  .card{border:1px solid #1f2937;border-radius:12px;padding:8px;text-align:center}
+  .hide{display:none}
+  .tabs{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+  .on{background:#17314e}
+  .hint{font-size:12px;color:#93a1b5}
+  #diag{position:fixed;left:10px;bottom:10px;background:#0a1120e6;border:1px solid #1e293b;border-radius:10px;padding:8px 10px;color:#cbd5e1;font-size:12px;max-width:60ch;z-index:9999;display:none;white-space:pre-wrap}
+  #diag.show{display:block}
+  #overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:#0b1020;color:#cbd5e1}
+</style>
+
+<!-- 以 import map 確保 OrbitControls 內部 `import 'three'` 能解析 -->
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://esm.sh/three@0.160.0",
+    "three/examples/jsm/controls/OrbitControls.js": "https://esm.sh/three@0.160.0/examples/jsm/controls/OrbitControls"
+  }
+}
+</script>
+</head>
+<body>
+<div class="app">
+  <div id="stageWrap">
+    <div id="s1"></div>
+    <div id="s2" class="hide"></div>
+    <div id="s3" class="hide"></div>
+    <div id="overlay">載入核心庫…</div>
+  </div>
+  <aside class="panel">
+    <div class="sec">
+      <div class="tabs">
+        <button id="tab1" class="on">場景一：葉片（0.752）</button>
+        <button id="tab2">場景二：樹形</button>
+        <button id="tab3">場景三：落葉</button>
+      </div>
+      <div class="hint" style="margin-top:8px">右側面板即時生效；切換分頁不會重置參數。若載入失敗，左下角會顯示原因。</div>
+    </div>
+
+    <!-- Scene 1 controls (回復 0.752 規格：預設橢圓、捲曲/扭轉/波幅/頻率/非對稱皆 0、葉柄半徑≈厚度×2.5、CSV 匯入匯出) -->
+    <div id="p1" class="sec">
+      <h2>場景一：葉片（0.752）</h2>
+      <div class="kpi">
+        <div class="card"><b id="kpiArea">—</b><div class="hint">葉面積 m²（橢圓估算）</div></div>
+        <div class="card"><b id="kpiVerts">—</b><div class="hint">頂點</div></div>
+        <div class="card"><b id="kpiFaces">—</b><div class="hint">面數</div></div>
+        <div class="card"><b id="kpiFPS1">—</b><div class="hint">FPS</div></div>
+      </div>
+      <div class="row"><label class="lbl">葉形</label>
+        <select id="leafShape">
+          <option value="ellipse" selected>橢圓</option>
+          <option value="ovate">卵形</option>
+          <option value="lanceolate">披針形</option>
+          <option value="cordate">心形</option>
+        </select>
+      </div>
+      <div class="row"><label class="lbl">葉長 (m)</label><span class="val" id="valLen">0.20</span></div>
+      <input id="leafLen" type="range" min="0.06" max="0.40" step="0.01" value="0.20"/>
+      <div class="row"><label class="lbl">葉寬 (m)</label><span class="val" id="valWid">0.10</span></div>
+      <input id="leafWid" type="range" min="0.03" max="0.25" step="0.005" value="0.10"/>
+      <div class="row"><label class="lbl">厚度 (m)</label><span class="val" id="valThk">0.0015</span></div>
+      <input id="leafThk" type="range" min="0.0005" max="0.0035" step="0.0001" value="0.0015"/>
+      <div class="row"><label class="lbl">葉尖收斂</label><span class="val" id="valTip">0.35</span></div>
+      <input id="leafTip" type="range" min="0" max="1" step="0.01" value="0.35"/>
+      <div class="row"><label class="lbl">葉柄半徑 ≈ 厚度 ×</label><span class="val" id="valPet">2.5</span></div>
+      <input id="petMul" type="range" min="1.5" max="4" step="0.1" value="2.5"/>
+      <div class="row"><label class="lbl">捲曲度（橫向）</label><span class="val" id="valCX">0</span></div>
+      <input id="curveX" type="range" min="0" max="0.3" step="0.01" value="0"/>
+      <div class="row"><label class="lbl">扭轉度（縱向）</label><span class="val" id="valTY">0</span></div>
+      <input id="twistY" type="range" min="0" max="1.0" step="0.02" value="0"/>
+      <div class="row"><label class="lbl">波浪幅度</label><span class="val" id="valWA">0</span></div>
+      <input id="waveAmp" type="range" min="0" max="0.06" step="0.002" value="0"/>
+      <div class="row"><label class="lbl">波浪頻率</label><span class="val" id="valWF">0</span></div>
+      <input id="waveFreq" type="range" min="0" max="20" step="1" value="0"/>
+      <div class="row"><label class="lbl">非對稱度</label><span class="val" id="valASY">0</span></div>
+      <input id="asym" type="range" min="0" max="0.5" step="0.01" value="0"/>
+      <div class="sec" style="margin-top:10px">
+        <button id="btnLeafExport">匯出葉片 CSV</button>
+        <label style="display:flex;align-items:center;gap:8px;margin-left:8px">
+          <span class="lbl">匯入</span><input id="fileLeafImport" type="file" accept=".csv,text/csv"/>
+        </label>
+      </div>
+    </div>
+
+    <!-- Scene 2 controls（保留即時更新＋葉片上限 30000） -->
+    <div id="p2" class="sec hide">
+      <h2>場景二：樹形（楓／橡／松／柳／榕）</h2>
+      <div class="kpi">
+        <div class="card"><b id="kpiBranches">—</b><div class="hint">枝段數</div></div>
+        <div class="card"><b id="kpiLeaves">—</b><div class="hint">葉片數</div></div>
+        <div class="card"><b id="kpiFPS2">—</b><div class="hint">FPS</div></div>
+        <div class="card"><b id="kpiHeight">—</b><div class="hint">樹高 m</div></div>
+      </div>
+      <div class="row"><label class="lbl">樹型預設</label>
+        <select id="preset">
+          <option value="maple" selected>楓</option>
+          <option value="oak">橡</option>
+          <option value="pine">松</option>
+          <option value="willow">柳</option>
+          <option value="banyan">榕</option>
+        </select>
+      </div>
+      <div class="row"><label class="lbl">外觀</label>
+        <select id="form">
+          <option value="rounded">圓傘</option>
+          <option value="oval" selected>橢圓</option>
+          <option value="columnar">柱形</option>
+          <option value="vase">花瓶</option>
+          <option value="conical">圓錐</option>
+          <option value="flatTop">扁頂</option>
+          <option value="weeping">垂枝</option>
+          <option value="spreading">擴張</option>
+        </select>
+      </div>
+      <div class="row"><label class="lbl">冠幅 (m)</label><span class="val" id="valCR">3.0</span></div>
+      <input id="crownR" type="range" min="1" max="8" step="0.1" value="3.0"/>
+      <div class="row"><label class="lbl">冠高 (m)</label><span class="val" id="valCH">4.5</span></div>
+      <input id="crownH" type="range" min="1" max="12" step="0.1" value="4.5"/>
+      <div class="row"><label class="lbl">分枝模式</label>
+        <select id="branchMode">
+          <option value="monopodial" selected>主軸型</option>
+          <option value="sympodial">假二歧</option>
+          <option value="whorled">輪生</option>
+          <option value="tiered">層板</option>
+          <option value="pendulous">垂枝</option>
+          <option value="shrubby">灌木</option>
+        </select>
+      </div>
+      <div class="row"><label class="lbl">分枝層數 5–30（預設 15）</label><span class="val" id="valOrder">15</span></div>
+      <input id="maxOrder" type="range" min="5" max="30" step="1" value="15"/>
+      <div class="row"><label class="lbl">平均分枝角 (°)</label><span class="val" id="valAng">35</span></div>
+      <input id="branchAngle" type="range" min="10" max="75" step="1" value="35"/>
+      <div class="row"><label class="lbl">角度變異</label><span class="val" id="valAngV">8</span></div>
+      <input id="branchAngleVar" type="range" min="0" max="30" step="1" value="8"/>
+      <div class="row"><label class="lbl">節間長 (m)</label><span class="val" id="valIN">0.22</span></div>
+      <input id="internode" type="range" min="0.05" max="0.60" step="0.01" value="0.22"/>
+      <div class="row"><label class="lbl">葉序</label>
+        <select id="phyllo">
+          <option value="alternate" selected>互生螺旋</option>
+          <option value="opposite">對生</option>
+          <option value="decussate">十字對生</option>
+          <option value="whorled">輪生</option>
+          <option value="distichous">二列互生</option>
+          <option value="pseudoWhorl">假輪生</option>
+        </select>
+      </div>
+      <div class="row"><label class="lbl">著生角度 (°)</label><span class="val" id="valDiv">137.5</span></div>
+      <input id="divergence" type="range" min="80" max="180" step="0.1" value="137.5"/>
+      <div class="row"><label class="lbl">節點密度 (/m)</label><span class="val" id="valND">24</span></div>
+      <input id="nodesPerM" type="range" min="5" max="60" step="1" value="24"/>
+      <div class="row"><label class="lbl">對/輪生每節葉數</label><span class="val" id="valPairs">2</span></div>
+      <input id="leafPairs" type="range" min="2" max="6" step="1" value="2"/>
+      <div class="row"><label class="lbl">葉片數（50–30000）</label><span class="val" id="valLC">200</span></div>
+      <input id="leafCount" type="range" min="50" max="30000" step="50" value="200"/>
+      <div class="row"><label class="lbl">Instancing</label>
+        <select id="instancing"><option value="on" selected>開</option><option value="off">關</option></select>
+      </div>
+    </div>
+
+    <!-- Scene 3 controls（顏色變化 → 落葉 → 堆積；落葉倍率/再長回速度） -->
+    <div id="p3" class="sec hide">
+      <h2>場景三：落葉（綠→黃→橘紅→飄落→堆積→再長回）</h2>
+      <div class="kpi">
+        <div class="card"><b id="kpiActive">—</b><div class="hint">模擬葉片</div></div>
+        <div class="card"><b id="kpiGrounded">—</b><div class="hint">已落地</div></div>
+        <div class="card"><b id="kpiFPS3">—</b><div class="hint">FPS</div></div>
+        <div class="card"><b id="kpiWind">—</b><div class="hint">風速</div></div>
+      </div>
+      <div class="row"><label class="lbl">落葉倍率 (0.1×–20×)</label><span class="val" id="valFR">1×</span></div>
+      <input id="fallRate" type="range" min="0.1" max="20" step="0.1" value="1"/>
+      <div class="row"><label class="lbl">再長回速度 (0×–20×)</label><span class="val" id="valRG">0×</span></div>
+      <input id="regrowRate" type="range" min="0" max="20" step="0.1" value="0"/>
+      <div class="row" style="margin-top:8px">
+        <label style="display:flex;align-items:center;gap:8px">
+          <input id="sunAnim" type="checkbox" checked/><span class="lbl">斜射陽光隨時間移動</span>
+        </label>
+      </div>
+      <div class="hint">風場：Perlin 噪音；葉片會翻轉、之字形滑落；取消季節時間倍率，保留落葉倍率與再長回速度。</div>
+    </div>
+
+  </aside>
+</div>
+
+<div id="diag"></div>
+
+<script type="module">
+const diagEl=document.getElementById('diag');
+const overlay=document.getElementById('overlay');
+const diag=(m)=>{diagEl.textContent=m; diagEl.classList.add('show');};
+
+let THREE, OrbitControls;
+try{
+  THREE = await import('three');
+  ({ OrbitControls } = await import('three/examples/jsm/controls/OrbitControls.js'));
+  overlay.remove();
+}catch(e){
+  diag('載入 three 失敗：\\n'+e.message+'\\n（若學校網路封鎖 CDN，請改用離線版）');
+  document.getElementById('overlay').innerHTML='⚠️ 無法載入 three.js';
+  throw e;
+}
+
+const $=(id)=>document.getElementById(id);
+const label=(id,v)=>{const el=$(id); if(el) el.textContent=v;};
+function clamp(x,a,b){return Math.max(a,Math.min(b,x));}
+function rnd(a,b){return a+Math.random()*(b-a);}
+function rndi(a,b){return Math.floor(a+Math.random()*(b-a+1));}
+
+/* Tabs */
+$('#tab1').onclick=()=>show(1);
+$('#tab2').onclick=()=>{ show(2); buildTree(); };
+$('#tab3').onclick=()=>{ show(3); buildScene3FromTree(); };
+
+function show(n){
+  ['tab1','tab2','tab3'].forEach((t,i)=>$(t).classList.toggle('on', i===n-1));
+  ['s1','s2','s3'].forEach((v,i)=>$(v).classList.toggle('hide', i!==n-1));
+  ['p1','p2','p3'].forEach((v,i)=>$(v).classList.toggle('hide', i!==n-1));
+  resizeAll();
+}
+
+/*** Scene 1: 回復 0.752 ***/
+const s1=$('s1');
+const r1=new THREE.WebGLRenderer({antialias:true}); r1.setPixelRatio(Math.min(devicePixelRatio,2)); s1.appendChild(r1.domElement);
+r1.setClearColor(0x0b1020,1);
+const sc1=new THREE.Scene();
+const c1=new THREE.PerspectiveCamera(50,1,0.001,1000); c1.position.set(0.4,0.25,0.6);
+const o1=new OrbitControls(c1,r1.domElement); o1.enableDamping=true; o1.target.set(0,0.1,0);
+sc1.add(new THREE.AmbientLight(0xffffff,0.6)); const dl1=new THREE.DirectionalLight(0xffffff,0.9); dl1.position.set(1,1.5,1); sc1.add(dl1);
+sc1.add(new THREE.GridHelper(3,30,0x334155,0x1f2a44));
+let leafMesh=null, petioleMesh=null;
+
+function leafParams(){
+  const p={
+    leafShape: $('leafShape').value,
+    len: parseFloat($('leafLen').value),
+    wid: parseFloat($('leafWid').value),
+    thk: parseFloat($('leafThk').value),
+    tip: parseFloat($('leafTip').value),
+    pet: parseFloat($('petMul').value),
+    cx: parseFloat($('curveX').value),
+    ty: parseFloat($('twistY').value),
+    wa: parseFloat($('waveAmp').value),
+    wf: parseFloat($('waveFreq').value),
+    asy: parseFloat($('asym').value)
+  };
+  label('valLen',p.len.toFixed(2)); label('valWid',p.wid.toFixed(3)); label('valThk',p.thk.toFixed(4)); label('valTip',p.tip.toFixed(2));
+  label('valPet',p.pet.toFixed(1)); label('valCX',p.cx.toFixed(2)); label('valTY',p.ty.toFixed(2)); label('valWA',p.wa.toFixed(3)); label('valWF',p.wf.toFixed(0)); label('valASY',p.asy.toFixed(2));
+  return p;
+}
+function shapeWidthProfile(kind,t,asym){
+  switch(kind){
+    case 'ovate': return Math.max(0,1.2*t*(1-0.4*t)-0.1*asym);
+    case 'lanceolate': return Math.max(0,0.6+0.6*(1-Math.pow(2*t-1,2))-0.2*t);
+    case 'cordate': return Math.max(0,1.1*Math.sin(Math.min(1,t)*Math.PI*0.9)+0.1*(0.5-t));
+    default: return Math.sqrt(Math.max(0,1-Math.pow(2*t-1,2))); // ellipse
+  }
+}
+function makeLeafGeometry(p){
+  const segU=16, segV=32;
+  const geo=new THREE.PlaneGeometry(1,1,segU,segV);
+  geo.translate(0,0.5,0); // 0..1 along Y
+  const pos=geo.attributes.position;
+  for(let i=0;i<pos.count;i++){
+    let x=pos.getX(i), y=pos.getY(i);
+    let w=p.wid*(1-p.tip*y);
+    let axial=p.len*(y);
+    let halfW=0.5*w*shapeWidthProfile(p.leafShape,y,p.asy);
+    const wav=p.wa*Math.sin(y*Math.PI*p.wf);
+    const xs=Math.sign(x); x=xs*(halfW+wav);
+    const bendZ=p.cx*(1-Math.pow(1-y,2))*(1-(Math.abs(x)*2));
+    const tw=p.ty*(y-0.5), c=Math.cos(tw), s=Math.sin(tw);
+    let X=x*c; let Z=x*s + bendZ;
+    pos.setXYZ(i, X, axial, Z);
+  }
+  pos.needsUpdate=true; geo.computeVertexNormals(); return geo;
+}
+function applyLeafVertexColors(geo, phase){
+  const n=geo.attributes.position.count; const col=new Float32Array(n*3);
+  const cG=new THREE.Color().setHSL(0.32,0.65,0.50);
+  const cY=new THREE.Color().setHSL(0.16,0.85,0.55);
+  const cO=new THREE.Color().setHSL(0.07,0.85,0.50);
+  for(let i=0;i<n;i++){
+    let c; if(phase<0.5) c=cG.clone().lerp(cY,phase*2); else c=cY.clone().lerp(cO,(phase-0.5)*2);
+    const t=Math.min(1, Math.max(0, geo.attributes.position.getY(i)/parseFloat($('leafLen').value)));
+    c.lerp(new THREE.Color(1,1,1),0.15*t);
+    col[i*3]=c.r; col[i*3+1]=c.g; col[i*3+2]=c.b;
+  }
+  geo.setAttribute('color', new THREE.BufferAttribute(col,3));
+}
+function rebuildLeaf(){
+  const p=leafParams();
+  if(leafMesh){ sc1.remove(leafMesh); leafMesh.geometry.dispose(); leafMesh.material.dispose(); }
+  if(petioleMesh){ sc1.remove(petioleMesh); petioleMesh.geometry.dispose(); petioleMesh.material.dispose(); }
+  const geo=makeLeafGeometry(p); applyLeafVertexColors(geo,0);
+  const mat=new THREE.MeshStandardMaterial({color:0xffffff,roughness:0.9,metalness:0.02,side:THREE.DoubleSide,vertexColors:true});
+  leafMesh=new THREE.Mesh(geo,mat); sc1.add(leafMesh);
+  const pr=p.thk*p.pet; const pl=Math.max(0.04,0.18*p.len);
+  const petG=new THREE.CylinderGeometry(pr*0.7,pr,pl,10); petG.translate(0,-pl*0.5,0);
+  petioleMesh=new THREE.Mesh(petG,new THREE.MeshStandardMaterial({color:0x8b7355,roughness:0.95})); leafMesh.add(petioleMesh);
+  const verts=geo.attributes.position.count; const faces=geo.index?geo.index.count/3:(verts/3);
+  const area=Math.PI*(p.len*0.5)*(p.wid*0.5);
+  label('kpiVerts',verts); label('kpiFaces',Math.round(faces)); label('kpiArea',area.toFixed(4));
+  fitCam(sc1,c1,o1,leafMesh,1.8);
+}
+
+/*** CSV for Scene1 ***/
+const leafKeys=["leafShape","leafLen","leafWid","leafThk","leafTip","petMul","curveX","twistY","waveAmp","waveFreq","asym"];
+$('#btnLeafExport').onclick=()=>{
+  const p=leafParams();
+  const header=leafKeys.join(',');
+  const vals=[p.leafShape,p.len,p.wid,p.thk,p.tip,p.pet,p.cx,p.ty,p.wa,p.wf,p.asy];
+  const blob=new Blob([header+"\\n"+vals.join(',')],{type:"text/csv"});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='leafPreset.csv'; a.click(); URL.revokeObjectURL(a.href);
+};
+$('#fileLeafImport').addEventListener('change',e=>{
+  const f=e.target.files?.[0]; if(!f) return;
+  const rd=new FileReader(); rd.onload=()=>{
+    const txt=String(rd.result).trim(); const lines=txt.split(/\\r?\\n/); if(lines.length<2) return;
+    const header=lines[0].split(','); const vals=lines[1].split(',');
+    const map={}; header.forEach((k,i)=>map[k]=vals[i]);
+    leafKeys.forEach(k=>{ const el=$(k); if(!el) return; if(el.tagName==='SELECT') el.value=map[k]; else el.value=map[k]; });
+    rebuildLeaf(); buildTree();
+  }; rd.readAsText(f);
+});
+
+/*** Scene 2 ***/
+const s2=$('s2');
+const r2=new THREE.WebGLRenderer({antialias:true}); r2.setPixelRatio(Math.min(devicePixelRatio,2)); s2.appendChild(r2.domElement);
+r2.setClearColor(0x0b1020,1);
+const sc2=new THREE.Scene();
+const c2=new THREE.PerspectiveCamera(50,1,0.01,5000); c2.position.set(6,6,6);
+const o2=new OrbitControls(c2,r2.domElement); o2.enableDamping=true; o2.target.set(0,2,0);
+sc2.add(new THREE.AmbientLight(0xffffff,0.45)); const d2=new THREE.DirectionalLight(0xffffff,1.0); d2.position.set(6,10,6); sc2.add(d2);
+sc2.add(new THREE.GridHelper(200,100,0x334155,0x1f2a44));
+let trunkGroup=null, leafGroup=null, segCache=[];
+
+function treeParams(){
+  return {
+    preset: $('preset').value,
+    form: $('form').value,
+    crownR: parseFloat($('crownR').value),
+    crownH: parseFloat($('crownH').value),
+    branchMode: $('branchMode').value,
+    maxOrder: parseInt($('maxOrder').value),
+    branchAngle: parseFloat($('branchAngle').value),
+    branchAngleVar: parseFloat($('branchAngleVar').value),
+    internode: parseFloat($('internode').value),
+    phyllo: $('phyllo').value,
+    divergence: parseFloat($('divergence').value),
+    nodesPerM: parseInt($('nodesPerM').value),
+    leafPairs: parseInt($('leafPairs').value),
+    leafCount: parseInt($('leafCount').value),
+    instancing: $('instancing').value
+  };
+}
+function syncTreeLabels(p){
+  label('valCR',p.crownR.toFixed(1)); label('valCH',p.crownH.toFixed(1));
+  label('valOrder',p.maxOrder); label('valAng',p.branchAngle.toFixed(0));
+  label('valAngV',p.branchAngleVar.toFixed(0)); label('valIN',p.internode.toFixed(2));
+  label('valDiv',p.divergence.toFixed(1)); label('valND',p.nodesPerM); label('valPairs',p.leafPairs); label('valLC',p.leafCount);
+}
+function makeLeafBillboard(){
+  const p=leafParams(); const g=new THREE.PlaneGeometry(p.wid*0.9,p.len*0.9,1,1); g.translate(0,p.len*0.45,0);
+  const col=new Float32Array(12); const cTop=new THREE.Color().setHSL(0.33,0.65,0.52), cBot=new THREE.Color().setHSL(0.30,0.70,0.42);
+  for(let i=0;i<4;i++){ const c=(i<2?cBot:cTop); col[i*3]=c.r; col[i*3+1]=c.g; col[i*3+2]=c.b; } g.setAttribute('color', new THREE.BufferAttribute(col,3));
+  return g;
+}
+function buildTree(){
+  const p=treeParams(); syncTreeLabels(p);
+  if(trunkGroup){ sc2.remove(trunkGroup); trunkGroup.traverse(o=>{o.geometry&&o.geometry.dispose(); o.material&&!o.material.isShaderMaterial&&o.material.dispose();}); }
+  if(leafGroup){ sc2.remove(leafGroup); leafGroup.geometry&&leafGroup.geometry.dispose(); leafGroup.material&&leafGroup.material.dispose(); }
+  segCache.length=0;
+  trunkGroup=new THREE.Group(); sc2.add(trunkGroup);
+  const trunkMat=new THREE.MeshStandardMaterial({color:0x8b7355,roughness:0.95});
+  const trunkHeight=p.crownH; const trunkGeom=new THREE.CylinderGeometry(0.18,0.28,trunkHeight,10); trunkGeom.translate(0,trunkHeight/2,0); trunkGroup.add(new THREE.Mesh(trunkGeom,trunkMat));
+  const nodeStep=p.internode; const trunkSegs=Math.ceil(trunkHeight/nodeStep);
+  const branchPts=[]; for(let i=1;i<=trunkSegs;i++){const y=i*nodeStep; if(y>trunkHeight) break; branchPts.push(new THREE.Vector3(0,y,0));}
+  const angleMean=THREE.MathUtils.degToRad(p.branchAngle), angleVar=THREE.MathUtils.degToRad(p.branchAngleVar);
+  let branchCount=0; const q=new THREE.Quaternion(), tmpV=new THREE.Vector3();
+  function spawnBranch(origin,order,yawBase){
+    if(order>p.maxOrder || branchCount>8000) return;
+    const segN=rndi(2, Math.max(2, Math.floor((p.crownR+p.crownH)*1.5)));
+    let cur=origin.clone(); let yaw=yawBase;
+    for(let s=0;s<segN;s++){
+      const len=rnd(nodeStep*0.7,nodeStep*1.25);
+      const ang=angleMean + rnd(-angleVar, angleVar);
+      yaw += THREE.MathUtils.degToRad(rnd(40,160));
+      const up=new THREE.Vector3(0,1,0); const right=new THREE.Vector3(Math.cos(yaw),0,Math.sin(yaw));
+      tmpV.copy(up).multiplyScalar(Math.cos(ang)).addScaledVector(right,Math.sin(ang));
+      const relH=clamp(cur.y/p.crownH,0,1);
+      const nxt=cur.clone().addScaledVector(tmpV.normalize(),len);
+      // 冠層限制
+      const radAtY=p.crownR*(p.form==='conical'?(1-relH):p.form==='vase'?(0.6+0.8*relH):p.form==='spreading'?(1.2-0.2*relH):1.0);
+      const rxy=Math.hypot(nxt.x,nxt.z); if(rxy>radAtY){ const k=radAtY/(rxy+1e-6); nxt.x*=k; nxt.z*=k; }
+      nxt.y=clamp(nxt.y,0,p.crownH);
+      const segLen=nxt.distanceTo(cur); if(segLen<1e-3) continue;
+      const cyl=new THREE.CylinderGeometry(Math.max(0.02,0.14*Math.pow(0.82,order)), Math.max(0.03,0.2*Math.pow(0.8,order)), segLen, 6);
+      const axis=new THREE.Vector3(0,1,0); const segDir=new THREE.Vector3().subVectors(nxt,cur).normalize(); q.setFromUnitVectors(axis, segDir);
+      const m=new THREE.Matrix4().makeRotationFromQuaternion(q); m.setPosition(new THREE.Vector3().addVectors(cur,nxt).multiplyScalar(0.5)); cyl.applyMatrix4(m);
+      trunkGroup.add(new THREE.Mesh(cyl,trunkMat));
+      segCache.push({pos:nxt.clone(), dir:segDir.clone(), order}); cur.copy(nxt); branchCount++; if(branchCount>8000) break;
+    }
+    if(order<p.maxOrder){
+      const childN=rndi(1,(p.branchMode==='whorled'||p.branchMode==='tiered')?3:2);
+      for(let c=0;c<childN;c++){ spawnBranch(cur,order+1,THREE.MathUtils.degToRad(rnd(0,360))); }
+    }
+  }
+  branchPts.forEach((pt,i)=>{ const chance=0.6*(1-Math.pow(1-i/branchPts.length,1.2)); if(Math.random()<chance) spawnBranch(pt,1,THREE.MathUtils.degToRad(rnd(0,360))); });
+  // leaves
+  const totalLeaves=clamp(parseInt($('leafCount').value),50,30000); const inst=($('instancing').value==='on');
+  const geoLeaf=makeLeafBillboard(); const matLeaf=new THREE.MeshStandardMaterial({color:0xffffff,roughness:0.9,metalness:0.02,side:THREE.DoubleSide,vertexColors:true});
+  const spacing=Math.max(1, Math.floor(segCache.length/Math.max(totalLeaves,1)));
+  if(inst){
+    const mesh=new THREE.InstancedMesh(geoLeaf,matLeaf,totalLeaves);
+    const m=new THREE.Matrix4(), q4=new THREE.Quaternion(), s=new THREE.Vector3();
+    for(let i=0;i<totalLeaves;i++){
+      const j=(i*spacing)%segCache.length; const {pos,order}=segCache[j]||{pos:new THREE.Vector3(),order:1};
+      const scale=1.0*Math.pow(0.93,order)*(0.85+0.35*Math.random()); const yaw=rnd(0,Math.PI*2); const pitch=rnd(-0.8,0.2);
+      q4.setFromEuler(new THREE.Euler(pitch,yaw,0)); s.setScalar(scale);
+      m.compose(new THREE.Vector3(pos.x+rnd(-0.12,0.12),pos.y+rnd(-0.12,0.12),pos.z+rnd(-0.12,0.12)), q4, s); mesh.setMatrixAt(i,m);
+    }
+    mesh.instanceMatrix.needsUpdate=true; leafGroup=mesh; trunkGroup.add(leafGroup);
+  }else{
+    const group=new THREE.Group();
+    for(let i=0;i<totalLeaves;i++){
+      const j=(i*spacing)%segCache.length; const {pos,order}=segCache[j]||{pos:new THREE.Vector3(),order:1};
+      const scale=1.0*Math.pow(0.93,order)*(0.85+0.35*Math.random()); const yaw=rnd(0,Math.PI*2); const pitch=rnd(-0.8,0.2);
+      const m=new THREE.Mesh(geoLeaf,matLeaf); m.position.set(pos.x+rnd(-0.12,0.12),pos.y+rnd(-0.12,0.12),pos.z+rnd(-0.12,0.12));
+      m.rotation.set(pitch,yaw,0); m.scale.setScalar(scale); group.add(m);
+    }
+    leafGroup=group; trunkGroup.add(leafGroup);
+  }
+  label('kpiBranches',branchCount); label('kpiLeaves',totalLeaves);
+  fitCam(sc2,c2,o2,trunkGroup,1.6);
+}
+
+/*** Scene 3 ***/
+const s3=$('s3');
+const r3=new THREE.WebGLRenderer({antialias:true}); r3.setPixelRatio(Math.min(devicePixelRatio,2)); s3.appendChild(r3.domElement);
+r3.setClearColor(0x0b1020,1);
+const sc3=new THREE.Scene();
+const c3=new THREE.PerspectiveCamera(50,1,0.01,5000); c3.position.set(8,6,8);
+const o3=new OrbitControls(c3,r3.domElement); o3.enableDamping=true; o3.target.set(0,2,0);
+sc3.add(new THREE.AmbientLight(0xffffff,0.35)); const sun=new THREE.DirectionalLight(0xfff1cf,1.2); sun.position.set(-8,10,4); sc3.add(sun);
+sc3.add(new THREE.GridHelper(200,100,0x334155,0x1f2a44));
+let tree3=null, leavesDyn=null, ground=null;
+const sim={pool:[],t:0};
+
+function buildScene3FromTree(){
+  if(segCache.length===0){ buildTree(); }
+  if(tree3){ sc3.remove(tree3); tree3.traverse(o=>{o.geometry&&o.geometry.dispose(); o.material&&!o.material.isShaderMaterial&&o.material.dispose();}); }
+  if(leavesDyn){ sc3.remove(leavesDyn); leavesDyn.geometry.dispose(); leavesDyn.material.dispose(); }
+  if(!ground){ const g=new THREE.Mesh(new THREE.PlaneGeometry(200,200), new THREE.MeshStandardMaterial({color:0x0d1222,roughness:1})); g.rotation.x=-Math.PI/2; g.position.y=0; sc3.add(g); ground=g; }
+  tree3=new THREE.Group(); sc3.add(tree3);
+  const H=parseFloat($('crownH').value); const trunk=new THREE.Mesh(new THREE.CylinderGeometry(0.2,0.3,H,10).translate(0,H/2,0), new THREE.MeshStandardMaterial({color:0x8b7355,roughness:0.95}));
+  tree3.add(trunk);
+  const totalLeaves=clamp(parseInt($('leafCount').value),50,30000); const maxSim=Math.min(totalLeaves,3000);
+  const geo=makeLeafGeometry(leafParams()); applyLeafVertexColors(geo,0.0);
+  const mat=new THREE.MeshStandardMaterial({color:0xffffff,roughness:0.9,metalness:0.02,side:THREE.DoubleSide,vertexColors:true});
+  leavesDyn=new THREE.InstancedMesh(geo,mat, maxSim); tree3.add(leavesDyn);
+  sim.pool.length=maxSim; sim.t=0;
+  const m=new THREE.Matrix4(), q=new THREE.Quaternion(), s=new THREE.Vector3();
+  for(let i=0;i<maxSim;i++){
+    const j=(i*Math.max(1,Math.floor(segCache.length/maxSim)))%segCache.length;
+    const {pos,order}=segCache[j]||{pos:new THREE.Vector3(),order:1};
+    const scale=1.0*Math.pow(0.93,order)*(0.85+0.35*Math.random());
+    const yaw=rnd(0,Math.PI*2), pitch=rnd(-0.6,0.2);
+    q.setFromEuler(new THREE.Euler(pitch,yaw,0)); s.setScalar(scale);
+    m.compose(new THREE.Vector3(pos.x,pos.y,pos.z), q, s); leavesDyn.setMatrixAt(i,m);
+    sim.pool[i]={attach:pos.clone(), pos:pos.clone(), vel:new THREE.Vector3(rnd(-0.02,0.02), rnd(-0.01,0.01), rnd(-0.02,0.02)), rot:new THREE.Euler(pitch,yaw,0), omega:new THREE.Vector3(rnd(-0.6,0.6),rnd(-0.8,0.8),rnd(-0.3,0.3)), scale, phase:Math.random()*0.4, state:0};
+  }
+  leavesDyn.instanceMatrix.needsUpdate=true;
+  fitCam(sc3,c3,o3,tree3,1.6);
+}
+
+/* Perlin */
+const pperm=new Uint8Array(512); (function(){ const p=new Uint8Array(256); for(let i=0;i<256;i++) p[i]=i; for(let i=255;i>0;i--){ const j=(Math.random()*256)|0; const t=p[i]; p[i]=p[j]; p[j]=t; } for(let i=0;i<512;i++) pperm[i]=p[i&255]; })();
+const fade=(t)=>t*t*t*(t*(t*6-15)+10); const lerp=(a,b,t)=>a+(b-a)*t;
+function grad(h,x,y,z){ const u=(h&1)?-x:x, v=(h&2)?-y:y, w=(h&4)?-z:z; return u+v+w; }
+function noise3(x,y,z){ const X=Math.floor(x)&255, Y=Math.floor(y)&255, Z=Math.floor(z)&255; x-=Math.floor(x); y-=Math.floor(y); z-=Math.floor(z);
+  const u=fade(x), v=fade(y), w=fade(z); const A=pperm[X]+Y, AA=pperm[A]+Z, AB=pperm[A+1]+Z; const B=pperm[X+1]+Y, BA=pperm[B]+Z, BB=pperm[B+1]+Z;
+  return lerp(lerp(lerp(grad(pperm[AA],x,y,z),grad(pperm[BA],x-1,y,z),u), lerp(grad(pperm[AB],x,y-1,z),grad(pperm[BB],x-1,y-1,z),u),v),
+              lerp(lerp(grad(pperm[AA+1],x,y,z-1),grad(pperm[BA+1],x-1,y,z-1),u), lerp(grad(pperm[AB+1],x,y-1,z-1),grad(pperm[BB+1],x-1,y-1,z-1),u),v), w);
+}
+function stepFall(){
+  if(!leavesDyn) return;
+  const fallRate=parseFloat($('fallRate').value); label('valFR', fallRate.toFixed(1)+'×');
+  const regrow=parseFloat($('regrowRate').value); label('valRG', regrow.toFixed(1)+'×');
+  sim.t += 0.016 * fallRate; const t=sim.t;
+  const m=new THREE.Matrix4(), q=new THREE.Quaternion(), s=new THREE.Vector3();
+  let active=0, grounded=0;
+  const lp=leafParams(); const area=lp.len*lp.wid;
+  for(let i=0;i<leavesDyn.count;i++){
+    const L=sim.pool[i]; if(!L) continue;
+    if(L.state===0){
+      L.phase += 0.003*fallRate; if(L.phase>=1.0) L.state=1;
+    }else if(L.state===1){
+      const wind=new THREE.Vector3(noise3(L.pos.x*0.2, t*0.2, L.pos.z*0.2), noise3(L.pos.x*0.15, t*0.25, L.pos.z*0.15)*0.2, noise3(L.pos.x*0.2+10, t*0.2+10, L.pos.z*0.2+10));
+      const wS=0.5;
+      L.vel.x += wind.x*0.02*wS; L.vel.z += wind.z*0.02*wS; L.vel.y -= 0.006;
+      L.vel.multiplyScalar(1.0 - clamp(0.002*area,0.0005,0.01));
+      L.pos.x += L.vel.x + Math.sin(t*3 + i*0.1)*0.002;
+      L.pos.z += L.vel.z + Math.cos(t*2.7 + i*0.13)*0.002;
+      L.pos.y += L.vel.y;
+      L.rot.x += L.omega.x*0.02; L.rot.y += L.omega.y*0.02; L.rot.z += L.omega.z*0.01;
+      if(L.pos.y<=0.01){ L.pos.y=0.01; L.vel.set(0,0,0); L.state=2; }
+      active++;
+    }else grounded++;
+    q.setFromEuler(L.rot); s.setScalar(L.scale); m.compose(L.pos,q,s); leavesDyn.setMatrixAt(i,m);
+  }
+  leavesDyn.instanceMatrix.needsUpdate=true;
+  label('kpiActive',active); label('kpiGrounded',grounded);
+  if($('sunAnim').checked){ const a=t*0.1; sun.position.set(Math.cos(a)*10,8,Math.sin(a)*10); }
+}
+
+/*** Fit & resize ***/
+function fitCam(scene,cam,ctl,obj,pad=1.6){
+  const box=new THREE.Box3().setFromObject(obj); const size=new THREE.Vector3(); const center=new THREE.Vector3(); box.getSize(size); box.getCenter(center);
+  const radius=Math.max(size.x,size.y,size.z)/2||1; const dist=radius/Math.tan((cam.fov*Math.PI/180)/2)*pad; const dir=new THREE.Vector3(1,0.6,1).normalize();
+  cam.position.copy(center).addScaledVector(dir,dist); cam.near=Math.max(0.01,dist/1000); cam.far=dist*10+200; cam.updateProjectionMatrix(); ctl.target.copy(center); ctl.update();
+  if(cam===c2) label('kpiHeight', size.y.toFixed(2));
+}
+function sizeOf(el){ const r=el.getBoundingClientRect(); return {w:Math.max(100,Math.floor(r.width)), h:Math.max(100,Math.floor(r.height))}; }
+function resizeAll(){
+  const a=sizeOf(s1); r1.setSize(a.w,a.h); c1.aspect=a.w/a.h; c1.updateProjectionMatrix();
+  const b=sizeOf(s2); r2.setSize(b.w,b.h); c2.aspect=b.w/b.h; c2.updateProjectionMatrix();
+  const c=sizeOf(s3); r3.setSize(c.w,c.h); c3.aspect=c.w/c.h; c3.updateProjectionMatrix();
+}
+addEventListener('resize', resizeAll);
+
+/*** loop ***/
+let f1=0,t1=performance.now(), f2=0,t2=performance.now(), f3=0,t3=performance.now();
+function loop(){
+  if(!$('#s1').classList.contains('hide')){ f1++; const now=performance.now(); if(now-t1>1000){ label('kpiFPS1',f1); f1=0; t1=now; } o1.update(); r1.render(sc1,c1); }
+  if(!$('#s2').classList.contains('hide')){ f2++; const now2=performance.now(); if(now2-t2>1000){ label('kpiFPS2',f2); f2=0; t2=now2; } o2.update(); r2.render(sc2,c2); }
+  if(!$('#s3').classList.contains('hide')){ f3++; const now3=performance.now(); if(now3-t3>1000){ label('kpiFPS3',f3); f3=0; t3=now3; } stepFall(); o3.update(); r3.render(sc3,c3); }
+  requestAnimationFrame(loop);
+}
+
+/*** bindings ***/
+["leafShape","leafLen","leafWid","leafThk","leafTip","petMul","curveX","twistY","waveAmp","waveFreq","asym"].forEach(id=>$(id).addEventListener('input',()=>{rebuildLeaf(); buildTree();}));
+["preset","form","crownR","crownH","branchMode","maxOrder","branchAngle","branchAngleVar","internode","phyllo","divergence","nodesPerM","leafPairs","leafCount","instancing"].forEach(id=>$(id).addEventListener('input',buildTree));
+["fallRate","regrowRate","sunAnim"].forEach(id=>$(id).addEventListener('input',()=>{}));
+
+function init(){
+  rebuildLeaf(); // 先建葉再對焦（0.752）
+  buildTree();
+  show(1);
+  resizeAll();
+  loop();
+}
+init();
+</script>
+</body>
+</html>
