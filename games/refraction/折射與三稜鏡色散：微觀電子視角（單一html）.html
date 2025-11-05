@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>折射與三稜鏡色散（微觀電子視角）</title>
+<style>
+  :root{
+    --bg:#0b0f12;--panel:#11161b;--ink:#e8eef3;--muted:#9fb1c1;--accent:#58a6ff;--ok:#4cc38a;--warn:#f2a65a;--bad:#f7768e;
+    --card:#0e1419;--line:#1b2730;--shadow:0 6px 24px rgba(0,0,0,.35);
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0; background:var(--bg); color:var(--ink); font:16px/1.35 ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,"Noto Sans TC","PingFang TC",sans-serif;
+  }
+  header{
+    padding:18px 22px; display:flex; gap:18px; align-items:center; justify-content:space-between; border-bottom:1px solid var(--line); background:linear-gradient(180deg, #0d1318, #0a0e12);
+    position:sticky; top:0; z-index:10;
+  }
+  header h1{font-size:18px; margin:0; font-weight:700; letter-spacing:.5px}
+  .wrap{display:grid; grid-template-columns: 360px 1fr; gap:16px; height:calc(100% - 68px)}
+  @media (max-width: 980px){.wrap{grid-template-columns:1fr; grid-template-rows:auto 1fr}}
+  aside{
+    padding:16px; overflow:auto; background:var(--panel); border-right:1px solid var(--line);
+  }
+  .group{background:var(--card); border:1px solid var(--line); border-radius:16px; padding:14px 14px 10px; box-shadow:var(--shadow); margin-bottom:12px}
+  .group h3{margin:0 0 8px; font-size:14px; color:var(--muted); font-weight:700; letter-spacing:.4px}
+  .row{display:grid; grid-template-columns: 1fr 1fr; gap:8px}
+  label{font-size:13px; color:var(--muted); display:block; margin:8px 0 4px}
+  select, input[type="range"], button{
+    width:100%; background:#0b1217; color:var(--ink); border:1px solid var(--line); border-radius:12px; padding:8px 10px; outline:none;
+  }
+  input[type="range"]{appearance:none; height:34px; padding:0; background:transparent}
+  input[type="range"]::-webkit-slider-runnable-track{height:6px; background:linear-gradient(90deg,#cc3333,#ffaa00,#33cc66,#3399ff,#7a33ff); border-radius:999px}
+  input[type="range"]::-webkit-slider-thumb{appearance:none; width:18px; height:18px; border-radius:50%; background:var(--ink); border:2px solid var(--line); margin-top:-6px}
+  .hint{font-size:12px; color:var(--muted)}
+  .badge{display:inline-block; padding:2px 8px; border:1px solid var(--line); border-radius:999px; font-size:12px; color:var(--muted)}
+
+  main{position:relative; overflow:hidden}
+  .canvWrap{display:grid; grid-template-columns: 2fr 1fr; gap:12px; height:100%; padding:12px}
+  @media (max-width: 980px){.canvWrap{grid-template-columns:1fr; grid-template-rows: minmax(280px, 45vh) minmax(260px, 1fr)}}
+  .card{background:var(--card); border:1px solid var(--line); border-radius:16px; box-shadow:var(--shadow); position:relative; overflow:hidden}
+  .card h4{position:absolute; top:10px; left:12px; margin:0; font-size:13px; color:var(--muted)}
+  canvas{width:100%; height:100%; display:block}
+  .legend{position:absolute; bottom:10px; left:12px; display:flex; gap:8px; align-items:center; flex-wrap:wrap}
+  .chip{display:flex; align-items:center; gap:6px; font-size:12px; color:var(--muted); background:#0a0f13; border:1px solid var(--line); padding:4px 8px; border-radius:999px}
+  .sw{width:12px; height:12px; border-radius:3px}
+  .sw.r{background:#ff5959}.sw.g{background:#7cd370}.sw.b{background:#5aa7ff}
+
+  .table{font-size:12px; border-collapse:collapse; width:100%; margin-top:6px}
+  .table th,.table td{border-bottom:1px dashed var(--line); padding:6px 4px; text-align:right}
+  .table th:first-child,.table td:first-child{text-align:left}
+
+  .toolbar{display:flex; gap:8px; align-items:center}
+  .toolbar button{cursor:pointer; border-radius:12px}
+  .toolbar .ghost{background:transparent}
+  .toast{position:fixed; right:12px; bottom:12px; background:#10161c; border:1px solid var(--line); padding:10px 12px; border-radius:12px; box-shadow:var(--shadow); color:var(--muted); font-size:13px; opacity:0; transform:translateY(8px); transition:all .25s}
+  .toast.show{opacity:1; transform:translateY(0)}
+</style>
+</head>
+<body>
+  <header>
+    <h1>折射與三稜鏡色散｜放大看「電子被光帶著晃」</h1>
+    <div class="toolbar">
+      <span class="badge">單一檔 · 可離線</span>
+      <button id="btnSave" title="下載此頁HTML">下載HTML</button>
+      <button id="btnReset" class="ghost" title="重置設定">重置</button>
+    </div>
+  </header>
+  <div class="wrap">
+    <aside>
+      <div class="group">
+        <h3>介質選擇</h3>
+        <label>外側介質（稜鏡外）</label>
+        <select id="selOutside">
+          <option value="vac">真空</option>
+          <option value="air" selected>空氣</option>
+          <option value="water">水</option>
+        </select>
+        <label>稜鏡材質（內部）</label>
+        <select id="selInside">
+          <option value="water">水</option>
+          <option value="bk7" selected>玻璃（BK7）</option>
+          <option value="pmma">透明壓克力（PMMA）</option>
+          <option value="air">空氣</option>
+          <option value="vac">真空</option>
+        </select>
+        <table class="table" id="tblN">
+          <thead><tr><th>顏色 λ</th><th>外側 n</th><th>稜鏡 n</th></tr></thead>
+          <tbody></tbody>
+        </table>
+        <div class="hint">註：數值為教學近似，展示<span style="color:var(--accent)">色散</span>趨勢（藍光 n 較大、紅光較小）。</div>
+      </div>
+
+      <div class="group">
+        <h3>光束與觀察</h3>
+        <label>入射角（相對水平，°）<span id="degVal" style="float:right">10°</span></label>
+        <input id="ang" type="range" min="-15" max="25" step="0.5" value="10"/>
+
+        <div class="row" style="margin-top:6px">
+          <div>
+            <label>光型態</label>
+            <select id="selMode">
+              <option value="white" selected>白光（RGB 展開）</option>
+              <option value="mono">單色</option>
+            </select>
+          </div>
+          <div>
+            <label>單色波長 λ（nm）<span id="lamVal" style="float:right">550</span></label>
+            <input id="lam" type="range" min="400" max="700" step="1" value="550"/>
+          </div>
+        </div>
+
+        <label style="margin-top:8px">顯示</label>
+        <div style="display:flex; gap:8px; flex-wrap:wrap">
+          <label class="badge"><input id="chkNormals" type="checkbox"/> 法線</label>
+          <label class="badge"><input id="chkTIR" type="checkbox" checked/> 全反射提示</label>
+          <label class="badge"><input id="chkGrid" type="checkbox"/> 網格</label>
+          <label class="badge"><input id="chkMinDev" type="checkbox"/> 最小偏向近似</label>
+          <label class="badge"><input id="chkMicro" type="checkbox" checked/> 電子視角</label>
+        </div>
+      </div>
+
+      <div class="group">
+        <h3>重點說明（給學生）</h3>
+        <div class="hint" id="explain">
+          光進入材料時，材料裡被束縛的電子會被光的電場帶著微小振盪（像彈簧球慢半拍）。不同顏色＝不同振動節奏，藍光比較難跟上 → 相位延遲較大 → 折射率較大；紅光較小。三稜鏡利用這個「n 會隨顏色變」把白光角度上拉開。
+        </div>
+      </div>
+    </aside>
+
+    <main>
+      <div class="canvWrap">
+        <div class="card"><h4>宏觀：三稜鏡色散（幾何光學）</h4><canvas id="cvMacro"></canvas>
+          <div class="legend" id="legend"></div>
+        </div>
+        <div class="card"><h4>微觀：電子被光驅動的「慢半拍」</h4><canvas id="cvMicro"></canvas></div>
+      </div>
+    </main>
+  </div>
+
+  <div class="toast" id="toast">已下載 HTML</div>
+
+<script>
+(function(){
+  const $ = (q)=>document.querySelector(q);
+  const cvM = $('#cvMacro'), cxM = cvM.getContext('2d');
+  const cvm = $('#cvMicro'), cxm = cvm.getContext('2d');
+  const selOutside=$('#selOutside'), selInside=$('#selInside');
+  const lam=$('#lam'), lamVal=$('#lamVal');
+  const ang=$('#ang'), degVal=$('#degVal');
+  const selMode=$('#selMode');
+  const chkNormals=$('#chkNormals'), chkTIR=$('#chkTIR'), chkGrid=$('#chkGrid'), chkMinDev=$('#chkMinDev'), chkMicro=$('#chkMicro');
+  const tblN=$('#tblN tbody');
+  const legend=$('#legend');
+  const explain=$('#explain');
+
+  const colors = {
+    r:'#ff5959', g:'#7cd370', b:'#5aa7ff'
+  };
+  const LAMBDA = { r:656, g:546, b:486 }; // nm 近似參考線
+
+  // 折射率模型（教學近似，重點展示趨勢）
+  // 採用端點插值以避免繁瑣係數，數值為常見典型值的近似
+  const media = {
+    vac: { zh:'真空', n:(nm)=>1.0 },
+    air: { zh:'空氣', n:(nm)=> interp(nm, {r:1.000277,g:1.000282,b:1.000293}) },
+    water: { zh:'水', n:(nm)=> interp(nm, {r:1.331,g:1.333,b:1.339}) },
+    bk7: { zh:'玻璃（BK7）', n:(nm)=> interp(nm, {r:1.514,g:1.519,b:1.522}) },
+    pmma: { zh:'透明壓克力（PMMA）', n:(nm)=> interp(nm, {r:1.488,g:1.492,b:1.496}) }
+  };
+  function interp(nm, triplet){
+    // 將 400~700nm 拆成三段，對 (r,g,b) 端點做線性插值
+    const w = Number(nm);
+    const clamp=(x,a,b)=>Math.min(b,Math.max(a,x));
+    const w2 = clamp(w, 400, 700);
+    const seg = w2< (LAMBDA.g) ? ['b','g'] : ['g','r'];
+    const wA = LAMBDA[seg[0]]; const wB = LAMBDA[seg[1]];
+    const nA = triplet[seg[0]], nB = triplet[seg[1]];
+    const t = (w2-wA)/(wB-wA);
+    return nA + (nB-nA)*t;
+  }
+
+  // 幾何：等邊三角稜鏡（頂角 60°）
+  const prism = { A: Math.PI/3 };
+
+  function setCanvasSizes(){
+    cvM.width = cvM.clientWidth * devicePixelRatio;
+    cvM.height = cvM.clientHeight * devicePixelRatio;
+    cvm.width = cvm.clientWidth * devicePixelRatio;
+    cvm.height = cvm.clientHeight * devicePixelRatio;
+    draw();
+  }
+  window.addEventListener('resize', setCanvasSizes);
+
+  // 2D 向量輔助
+  const V = {
+    add:(a,b)=>({x:a.x+b.x,y:a.y+b.y}),
+    sub:(a,b)=>({x:a.x-b.x,y:a.y-b.y}),
+    mul:(a,s)=>({x:a.x*s,y:a.y*s}),
+    dot:(a,b)=>a.x*b.x+a.y*b.y,
+    len:(a)=>Math.hypot(a.x,a.y),
+    norm:(a)=>{const L=Math.hypot(a.x,a.y)||1; return {x:a.x/L,y:a.y/L}},
+    rot:(a,t)=>({x:a.x*Math.cos(t)-a.y*Math.sin(t), y:a.x*Math.sin(t)+a.y*Math.cos(t)})
+  };
+
+  function rayLineIntersection(p, d, a, b){
+    // ray p + t d, segment ab
+    const v = V.sub(b,a); // segment dir
+    const w = V.sub(p,a);
+    const D = d.x*(-v.y) + d.y*(v.x);
+    if (Math.abs(D) < 1e-6) return null; // parallel
+    const t = (v.x*(-w.y) + v.y*(w.x))/D;
+    const u = (d.x*(-w.y) + d.y*(w.x))/D;
+    if (t>1e-6 && u>=0 && u<=1) return {t, point: V.add(p, V.mul(d,t)), u};
+    return null;
+  }
+
+  function refract(I, N, eta){ // I 入射（指向介面），N 由介質1 指向介質2
+    const cosi = -V.dot(N, I);
+    const sint2 = eta*eta*(1 - cosi*cosi);
+    if (sint2>1) return null; // TIR
+    const cost = Math.sqrt(1 - sint2);
+    return V.add( V.mul(I, eta), V.mul(N, (eta*cosi - cost)) );
+  }
+
+  function draw(){
+    // 更新數據表
+    fillIndexTable();
+
+    // 宏觀圖
+    const W=cvM.width, H=cvM.height; cxM.clearRect(0,0,W,H);
+    if (chkGrid.checked){
+      cxM.strokeStyle = '#15212b'; cxM.lineWidth=1; cxM.globalAlpha=.7;
+      for(let x=0;x<W;x+=40*devicePixelRatio){cxM.beginPath();cxM.moveTo(x,0);cxM.lineTo(x,H);cxM.stroke()}
+      for(let y=0;y<H;y+=40*devicePixelRatio){cxM.beginPath();cxM.moveTo(0,y);cxM.lineTo(W,y);cxM.stroke()}
+      cxM.globalAlpha=1;
+    }
+
+    const s = Math.min(W,H)*0.55; // 邊長畫素
+    const h = s*Math.sqrt(3)/2;
+    const center = {x: W*0.42, y: H*0.55};
+    const A = {x:center.x, y:center.y - h/2};
+    const B = {x:center.x - s/2, y:center.y + h/2};
+    const C = {x:center.x + s/2, y:center.y + h/2};
+
+    // 稜鏡外框
+    cxM.fillStyle = '#0f1620'; cxM.strokeStyle = '#1c2a36'; cxM.lineWidth=2;
+    cxM.beginPath(); cxM.moveTo(A.x,A.y); cxM.lineTo(B.x,B.y); cxM.lineTo(C.x,C.y); cxM.closePath(); cxM.fill(); cxM.stroke();
+
+    // 入射光束基準
+    const deg = Number(ang.value); degVal.textContent = deg+'°';
+    const theta = deg * Math.PI/180; // 相對水平
+    const start = {x: center.x - s*0.9, y: center.y - h*0.1};
+    const dir = V.norm({x: Math.cos(theta), y: Math.sin(theta)});
+
+    // 面法線（指向內部）
+    const nLeft = V.norm({x:(A.y-B.y), y:(B.x-A.x)});   // AB 左側面
+    const nRight= V.norm({x:(B.y-C.y), y:(C.x-B.x)});   // BC 底面向上？其實右側面應是 AC
+    const nBase = V.norm({x:(C.y-A.y), y:(A.x-C.x)});   // AC 右側面
+    // 重新計算正確：
+    const nAB = V.norm({x: (B.y-A.y), y:(A.x-B.x)}); // 法線朝三角形內部
+    const nBC = V.norm({x: (C.y-B.y), y:(B.x-C.x)});
+    const nCA = V.norm({x: (A.y-C.y), y:(C.x-A.x)});
+
+    const faces=[ {a:A,b:B,n:nAB}, {a:B,b:C,n:nBC}, {a:C,b:A,n:nCA} ];
+
+    const outside = selOutside.value; const inside = selInside.value;
+
+    // 準備繪製入射光（白光或單色）
+    const rays = [];
+    if (selMode.value==='white'){
+      rays.push({name:'紅', nm:LAMBDA.r, col:colors.r});
+      rays.push({name:'綠', nm:LAMBDA.g, col:colors.g});
+      rays.push({name:'藍', nm:LAMBDA.b, col:colors.b});
+    }else{
+      const nm = Number(lam.value); lamVal.textContent=nm;
+      const col = wlToRGB(nm);
+      rays.push({name:`λ=${nm}nm`, nm, col});
+    }
+
+    // 繪製入射束
+    cxM.save();
+    cxM.strokeStyle = '#cdd6e0'; cxM.lineWidth = 3*devicePixelRatio; cxM.setLineDash([8*devicePixelRatio, 8*devicePixelRatio]);
+    cxM.beginPath(); cxM.moveTo(start.x - 2000*dir.x, start.y - 2000*dir.y); cxM.lineTo(start.x, start.y); cxM.stroke();
+    cxM.restore();
+
+    let anyTIR=false;
+
+    rays.forEach(ray=>{
+      const n1 = media[outside].n(ray.nm);
+      const n2 = media[inside].n(ray.nm);
+
+      // 與三個面的交會，取最近
+      const inters = faces.map(f => ({f, hit: rayLineIntersection(start, dir, f.a, f.b)}))
+                          .filter(x=>x.hit);
+      if (!inters.length) return;
+      inters.sort((p,q)=>p.hit.t-q.hit.t);
+      const first = inters[0];
+      const p1 = first.hit.point; const N1 = first.f.n; // 指向內部
+
+      // 入射到內部
+      const I1 = dir;
+      const eta1 = n1 / n2;
+      let T1 = refract(I1, N1, eta1);
+      if (!T1){ anyTIR=true; if(chkTIR.checked) drawTIR(cxM, p1, I1, N1); return; }
+
+      // 在內部走到第二個面（非同一面）
+      const faces2 = faces.filter(ff=>ff!==first.f);
+      const inters2 = faces2.map(f => ({f, hit: rayLineIntersection(p1, T1, f.a, f.b)}))
+                            .filter(x=>x.hit);
+      if (!inters2.length) return;
+      inters2.sort((p,q)=>p.hit.t-q.hit.t);
+      const second = inters2[0];
+      const p2 = second.hit.point; const N2 = V.mul(second.f.n, -1); // 往外側
+
+      const eta2 = n2 / n1;
+      let T2 = refract(T1, N2, eta2);
+      if (!T2){ anyTIR=true; if(chkTIR.checked) drawTIR(cxM, p2, T1, N2); return; }
+
+      // 畫線段
+      cxM.strokeStyle = ray.col; cxM.lineWidth=3*devicePixelRatio; cxM.setLineDash([]);
+      line(cxM, start, p1);
+      line(cxM, p1, V.add(p1, V.mul(T1, 1200)));
+      line(cxM, p2, V.add(p2, V.mul(T2, 2000)));
+
+      if (chkNormals.checked){
+        cxM.strokeStyle = '#8093a5'; cxM.lineWidth=1*devicePixelRatio; cxM.setLineDash([4*devicePixelRatio,4*devicePixelRatio]);
+        line(cxM, p1, V.add(p1, V.mul(N1, 100)));
+        line(cxM, p2, V.add(p2, V.mul(N2, 100)));
+      }
+    });
+
+    // 圖例
+    legend.innerHTML='';
+    rays.forEach(r=>{
+      const div=document.createElement('div');
+      div.className='chip';
+      const sw=document.createElement('span'); sw.className='sw'; sw.style.background=r.col; div.appendChild(sw);
+      const nOut = media[outside].n(r.nm).toFixed(6);
+      const nIn = media[inside].n(r.nm).toFixed(6);
+      div.appendChild(document.createTextNode(`${r.name}  n外=${nOut}  n內=${nIn}`));
+      legend.appendChild(div);
+    })
+
+    // 微觀圖
+    if (chkMicro.checked){ animateMicro(); } else { drawMicroStatic(); }
+
+    if (chkMinDev.checked){
+      // 顯示最小偏向角近似 δ≈(n-1)A，取綠光做代表
+      const nm=LAMBDA.g; const n=media[inside].n(nm)/media[outside].n(nm);
+      const delta=(n-1)*(Math.PI/3); // rad
+      explain.innerHTML = `最小偏向角近似：<code>δ≈(n−1)A</code>。以綠光估：n≈${n.toFixed(3)}、A=60° → δ≈${(delta*180/Math.PI).toFixed(2)}°。`+
+        '<br>（實際路徑取決於入射角，這裡僅提供量級感。）';
+    } else {
+      explain.innerHTML = '光進入材料時，材料裡被束縛的電子會被光的電場帶著微小振盪（像彈簧球慢半拍）。不同顏色＝不同振動節奏，藍光比較難跟上 → 相位延遲較大 → 折射率較大；紅光較小。三稜鏡利用這個「n 會隨顏色變」把白光角度上拉開。';
+    }
+
+    function line(ctx,a,b){ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();}
+    function drawTIR(ctx, p, I, N){ // 簡單畫出反射提示
+      const R = V.sub(I, V.mul(N, 2*V.dot(I,N)));
+      ctx.save(); ctx.strokeStyle = '#f2a65a'; ctx.setLineDash([6*devicePixelRatio,6*devicePixelRatio]); ctx.lineWidth=2*devicePixelRatio;
+      line(ctx,p,V.add(p,V.mul(R,1000))); ctx.restore();
+    }
+  }
+
+  function fillIndexTable(){
+    const outs = selOutside.value, ins = selInside.value;
+    const rows = [
+      {tag:'紅 (656nm)', nm:LAMBDA.r},
+      {tag:'綠 (546nm)', nm:LAMBDA.g},
+      {tag:'藍 (486nm)', nm:LAMBDA.b},
+    ];
+    tblN.innerHTML = rows.map(r=>{
+      const n1=media[outs].n(r.nm).toFixed(6);
+      const n2=media[ins].n(r.nm).toFixed(6);
+      return `<tr><td>${r.tag}</td><td>${n1}</td><td>${n2}</td></tr>`;
+    }).join('');
+  }
+
+  // 微觀動畫：電子陣列（彈簧球）慢半拍
+  let t0=performance.now();
+  function animateMicro(now){
+    if (!chkMicro.checked) { drawMicroStatic(); return; }
+    const t = (now||performance.now());
+    const dt = (t - t0)/1000; t0 = t;
+    drawMicro(true);
+    requestAnimationFrame(animateMicro);
+  }
+  function drawMicroStatic(){ drawMicro(false); }
+
+  function drawMicro(animated){
+    const W=cvm.width, H=cvm.height; cxm.clearRect(0,0,W,H);
+    // 邊框
+    cxm.fillStyle = '#0f1620'; cxm.strokeStyle = '#1c2a36'; cxm.lineWidth=2; cxm.fillRect(0,0,W,H); cxm.strokeRect(0,0,W,H);
+
+    // 取單色觀察（若白光，固定用綠光代表電子相位；若單色，用滑桿）
+    const nm = (selMode.value==='white')? LAMBDA.g : Number(lam.value);
+    const nIn = media[selInside.value].n(nm);
+    const nOut = media[selOutside.value].n(nm);
+    const reln = nIn/nOut;
+
+    // 驅動電場波：從左到右
+    // 可視化用：相速度 ~ 1/n，簡化為相位延遲 φ ∝ (n-1)
+    const phi = (nIn - nOut) * 10.0; // 可視化倍率
+    const freq = 0.6 + (700-nm)/700; // nm越小→頻率越高
+
+    // 電子網格
+    const cols=8, rows=6; const pad=24*devicePixelRatio; const gw=W-pad*2, gh=H-pad*2;
+    const dx=gw/(cols-1), dy=gh/(rows-1);
+
+    // 背景說明
+    cxm.fillStyle = '#9fb1c1'; cxm.font = `${12*devicePixelRatio}px ui-sans-serif`; cxm.globalAlpha=.9;
+    cxm.fillText(`觀察材質：${media[selInside.value].zh}（代表單色 λ=${nm}nm）`, pad, pad-6*devicePixelRatio);
+    cxm.globalAlpha=1;
+
+    // 繪製入射波前（外側）與內部相位延遲示意條
+    const midY = H*0.85; const L=W*0.9;
+    drawWave( pad, midY, L, freq, 0, '#8197ab' ); // 外
+    drawWave( pad, midY+18*devicePixelRatio, L, freq, phi, '#5aa7ff' ); // 內，帶相位延遲
+    cxm.fillStyle='#8197ab'; cxm.fillText('外側相位', pad, midY-8*devicePixelRatio);
+    cxm.fillStyle='#5aa7ff'; cxm.fillText('介質內相位（延遲）', pad, midY+8*devicePixelRatio);
+
+    // 畫電子與彈簧
+    for(let j=0;j<rows;j++){
+      for(let i=0;i<cols;i++){
+        const x0 = pad + i*dx, y0 = pad + j*dy;
+        const phase = (i*0.6 + j*0.15);
+        const disp = 6*devicePixelRatio * Math.sin( (performance.now()/1000)*2*Math.PI*freq - phase - phi*0.12 );
+        // 彈簧（固定點到電子）
+        cxm.strokeStyle = '#263544'; cxm.lineWidth=1*devicePixelRatio;
+        cxm.beginPath(); cxm.moveTo(x0-16*devicePixelRatio, y0);
+        cxm.lineTo(x0+disp, y0); cxm.stroke();
+        // 固定點
+        cxm.fillStyle='#213041'; cxm.beginPath(); cxm.arc(x0-16*devicePixelRatio, y0, 2.5*devicePixelRatio, 0, Math.PI*2); cxm.fill();
+        // 電子
+        const col = wlToRGB(nm);
+        cxm.fillStyle=col; cxm.strokeStyle='#0b1217'; cxm.lineWidth=1*devicePixelRatio;
+        cxm.beginPath(); cxm.arc(x0+disp, y0, 5*devicePixelRatio, 0, Math.PI*2); cxm.fill(); cxm.stroke();
+      }
+    }
+
+    // 註解文字
+    cxm.fillStyle='#9fb1c1'; cxm.font = `${12*devicePixelRatio}px ui-sans-serif`;
+    const txt = `折射率 n ↑（通常藍光>紅光）→ 電子相位延遲 ↑ → 介質中的相速度 c/n ↓ → 出射角更靠近法線（彎更多）`;
+    wrapText(cxm, txt, pad, H-56*devicePixelRatio, W-pad*2, 14*devicePixelRatio);
+
+    function drawWave(x,y,L,f,phase,color){
+      cxm.strokeStyle = color; cxm.lineWidth=1.5*devicePixelRatio; cxm.setLineDash([]);
+      cxm.beginPath();
+      for(let i=0;i<=L;i+=2*devicePixelRatio){
+        const xx = x+i; const yy = y + 8*devicePixelRatio*Math.sin( (i/60*devicePixelRatio)*2*Math.PI*f - phase );
+        if(i===0) cxm.moveTo(xx,yy); else cxm.lineTo(xx,yy);
+      }
+      cxm.stroke();
+    }
+
+    function wrapText(ctx, text, x, y, maxWidth, lineHeight){
+      const words = text.split('');
+      let line='';
+      for(let i=0;i<words.length;i++){
+        const test = line + words[i];
+        if(ctx.measureText(test).width > maxWidth && i>0){ ctx.fillText(line, x, y); line = words[i]; y += lineHeight; }
+        else line = test;
+      }
+      ctx.fillText(line, x, y);
+    }
+  }
+
+  // 簡易光譜顏色
+  function wlToRGB(wl){
+    const w = Math.max(380, Math.min(700, Number(wl)));
+    let r=0,g=0,b=0;
+    if (w>=380 && w<440){ r=-(w-440)/(440-380); g=0; b=1; }
+    else if (w<490){ r=0; g=(w-440)/(490-440); b=1; }
+    else if (w<510){ r=0; g=1; b=-(w-510)/(510-490); }
+    else if (w<580){ r=(w-510)/(580-510); g=1; b=0; }
+    else if (w<645){ r=1; g=-(w-645)/(645-580); b=0; }
+    else { r=1; g=0; b=0; }
+    // gamma 與強度
+    const gamma=0.8; const I = (w<420)?0.5:(w>645?0.5:1);
+    r=Math.pow(r*I, gamma); g=Math.pow(g*I, gamma); b=Math.pow(b*I, gamma);
+    const to255=v=>Math.round(255*Math.max(0,Math.min(1,v)));
+    return `rgb(${to255(r)},${to255(g)},${to255(b)})`;
+  }
+
+  // 控制繫結
+  selOutside.onchange=draw; selInside.onchange=draw; ang.oninput=draw; selMode.onchange=draw; lam.oninput=()=>{lamVal.textContent=lam.value; draw();};
+  chkNormals.onchange=draw; chkTIR.onchange=draw; chkGrid.onchange=draw; chkMinDev.onchange=draw; chkMicro.onchange=draw;
+
+  $('#btnReset').onclick=()=>{
+    selOutside.value='air'; selInside.value='bk7'; ang.value=10; selMode.value='white'; lam.value=550; lamVal.textContent='550'; chkNormals.checked=false; chkTIR.checked=true; chkGrid.checked=false; chkMinDev.checked=false; chkMicro.checked=true; draw();
+  };
+
+  $('#btnSave').onclick=()=>{
+    const html = '<!DOCTYPE html>\n'+document.documentElement.outerHTML;
+    const blob = new Blob([html], {type:'text/html'});
+    const a = document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='refraction_prism_micro.html'; document.body.appendChild(a); a.click(); a.remove();
+    toast('已下載 HTML');
+  };
+
+  function toast(msg){ const t=$('#toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'), 1800); }
+
+  // 初始化
+  setCanvasSizes();
+})();
+</script>
+</body>
+</html>
