@@ -1,0 +1,569 @@
+
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1"/>
+<title>免疫隱形胰島細胞移植：互動式流程模擬 v0.1</title>
+<style>
+  :root{
+    --bg:#0b0e12;
+    --panel:#12161c;
+    --ink:#e8f0ff;
+    --muted:#9fb3c8;
+    --accent:#7bd6ff;
+    --ok:#45e19f;
+    --warn:#ffcc66;
+    --bad:#ff6b6b;
+    --cd47:#a0ff85;
+    --hla:#ff9ddb;
+    --grid:#1b2230;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0;background:radial-gradient(1200px 600px at 70% -10%,#101723 10%,var(--bg) 55%);
+    color:var(--ink);font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI","Noto Sans TC","PingFang TC",Roboto,Helvetica,Arial;
+  }
+  a{color:var(--accent);text-decoration:none} a:hover{text-decoration:underline}
+  .app{display:grid;grid-template-columns:320px 1fr;grid-template-rows:auto 1fr;min-height:100vh}
+  header{
+    grid-column:1/-1;display:flex;align-items:center;gap:14px;padding:14px 18px;
+    border-bottom:1px solid #1a2030;background:linear-gradient(180deg,#0d121a,transparent);
+    position:sticky;top:0;z-index:10
+  }
+  header .title{font-weight:700;letter-spacing:0.5px}
+  header .tag{font-size:12px;color:var(--muted);border:1px solid #243049;border-radius:999px;padding:3px 8px}
+  .left{
+    border-right:1px solid #1a2030;background:linear-gradient(180deg,#0b1119,transparent);padding:16px;overflow:auto
+  }
+  .main{padding:16px;overflow:auto}
+  .step{
+    display:flex;align-items:flex-start;gap:10px;padding:10px;border-radius:12px;margin:8px 0;
+    border:1px solid #1c2536;background:rgba(255,255,255,0.02);cursor:pointer
+  }
+  .step.active{outline:2px solid var(--accent);background:rgba(123,214,255,0.07)}
+  .step .idx{width:24px;height:24px;border-radius:999px;background:#172030;display:grid;place-items:center;font-size:12px;color:var(--muted)}
+  .step .label{font-weight:600}
+  .tip{font-size:12px;color:var(--muted);margin-top:6px}
+  .panel{background:var(--panel);border:1px solid #1a2030;border-radius:16px;padding:12px;margin-bottom:12px}
+  .grid{display:grid;gap:12px}
+  .two{grid-template-columns:1.1fr 0.9fr}
+  .three{grid-template-columns:repeat(3,1fr)}
+  .canvas{
+    background:linear-gradient(180deg,#0d1420,#0b0e12);border:1px solid #1a2030;border-radius:16px;min-height:360px;position:relative;overflow:hidden
+  }
+  .subtle{font-size:12px;color:var(--muted)}
+  .badge{font-size:11px;padding:2px 6px;border:1px solid #263245;border-radius:6px;color:var(--muted)}
+  .controls label{display:flex;align-items:center;gap:8px;margin:6px 0}
+  input[type="range"]{width:100%}
+  /* islet + editor */
+  .bench{height:380px}
+  .tray{position:absolute;left:16px;top:16px;width:180px;height:120px;border:1px dashed #2a374d;border-radius:12px;padding:8px}
+  .tray h4{margin:0 0 4px 0;font-size:12px;color:var(--muted)}
+  .islet{
+    width:22px;height:22px;border-radius:999px;background:radial-gradient(circle at 40% 38%,#ffd8d8 0%,#ff8eb3 35%,#d44282 70%,#5a1e42 100%);
+    position:absolute;cursor:grab;box-shadow:0 0 14px #ff5fa8a8;border:1px solid #e96aa7
+  }
+  .editor{
+    position:absolute;right:16px;top:16px;width:240px;height:240px;border-radius:16px;
+    background:radial-gradient(120px 120px at 50% 50%, #162133, #0e1420);border:1px solid #243149;padding:10px
+  }
+  .editor h4{margin:0;color:var(--muted);font-size:12px}
+  .slot{
+    margin-top:6px;background:#0e1522;border:1px dashed #2a3b55;border-radius:10px;height:140px;display:grid;place-items:center;color:#678; font-size:12px
+  }
+  .gene-tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+  .gene{font-size:11px;border:1px solid #2b3a51;padding:3px 6px;border-radius:999px}
+  .gene.ko{color:#ffb3e1;border-color:#4a2746;background:#2a1730}
+  .gene.cd47{color:#c8ffba;border-color:#2e4a2a;background:#142015}
+  .pop{
+    position:absolute;left:210px;top:16px;background:#0f1522;border:1px solid #2a3a50;border-radius:10px;padding:8px;width:220px;font-size:12px;color:var(--muted)
+  }
+  /* immune radar */
+  .radar{height:380px;display:grid;place-items:center}
+  .scope{width:340px;height:340px;border-radius:999px;border:1px solid #213147;background:radial-gradient(170px 170px at 50% 50%,#0f1a2b,#0b1018)}
+  .ring{position:absolute;inset:0;border-radius:999px;border:1px dashed #20314a;pointer-events:none}
+  .cell{position:absolute;width:24px;height:24px;border-radius:999px;display:grid;place-items:center;font-size:12px}
+  .cell.t{background:#17253a;border:1px solid #2a4370;box-shadow:0 0 8px #3178ff55}
+  .cell.nk{background:#2a1d1d;border:1px solid #5a2e2e;box-shadow:0 0 8px #ff5b5b55}
+  .cell.islet{width:28px;height:28px;background:radial-gradient(#ffe1f1,#ff92c4,#7a2f58);border:1px solid #e66aa6;box-shadow:0 0 14px #ff5fa8a8}
+  .beam{position:absolute;height:2px;background:linear-gradient(90deg,transparent,#fff);opacity:0.0}
+  .beam.show{opacity:0.9;animation:pulse 0.9s ease}
+  @keyframes pulse{0%{opacity:0}40%{opacity:1}100%{opacity:0}}
+  /* implant + timeline */
+  .implant{height:420px;display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .arm{position:relative;border-right:1px dashed #233149;padding-right:8px}
+  .forearm{
+    position:absolute;left:28%;top:10%;width:44%;height:80%;border-radius:40px;background:linear-gradient(180deg,#1a2635,#0e1623);
+    border:1px solid #26354f;transform:rotate(8deg)
+  }
+  .inject{position:absolute;right:-10px;top:46%;background:#14202e;border:1px solid #2b3d57;border-radius:8px;padding:6px 8px;cursor:pointer}
+  .site{position:absolute;width:12px;height:12px;border-radius:999px;background:radial-gradient(#fff6,transparent);border:1px solid #2d3b56;box-shadow:0 0 10px #fff6}
+  .metrics{display:grid;gap:12px}
+  .meter{background:#0e1623;border:1px solid #26354f;border-radius:12px;padding:10px}
+  .meter h4{margin:0 0 6px 0;color:var(--muted);font-size:12px}
+  .bar{height:10px;background:#1a2433;border-radius:999px;overflow:hidden}
+  .fill{height:100%;width:0%;background:linear-gradient(90deg,#3ec9ff,#45e19f)}
+  .row{display:flex;align-items:center;justify-content:space-between;font-size:13px;margin-top:6px}
+  .pill{font-size:12px;border:1px solid #2a374d;border-radius:999px;padding:3px 8px}
+  .off{color:#9fb3c8}
+  .on{color:var(--bad);border-color:#5a3333;background:#2a1717}
+  /* sources & compare */
+  details{background:#0e1522;border:1px solid #27324a;border-radius:10px;padding:10px}
+  summary{cursor:pointer;color:var(--accent);font-weight:600}
+  .compare{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+  .card{background:#0f1724;border:1px solid #22304a;border-radius:12px;padding:10px}
+  .card h4{margin:0 0 6px 0}
+  .tagrow{display:flex;gap:6px;flex-wrap:wrap}
+  .tiny{font-size:11px;color:var(--muted)}
+  /* responsive */
+  @media (max-width: 980px){
+    .app{grid-template-columns:1fr}
+    .left{order:2}
+    .main{order:1}
+    .implant{grid-template-columns:1fr}
+    .two{grid-template-columns:1fr}
+  }
+
+  /* README modal */
+  .modal{position:fixed;inset:0;background:rgba(0,0,0,0.6);display:none;align-items:center;justify-content:center;z-index:999}
+  .modal.show{display:flex}
+  .modal .box{width:min(920px,92vw);height:min(80vh,900px);background:#0e1522;border:1px solid #27324a;border-radius:14px;display:flex;flex-direction:column;overflow:hidden}
+  .modal header{position:relative;grid-column:auto;background:linear-gradient(180deg,#0d121a,transparent);border-bottom:1px solid #1a2030;padding:10px 12px;display:flex;gap:10px;align-items:center}
+  .modal header h3{margin:0;font-size:16px}
+  .modal .actions{margin-left:auto;display:flex;gap:8px}
+  .modal .actions button{background:#162234;color:#e6f0ff;border:1px solid #2a3a55;border-radius:8px;padding:6px 10px;cursor:pointer}
+  .modal .content{padding:12px;overflow:auto;background:#0b1018}
+  .modal pre{white-space:pre-wrap;word-break:break-word;line-height:1.5;font-family:ui-monospace, SFMono-Regular, Menlo, monospace;color:#d7e7ff}
+
+</style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <div class="title">免疫隱形胰島細胞移植：互動式流程模擬 <span class="tag">v0.2 單檔HTML + README</span></div>
+      <span class="tag">教育示意｜非醫療建議</span>
+      <span class="tag">資料來源面板在下方</span>
+    
+      <button id="openReadme" style="margin-left:auto;background:#182132;color:#cfe7ff;border:1px solid #2a3a55;border-radius:10px;padding:8px 12px;cursor:pointer">
+        說明 / README
+      </button>
+
+    </header>
+    <aside class="left">
+      <div class="panel">
+        <div style="font-weight:700;margin-bottom:6px">操作步驟</div>
+        <div id="steps"></div>
+        <div class="tip">建議照順序操作：拖拉「胰島細胞」到「CRISPR 編輯器」→ 開啟免疫雷達觀察 → 進行肌肉注射 → 拖曳時間軸。</div>
+      </div>
+      <div class="panel controls">
+        <div style="font-weight:700;margin-bottom:6px">顯示選項</div>
+        <label><input type="checkbox" id="showGrid" checked> 顯示微網格</label>
+        <label><input type="checkbox" id="showImmune" checked> 顯示免疫雷達動畫</label>
+        <label><input type="checkbox" id="showHints" checked> 顯示提示</label>
+      </div>
+      <div class="panel">
+        <div style="font-weight:700;margin-bottom:6px">關鍵概念</div>
+        <div class="tip">HLA I/II <span class="badge">去表現</span> ➜ T 細胞較難辨識；但 HLA 缺失時，NK 細胞可能攻擊。</div>
+        <div class="tip">CD47 <span class="badge">↑表現</span> ➜ 對先天免疫系統傳遞「不要吃我」訊號，降低 NK 攻擊。</div>
+        <div class="tip">臨床證據：首例 12 週內出現 C-肽（胰島素分泌指標），且 <b>無系統性免疫抑制</b>。劑量仍部分依賴外源胰島素，屬早期研究。</div>
+      </div>
+    </aside>
+    <main class="main">
+      <div class="grid two">
+        <div class="panel">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div style="font-weight:700">① 細胞來源 ➜ ② CRISPR 編輯（拖放示意）</div>
+            <span class="badge">drag & drop</span>
+          </div>
+          <div class="canvas bench" id="bench">
+            <div class="tray">
+              <h4>捐贈者胰島細胞</h4>
+              <div class="subtle">拖曳粉色小球 → 放入右側「編輯槽」</div>
+            </div>
+            <!-- islets initially placed via JS -->
+            <div class="editor">
+              <h4>CRISPR 編輯器</h4>
+              <div class="slot" id="slot">把細胞放進來</div>
+              <div class="gene-tags">
+                <span class="gene ko">HLA-I KO（B2M−/−）</span>
+                <span class="gene ko">HLA-II KO（CIITA−/−）</span>
+                <span class="gene cd47">CD47 ↑</span>
+              </div>
+              <div class="subtle" style="margin-top:6px">完成後：細胞將標記為「HIP（hypoimmune）」狀態。</div>
+            </div>
+            <div class="pop" id="pop1">
+              <div class="subtle">說明</div>
+              <div>將兩類 HLA 表現關閉、同時提高 CD47 表現，可減少 T 與 NK 兩路免疫攻擊風險。</div>
+            </div>
+          </div>
+        </div>
+        <div class="panel">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div style="font-weight:700">③ 免疫雷達：T / NK 對「隱形」細胞的反應</div>
+            <span class="badge">HLA / CD47 邏輯示意</span>
+          </div>
+          <div class="canvas radar" id="radar">
+            <div class="scope" id="scope" style="position:relative">
+              <div class="ring" style="inset:12px"></div>
+              <div class="ring" style="inset:28px"></div>
+              <div class="ring" style="inset:44px"></div>
+              <!-- entities via JS -->
+              <div class="beam" id="beam" style="left:0;top:0;width:0"></div>
+            </div>
+          </div>
+          <div class="subtle">規則：若 HLA 存在 ➜ T 攻擊；若 HLA 缺失但無 CD47 ➜ NK 攻擊；若 HLA 缺失 + CD47↑ ➜ 安全通過。</div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div style="font-weight:700;margin-bottom:6px">④ 植入部位：前臂肌肉（示意） ➜ ⑤ 12 週觀察：C-肽上升、外源胰島素下降</div>
+        <div class="canvas implant">
+          <div class="arm">
+            <div class="forearm"></div>
+            <button class="inject" id="injectBtn">進行多點肌肉注射</button>
+          </div>
+          <div class="metrics">
+            <div class="meter">
+              <h4>觀察時間軸（週）</h4>
+              <input type="range" id="weeks" min="0" max="12" value="0"/>
+              <div class="row"><span>目前：<b id="wkLbl">0</b> 週</span><span class="pill off" id="immunePill">免疫抑制：OFF</span></div>
+            </div>
+            <div class="meter">
+              <h4>C-肽（內源性胰島素分泌指標）</h4>
+              <div class="bar"><div class="fill" id="cpep"></div></div>
+              <div class="row"><span class="tiny">低</span><span class="tiny">高</span></div>
+            </div>
+            <div class="meter">
+              <h4>每日外源胰島素劑量（相對量）</h4>
+              <div class="bar"><div class="fill" id="exIns" style="background:linear-gradient(90deg,#ff6b6b,#ffcc66)"></div></div>
+              <div class="row"><span class="tiny">高</span><span class="tiny">低</span></div>
+            </div>
+            <div class="meter">
+              <div class="row"><span>植入細胞狀態</span><span class="pill" id="hipPill">未編輯</span></div>
+              <div class="tip">※ 本頁面僅為機制示意，非醫療建議；實際劑量與指標以臨床試驗為準。</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div style="font-weight:700;margin-bottom:6px">⑥ 與其他策略的差異（教育比較，不代表臨床優劣）</div>
+        <div class="compare">
+          <div class="card">
+            <h4>基因編輯型「免疫隱形」胰島細胞（本頁示意）</h4>
+            <div class="tagrow">
+              <span class="badge">HLA I/II 失表現</span>
+              <span class="badge">CD47 ↑</span>
+              <span class="badge">無系統性免疫抑制*</span>
+              <span class="badge">肌肉注射</span>
+            </div>
+            <div class="tiny" style="margin-top:6px">* 依 NEJM 首例 12 週報告；仍為早期臨床，長期安全性與持久性待觀察。</div>
+          </div>
+          <div class="card">
+            <h4>其他路線（舉例）</h4>
+            <ul class="tiny">
+              <li><b>幹細胞分化等位異體胰島（如 zimislecel，原稱 VX‑880）</b>：目前試驗多採免疫抑制；也有裝置包封版本（VX‑264）探索減少藥物需求。</li>
+              <li><b>免疫調節/包封裝置</b>：以物理屏障或局部藥物降低排斥，設計各異。</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <details class="panel">
+        <summary>資料來源與延伸閱讀（點開展開）</summary>
+        <ul style="margin-top:8px">
+          <li>NEJM：<i>Survival of Transplanted Allogeneic Beta Cells with No Immunosuppression</i>（Carlsson 等，2025/08）</li>
+          <li>Uppsala University 新聞（2025/01）：正在進行的臨床研究與負責人訪談</li>
+          <li>Sana Biotechnology 新聞稿（2025/08）：HIP（hypoimmune）胰島細胞臨床資料</li>
+          <li>評論／總覽：Nat Med News & Views（2025/08）、Medscape 報導（2025/08）</li>
+          <li>對照：Vertex「zimislecel（VX‑880）」與裝置版 VX‑264 的資訊（2025/06 會議發表與新聞稿）</li>
+        </ul>
+        <div class="tiny">說明：坊間常把此成果誤稱為「VX‑880 無免疫抑制版」。實際上，NEJM 首例屬「基因編輯（HIP）」策略；
+          zimislecel（VX‑880）為「分化胰島」路線且多數試驗結合免疫抑制。兩者研發單位與機制不同。</div>
+      </details>
+
+      <div class="subtle" style="margin-top:12px">
+        免責聲明：本頁為教育互動示意，非條件評估、非醫囑；若為患者或家屬，請洽醫療團隊。資料以引用之學術來源與機構公告為準。
+      </div>
+
+    </main>
+  </div>
+
+<script>
+// ---------- stepper ----------
+const stepNames = [
+  "① 細胞來源（捐贈者胰島）",
+  "② CRISPR 編輯（HLA I/II KO + CD47↑）",
+  "③ 免疫雷達（T / NK 規則）",
+  "④ 前臂肌肉植入（示意）",
+  "⑤ 12 週觀察：C-肽上升 / 外源胰島素下降",
+  "⑥ 與其他策略比較",
+  "⑦ 重要提醒：仍屬早期研究"
+];
+const stepsEl = document.getElementById('steps');
+stepNames.forEach((s,i)=>{
+  const el = document.createElement('div');
+  el.className = 'step' + (i===0 ? ' active':'');
+  el.dataset.step = i;
+  el.innerHTML = `<div class="idx">${i+1}</div><div><div class="label">${s}</div>
+  <div class="tip">${i===0?'拖動粉色胰島細胞→右側編輯槽': i===1?'觀察標籤變為 HIP 狀態': i===2?'看 T/NK 是否攻擊':'點按「注射」並拖曳時間軸'}</div></div>`;
+  el.addEventListener('click',()=>{
+    document.querySelectorAll('.step').forEach(x=>x.classList.remove('active'));
+    el.classList.add('active');
+    // small visual hint: scroll to relevant panels (not implementing anchors to keep single file simple)
+    window.scrollTo({top:0,behavior:'smooth'});
+  });
+  stepsEl.appendChild(el);
+});
+
+// ---------- bench: spawn islets & DnD to editor ----------
+const bench = document.getElementById('bench');
+const slot = document.getElementById('slot');
+const pop1 = document.getElementById('pop1');
+let hipCount = 0;
+
+function spawnIslets(n=10){
+  for(let i=0;i<n;i++){
+    const d = document.createElement('div');
+    d.className = 'islet';
+    d.style.left = (24 + Math.random()*130) + 'px';
+    d.style.top = (40 + Math.random()*70) + 'px';
+    d.draggable = true;
+    d.title = '拖到右側編輯器';
+    d.addEventListener('dragstart', e=>{
+      e.dataTransfer.setData('text/plain','islet');
+      e.dataTransfer.setDragImage(d,12,12);
+      d.classList.add('dragging');
+    });
+    d.addEventListener('dragend', e=>d.classList.remove('dragging'));
+    bench.appendChild(d);
+  }
+}
+
+slot.addEventListener('dragover', e=>{
+  e.preventDefault();
+  slot.style.background = '#102036';
+});
+slot.addEventListener('dragleave', e=>{
+  slot.style.background = '#0e1522';
+});
+slot.addEventListener('drop', e=>{
+  e.preventDefault();
+  slot.style.background = '#0e1522';
+  // turn a dragged islet into HIP-tagged and send back to tray area
+  const dragged = document.querySelector('.islet.dragging');
+  if(dragged){
+    dragged.classList.remove('dragging');
+    // mark as HIP
+    dragged.dataset.hip = '1';
+    dragged.style.boxShadow = '0 0 16px #a0ff85aa';
+    dragged.style.background = 'radial-gradient(circle at 40% 38%,#e9ffe1 0%,#b8ff9b 35%,#57c84d 70%,#1e5a21 100%)';
+    dragged.style.border = '1px solid #5de46b';
+    // move to right side "output"
+    dragged.style.left = (bench.clientWidth - 120 - Math.random()*80) + 'px';
+    dragged.style.top = (60 + Math.random()*140) + 'px';
+    hipCount++;
+    document.getElementById('hipPill').textContent = 'HIP（HLA I/II−, CD47↑）';
+    document.getElementById('hipPill').style.color = '#c8ffba';
+    // small hint popup
+    pop1.textContent = '已完成 HIP：HLA I/II 失表現 + CD47↑。可到右側「免疫雷達」觀察是否觸發攻擊。';
+    setTimeout(()=>{pop1.textContent='將兩類 HLA 表現關閉、同時提高 CD47 表現，可減少 T 與 NK 兩路免疫攻擊風險。'},2200);
+  }
+});
+
+spawnIslets(12);
+
+// ---------- radar: immune logic ----------
+const scope = document.getElementById('scope');
+const beam = document.getElementById('beam');
+let tCell, nkCell, demoIslet;
+
+function mk(x,y,cls,html=''){
+  const d = document.createElement('div');
+  d.className = 'cell ' + cls;
+  d.style.left = x+'px'; d.style.top = y+'px';
+  d.innerHTML = html;
+  scope.appendChild(d); return d;
+}
+
+function initRadar(){
+  const w = 340, h = 340;
+  tCell = mk(40, 60, 't', 'T');
+  nkCell = mk(260, 200, 'nk', 'NK');
+  demoIslet = mk(150, 150, 'islet', '');
+  demoIslet.title = '此處用來測試免疫反應邏輯';
+  demoIslet.dataset.hla = '1'; // default unedited
+  demoIslet.dataset.cd47 = '0';
+  // beam line
+  beam.style.left = '60px'; beam.style.top = '72px'; beam.style.width = '0px';
+}
+
+function attack(fromEl, toEl){
+  const x1 = fromEl.offsetLeft + 12, y1 = fromEl.offsetTop + 12;
+  const x2 = toEl.offsetLeft + 12, y2 = toEl.offsetTop + 12;
+  const len = Math.hypot(x2-x1,y2-y1);
+  const ang = Math.atan2(y2-y1,x2-x1) * 180/Math.PI;
+  beam.style.left = x1+'px'; beam.style.top = y1+'px';
+  beam.style.width = len+'px'; beam.style.transform = `rotate(${ang}deg)`;
+  beam.classList.add('show');
+  setTimeout(()=>beam.classList.remove('show'), 900);
+}
+
+function evalImmunity(){
+  const hla = demoIslet.dataset.hla === '1';
+  const cd47 = demoIslet.dataset.cd47 === '1';
+  let attackedBy = null;
+  if(hla){ attackedBy = 'T'; attack(tCell,demoIslet); }
+  else if(!hla && !cd47){ attackedBy = 'NK'; attack(nkCell,demoIslet); }
+  else { attackedBy = null; } // stealth
+  // glow
+  if(attackedBy==='T'){ demoIslet.style.boxShadow='0 0 18px #3178ff88'; }
+  else if(attackedBy==='NK'){ demoIslet.style.boxShadow='0 0 18px #ff5b5b88'; }
+  else { demoIslet.style.boxShadow='0 0 14px #a0ff85aa'; }
+}
+
+initRadar();
+setInterval(()=>{
+  if(document.getElementById('showImmune').checked) evalImmunity();
+}, 1400);
+
+// link HIP state to radar demo: if user has created HIP cells, flip demoIslet flags
+setInterval(()=>{
+  const anyHIP = document.querySelector('.islet[data.hip="1"]') || document.querySelector('.islet[data-hip="1"]');
+}, 800);
+
+// When user clicks edited cells on bench, set radar flags accordingly
+bench.addEventListener('click', e=>{
+  const t = e.target;
+  if(t.classList.contains('islet')){
+    const hip = t.dataset.hip === '1';
+    demoIslet.dataset.hla = hip ? '0':'1';
+    demoIslet.dataset.cd47 = hip ? '1':'0';
+  }
+});
+
+// ---------- implant + timeline ----------
+const injectBtn = document.getElementById('injectBtn');
+const arm = document.querySelector('.arm');
+let injected = false;
+injectBtn.addEventListener('click', ()=>{
+  injected = true;
+  // create 6 sites
+  for(let i=0;i<6;i++){
+    const s = document.createElement('div');
+    s.className = 'site';
+    const x = 40 + Math.random()*180;
+    const y = 50 + Math.random()*230;
+    s.style.left = x+'px'; s.style.top = y+'px';
+    arm.appendChild(s);
+  }
+  injectBtn.textContent = '已注射（示意）';
+  injectBtn.disabled = true;
+  updateMeters();
+});
+
+const weeks = document.getElementById('weeks');
+const wkLbl = document.getElementById('wkLbl');
+const cpep = document.getElementById('cpep');
+const exIns = document.getElementById('exIns');
+const immunePill = document.getElementById('immunePill');
+
+weeks.addEventListener('input', updateMeters);
+
+function lerp(a,b,t){ return a + (b-a)*t; }
+
+function updateMeters(){
+  const w = parseInt(weeks.value,10);
+  wkLbl.textContent = w;
+  // C-peptide rises after week ~4, reaches plateau by 12; map to 0→100%
+  const t = Math.max(0,(w-4))/8; // 0..1
+  const c = Math.max(0, Math.min(1, t));
+  const insulinDrop = Math.min(1, w/12 * 0.7); // up to ~70% reduction
+  cpep.style.width = (c*100).toFixed(0)+'%';
+  exIns.style.width = ((1-insulinDrop)*100).toFixed(0)+'%';
+  immunePill.textContent = '免疫抑制：OFF';
+  // if not injected or not HIP, cap effects
+  const hip = hipCount>0;
+  if(!injected || !hip){
+    cpep.style.width = '0%'; exIns.style.width = '100%';
+  }
+}
+
+// grid toggle aesthetic (light grid overlay for orientation)
+const showGrid = document.getElementById('showGrid');
+function applyGrids(){
+  const canvases = document.querySelectorAll('.canvas');
+  canvases.forEach(c=>{
+    c.style.backgroundImage = showGrid.checked ? 
+      'linear-gradient(#0d1420,#0b0e12), linear-gradient(transparent 24px, rgba(255,255,255,0.04) 25px), linear-gradient(90deg, transparent 24px, rgba(255,255,255,0.04) 25px)' :
+      'linear-gradient(180deg,#0d1420,#0b0e12)';
+    c.style.backgroundSize = showGrid.checked ? 'auto, 25px 25px, 25px 25px' : 'auto';
+  });
+}
+showGrid.addEventListener('change', applyGrids);
+applyGrids();
+
+// hints visibility
+document.getElementById('showHints').addEventListener('change', e=>{
+  document.querySelectorAll('.tip').forEach(t=>t.style.display = e.target.checked ? '' : 'none');
+});
+</script>
+
+<div id="readmeModal" class="modal" aria-hidden="true" role="dialog">
+  <div class="box">
+    <header>
+      <h3>README 說明文件</h3>
+      <div class="actions">
+        <button id="saveReadme">下載 readme.md</button>
+        <button id="openNewTab">在新分頁開啟</button>
+        <button id="closeReadme">關閉</button>
+      </div>
+    </header>
+    <div class="content">
+      <pre id="readmeContent"></pre>
+    </div>
+  </div>
+</div>
+<script>
+  const README = "\n# 免疫隱形胰島細胞移植 — 互動式流程說明（README）\n\n> 本文件把你提供的文字整理成結構清楚、容易閱讀的版本，並加入必要的說明與安全提醒，給課堂展示或專題簡報使用。\n\n---\n\n## TL;DR（一句話重點）\n早期臨床顯示：**基因編輯的「免疫隱形」胰島細胞**（HLA-I/II 失表現 + CD47↑）移植入體後，**在 12 週內出現 C-肽**（表示身體開始分泌胰島素），且**沒有使用系統性免疫抑制藥**；病人仍需部分外源胰島素，成果令人振奮，但**尚不能宣稱「根治糖尿病」**。\n\n---\n\n## 痛點與願景\n- 許多 1 型糖尿病患者長期仰賴外源胰島素：\n  - 每日多次注射、餐前計算碳水、外出攜帶針劑、半夜擔心低血糖。\n- 若能讓體內重新擁有「能分泌胰島素的 β 細胞」，就可能**從管理症狀**走向**恢復功能**。\n\n---\n\n## 研究亮點（依 2025 年發表整理）\n- 受試者：42 歲男性，1 型糖尿病 30 年。\n- 介入：移植 **基因編輯的胰島細胞**（約 8,000 萬顆），部位為**前臂肌肉**（示意）。\n- 設計重點：\n  - **移除 HLA 抗原**（HLA-I/II 失表現）→ 降低 T 細胞辨識。\n  - **提高 CD47 表現** → 傳遞「不要吃我」訊號，降低 NK 細胞吞噬。\n- 主要結果（12 週）：\n  - 血中偵測到 **C-肽**（代表內源性胰島素分泌）。\n  - **無系統性免疫抑制藥**下未見排斥、未見感染等重大副作用。\n  - 外源胰島素**用量下降**（仍部分依賴）。\n- 臨床意義（引述意涵）：這可能是「從控制症狀」邁向「恢復功能」的一大步。\n\n> ⚠️ 仍為早期、少數個案資料；尚不能推論長期安全性、持久性，也**不等於已證實可完全停用胰島素**。\n\n---\n\n## 這是怎麼做到的？（免疫「隱形」的黑科技）\n- **HLA（Human Leukocyte Antigen）失表現**：\n  - 關閉 HLA-I/II 相關基因（常見作法如 B2M、CIITA 敲除），使 T 細胞較難辨識外來細胞。\n- **CD47 上調**：\n  - 對先天免疫傳遞「不要吃我」訊號，降低自然殺手細胞（NK）與吞噬細胞的攻擊。\n- 合併效果：讓細胞「像隱形」一樣在體內執行 β 細胞功能。\n\n---\n\n## 互動網頁的教學操作流程（搭配課堂演示）\n1. **拖曳胰島細胞 → 放入「CRISPR 編輯器」**：\n   - 看到標籤變成 **HIP（hypoimmune）**，表示已完成 **HLA I/II 失表現 + CD47↑**。\n2. **免疫雷達**（T / NK 規則示意）：\n   - 有 HLA → **T** 攻擊；\n   - 沒 HLA、也沒 CD47 → **NK** 攻擊；\n   - 沒 HLA + CD47↑ → **通過**。\n3. **前臂肌肉注射（示意）**：點按按鈕生成多個移植點。\n4. **時間軸（0–12 週）**：**C-肽上升、外源胰島素需求下降** 的動態趨勢。\n\n> 提醒：頁面為「教育示意」，參數與曲線為視覺化用，**不代表實際醫囑或個人治療方案**。\n\n---\n\n## 與其他策略的差異（重點對照，不代表臨床優劣）\n- **本頁示意：基因編輯型「免疫隱形」胰島細胞（HIP）**  \n  - 機制：HLA I/II 失表現 + CD47↑。  \n  - 資料：早期臨床中出現 C-肽、無系統性免疫抑制。  \n- **Vertex 的幹細胞分化胰島（例如 VX‑880／zimislecel）**  \n  - 多數公開資料仍 **搭配免疫抑制**；另有 **VX‑264（裝置包封）** 探索減藥。  \n- **其他免疫調節/包封裝置**  \n  - 以物理屏障或局部藥物降低排斥，路線多元、設計各異。\n\n> 你的原稿將成果歸因為「VX‑880」，為避免混淆，本文將其**調整為「基因編輯 HIP 路線」**說明；兩者**機制與研發單位不同**。\n\n---\n\n## 對台灣與亞洲的可能影響\n- 亞洲 1 型糖尿病族群雖比例較低，但多為年輕患者、病程長，**家庭與社會成本高**。  \n- 若此路線成熟商轉，**有機會**降低長期注射頻率與照護負擔；也可能延伸到**2 型糖尿病**或其他**自體免疫疾病**（如類風濕性關節炎、紅斑性狼瘡）之細胞／免疫調控研究。\n\n> 以上為「可能性」描述，**不代表已證實療效**。\n\n---\n\n## 下一步（研究與產業）\n- **第二期臨床**：擴大樣本、觀察安全性與持久性、評估是否可進一步減少外源胰島素。\n- **幹細胞版本**：確保穩定來源、量產性與成本；利於廣泛普及。\n- **法規與生產**：製程一致性、長期追蹤、藥物經濟學。\n\n---\n\n## 常見問答（FAQ）\n**Q1：這是不是代表「糖尿病可以被根治」？**  \nA：**尚無法下這個結論。** 目前屬早期試驗、案例數有限；雖看到內源性胰島素恢復跡象，但病人仍需部分外源胰島素，且長期安全性/持久性未知。\n\n**Q2：為什麼不用免疫抑制藥？**  \nA：因為細胞被**基因編輯成「免疫隱形」**（HLA 失表現 + CD47↑），嘗試在不使用**系統性**免疫抑制的前提下降低排斥。是否完全不需任何免疫調節，仍需更長期與更大規模數據。\n\n**Q3：這和 VX‑880 是同一件事嗎？**  \nA：**不是。** VX‑880（zimislecel）是幹細胞分化胰島路線；本文主體是**基因編輯的 HIP 路線**。兩者機制與研發單位不同，請避免混淆。\n\n---\n\n## Hashtags（社群貼文可用）\n#糖尿病新希望 #免疫隱形 #基因療法 #再生醫學 #C肽 #β細胞 #不等於根治 #早期臨床 #身體自己救自己\n\n---\n\n## 免責聲明\n- 本文件與互動頁面僅供**科學教育**與**課堂示意**，並非醫療建議。  \n- 任何治療與檢查請務必諮詢合格的專業醫療團隊。  \n- 研究仍在進行中，結論可能因後續證據而更新。\n\n---\n\n## 檔案資訊\n- 檔名：`readme.md`\n- 適用：搭配「免疫隱形胰島細胞移植：互動式流程模擬」單一 HTML 頁面\n- 版本：v0.1（2025-11-06）\n\n";
+  const openBtn = document.getElementById('openReadme');
+  const modal = document.getElementById('readmeModal');
+  const closeBtn = document.getElementById('closeReadme');
+  const content = document.getElementById('readmeContent');
+  const saveBtn = document.getElementById('saveReadme');
+  const newTabBtn = document.getElementById('openNewTab');
+
+  function openModal(){ 
+    modal.classList.add('show'); 
+    modal.setAttribute('aria-hidden','false');
+    content.textContent = README; 
+  }
+  function closeModal(){ 
+    modal.classList.remove('show'); 
+    modal.setAttribute('aria-hidden','true');
+  }
+  if(openBtn) openBtn.addEventListener('click', openModal);
+  if(closeBtn) closeBtn.addEventListener('click', closeModal);
+  modal.addEventListener('click', (e)=>{ if(e.target===modal) closeModal(); });
+
+  // Download as readme.md
+  saveBtn.addEventListener('click', ()=>{
+    const blob = new Blob([README], {type:'text/markdown;charset=utf-8'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'readme.md';
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+  });
+
+  // Open in new tab as data URL
+  newTabBtn.addEventListener('click', ()=>{
+    const url = 'data:text/markdown;charset=utf-8,' + encodeURIComponent(README);
+    window.open(url, '_blank');
+  });
+</script>
+
+</body>
+</html>

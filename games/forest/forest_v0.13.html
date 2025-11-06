@@ -1,0 +1,830 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>forest v0.13 — 單樹設計 × 森林排列 × 季節落葉</title>
+<style>
+  :root{ --bg:#08101f; --panel:#0b1220; --ink:#e5edf7; --muted:#9fb0c9; --border:#1e2a42;
+         --brand:#22c55e; --accent:#34d399; }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);font-family:ui-sans-serif,system-ui,"Noto Sans TC",Segoe UI,Roboto}
+  .wrap{display:grid;grid-template-columns:1fr 380px;height:100%}
+  #stage{position:relative;height:100%;min-height:360px}
+  canvas{display:block;width:100%;height:100%}
+  aside.panel{height:100%;overflow:auto;background:linear-gradient(180deg,var(--panel),#0a0f1b 60%);border-left:1px solid var(--border);padding:12px 14px 120px}
+  .h{display:flex;align-items:center;gap:10px;margin:2px 0 8px}
+  .dot{width:10px;height:10px;border-radius:999px;background:var(--brand);box-shadow:0 0 16px var(--brand)}
+  h1{font-size:18px;margin:0 0 2px}
+  p.sub{margin:0;color:var(--muted);font-size:12px}
+  .btns{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:8px 0 10px}
+  button{padding:10px 12px;border:1px solid #263142;background:#0e1729;color:#e2e8f0;border-radius:12px;cursor:pointer}
+  button:hover{border-color:#334155}
+  button.primary{background:linear-gradient(180deg,#10331f,#0b1f14);border-color:#1d3b29}
+  .row{margin:8px 0}
+  .g{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;margin:6px 0}
+  .lbl{font-size:12px;color:var(--muted)}
+  .val{font-variant-numeric:tabular-nums}
+  input[type=range]{width:100%}
+  select{width:100%;padding:8px;border-radius:10px;background:#0e1729;border:1px solid #243246;color:var(--ink)}
+  .group{border:1px solid var(--border);border-radius:12px;padding:10px;margin:10px 0}
+  .group h3{font-size:13px;color:#a3b3c7;margin:0 0 6px}
+  .io{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+  .io label{display:flex;align-items:center;gap:8px;border:1px solid #263142;border-radius:12px;padding:8px 10px;background:#0e1729;font-size:12px;color:#cbd5e1}
+  .floating{position:fixed;right:12px;bottom:12px;z-index:9999;display:flex;gap:8px}
+  .togglePanel{border-radius:999px;padding:10px 12px}
+  #diag{position:fixed;right:10px;top:10px;background:#0a1120e6;border:1px solid #1e293b;border-radius:10px;padding:8px 10px;color:#cbd5e1;font-size:12px;max-width:56ch;z-index:9999;display:none}
+  #diag.show{display:block}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div id="stage"></div>
+  <aside class="panel" id="panel">
+    <div class="h"><span class="dot"></span><div><h1>forest v0.13</h1><p class="sub">單樹設計 → 森林排列 → 季節落葉</p></div></div>
+
+    <div class="btns">
+      <button id="btnScene1" class="primary">場景一：單樹</button>
+      <button id="btnScene2">場景二：森林</button>
+      <button id="btnScene3">場景三：季節</button>
+    </div>
+
+    <!-- Scene 1 -->
+    <div id="scene1">
+      <div class="group">
+        <h3>匯入葉片 CSV（index_merged_v0752_scene1.html）</h3>
+        <div class="io">
+          <label>匯入葉片 CSV<input id="leafCSV" type="file" accept=".csv,text/csv"/></label>
+          <button id="btnLeafCSVTemplate">下載葉片 CSV 範本</button>
+        </div>
+        <p class="lbl">若未匯入，會隨機一組葉片參數；匯入後葉片呈「發光綠」且與樹幹顏色區隔。</p>
+      </div>
+
+      <div class="group">
+        <h3>樹形與結構（分枝生長方式改良：末端長葉）</h3>
+        <div class="g"><label class="lbl">樹高 (m)</label><span class="val" id="s1v_treeH"></span></div>
+        <input id="s1_treeH" type="range" min="2" max="25" step="0.1" value="8" />
+        <div class="g"><label class="lbl">冠幅半徑 (m)</label><span class="val" id="s1v_crownR"></span></div>
+        <input id="s1_crownR" type="range" min="1" max="15" step="0.1" value="5" />
+        <div class="g"><label class="lbl">樹型</label><span class="val" id="s1v_shape"></span></div>
+        <select id="s1_shape">
+          <option value="cone">圓錐</option>
+          <option value="sphere" selected>球形</option>
+          <option value="vase">花瓶</option>
+          <option value="cylinder">柱形</option>
+        </select>
+        <div class="g"><label class="lbl">層數</label><span class="val" id="s1v_levels"></span></div>
+        <input id="s1_levels" type="range" min="1" max="30" step="1" value="10" />
+        <div class="g"><label class="lbl">每層分枝數</label><span class="val" id="s1v_child"></span></div>
+        <input id="s1_child" type="range" min="1" max="8" step="1" value="3" />
+        <div class="g"><label class="lbl">分枝仰角 (°)</label><span class="val" id="s1v_angle"></span></div>
+        <input id="s1_angle" type="range" min="10" max="85" step="1" value="55" />
+        <div class="g"><label class="lbl">層間扭轉 (°)</label><span class="val" id="s1v_twist"></span></div>
+        <input id="s1_twist" type="range" min="0" max="200" step="1" value="137" />
+      </div>
+
+      <div class="group">
+        <h3>葉片外觀</h3>
+        <div class="g"><label class="lbl">葉片數量</label><span class="val" id="s1v_leafCount"></span></div>
+        <input id="s1_leafCount" type="range" min="200" max="90000" step="100" value="12000" />
+        <div class="g"><label class="lbl">葉片尺寸倍率</label><span class="val" id="s1v_leafScale"></span></div>
+        <input id="s1_leafScale" type="range" min="0.4" max="2.2" step="0.05" value="1.0" />
+        <div class="g"><label class="lbl">葉片隨機傾角 (°)</label><span class="val" id="s1v_leafTilt"></span></div>
+        <input id="s1_leafTilt" type="range" min="0" max="90" step="1" value="25" />
+        <div class="row"><label class="lbl"><input id="s1_showTrunk" type="checkbox" checked> 顯示樹幹</label></div>
+        <div class="row"><label class="lbl"><input id="s1_showBranches" type="checkbox" checked> 顯示樹枝</label></div>
+      </div>
+
+      <div class="btns">
+        <button id="s1_build" class="primary">生成單樹</button>
+        <button id="s1_fit">視角置中</button>
+        <button id="s1_toScene2">→ 傳到場景二</button>
+      </div>
+
+      <div class="io">
+        <button id="s1_export">導出場景一 CSV</button>
+        <label>匯入場景一 CSV<input id="s1_import" type="file" accept=".csv,text/csv"/></label>
+      </div>
+    </div>
+
+    <!-- Scene 2 -->
+    <div id="scene2" style="display:none">
+      <div class="group">
+        <h3>自然散播排列（沿用場景一樹形，末端長葉；每棵 ±10% 變異）</h3>
+        <div class="g"><label class="lbl">樹的總數量</label><span class="val" id="s2v_count"></span></div>
+        <input id="s2_count" type="range" min="1" max="200" step="1" value="30" />
+        <div class="g"><label class="lbl">森林半徑 (m)</label><span class="val" id="s2v_radius"></span></div>
+        <input id="s2_radius" type="range" min="10" max="200" step="1" value="80" />
+        <div class="g"><label class="lbl">最小間距 (m)</label><span class="val" id="s2v_sep"></span></div>
+        <input id="s2_sep" type="range" min="1" max="15" step="0.5" value="5" />
+        <div class="g"><label class="lbl">避免重疊</label><span class="val" id="s2v_avoid"></span></div>
+        <select id="s2_avoid"><option value="on" selected>開</option><option value="off">關</option></select>
+        <div class="g"><label class="lbl">亂數種子</label><span class="val" id="s2v_seed"></span></div>
+        <input id="s2_seed" type="text" value="" placeholder="空白＝隨機"/>
+        <p class="lbl">葉片固定長在分枝末端（非樹幹底端）。</p>
+      </div>
+
+      <div class="btns" style="grid-template-columns:repeat(4,1fr)">
+        <button id="s2_build" class="primary">生成森林</button>
+        <button id="s2_clear">清除</button>
+        <button id="s2_fit">視角置中</button>
+        <button id="s2_toScene3">→ 傳到場景三</button>
+      </div>
+
+      <div class="io">
+        <button id="s2_export">導出場景二 CSV</button>
+        <label>匯入場景二 CSV<input id="s2_import" type="file" accept=".csv,text/csv"/></label>
+      </div>
+    </div>
+
+    <!-- Scene 3 -->
+    <div id="scene3" style="display:none">
+      <div class="group">
+        <h3>地形與地貌</h3>
+        <div class="g"><label class="lbl">坡度幅度</label><span class="val" id="s3v_slope"></span></div>
+        <input id="s3_slope" type="range" min="0" max="0.6" step="0.01" value="0.2"/>
+        <div class="g"><label class="lbl">粗糙度</label><span class="val" id="s3v_rough"></span></div>
+        <input id="s3_rough" type="range" min="0.1" max="2.0" step="0.05" value="0.8"/>
+        <div class="g"><label class="lbl">地貌樣式</label><span class="val" id="s3v_ground"></span></div>
+        <select id="s3_ground"><option value="soil" selected>土壤</option><option value="rock">岩地</option><option value="mixed">混合</option></select>
+        <div class="g"><label class="lbl">石塊密度</label><span class="val" id="s3v_rocks"></span></div>
+        <input id="s3_rocks" type="range" min="0" max="1" step="0.02" value="0.2"/>
+      </div>
+
+      <div class="group">
+        <h3>太陽與時間（可見太陽、陰影、天空漸層）</h3>
+        <div class="g"><label class="lbl">時間（時）</label><span class="val" id="s3v_time"></span></div>
+        <input id="s3_time" type="range" min="0" max="24" step="0.05" value="10"/>
+        <div class="g"><label class="lbl">時間加速</label><span class="val" id="s3v_timeRate"></span></div>
+        <input id="s3_timeRate" type="range" min="0" max="20" step="0.5" value="2"/>
+        <div class="row"><label class="lbl"><input id="s3_animSun" type="checkbox" checked> 太陽自動運行</label></div>
+      </div>
+
+      <div class="group">
+        <h3>風場與落葉（季節色變 → 掉落 → 再長回）</h3>
+        <div class="g"><label class="lbl">季節推進</label><span class="val" id="s3v_season"></span></div>
+        <input id="s3_season" type="range" min="0.1" max="4" step="0.1" value="1.0"/>
+        <div class="g"><label class="lbl">落葉速度</label><span class="val" id="s3v_fall"></span></div>
+        <input id="s3_fall" type="range" min="0.5" max="2" step="0.1" value="1.0"/>
+        <div class="g"><label class="lbl">風強度</label><span class="val" id="s3v_wind"></span></div>
+        <input id="s3_wind" type="range" min="0" max="10" step="0.1" value="3.0"/>
+        <div class="g"><label class="lbl">亂流</label><span class="val" id="s3v_turb"></span></div>
+        <input id="s3_turb" type="range" min="0" max="3" step="0.05" value="1.2"/>
+        <div class="g"><label class="lbl">再長回速度</label><span class="val" id="s3v_regrow"></span></div>
+        <input id="s3_regrow" type="range" min="0.1" max="3" step="0.1" value="1.0"/>
+        <div class="g"><label class="lbl">同時模擬上限（片）</label><span class="val" id="s3v_maxActive"></span></div>
+        <input id="s3_maxActive" type="range" min="200" max="8000" step="100" value="2000"/>
+      </div>
+
+      <div class="btns" style="grid-template-columns:repeat(5,1fr)">
+        <button id="s3_start" class="primary">開始落葉</button>
+        <button id="s3_stop">停止</button>
+        <button id="s3_reset">重置季節</button>
+        <button id="s3_fit">視角置中</button>
+        <button id="toggleUI">顯示/隱藏面板</button>
+      </div>
+
+      <div class="io">
+        <button id="s3_export">導出場景三 CSV</button>
+        <label>匯入場景三 CSV<input id="s3_import" type="file" accept=".csv,text/csv"/></label>
+      </div>
+    </div>
+  </aside>
+</div>
+
+<div class="floating"><button id="btnHidePanel" class="togglePanel" title="顯示/隱藏控制面板">≡</button></div>
+<div id="diag"></div>
+
+<script type="module">
+import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js?module';
+import { OrbitControls } from 'https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js?module';
+
+// ---------- utils ----------
+const diagEl = document.getElementById('diag');
+function diag(msg, ok=false){ diagEl.classList.add('show'); diagEl.innerHTML=(ok?'<b style="color:#22c55e">OK</b> ':'<b style="color:#f97316">LOG</b> ')+String(msg); }
+function qs(s){ return document.querySelector(s) }
+function qsa(s){ return [...document.querySelectorAll(s)] }
+function smoothstep(e0,e1,x){const t=Math.max(0,Math.min(1,(x-e0)/(e1-e0))); return t*t*(3-2*t)}
+function mseed(str){ let h=1779033703^str.length; for(let i=0;i<str.length;i++){ h=Math.imul(h^str.charCodeAt(i),3432918353); h=h<<13|h>>>19; } return h>>>0; }
+function mulberry32(a){ return function(){ let t=a+=0x6D2B79F5; t=Math.imul(t^t>>>15, t|1); t^=t+Math.imul(t^t>>>7, t|61); return ((t^t>>>14)>>>0)/4294967296; } }
+
+// ---------- renderer & scene ----------
+const stage = qs('#stage');
+const renderer = new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.setClearColor(0x0b1020, 1);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+stage.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(50, 1, 0.01, 20000);
+camera.position.set(8, 8, 12);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true; controls.dampingFactor = 0.06; controls.enablePan = true;
+controls.target.set(0,2,0);
+
+// Lights
+const hemi = new THREE.HemisphereLight(0x5676a5, 0x0b1020, 0.20); scene.add(hemi);
+const sun = new THREE.DirectionalLight(0xffffff, 1.15);
+sun.position.set(40,40,0); sun.castShadow = true;
+sun.shadow.mapSize.set(2048,2048);
+sun.shadow.camera.near = 1; sun.shadow.camera.far = 500;
+sun.shadow.camera.left = -150; sun.shadow.camera.right = 150; sun.shadow.camera.top = 150; sun.shadow.camera.bottom = -150;
+scene.add(sun); scene.add(sun.target);
+
+// Visible sun (disk + glow)
+const sunGroup = new THREE.Group(); scene.add(sunGroup);
+const sunDisk = new THREE.Mesh(new THREE.SphereGeometry(2, 32, 32), new THREE.MeshBasicMaterial({color:0xfff2a8}));
+sunGroup.add(sunDisk);
+// sprite glow texture via canvas
+function makeGlowTex(){
+  const c=document.createElement('canvas'); c.width=c.height=256; const g=c.getContext('2d');
+  const r=c.width/2; const grd=g.createRadialGradient(r,r,0, r,r,r);
+  grd.addColorStop(0,'rgba(255,250,170,1)'); grd.addColorStop(0.4,'rgba(255,220,120,0.55)'); grd.addColorStop(1,'rgba(255,180,80,0)');
+  g.fillStyle=grd; g.fillRect(0,0,c.width,c.height);
+  const tex=new THREE.CanvasTexture(c); tex.colorSpace=THREE.SRGBColorSpace; return tex;
+}
+const sunGlow = new THREE.Sprite(new THREE.SpriteMaterial({map:makeGlowTex(), transparent:true, depthWrite:false, blending:THREE.AdditiveBlending}));
+sunGlow.scale.set(30,30,30); sunGroup.add(sunGlow);
+
+// Sky dome (shader gradient changes by time & sun elevation)
+const skyGeo = new THREE.SphereGeometry(10000, 32, 16);
+const skyMat = new THREE.ShaderMaterial({
+  side:THREE.BackSide, depthWrite:false, uniforms:{
+    topColor:{value:new THREE.Color(0x13346b)},
+    midColor:{value:new THREE.Color(0x3a6ea8)},
+    bottomColor:{value:new THREE.Color(0x8ec5ff)},
+    mixH:{value:0.35},
+    horizonSoft:{value:0.65},
+    sunDir:{value:new THREE.Vector3(0,1,0)},
+    t:{value:10.0}
+  },
+  vertexShader:`varying vec3 vWorld; void main(){ vec4 w= modelMatrix * vec4(position,1.0); vWorld=w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }`,
+  fragmentShader:`
+    varying vec3 vWorld;
+    uniform vec3 topColor; uniform vec3 midColor; uniform vec3 bottomColor;
+    uniform float mixH; uniform float horizonSoft; uniform vec3 sunDir; uniform float t;
+    void main(){
+      vec3 n = normalize(vWorld);
+      float h = clamp(n.y*0.5+0.5, 0.0, 1.0);
+      // day-night mix influenced by sun elevation
+      float sunEl = clamp(sunDir.y*0.5+0.5, 0.0, 1.0);
+      vec3 dawn = mix(vec3(0.02,0.07,0.15), vec3(0.8,0.35,0.1), smoothstep(0.0,0.6,sunEl));
+      vec3 top = mix(vec3(0.02,0.05,0.10), topColor, smoothstep(0.25,0.55,sunEl));
+      vec3 bot = mix(vec3(0.03,0.06,0.12), bottomColor, smoothstep(0.15,0.60,sunEl));
+      // horizon warm band at sunrise/sunset
+      float warm = exp(-pow((h-0.02)*6.0,2.0)) * (1.0 - smoothstep(0.4,0.9,sunEl));
+      vec3 col = mix(top, mix(midColor, bot, smoothstep(mixH-0.2, mixH+0.2, h)), smoothstep(0.0,1.0,h));
+      col += dawn*warm*0.8;
+      gl_FragColor = vec4(col, 1.0);
+    }`
+});
+const sky = new THREE.Mesh(skyGeo, skyMat);
+scene.add(sky);
+
+// Helpers
+const grid = new THREE.GridHelper(400, 80, 0x233047, 0x1a2536); grid.position.y = 0; scene.add(grid);
+
+// ---------- materials ----------
+const matLeaf = new THREE.MeshStandardMaterial({color:0xffffff, metalness:0.02, roughness:0.85, side:THREE.DoubleSide, vertexColors:true, emissive:new THREE.Color(0x1a8f42), emissiveIntensity:0.25});
+const matTrunk = new THREE.MeshStandardMaterial({color:0x7a5a42, roughness:0.95});
+const matBranch = new THREE.MeshStandardMaterial({color:0x6e5840, roughness:0.95});
+const matGround = new THREE.MeshStandardMaterial({color:0x2b3344, metalness:0.0, roughness:0.95, vertexColors:true});
+matTrunk.shadowSide = THREE.FrontSide; matBranch.shadowSide = THREE.FrontSide; matGround.shadowSide = THREE.FrontSide;
+
+// ---------- scene switching ----------
+const panel = qs('#panel');
+qs('#btnHidePanel').addEventListener('click', ()=>{ panel.style.display = (panel.style.display==='none'?'block':'none'); });
+const sc1=qs('#scene1'), sc2=qs('#scene2'), sc3=qs('#scene3');
+qs('#btnScene1').addEventListener('click', ()=> showScene(1));
+qs('#btnScene2').addEventListener('click', ()=> showScene(2));
+qs('#btnScene3').addEventListener('click', ()=> showScene(3));
+function showScene(n){ sc1.style.display=(n===1?'block':'none'); sc2.style.display=(n===2?'block':'none'); sc3.style.display=(n===3?'block':'none'); }
+
+// ---------- Leaf parameters (CSV from v0.752) ----------
+const leafCSVKeys = ['len','width','tip','base','baseNotch','apexConverge','serrA','serrF','toothSharp','doubleSerr','lobeCount','lobeDepth','lobeRound','rib','curl','twist','bend','waveAmp','waveFreq','asym','double','stem','resU','resV'];
+const P = {"len": 12, "width": 0.4, "tip": 1.0, "base": 1.0, "baseNotch": 0.0, "apexConverge": 0.2, "serrA": 0, "serrF": 0, "toothSharp": 0, "doubleSerr": 0, "lobeCount": 0, "lobeDepth": 0.0, "lobeRound": 0.6, "rib": 0.12, "curl": 0, "twist": 0, "bend": 0.2, "waveAmp": 0, "waveFreq": 0, "asym": 0, "double": true, "stem": true, "resU": 64, "resV": 28};
+let leafMesh=null;
+function loadLeafCSVText(text){
+  // tolerant reader
+  const t = String(text).replace(/^\\ufeff/, '').trim();
+  if(!t) throw new Error('CSV 為空');
+  const lines = t.split(/\\r?\\n/).filter(s=>s.trim().length>0);
+  const delim = (lines[0].indexOf(';')>-1 && lines[0].split(';').length>lines[0].split(',').length) ? ';' : (lines[0].indexOf('\\t')>-1 ? '\\t' : ',');
+  let header = lines[0].split(delim).map(s=>s.trim()); let firstDataLine=1;
+  const knownAny = header.some(k => /[a-zA-Z\\u4e00-\\u9fa5]/.test(k)); if(!knownAny){ header=[...leafCSVKeys]; firstDataLine=0; }
+  const syn = { len:['len','length','葉長'], width:['width','葉寬','寬度'], tip:['tip','apex'], base:['base'], baseNotch:['baseNotch','柄缺刻'], apexConverge:['apexConverge','apex_conv'],
+                serrA:['serrA','幅度'], serrF:['serrF','freq'], toothSharp:['toothSharp'], doubleSerr:['doubleSerr'], lobeCount:['lobeCount','lobes'], lobeDepth:['lobeDepth'],
+                lobeRound:['lobeRound'], rib:['rib','vein'], curl:['curl'], twist:['twist'], bend:['bend'], waveAmp:['waveAmp'], waveFreq:['waveFreq'], asym:['asym'],
+                double:['double'], stem:['stem'], resU:['resU'], resV:['resV'] };
+  function findIndexForKey(k){ const c=syn[k]||[k]; for(const name of c){ const i=header.findIndex(h=>h.toLowerCase()===String(name).toLowerCase()); if(i>=0) return i; } return -1; }
+  const vals = lines[Math.min(firstDataLine, lines.length-1)].split(delim).map(s=>s.trim());
+  const map = {};
+  for(const key of leafCSVKeys){
+    const j=findIndexForKey(key); if(j>=0 && j<vals.length){ const v=vals[j];
+      if(key==='double'||key==='stem'){ map[key]=(v==='1'||String(v).toLowerCase()==='true'); }
+      else { map[key]=(key==='lobeCount'||key==='serrF'||key==='resU'||key==='resV')?parseInt(v):parseFloat(v); }
+    }
+  }
+  if(Object.keys(map).length===0 && firstDataLine===0){
+    leafCSVKeys.forEach((k,i)=>{ if(i<vals.length){ const v=vals[i]; if(k==='double'||k==='stem'){ map[k]=(v==='1'||String(v).toLowerCase()==='true'); } else { map[k]=(k==='lobeCount'||k==='serrF'||k==='resU'||k==='resV')?parseInt(v):parseFloat(v); } } });
+  }
+  Object.assign(P, map);
+  diag('已匯入葉片 CSV，葉片參數更新（葉片將呈綠色光暈）。', true);
+  rebuildLeafPreview();
+  buildSingleTree();
+}
+qs('#leafCSV').addEventListener('change', (e)=>{ const f=e.target.files?.[0]; if(!f) return; const r=new FileReader(); r.onload=()=>{ try{ loadLeafCSVText(String(r.result)); }catch(err){ diag('葉片 CSV 解析失敗：'+err.message) } }; r.readAsText(f); });
+qs('#btnLeafCSVTemplate').addEventListener('click', ()=>{
+  const rows=[]; rows.push(leafCSVKeys.join(',')); rows.push(leafCSVKeys.map(k=>P[k]).join(','));
+  const blob=new Blob([rows.join('\\n')], {type:'text/csv'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='leaf_params_template.csv'; a.click(); URL.revokeObjectURL(a.href);
+});
+
+// Leaf geometry
+function buildLeafGeometry(p){
+  const L = p.len/100, Wmax=(p.len*p.width)/100, resU=p.resU, resV=p.resV;
+  const pos=new Float32Array((resU+1)*(resV+1)*3), col=new Float32Array((resU+1)*(resV+1)*3), idx=[]; let ptr=0,cptr=0;
+  for(let iu=0; iu<=resU; iu++){
+    const u=iu/resU; const s=Math.sin(Math.PI*Math.min(1,Math.max(0,u)));
+    const tipPow=p.tip, basePow=p.base;
+    const tipFactor=Math.pow(1-u,tipPow), baseFactor=Math.pow(u,basePow);
+    let halfW=Wmax*s*(0.65+0.35*(1-tipFactor)*(0.7+0.3*baseFactor));
+    halfW*=(1 - p.baseNotch*(1 - Math.min(1,u*3)));
+    const apexK=1 - (p.apexConverge||0)*0.6*smoothstep(0.7,1.0,u); halfW*=Math.max(0.15, apexK);
+    const serrAmp=(p.serrA)*Wmax;
+    for(let iv=0; iv<=resV; iv++){
+      const vv=iv/resV; const v=vv*2-1;
+      const edge=smoothstep(0.6,1.0,Math.abs(v));
+      let serr=serrAmp*Math.sin(2*Math.PI*p.serrF*u + (p.toothSharp*0.6)*Math.sign(v))*edge*Math.sign(v);
+      if(p.doubleSerr>0) serr += p.doubleSerr*serrAmp*0.5*Math.sin(2*Math.PI*p.serrF*2*u + 1.2)*edge*Math.sign(v);
+      if(p.lobeCount>0 && p.lobeDepth>0){ const ang=Math.PI*u; const lobing=Math.sin(p.lobeCount*ang); halfW *= (1 + p.lobeDepth*0.25*Math.max(0,lobing)); }
+      const asymK=1 + p.asym*(v>0?0.12:-0.12);
+      let x=(u-0.1)*L, y=(v)*(halfW + serr)*asymK, z=0;
+      const ribZ=(p.rib/100)*Math.pow(1 - Math.min(1, Math.abs(v)/0.8),2); z+=ribZ;
+      const curlAngle=p.curl*(u)*0.8*Math.PI*(Math.abs(v));
+      ({x,y,z}=rotY(Math.sign(v)*curlAngle,x,y,z));
+      const twA=p.twist*Math.PI*u; ({x,y,z}=rotX(twA,x,y,z));
+      z += (p.bend/100) * (-4*Math.pow(u-0.5,2) + 1);
+      if(p.waveAmp>0 && p.waveFreq>0){ z += p.waveAmp*Math.sin((u*3.14159)*p.waveFreq)*(1 - Math.abs(v)); }
+      pos[ptr++]=x; pos[ptr++]=y; pos[ptr++]=z;
+      const c = new THREE.Color().setHSL(0.33 - 0.08*u, 0.7, 0.48+0.18*(1-u)); // vertex base
+      col[cptr++]=c.r; col[cptr++]=c.g; col[cptr++]=c.b;
+    }
+  }
+  for(let iu=0; iu<resU; iu++) for(let iv=0; iv<resV; iv++){ const a=(resV+1)*iu+iv; const b=a+(resV+1); const c=b+1; const d=a+1; idx.push(a,b,d, b,c,d); }
+  const geo=new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(pos,3)); geo.setAttribute('color', new THREE.BufferAttribute(col,3));
+  geo.setIndex(idx); geo.computeVertexNormals(); return geo;
+}
+function rotY(ang,x,y,z){ const c=Math.cos(ang), s=Math.sin(ang); return {x:c*x + s*z, y, z:-s*x + c*z}; }
+function rotX(ang,x,y,z){ const c=Math.cos(ang), s=Math.sin(ang); return {x, y:c*y - s*z, z:s*y + c*z}; }
+
+// ---------- Scene 1 controls ----------
+const S1 = { treeH:qs('#s1_treeH'), crownR:qs('#s1_crownR'), shape:qs('#s1_shape'),
+             levels:qs('#s1_levels'), child:qs('#s1_child'), angle:qs('#s1_angle'), twist:qs('#s1_twist'),
+             leafCount:qs('#s1_leafCount'), leafScale:qs('#s1_leafScale'), leafTilt:qs('#s1_leafTilt'),
+             showTrunk:qs('#s1_showTrunk'), showBranches:qs('#s1_showBranches') };
+const L1 = { treeH:qs('#s1v_treeH'), crownR:qs('#s1v_crownR'), shape:qs('#s1v_shape'),
+             levels:qs('#s1v_levels'), child:qs('#s1v_child'), angle:qs('#s1v_angle'), twist:qs('#s1v_twist'),
+             leafCount:qs('#s1v_leafCount'), leafScale:qs('#s1v_leafScale'), leafTilt:qs('#s1v_leafTilt') };
+['treeH','crownR','levels','child','angle','twist','leafCount','leafScale','leafTilt'].forEach(k=> S1[k].addEventListener('input', syncS1));
+S1.shape.addEventListener('change', syncS1); S1.showTrunk.addEventListener('change', buildSingleTree); S1.showBranches.addEventListener('change', buildSingleTree);
+function syncS1(){ L1.treeH.textContent=S1.treeH.value+' m'; L1.crownR.textContent=S1.crownR.value+' m'; L1.shape.textContent=S1.shape.value;
+  L1.levels.textContent=S1.levels.value; L1.child.textContent=S1.child.value; L1.angle.textContent=S1.angle.value+'°'; L1.twist.textContent=S1.twist.value+'°';
+  L1.leafCount.textContent=S1.leafCount.value; L1.leafScale.textContent=S1.leafScale.value+'×'; L1.leafTilt.textContent=S1.leafTilt.value+'°';
+}
+syncS1();
+
+let previewTree=null; let previewLeaves=null;
+qs('#s1_build').addEventListener('click', buildSingleTree);
+qs('#s1_fit').addEventListener('click', ()=>{ if(previewTree) fitCameraTo(previewTree.group, 2.0) });
+qs('#s1_toScene2').addEventListener('click', ()=>{ copyS1ToForestBase(); showScene(2); });
+
+function rebuildLeafPreview(){
+  if(leafMesh){ scene.remove(leafMesh); leafMesh.geometry.dispose(); leafMesh=null; }
+  const g = buildLeafGeometry(P); leafMesh = new THREE.Mesh(g, matLeaf); leafMesh.visible=false; scene.add(leafMesh);
+  if(previewTree){ buildSingleTree(); }
+}
+
+// ---------- Branching core (tips get leaves) ----------
+function buildTree(cfg){
+  // cfg: {H,R,levels,child,angleDeg,twistDeg,shape,leafCount,leafScale,leafTilt, showTrunk, showBranches}
+  const group = new THREE.Group(); group.traverse?.(o=>o.castShadow=true);
+  const H=cfg.H, R=cfg.R, levels=cfg.levels|0, child=cfg.child|0;
+  const angle=cfg.angleDeg*Math.PI/180, twist=cfg.twistDeg*Math.PI/180;
+  const trunkLen = H*0.7;
+  const MAX_BRANCHES = 30000;
+  const segs=[]; // {a,b,r,isTrunk}
+  const tips=[]; // tip endpoints
+  // trunk spline slight bend upwards
+  const bend = 0.15*R;
+  const trunkA=new THREE.Vector3(0,0,0), trunkB=new THREE.Vector3(0,trunkLen,0);
+  for(let i=0;i<8;i++){
+    const y0 = (i/8)*trunkLen, y1=((i+1)/8)*trunkLen;
+    const x0 = Math.sin(i*0.6)*bend*0.02, z0=Math.cos(i*0.6)*bend*0.02;
+    const x1 = Math.sin((i+1)*0.6)*bend*0.02, z1=Math.cos((i+1)*0.6)*bend*0.02;
+    const a=new THREE.Vector3(x0,y0,z0); const b=new THREE.Vector3(x1,y1,z1);
+    segs.push({a,b,r:Math.max(0.08,0.08*H*Math.pow(0.9, i)), isTrunk:true});
+  }
+  // branch levels along trunk
+  const perLevelLen = (H*0.55)/levels;
+  for(let lvl=0; lvl<levels; lvl++){
+    const y = (lvl/levels)*trunkLen*0.95 + 0.2;
+    const aAround = (lvl*twist) % (Math.PI*2);
+    for(let c=0;c<child;c++){
+      const az = aAround + (c/child)*Math.PI*2;
+      const dirHor = new THREE.Vector3(Math.cos(az), 0, Math.sin(az));
+      const dir = new THREE.Vector3().addScaledVector(dirHor, Math.sin(angle)).add(new THREE.Vector3(0,Math.cos(angle)*0.65,0)).normalize();
+      const start=new THREE.Vector3(0,y,0);
+      let len = perLevelLen * (1.1 - lvl/levels*0.6);
+      // crown shaping
+      if(cfg.shape==='cone'){ len*= (1.1 - lvl/levels*0.7); }
+      if(cfg.shape==='vase'){ len*= (0.6 + 0.7*Math.pow(lvl/levels,0.6)); }
+      const end = start.clone().addScaledVector(dir, len);
+      // add slight droop near end
+      end.y -= 0.05*len;
+      segs.push({a:start, b:end, r:Math.max(0.012, (0.10*H)*Math.pow(0.72, lvl)), isTrunk:false});
+      // sub-branches at the end section
+      const subN = 1 + ((lvl%2) ? 1:0);
+      for(let s=0; s<subN; s++){
+        const t = 0.65 + s*0.25;
+        const base = start.clone().lerp(end, t);
+        const dd = dir.clone().applyAxisAngle(new THREE.Vector3(0,1,0), (s*0.6 + lvl*0.3));
+        const d = new THREE.Vector3().addScaledVector(dd, 0.6).add(new THREE.Vector3(0,0.5,0)).normalize();
+        const en = base.clone().addScaledVector(d, len*0.35);
+        segs.push({a:base, b:en, r:Math.max(0.010, (0.08*H)*Math.pow(0.78, lvl+1)), isTrunk:false});
+        tips.push({p:en.clone(), dir:d.clone()});
+      }
+      // mark principal tip
+      tips.push({p:end.clone(), dir:dir.clone()});
+      if(segs.length>=MAX_BRANCHES) break;
+    }
+    if(segs.length>=MAX_BRANCHES) break;
+  }
+  // build meshes
+  const cyls=new THREE.Group();
+  for(const s of segs){
+    if(s.isTrunk && !cfg.showTrunk) continue;
+    if(!s.isTrunk && !cfg.showBranches) continue;
+    const v = new THREE.Vector3().subVectors(s.b, s.a); const len=v.length();
+    const r1 = Math.max(0.012, s.r*0.8); const r2 = Math.max(0.010, s.r*0.6);
+    const geo = new THREE.CylinderGeometry(r2, r1, len, 10);
+    const mesh = new THREE.Mesh(geo, s.isTrunk?matTrunk:matBranch);
+    mesh.castShadow = true; mesh.receiveShadow = false;
+    const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,1,0), v.clone().normalize());
+    mesh.setRotationFromQuaternion(q); mesh.position.copy(s.a).addScaledVector(v,0.5);
+    cyls.add(mesh);
+  }
+  group.add(cyls);
+
+  // leaves on tips
+  const totalLeaves = Math.max(10, cfg.leafCount|0);
+  const leafGeo = leafMesh ? leafMesh.geometry : buildLeafGeometry(P);
+  const leaves = new THREE.InstancedMesh(leafGeo, matLeaf, totalLeaves);
+  leaves.castShadow = false; leaves.receiveShadow = false;
+  leaves.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(totalLeaves*3), 3, false);
+  const dummy=new THREE.Object3D();
+  for(let i=0;i<totalLeaves;i++){
+    const tip = tips[(i%tips.length)];
+    const pos = tip.p.clone();
+    // jitter around tip direction
+    const side = new THREE.Vector3().crossVectors(tip.dir, new THREE.Vector3(0,1,0)).normalize();
+    const up = new THREE.Vector3().crossVectors(side, tip.dir).normalize();
+    const off = side.multiplyScalar((Math.random()*2-1)*0.25).add(up.multiplyScalar((Math.random()*2-1)*0.18));
+    pos.add(off);
+    // orientation: face along tip.dir
+    const m=new THREE.Matrix4().lookAt(new THREE.Vector3(0,0,0), tip.dir, up).invert();
+    dummy.rotation.setFromRotationMatrix(m);
+    const tilt=(Math.random()*2-1)*(cfg.leafTilt*Math.PI/180);
+    dummy.rotation.x += tilt*0.6; dummy.rotation.y += tilt*0.8; dummy.rotation.z += tilt*0.6;
+    const sc=(0.8+Math.random()*0.4)*cfg.leafScale; dummy.scale.setScalar(sc);
+    dummy.position.copy(pos);
+    dummy.updateMatrix();
+    leaves.setMatrixAt(i, dummy.matrix);
+    const c = new THREE.Color().setHSL(0.30 + 0.05*Math.random(), 0.78, 0.50); // fresh green
+    leaves.setColorAt(i, c);
+  }
+  leaves.instanceMatrix.needsUpdate=true; if(leaves.instanceColor) leaves.instanceColor.needsUpdate=true;
+  group.add(leaves);
+
+  // meta & return
+  const meta={H, R, tipsCount:tips.length};
+  group.traverse(o=>{ o.castShadow = true; if(o.material===matGround) o.receiveShadow=true; });
+  return {group, leaves, meta};
+}
+
+// ---------- Scene 1 build ----------
+function clearPreview(){ if(previewTree){ scene.remove(previewTree.group); disposeGroup(previewTree.group); previewTree=null; previewLeaves=null; } }
+function buildSingleTree(){
+  clearPreview();
+  const cfg={ H:parseFloat(S1.treeH.value), R:parseFloat(S1.crownR.value), levels:parseInt(S1.levels.value), child:parseInt(S1.child.value),
+              angleDeg:parseFloat(S1.angle.value), twistDeg:parseFloat(S1.twist.value), shape:S1.shape.value,
+              leafCount:parseInt(S1.leafCount.value), leafScale:parseFloat(S1.leafScale.value), leafTilt:parseFloat(S1.leafTilt.value),
+              showTrunk:S1.showTrunk.checked, showBranches:S1.showBranches.checked };
+  previewTree=buildTree(cfg); previewLeaves=previewTree.leaves; scene.add(previewTree.group); fitCameraTo(previewTree.group,2.0); diag('單樹生成完成（末端長葉）。', true);
+}
+function copyS1ToForestBase(){
+  forestBase={ H:parseFloat(S1.treeH.value), R:parseFloat(S1.crownR.value), levels:parseInt(S1.levels.value), child:parseInt(S1.child.value),
+               angleDeg:parseFloat(S1.angle.value), twistDeg:parseFloat(S1.twist.value), shape:S1.shape.value,
+               leafCount:parseInt(S1.leafCount.value), leafScale:parseFloat(S1.leafScale.value), leafTilt:parseFloat(S1.leafTilt.value),
+               showTrunk:S1.showTrunk.checked, showBranches:S1.showBranches.checked };
+  diag('已將場景一的樹設定帶入場景二。', true);
+}
+
+// export/import Scene1 CSV（沿用舊鍵名）
+qs('#s1_export').addEventListener('click', ()=>{
+  const keys=['H','R','shape','levels','child','angleDeg','twistDeg','leafCount','leafScale','leafTilt','showTrunk','showBranches'];
+  const vals=[S1.treeH.value,S1.crownR.value,S1.shape.value,S1.levels.value,S1.child.value,S1.angle.value,S1.twist.value,S1.leafCount.value,S1.leafScale.value,S1.leafTilt.value,S1.showTrunk.checked?1:0,S1.showBranches.checked?1:0];
+  const rows=[keys.join(','), vals.join(',')]; const blob=new Blob(rows,{type:'text/csv'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='scene1_tree_params.csv'; a.click(); URL.revokeObjectURL(a.href);
+});
+qs('#s1_import').addEventListener('change', (e)=>{
+  const f=e.target.files?.[0]; if(!f) return; const r=new FileReader();
+  r.onload=()=>{ try{ const t=String(r.result).trim().split(/\\r?\\n/); if(t.length<2) throw new Error('CSV 無資料');
+    const h=t[0].split(','), v=t[1].split(','); const map={}; h.forEach((k,i)=> map[k]=v[i]);
+    if(map.H) S1.treeH.value=map.H; if(map.R) S1.crownR.value=map.R; if(map.shape) S1.shape.value=map.shape;
+    if(map.levels) S1.levels.value=map.levels; if(map.child) S1.child.value=map.child; if(map.angleDeg) S1.angle.value=map.angleDeg; if(map.twistDeg) S1.twist.value=map.twistDeg;
+    if(map.leafCount) S1.leafCount.value=map.leafCount; if(map.leafScale) S1.leafScale.value=map.leafScale; if(map.leafTilt) S1.leafTilt.value=map.leafTilt;
+    if(map.showTrunk) S1.showTrunk.checked=(map.showTrunk==='1'||map.showTrunk==='true'); if(map.showBranches) S1.showBranches.checked=(map.showBranches==='1'||map.showBranches==='true');
+    syncS1(); buildSingleTree(); diag('場景一 CSV 匯入完成。', true);
+  }catch(err){ diag('場景一 CSV 解析失敗：'+err.message) } };
+  r.readAsText(f);
+});
+
+// ---------- Scene 2 ----------
+const S2={count:qs('#s2_count'), radius:qs('#s2_radius'), sep:qs('#s2_sep'), avoid:qs('#s2_avoid'), seed:qs('#s2_seed')};
+const L2={count:qs('#s2v_count'), radius:qs('#s2v_radius'), sep:qs('#s2v_sep'), avoid:qs('#s2v_avoid'), seed:qs('#s2v_seed')};
+['count','radius','sep','avoid','seed'].forEach(k=> S2[k].addEventListener('input', syncS2));
+function syncS2(){ L2.count.textContent=S2.count.value; L2.radius.textContent=S2.radius.value+' m'; L2.sep.textContent=S2.sep.value+' m'; L2.avoid.textContent=S2.avoid.value; L2.seed.textContent=S2.seed.value||'(隨機)'; }
+syncS2();
+
+let forestBase=null, forestGroup=null; let forestTrees=[];
+qs('#s2_build').addEventListener('click', buildForest);
+qs('#s2_clear').addEventListener('click', clearForest);
+qs('#s2_fit').addEventListener('click', ()=>{ if(forestGroup) fitCameraTo(forestGroup, 2.2) });
+qs('#s2_toScene3').addEventListener('click', ()=>{ showScene(3); prepareSeason(); });
+
+function randomAround(x, pct=0.1){ return x * (1 + (Math.random()*2-1) * pct); }
+function buildForest(){
+  clearForest(); if(!forestBase) copyS1ToForestBase();
+  const n=parseInt(S2.count.value), rad=parseFloat(S2.radius.value), sep=parseFloat(S2.sep.value);
+  const avoid=S2.avoid.value==='on'; const seedStr=S2.seed.value || String(Date.now()); const rng=mulberry32(mseed(seedStr));
+  const points=[]; let tries=0, maxTries=n*3000;
+  while(points.length<n && tries<maxTries){ tries++; const a=rng()*Math.PI*2; const r=Math.sqrt(rng())*rad; const x=Math.cos(a)*r, z=Math.sin(a)*r;
+    if(avoid){ let ok=true; for(const p of points){ const dx=p.x-x, dz=p.z-z; if(dx*dx+dz*dz < sep*sep){ ok=false; break; } } if(!ok) continue; }
+    points.push({x,z});
+  }
+  forestGroup=new THREE.Group(); scene.add(forestGroup); forestTrees=[];
+  for(let i=0;i<points.length;i++){
+    const conf={ H:randomAround(forestBase.H,0.10), R:randomAround(forestBase.R,0.10),
+      levels:Math.max(1, Math.round(randomAround(forestBase.levels,0.10))), child:Math.max(1, Math.round(randomAround(forestBase.child,0.10))),
+      angleDeg:THREE.MathUtils.clamp(randomAround(forestBase.angleDeg,0.10),10,85), twistDeg:randomAround(forestBase.twistDeg,0.10),
+      shape:forestBase.shape, leafCount:Math.max(50, Math.round(randomAround(forestBase.leafCount,0.10))), leafScale:randomAround(forestBase.leafScale,0.10), leafTilt:randomAround(forestBase.leafTilt,0.10),
+      showTrunk:forestBase.showTrunk, showBranches:forestBase.showBranches };
+    const g=buildTree(conf); g.group.position.set(points[i].x,0,points[i].z); forestGroup.add(g.group); forestTrees.push(g);
+  }
+  fitCameraTo(forestGroup, 2.4); diag(`森林生成完成：${forestTrees.length} 棵（目標 ${n}），seed=${seedStr}。`, true);
+}
+function clearForest(){ if(forestGroup){ scene.remove(forestGroup); disposeGroup(forestGroup); forestGroup=null; } forestTrees.length=0; }
+qs('#s2_export').addEventListener('click', ()=>{
+  const keys=['count','radius','sep','avoid','seed']; const vals=[S2.count.value,S2.radius.value,S2.sep.value,S2.avoid.value,S2.seed.value];
+  const rows=[keys.join(','), vals.join(',')]; const blob=new Blob(rows,{type:'text/csv'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='scene2_forest_params.csv'; a.click(); URL.revokeObjectURL(a.href);
+});
+qs('#s2_import').addEventListener('change', (e)=>{
+  const f=e.target.files?.[0]; if(!f) return; const r=new FileReader();
+  r.onload=()=>{ try{ const t=String(r.result).trim().split(/\\r?\\n/); if(t.length<2) throw new Error('CSV 無資料');
+    const h=t[0].split(','), v=t[1].split(','); const map={}; h.forEach((k,i)=> map[k]=v[i]);
+    if(map.count) S2.count.value=map.count; if(map.radius) S2.radius.value=map.radius; if(map.sep) S2.sep.value=map.sep; if(map.avoid) S2.avoid.value=map.avoid; if(map.seed!==undefined) S2.seed.value=map.seed;
+    syncS2(); buildForest(); diag('場景二 CSV 匯入完成。', true);
+  }catch(err){ diag('場景二 CSV 解析失敗：'+err.message) } };
+  r.readAsText(f);
+});
+
+// ---------- Scene 3: terrain / sun / season ----------
+const S3 = { slope:qs('#s3_slope'), rough:qs('#s3_rough'), ground:qs('#s3_ground'), rocks:qs('#s3_rocks'),
+            time:qs('#s3_time'), timeRate:qs('#s3_timeRate'), animSun:qs('#s3_animSun'),
+            season:qs('#s3_season'), fall:qs('#s3_fall'), wind:qs('#s3_wind'), turb:qs('#s3_turb'), regrow:qs('#s3_regrow'), maxActive:qs('#s3_maxActive') };
+const L3 = { slope:qs('#s3v_slope'), rough:qs('#s3v_rough'), ground:qs('#s3v_ground'), rocks:qs('#s3v_rocks'),
+            time:qs('#s3v_time'), timeRate:qs('#s3v_timeRate'), season:qs('#s3v_season'), fall:qs('#s3v_fall'), wind:qs('#s3v_wind'), turb:qs('#s3v_turb'), regrow:qs('#s3v_regrow'), maxActive:qs('#s3v_maxActive') };
+['slope','rough','ground','rocks','time','timeRate','season','fall','wind','turb','regrow','maxActive'].forEach(k=> S3[k].addEventListener('input', syncS3));
+function syncS3(){ L3.slope.textContent=S3.slope.value; L3.rough.textContent=S3.rough.value; L3.ground.textContent=S3.ground.value; L3.rocks.textContent=S3.rocks.value;
+  L3.time.textContent=Number(S3.time.value).toFixed(2)+' h'; L3.timeRate.textContent=S3.timeRate.value+'×'; L3.season.textContent=S3.season.value+'×'; L3.fall.textContent=S3.fall.value+'×';
+  L3.wind.textContent=S3.wind.value; L3.turb.textContent=S3.turb.value; L3.regrow.textContent=S3.regrow.value+'×'; L3.maxActive.textContent=S3.maxActive.value; }
+syncS3();
+
+qs('#s3_start').addEventListener('click', ()=>{ if(!terrain) buildTerrain(); prepareSeason(); running=true; });
+qs('#s3_stop').addEventListener('click', ()=> running=false );
+qs('#s3_reset').addEventListener('click', ()=> resetSeason() );
+qs('#s3_fit').addEventListener('click', ()=>{ if(forestGroup) fitCameraTo(forestGroup, 2.6); else if(previewTree) fitCameraTo(previewTree.group, 2.0); });
+qs('#toggleUI').addEventListener('click', ()=>{ panel.style.display=(panel.style.display==='none'?'block':'none'); });
+
+let terrain=null, rockGroup=null;
+function buildTerrain(){
+  if(terrain){ scene.remove(terrain); disposeObj(terrain); terrain=null; }
+  const size=400, seg=160;
+  const g = new THREE.PlaneGeometry(size,size,seg,seg); g.rotateX(-Math.PI/2);
+  const pos=g.attributes.position; const col=new Float32Array(pos.count*3);
+  for(let i=0;i<pos.count;i++){
+    const x=pos.getX(i), z=pos.getZ(i);
+    const y = terrainHeight(x,z); pos.setY(i, y);
+    const c = groundColorAt(x,y,z); col[i*3+0]=c.r; col[i*3+1]=c.g; col[i*3+2]=c.b;
+  }
+  g.setAttribute('color', new THREE.BufferAttribute(col,3)); g.computeVertexNormals();
+  terrain = new THREE.Mesh(g, matGround); terrain.receiveShadow=true; scene.add(terrain);
+  // rocks
+  if(rockGroup){ scene.remove(rockGroup); disposeGroup(rockGroup); }
+  rockGroup = new THREE.Group(); const density=parseFloat(S3.rocks.value);
+  if(density>0){
+    const rockMat=new THREE.MeshStandardMaterial({color:0x8c8f92, roughness:0.95});
+    const rockGeo=new THREE.IcosahedronGeometry(1, 0);
+    const N=Math.round(density*800);
+    for(let i=0;i<N;i++){
+      const x=(Math.random()-0.5)*size*0.9; const z=(Math.random()-0.5)*size*0.9; const y=terrainHeight(x,z);
+      const m=new THREE.Mesh(rockGeo, rockMat); m.castShadow=true; m.receiveShadow=true;
+      m.scale.setScalar(0.4 + Math.random()*2.2); m.position.set(x,y, z); m.rotation.y = Math.random()*Math.PI*2; rockGroup.add(m);
+    }
+    scene.add(rockGroup);
+  }
+  diag('地形生成完成。', true);
+}
+function terrainHeight(x,z){
+  const slope=parseFloat(S3.slope.value); const rough=parseFloat(S3.rough.value);
+  const base = slope * (x/200); const h = fbm(x*0.02, z*0.02, 4, 0.5) * 12 * rough; return base + h;
+}
+function groundColorAt(x,y,z){
+  const mode=S3.ground.value; const hN=THREE.MathUtils.clamp((y+10)/40,0,1);
+  let soil=new THREE.Color().setHSL(0.10,0.6,0.30 + 0.25*hN); let rock=new THREE.Color().setHSL(0.58,0.05,0.45 - 0.25*hN);
+  if(mode==='soil') return soil; if(mode==='rock') return rock; return soil.lerp(rock, 0.5 + 0.5*(Math.sin((x+z)*0.02)));
+}
+// noise
+function nrand(x,y,z){ const s=Math.sin(x*127.1+y*311.7+z*74.7)*43758.5453; return s-Math.floor(s); }
+function smoothNoise3(x,y,z){ const xi=Math.floor(x), yi=Math.floor(y), zi=Math.floor(z); const xf=x-xi, yf=y-yi, zf=z-zi; function fade(t){return t*t*(3-2*t)}
+  let n000=nrand(xi,yi,zi), n100=nrand(xi+1,yi,zi), n010=nrand(xi,yi+1,zi), n110=nrand(xi+1,yi+1,zi); let n001=nrand(xi,yi,zi+1), n101=nrand(xi+1,yi,zi+1), n011=nrand(xi,yi+1,zi+1), n111=nrand(xi+1,yi+1,zi+1);
+  const u=fade(xf), v=fade(yf), w=fade(zf);
+  const x00=THREE.MathUtils.lerp(n000,n100,u), x10=THREE.MathUtils.lerp(n010,n110,u), x01=THREE.MathUtils.lerp(n001,n101,u), x11=THREE.MathUtils.lerp(n011,n111,u);
+  const y0=THREE.MathUtils.lerp(x00,x10,v), y1=THREE.MathUtils.lerp(x01,x11,v); return THREE.MathUtils.lerp(y0,y1,w);
+}
+function fbm(x,z, oct=4, g=0.5){ let f=0, amp=1, sum=0; for(let i=0;i<oct;i++){ sum += amp * smoothNoise3(x,0,z); x*=2; z*=2; amp*=g; f+=amp; } return sum / (f||1); }
+
+// season/fall engine
+let running=false, seasonClock=0, windTime=0;
+let fallMeshes=[]; let fallVel=[], fallAngVel=[], fallPhase=[], fallState=[], fallActive=[];
+function prepareSeason(){
+  if(!forestGroup){ if(previewTree){ forestGroup=new THREE.Group(); scene.add(forestGroup); forestGroup.add(previewTree.group); forestTrees=[previewTree]; } else { buildForest(); } }
+  fallMeshes = forestTrees.map(t=> t.leaves);
+  fallVel.length=fallMeshes.length; fallAngVel.length=fallMeshes.length; fallPhase.length=fallMeshes.length; fallState.length=fallMeshes.length; fallActive.length=fallMeshes.length;
+  for(let ti=0; ti<fallMeshes.length; ti++){
+    const n=fallMeshes[ti].count; fallVel[ti]=Array(n); fallAngVel[ti]=Array(n); fallPhase[ti]=new Float32Array(n); fallState[ti]=new Uint8Array(n); fallActive[ti]=[];
+    for(let i=0;i<n;i++){ fallVel[ti][i]=new THREE.Vector3(); fallAngVel[ti][i]=new THREE.Vector3(); fallPhase[ti][i]=0; fallState[ti][i]=0; }
+  }
+  seasonClock=0; windTime=0; running=false; if(!terrain) buildTerrain(); diag('季節/落葉引擎已就緒。', true);
+}
+function resetSeason(){
+  if(!fallMeshes.length) return;
+  for(let ti=0; ti<fallMeshes.length; ti++){
+    const mesh=fallMeshes[ti]; const n=mesh.count;
+    const dm=new THREE.Matrix4(); const pos=new THREE.Vector3(); const quat=new THREE.Quaternion(); const scl=new THREE.Vector3();
+    for(let i=0;i<n;i++){
+      mesh.getMatrixAt(i, dm); dm.decompose(pos, quat, scl);
+      pos.y = Math.max(pos.y, 0.2);
+      dm.compose(pos, quat, scl); mesh.setMatrixAt(i, dm);
+      fallVel[ti][i].set(0,0,0); fallAngVel[ti][i].set(0,0,0); fallState[ti][i]=0; fallPhase[ti][i]=0;
+      const c=new THREE.Color().setHSL(0.28,0.78,0.50); mesh.setColorAt(i, c);
+    }
+    mesh.instanceMatrix.needsUpdate=true; if(mesh.instanceColor) mesh.instanceColor.needsUpdate=true; fallActive[ti].length=0;
+  }
+  seasonClock=0; running=false; diag('季節狀態已重置。', true);
+}
+function windAt(x,y,z){
+  const A=parseFloat(S3.wind.value), T=parseFloat(S3.turb.value);
+  const dirRad=(Math.sin(windTime*0.07)*15)*Math.PI/180;
+  const baseX=Math.cos(dirRad)*A, baseZ=Math.sin(dirRad)*A;
+  const n1 = smoothNoise3((x*0.25)+windTime*0.8, 0, (z*0.25)-windTime*0.6);
+  const n2 = smoothNoise3((-x*0.2)+windTime*0.5, 0, (y*0.25)+windTime*0.6);
+  return new THREE.Vector3(baseX + T*(n1-0.5), 0.3*T*(n2-0.5), baseZ + T*(n2-0.5));
+}
+// color ramp for leaves: 0 fresh green → deep green → yellow → orange → red/brown
+function colorForPhase(ph){ // ph: 0..2 (0 fresh, 1 mid, 2 pre-drop)
+  if(ph<0.4){ const k=ph/0.4; return new THREE.Color().setHSL(0.31 - 0.03*k, 0.78, 0.50 - 0.05*k); }              // green deepens
+  if(ph<1.0){ const k=(ph-0.4)/0.6; return new THREE.Color().setHSL(0.14 + 0.10*k, 0.85, 0.55 - 0.12*k); }        // yellow→orange
+  const k=Math.min(1,(ph-1.0)/1.0); return new THREE.Color().setHSL(0.02 + 0.03*k, 0.75, 0.45 - 0.15*k);          // orange→red/brown
+}
+function updateSun(){
+  const t=parseFloat(S3.time.value); // 0..24
+  const az = (t/24)*Math.PI*2;
+  const el = Math.sin((t-6)/12 * Math.PI) * 0.8 + 0.2; // -~+
+  const r=150;
+  const x = Math.cos(az)*Math.cos(el)*r;
+  const y = Math.max(10, Math.sin(el)*r);
+  const z = Math.sin(az)*Math.cos(el)*r;
+  sun.position.set(x,y,z);
+  sun.target.position.set(0,0,0); sun.target.updateMatrixWorld();
+  sunGroup.position.copy(sun.position);
+  skyMat.uniforms.sunDir.value.set(Math.cos(az)*Math.cos(el), Math.sin(el), Math.sin(az)*Math.cos(el));
+  skyMat.uniforms.t.value = t;
+}
+function stepSeason(){
+  if(!fallMeshes.length) return;
+  const seasonRate=parseFloat(S3.season.value), fallRate=parseFloat(S3.fall.value), regrow=parseFloat(S3.regrow.value), maxActive=parseInt(S3.maxActive.value);
+  seasonClock += 0.016*seasonRate; windTime += 0.01;
+  if(S3.animSun.checked){ S3.time.value = String( (parseFloat(S3.time.value) + 0.016*parseFloat(S3.timeRate.value)) % 24 ); syncS3(); }
+  updateSun();
+
+  // global active budget
+  let globalActive = fallActive.reduce((acc,a)=> acc+a.length, 0);
+  let budget = Math.max(0, maxActive - globalActive);
+
+  // spawn new falling leaves
+  for(let ti=0; ti<fallMeshes.length && budget>0; ti++){
+    const mesh=fallMeshes[ti]; const n=mesh.count; const dm=new THREE.Matrix4(); const pos=new THREE.Vector3(); const quat=new THREE.Quaternion(); const scl=new THREE.Vector3();
+    let tries=0; const perTry = Math.min(120, 5 + (n*0.0008 + n*0.002*THREE.MathUtils.clamp(seasonClock/30,0,1))|0);
+    while(tries<perTry && budget>0){ tries++; const i=(Math.random()*n)|0; if(fallState[ti][i]!==0) continue;
+      mesh.getMatrixAt(i, dm); dm.decompose(pos, quat, scl);
+      // chance increases with height (outer canopy) & leaf aging; also allow wind to trigger green drops
+      const age = THREE.MathUtils.clamp(seasonClock/35, 0, 2); // 0→2 scale
+      const windK = THREE.MathUtils.clamp(parseFloat(S3.wind.value)/10, 0, 1);
+      const p = (0.0004 + 0.0025*age) * (0.3 + 0.9*THREE.MathUtils.clamp(pos.y/(forestTrees[ti]?.meta?.H||8),0,1)) + 0.001*windK;
+      if(Math.random()<p){
+        fallState[ti][i]=1; fallActive[ti].push(i); budget--;
+        const w=windAt(pos.x,pos.y,pos.z);
+        fallVel[ti][i].set((Math.random()-0.5)*0.05 + 0.003*w.x, -0.02, (Math.random()-0.5)*0.05 + 0.003*w.z);
+        fallAngVel[ti][i].set((Math.random()-0.5)*1.2, (Math.random()-0.5)*0.8, (Math.random()-0.5)*1.2);
+      }
+    }
+  }
+
+  // simulate actives & color evolution for all leaves
+  for(let ti=0; ti<fallMeshes.length; ti++){
+    const mesh=fallMeshes[ti]; const dm=new THREE.Matrix4(); const pos=new THREE.Vector3(); const quat=new THREE.Quaternion(); const scl=new THREE.Vector3();
+    // passive color aging even if not falling
+    const n=mesh.count; for(let j=0;j<n;j++){ if(fallState[ti][j]===0){ fallPhase[ti][j]=Math.min(2, fallPhase[ti][j] + 0.0004*seasonRate); const c=colorForPhase(fallPhase[ti][j]); mesh.setColorAt(j,c); } }
+    // simulate falling ones
+    const act=fallActive[ti]; const eul=new THREE.Euler();
+    for(let k=act.length-1; k>=0; k--){
+      const i=act[k]; mesh.getMatrixAt(i, dm); dm.decompose(pos, quat, scl);
+      // while falling, continue color progress slightly faster
+      fallPhase[ti][i] = Math.min(2, fallPhase[ti][i] + 0.0010*seasonRate);
+      mesh.setColorAt(i, colorForPhase(fallPhase[ti][i]));
+      const w = windAt(pos.x,pos.y,pos.z).multiplyScalar(0.002*fallRate);
+      const L = P.len/100, W = (P.len*P.width)/100, area = L*W, curlK=1 + P.curl*1.5, Cd = 0.8*curlK;
+      fallVel[ti][i].y += (-0.0022*fallRate);
+      const v2 = fallVel[ti][i].lengthSq(); const drag = fallVel[ti][i].clone().multiplyScalar(-Cd*area*Math.max(0.0, v2)); fallVel[ti][i].add(drag);
+      fallVel[ti][i].x += w.x - 0.002*fallVel[ti][i].x; fallVel[ti][i].z += w.z - 0.002*fallVel[ti][i].z; fallVel[ti][i].y += w.y*0.3 - 0.001*fallVel[ti][i].y;
+      const zz = Math.sin(windTime*3 + (i+ti*97)*0.37) * 0.005 * (1 + 0.6*P.width); fallVel[ti][i].x += zz;
+      const e = eul.setFromQuaternion(quat); e.x += (w.x*8 + fallAngVel[ti][i].x)*0.01; e.y += (w.y*6 + fallAngVel[ti][i].y)*0.01; e.z += (w.z*8 + fallAngVel[ti][i].z)*0.01;
+      quat.setFromEuler(e); fallAngVel[ti][i].multiplyScalar(0.98); fallAngVel[ti][i].x += (Math.random()-0.5)*0.02*curlK; fallAngVel[ti][i].z += (Math.random()-0.5)*0.02*curlK;
+      pos.add(fallVel[ti][i]);
+      const gy = terrain? terrainHeight(pos.x,pos.z) : 0;
+      if(pos.y<=gy){ pos.y=gy; fallVel[ti][i].set(0,0,0); fallState[ti][i]=2; act[k]=act[act.length-1]; act.pop(); }
+      dm.compose(pos, quat, scl); mesh.setMatrixAt(i, dm);
+    }
+    mesh.instanceMatrix.needsUpdate=true; if(mesh.instanceColor) mesh.instanceColor.needsUpdate=true;
+    // regrow: when many have landed and none active, grow fresh green upwards
+    let landed=0; for(let j=0;j<n;j++){ if(fallState[ti][j]===2) landed++; }
+    if(landed>n*0.8 && act.length===0){
+      const dm2 = new THREE.Matrix4(); const pos2=new THREE.Vector3(); const quat2=new THREE.Quaternion(); const scl2=new THREE.Vector3();
+      let regenBatch = Math.min(500, n - landed);
+      for(let i=0;i<n && regenBatch>0; i++){
+        if(fallState[ti][i]!==2) continue;
+        mesh.getMatrixAt(i, dm2); dm2.decompose(pos2, quat2, scl2); pos2.y += 0.03*regrow;
+        if(pos2.y > Math.random()*(forestTrees[ti]?.meta?.H || 8)){ fallState[ti][i]=0; fallPhase[ti][i]=0; const c2=new THREE.Color().setHSL(0.31,0.78,0.50); mesh.setColorAt(i,c2); regenBatch--; }
+        dm2.compose(pos2, quat2, scl2); mesh.setMatrixAt(i, dm2);
+      }
+      mesh.instanceMatrix.needsUpdate=true; if(mesh.instanceColor) mesh.instanceColor.needsUpdate=true;
+    }
+  }
+}
+
+// ---------- camera, render loop ----------
+function fitCameraTo(obj, pad=2.0){
+  if(!obj) return;
+  const box=new THREE.Box3().setFromObject(obj); const size=new THREE.Vector3(); const center=new THREE.Vector3(); box.getSize(size); box.getCenter(center);
+  const radius = Math.max(size.x, size.y, size.z)*0.5 || 1; const fov = camera.fov * Math.PI/180; const dist = (radius/Math.tan(fov/2)) * pad;
+  const dir = new THREE.Vector3(1,0.6,1).normalize();
+  camera.position.copy(center).addScaledVector(dir, dist);
+  camera.near=Math.max(0.01, dist/1000); camera.far=dist*10+500; camera.updateProjectionMatrix(); controls.target.copy(center); controls.update();
+}
+function resize(){ const w=stage.clientWidth||stage.getBoundingClientRect().width||window.innerWidth; const h=stage.clientHeight||window.innerHeight;
+  renderer.setSize(w,h); camera.aspect=w/h; camera.updateProjectionMatrix(); }
+window.addEventListener('resize', resize);
+function loop(){ controls.update(); if(running){ stepSeason(); } renderer.render(scene,camera); requestAnimationFrame(loop); }
+
+// ---------- init ----------
+function init(){
+  resize();
+  // randomize leaf params if no CSV
+  (function randomLeafOnBoot(){ Object.assign(P, {"len": 12, "width": 0.4, "tip": 1.0, "base": 1.0, "baseNotch": 0.0, "apexConverge": 0.2, "serrA": 0, "serrF": 0, "toothSharp": 0, "doubleSerr": 0, "lobeCount": 0, "lobeDepth": 0.0, "lobeRound": 0.6, "rib": 0.12, "curl": 0, "twist": 0, "bend": 0.2, "waveAmp": 0, "waveFreq": 0, "asym": 0, "double": true, "stem": true, "resU": 64, "resV": 28}); })();
+  rebuildLeafPreview();
+  showScene(1);
+  loop();
+  diag('forest v0.13 啟動完成。', true);
+  updateSun();
+}
+init();
+
+// dispose helpers
+function disposeObj(o){ if(o.geometry) o.geometry.dispose(); if(o.material) o.material.dispose?.(); }
+function disposeGroup(g){ g.traverse(o=> disposeObj(o)); }
+</script>
+</body>
+</html>
