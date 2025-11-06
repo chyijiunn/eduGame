@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>CRISPR 編輯流程（高中版）— 獨立互動頁 v0.1c</title>
+<style>
+:root{
+  --bg:#0b0f16;--panel:#111827;--ink:#eaf2ff;--muted:#9fb3c8;--accent:#7bd6ff;--ok:#45e19f;--warn:#ffd66b;--bad:#ff7b7b;
+  --dna:#cfe1ff;--pam:#ffe28a;--guide:#92ffd9;--cut:#ff8ba7;--border:#223047;--chip:#152033;
+}
+*{box-sizing:border-box} html,body{height:100%}
+body{margin:0;background:radial-gradient(1200px 600px at 70% -10%,#0f1622 10%,var(--bg) 55%);color:var(--ink);
+  font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI","Noto Sans TC","PingFang TC",Roboto,Helvetica,Arial;}
+a{color:var(--accent);text-decoration:none} a:hover{text-decoration:underline}
+.app{display:grid;grid-template-columns:340px 1fr;grid-template-rows:auto 1fr;min-height:100vh}
+header{grid-column:1/-1;display:flex;align-items:center;gap:12px;padding:14px 18px;border-bottom:1px solid var(--border);
+  background:linear-gradient(180deg,#0d121a,transparent);position:sticky;top:0;z-index:10}
+header .title{font-weight:800;letter-spacing:.3px}
+.tag{font-size:12px;color:var(--muted);border:1px solid var(--border);border-radius:999px;padding:3px 8px}
+.left{border-right:1px solid var(--border);background:linear-gradient(180deg,#0b1119,transparent);padding:14px;overflow:auto}
+.main{padding:14px;overflow:auto}
+.panel{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:12px;margin-bottom:12px}
+.step{display:flex;gap:10px;padding:10px;border-radius:12px;border:1px solid var(--border);background:#0e1522;margin:8px 0;cursor:pointer}
+.step.active{outline:2px solid var(--accent);background:#102132}
+.idx{width:24px;height:24px;border-radius:999px;background:#182234;display:grid;place-items:center;font-size:12px;color:var(--muted)}
+.label{font-weight:700}
+.tip{font-size:12px;color:var(--muted);margin-top:4px}
+.grid{display:grid;gap:12px}
+.two{grid-template-columns:1fr 1fr}
+.canvas{border:1px solid var(--border);border-radius:14px;background:#0d1420;min-height:220px;position:relative;overflow:auto}
+.controls label{display:flex;align-items:center;gap:8px;margin:6px 0}
+input[type="range"]{width:100%}
+.badge{font-size:11px;padding:2px 6px;border:1px solid var(--border);border-radius:6px;color:var(--muted)}
+.row{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.btn{background:#162234;color:#e6f0ff;border:1px solid var(--border);border-radius:10px;padding:8px 12px;cursor:pointer}
+.btn:disabled{opacity:.6;cursor:not-allowed}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{background:#152033;border:1px solid var(--border);padding:5px 8px;border-radius:999px;font-size:12px}
+.small{font-size:12px;color:var(--muted)}
+.seqbox{padding:12px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;line-height:1.6;color:var(--dna);white-space:pre-wrap;word-break:break-word}
+.base{padding:1px 2px;border-radius:3px}
+.pam{background:linear-gradient(180deg,#3b2d00,#2b2200);color:#ffefb5;border-bottom:1px dashed #aa8}
+.pam.sel{outline:2px solid var(--pam)}
+.guide{background:#003b2d;color:#b9ffe7}
+.cut{color:var(--cut);font-weight:700}
+.marker{position:absolute;right:8px;top:8px;font-size:12px;color:var(--muted)}
+.meter{background:#0e1623;border:1px solid var(--border);border-radius:12px;padding:10px;margin-top:8px}
+.bar{height:10px;background:#1a2433;border-radius:999px;overflow:hidden}
+.fill{height:100%;width:0;background:linear-gradient(90deg,#3ec9ff,#45e19f)}
+.cards{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.card{background:#0f1724;border:1px solid var(--border);border-radius:12px;padding:10px}
+.card h4{margin:0 0 6px 0}
+kbd{background:#142033;border:1px solid var(--border);border-radius:6px;padding:2px 6px}
+/* error overlay */
+#errorOverlay{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.7);z-index:9999}
+#errorOverlay.show{display:flex}
+#errorOverlay .box{width:min(880px,92vw);background:#1a2233;border:1px solid #364a6b;border-radius:12px;color:#e8f0ff;padding:14px;font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace}
+#errorOverlay .box h3{margin-top:0}
+#bootBadge{position:fixed;bottom:10px;right:10px;background:#142033;color:#bfe3ff;border:1px solid #2a3a55;border-radius:999px;padding:6px 10px;font-size:12px;z-index:9998}
+@media (max-width: 980px){.app{grid-template-columns:1fr}.left{order:2}.main{order:1}.two{grid-template-columns:1fr}.cards{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="title">CRISPR 編輯流程（高中版）— 獨立互動頁 <span class="tag">v0.1c 單檔HTML + 自我檢查</span></div>
+    <span class="tag">教育示意｜非醫療/實驗指引</span>
+    <button id="copySteps" class="btn" style="margin-left:auto">複製「步驟說明」</button>
+  </header>
+
+  <aside class="left">
+    <div class="panel">
+      <div style="font-weight:800;margin-bottom:6px">操作步驟</div>
+      <div id="steps"></div>
+      <div class="tip">建議流程：產生 DNA → 找 PAM → 選 gRNA → 選模式 → 看示意結果。</div>
+    </div>
+    <div class="panel">
+      <div style="font-weight:800;margin-bottom:6px">顯示選項</div>
+      <label><input type="checkbox" id="showHints" checked> 顯示提示</label>
+      <label><input type="checkbox" id="showMarkers" checked> 顯示標記</label>
+    </div>
+    <div class="panel small">
+      <div style="font-weight:800;margin-bottom:6px">小辭典</div>
+      <p><b>PAM</b>：Cas9 綁定 DNA 的「停靠碼」。SpCas9 是 <b>NGG</b>；SaCas9 是 <b>NNGRRT</b>。</p>
+      <p><b>Protospacer（gRNA 導引區）</b>：PAM 前 20 nt。</p>
+      <p><b>切割點</b>：SpCas9 於 PAM 前約 <b>第 3 bp</b> 產生雙股斷裂。</p>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="panel">
+      <div class="row">
+        <div style="font-weight:800">① 產生目標序列與選 Cas9</div>
+        <div class="chips">
+          <label class="chip"><input type="radio" name="cas" value="sp" checked> SpCas9（PAM: NGG）</label>
+          <label class="chip"><input type="radio" name="cas" value="sa"> SaCas9（PAM: NNGRRT）</label>
+        </div>
+      </div>
+      <div class="grid two">
+        <div>
+          <label class="small">基因名稱/標籤（僅顯示用）：<input id="geneName" placeholder="例如：HBB（β-珠蛋白）" style="width:100%;padding:6px;border-radius:8px;border:1px solid var(--border);background:#0b1119;color:var(--ink)"></label>
+          <div class="meter">
+            <div class="row"><span class="small">序列長度（bp）</span><span id="lenLbl">300</span></div>
+            <input type="range" id="len" min="120" max="600" value="300" aria-label="序列長度">
+            <div class="row"><span class="small">GC 比例</span><span id="gcLbl">50%</span></div>
+            <input type="range" id="gc" min="30" max="70" value="50" aria-label="GC 比例">
+            <button id="gen" class="btn" style="margin-top:8px">產生隨機序列</button>
+          </div>
+        </div>
+        <div>
+          <div class="meter">
+            <div style="font-weight:700">PAM 尋找條件</div>
+            <div class="small">SpCas9：<b>NGG</b>；SaCas9：<b>NNGRRT</b></div>
+            <div class="tip">點擊序列中高亮的 PAM，即自動選擇前方 20nt 作為 gRNA。</div>
+          </div>
+          <div class="meter">
+            <div class="row"><span class="small">目前選擇</span><span class="small" id="selLabel">尚未選擇 PAM</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="canvas">
+        <div class="marker">DNA 序列（可左右捲動）</div>
+        <div class="seqbox" id="seqBox"></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="row">
+        <div style="font-weight:800">② 選擇編輯模式</div>
+        <div class="chips">
+          <label class="chip"><input type="radio" name="mode" value="nhej" checked> NHEJ 敲除</label>
+          <label class="chip"><input type="radio" name="mode" value="hdr"> HDR 敲入</label>
+          <label class="chip"><input type="radio" name="mode" value="base"> Base Editing</label>
+          <label class="chip"><input type="radio" name="mode" value="prime"> Prime Editing</label>
+        </div>
+      </div>
+
+      <div id="panelNHEJ" class="meter">
+        <div class="row"><span class="small">NHEJ 活性</span><span id="nhejLbl">70%</span></div>
+        <input type="range" id="nhej" min="10" max="100" value="70">
+        <div class="bar"><div class="fill" id="nhejFill" style="width:70%"></div></div>
+        <div class="tip">估計：NHEJ 比例越高，小插缺（indel）造成「破框」的機率越高 → 容易達到基因敲除。</div>
+        <div class="small">預估破框機率：<b id="frameshift">～66%</b></div>
+      </div>
+
+      <div id="panelHDR" class="meter" style="display:none">
+        <div class="row"><span class="small">HDR 條件（S/G2 期比例）</span><span id="hdrLbl">40%</span></div>
+        <input type="range" id="hdr" min="10" max="80" value="40">
+        <div class="row"><span class="small">同源臂長度（bp）</span><span id="haLbl">30/30</span></div>
+        <input type="range" id="ha" min="10" max="60" value="30">
+        <label class="small">插入序列（簡短示意）：<input id="insertSeq" placeholder="例如：ATG 或 標籤序列" style="width:100%;padding:6px;border-radius:8px;border:1px solid var(--border);background:#0b1119;color:#e6f0ff"></label>
+        <div class="tip">估計：HDR 成功率受細胞週期與模板設計影響；同源臂越長通常有利（亦受遞送方式限制）。</div>
+        <div class="small">預估 HDR 成功率：<b id="hdrRate">～22%</b></div>
+      </div>
+
+      <div id="panelBASE" class="meter" style="display:none">
+        <div class="row"><span class="small">編輯器</span>
+          <span class="chips">
+            <label class="chip"><input type="radio" name="be" value="ABE" checked> ABE（A→G）</label>
+            <label class="chip"><input type="radio" name="be" value="CBE"> CBE（C→T）</label>
+          </span>
+        </div>
+        <div class="small">常見編輯窗約為導引序列 <b>第4–8 位</b>（自 PAM 遠端算起）。下方會高亮可改寫的鹼基。</div>
+        <div class="canvas"><div class="seqbox" id="beBox"></div></div>
+      </div>
+
+      <div id="panelPRIME" class="meter" style="display:none">
+        <div class="small">Prime editing 以導引 RNA 攜帶「反轉錄模板」在目標位置進行小片段改寫，<b>不需產生 DSB</b>。此處提供概念示意。</div>
+        <label class="small">欲改寫的小片段（≤ 20 nt 示意）：<input id="peEdit" placeholder="例如：插入 TAG 或替換 3nt" style="width:100%;padding:6px;border-radius:8px;border:1px solid var(--border);background:#0b1119;color:#e6f0ff"></label>
+        <div class="canvas"><div class="seqbox" id="peBox"></div></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div style="font-weight:800;margin-bottom:6px">③ 步驟說明（通用繁中；括號附英）</div>
+      <div id="stepsText" class="small">
+        <ol>
+          <li><b>NHEJ 敲除</b>（non-homologous end joining, <b>NHEJ</b>）：剪開→細胞自行黏回，常出現<b>小插缺</b>（<i>insertion/deletion, indel</i>），容易讓基因失效。</li>
+          <li><b>HDR 敲入</b>（homology-directed repair, <b>HDR</b>）：同時給「<b>修補模板</b>」（<i>donor DNA / repair template</i>），讓細胞按模板<b>插入/替換</b>（<i>knock-in / replacement</i>）。</li>
+          <li><b>Base Editing</b>（<i>base editing</i>）：不做<b>雙股斷裂</b>（<i>double-strand break, DSB</i>），只改單一鹼基（如 <b>A→G</b>：<i>ABE</i>；<b>C→T</b>：<i>CBE</i>）。</li>
+          <li><b>Prime Editing</b>（<i>prime editing</i>）：不需雙股斷裂，使用含<b>反轉錄模板</b>（<i>reverse transcriptase template</i>）的 <b>pegRNA</b> 在目標位點進行小幅<b>改寫</b>（插入/刪除/替換少數鹼基）。</li>
+        </ol>
+      </div>
+      <div class="row"><span class="small">可將上列內容複製到教材或講義。</span><button class="btn" id="copyBtn">複製步驟說明</button></div>
+    </div>
+
+    <div class="panel">
+      <div style="font-weight:800;margin-bottom:6px">④ 離靶（Off‑target）概念示意</div>
+      <div class="grid two">
+        <div class="meter">
+          <div class="row"><span class="small">背景基因組大小（示意，nt）</span><span id="bgLbl">5000</span></div>
+          <input type="range" id="bg" min="1000" max="20000" value="5000">
+          <div class="row"><span class="small">允許錯配</span>
+            <span class="chips">
+              <label class="chip"><input type="radio" name="mm" value="0"> 0</label>
+              <label class="chip"><input type="radio" name="mm" value="1" checked> 1</label>
+              <label class="chip"><input type="radio" name="mm" value="2"> 2</label>
+              <label class="chip"><input type="radio" name="mm" value="3"> 3</label>
+            </span>
+          </div>
+          <div class="row"><span class="small">估計離靶位點數</span><span class="small"><b id="offCount">—</b></span></div>
+          <div class="bar"><div class="fill" id="offFill" style="width:0%"></div></div>
+          <div class="tip">此估算僅為教學用，實務需全基因組搜尋與實驗驗證（如 GUIDE‑seq、DISCOVER‑seq、CIRCLE‑seq）。</div>
+        </div>
+        <div class="meter">
+          <div class="small">原理速記：</div>
+          <ul class="small">
+            <li>靠近 PAM 的「種子區」越吻合，切割機率越高。</li>
+            <li>PAM 條件越寬鬆，可用位點越多，離靶風險可能上升。</li>
+            <li>設計時會用特異性分數與濕實驗來驗證。</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<div id="errorOverlay"><div class="box"><h3>初始化失敗（已攔截錯誤）</h3>
+<div id="errMsg"></div>
+<p>建議：重新下載檔案或改用 Chrome / Edge 測試；若持續出現，請把這段訊息貼給我。</p>
+</div></div>
+<div id="bootBadge">啟動中…</div>
+
+<script>
+// Error overlay & boot check
+(function(){
+  const badge=document.getElementById('bootBadge');
+  function ok(msg){ badge.textContent=msg; badge.style.background='#0f2a1e'; badge.style.borderColor='#2e6b56'; }
+  function fail(e){
+    const ov=document.getElementById('errorOverlay'); ov.classList.add('show');
+    document.getElementById('errMsg').textContent=(e && (e.message||e.toString())) + '\\nUA: ' + navigator.userAgent;
+    badge.textContent='啟動失敗'; console.error(e);
+  }
+  window.addEventListener('error', (e)=>{ fail(e.error || e.message); });
+  window.addEventListener('DOMContentLoaded', ()=>{ ok('初始化完成 ✔'); setTimeout(()=>{ badge.remove(); }, 2000); });
+})();
+
+// ----- utilities -----
+function randDNA(len, gcPerc){
+  const gc=gcPerc/100; let s='';
+  for(let i=0;i<len;i++){ s += (Math.random()<gc ? (Math.random()<0.5?'G':'C') : (Math.random()<0.5?'A':'T')); }
+  return s;
+}
+function hamming(a,b){ let d=0; for(let i=0;i<a.length;i++){ if(a[i]!==b[i]) d++; } return d; }
+
+// ----- state -----
+let seq=''; let cas='sp'; let pamSites=[]; let sel=null;
+let mmAllowed=1; let bgGenome='';
+
+// ----- DOM -----
+const seqBox=document.getElementById('seqBox'); const selLabel=document.getElementById('selLabel');
+
+// steps list
+const stepNames=["① 產生 DNA 並選 Cas9","② 找 PAM → 點選作為目標位點","③ 選擇編輯模式（NHEJ/HDR/BE/PE）","④ 查看步驟說明與離靶示意","⑤ 複製內容或截圖當筆記"];
+const stepsEl=document.getElementById('steps');
+stepNames.forEach((s,i)=>{
+  const el=document.createElement('div'); el.className='step'+(i===0?' active':'');
+  el.innerHTML=`<div class="idx">${i+1}</div><div><div class="label">${s}</div>
+  <div class="tip">${i===1?'黃色為 PAM（可點）': i===2?'不同模式顯示不同面板':'可用右上「複製步驟」'}</div></div>`;
+  el.addEventListener('click',()=>{ document.querySelectorAll('.step').forEach(x=>x.classList.remove('active')); el.classList.add('active'); window.scrollTo({top:0,behavior:'smooth'}); });
+  stepsEl.appendChild(el);
+});
+
+// PAM regex（避免古老瀏覽器 lookbehind，不用 lookaround 也可）
+function pamRegex(){ return cas==='sp' ? /[ATGC]GG/g : /[ATGC]{2}G[AG][AG]T/g; }
+function scanPAMs(s){
+  const re=pamRegex(); const arr=[]; let m;
+  while((m=re.exec(s))!==null){
+    const start=m.index;
+    const len=(cas==='sp'?3:6);
+    const psStart=start-20; if(psStart<0) continue;
+    arr.push({start, end:start+len, pam:s.slice(start,start+len), protospacer:s.slice(psStart,start), cut:start-3});
+  }
+  return arr;
+}
+
+function renderSeq(){
+  const markers=document.getElementById('showMarkers').checked;
+  let html='';
+  // Build a set of pam positions for fast lookup
+  const pamStarts=new Set(pamSites.map(p=>p.start));
+  for(let i=0;i<seq.length;i++){
+    const ch=seq[i];
+    const isPam = pamStarts.has(i);
+    const curPam = isPam ? pamSites.find(p=>p.start===i) : null;
+    const isGuide= sel && i>= (sel.start-20) && i<sel.start;
+    const isCut= sel && i===sel.cut;
+    let cls='base';
+    if(isPam){ cls+=' pam'+(sel && curPam && curPam.start===sel.start?' sel':''); }
+    if(isGuide){ cls+=' guide'; }
+    html+=`<span class="${cls}" data-pos="${i}">${ch}</span>`;
+    if(isCut && markers){ html+=`<span class="cut">|</span>`; }
+  }
+  seqBox.innerHTML=html;
+  Array.from(seqBox.querySelectorAll('.pam')).forEach(span=>{
+    span.style.cursor='pointer'; span.title='點我選此 PAM（前方20nt為 gRNA）';
+    span.addEventListener('click',()=>{
+      const pos=parseInt(span.getAttribute('data-pos')); sel=pamSites.find(p=>p.start===pos);
+      updateSelectionLabel(); renderSeq(); renderBE(); renderPE(); estimateOffTargets();
+    });
+  });
+}
+function updateSelectionLabel(){
+  if(!sel){ selLabel.textContent='尚未選擇 PAM'; return; }
+  selLabel.innerHTML=`gRNA（20nt）：<b style="color:var(--guide)">${sel.protospacer}</b>｜PAM：<b style="color:var(--pam)">${sel.pam}</b>｜切割點：<b style="color:var(--cut)">${sel.cut}</b>`;
+}
+
+function regen(){
+  const len=parseInt(document.getElementById('len').value,10);
+  const gc=parseInt(document.getElementById('gc').value,10);
+  seq=randDNA(len,gc); pamSites=scanPAMs(seq);
+  sel=pamSites.find(p=>p.start>=40) || pamSites[0] || null;
+  updateSelectionLabel(); renderSeq();
+  const want=parseInt(document.getElementById('bg').value,10);
+  bgGenome=randDNA(want,50); estimateOffTargets();
+  renderBE(); renderPE();
+}
+document.getElementById('gen').addEventListener('click',regen);
+document.getElementById('len').addEventListener('input',e=>{document.getElementById('lenLbl').textContent=e.target.value;});
+document.getElementById('gc').addEventListener('input',e=>{document.getElementById('gcLbl').textContent=e.target.value+'%';});
+document.querySelectorAll('input[name="cas"]').forEach(r=>{ r.addEventListener('change',()=>{cas=r.value; regen();}); });
+
+// Mode panels
+function showPanel(id){ ['panelNHEJ','panelHDR','panelBASE','panelPRIME'].forEach(pid=>{ document.getElementById(pid).style.display=(pid===id)?'block':'none'; }); }
+document.querySelectorAll('input[name="mode"]').forEach(r=>{ r.addEventListener('change',(ev)=>{
+  const v=ev.target.value; if(v==='nhej') showPanel('panelNHEJ');
+  if(v==='hdr') showPanel('panelHDR'); if(v==='base') showPanel('panelBASE'); if(v==='prime') showPanel('panelPRIME');
+}); });
+
+// NHEJ sliders
+function updateNHEJ(){ const n=parseInt(document.getElementById('nhej').value,10)/100;
+  document.getElementById('nhejLbl').textContent=Math.round(n*100)+'%';
+  document.getElementById('nhejFill').style.width=Math.round(n*100)+'%';
+  const frameProb=2/3 * n; document.getElementById('frameshift').textContent='～'+Math.round(frameProb*100)+'%'; }
+document.getElementById('nhej').addEventListener('input', updateNHEJ);
+
+// HDR sliders
+function updateHDR(){ const hdr=parseInt(document.getElementById('hdr').value,10)/100;
+  const ha=parseInt(document.getElementById('ha').value,10); document.getElementById('hdrLbl').textContent=Math.round(hdr*100)+'%';
+  document.getElementById('haLbl').textContent=ha+'/'+ha;
+  const baseRate=0.1 + hdr*0.6 + Math.min(ha,60)/200; document.getElementById('hdrRate').textContent='～'+Math.round(Math.min(baseRate,0.95)*100)+'%'; }
+document.getElementById('hdr').addEventListener('input', updateHDR);
+document.getElementById('ha').addEventListener('input', updateHDR);
+document.getElementById('insertSeq').addEventListener('input', updateHDR);
+
+// Base editing
+let beChoice='ABE';
+document.querySelectorAll('input[name="be"]').forEach(r=>r.addEventListener('change',e=>{ beChoice=e.target.value; renderBE(); }));
+function renderBE(){
+  const beBox=document.getElementById('beBox'); if(!sel){ beBox.textContent='請先選擇 PAM'; return; }
+  const g=sel.protospacer; let out='';
+  for(let i=0;i<g.length;i++){ const pos=i+1; const inWin=pos>=4 && pos<=8; const ch=g[i]; let show=ch;
+    if(inWin){ if(beChoice==='ABE' && ch==='A') show='G'; if(beChoice==='CBE' && ch==='C') show='T';
+      out+=`<span class="base guide" title="第${pos}位（編輯窗）">${ch}<span style="color:#9f9">→${show}</span></span>`; }
+    else out+=`<span class="base guide">${ch}</span>`; }
+  const pamSpan=`<span class="base pam">${sel.pam}</span>`; beBox.innerHTML=`5'- ${out} ${pamSpan} -3'`; }
+
+// Prime editing
+function renderPE(){
+  const peBox=document.getElementById('peBox'); if(!sel){ peBox.textContent='請先選擇 PAM'; return; }
+  const edit=document.getElementById('peEdit').value.trim(); if(!edit){ peBox.textContent='pegRNA 會以 PBS/RTT 在切割點附近導入小幅改寫（概念示意）。'; return; }
+  const pbs=13; const rtt=Math.min(20, Math.max(6, edit.length+6));
+  peBox.textContent=`設計草稿：\n- gRNA：${sel.protospacer}\n- 預期改寫：${edit}\n- 建議 PBS：${pbs}nt\n- 建議 RTT：${rtt}nt`; }
+document.getElementById('peEdit').addEventListener('input', renderPE);
+
+// Off-target toy
+function estimateOffTargets(){
+  if(!sel){ document.getElementById('offCount').textContent='—'; document.getElementById('offFill').style.width='0%'; return; }
+  const g=sel.protospacer; const want=parseInt(document.getElementById('bg').value,10);
+  if(bgGenome.length!==want){ bgGenome=randDNA(want,50); }
+  let count=0; for(let i=0;i<=bgGenome.length-g.length;i++){ const k=bgGenome.slice(i,i+g.length); if(hamming(k,g) <= mmAllowed) count++; }
+  count=Math.max(0,count-1);
+  document.getElementById('offCount').textContent=count; const pct=Math.min(100, Math.log2(1+count)/8*100);
+  document.getElementById('offFill').style.width=pct.toFixed(0)+'%'; }
+document.querySelectorAll('input[name="mm"]').forEach(r=>r.addEventListener('change',e=>{ mmAllowed=parseInt(e.target.value,10); estimateOffTargets(); }));
+document.getElementById('bg').addEventListener('input', e=>{ document.getElementById('bgLbl').textContent=e.target.value; estimateOffTargets(); });
+
+// Copy steps text
+const stepsDiv=document.getElementById('stepsText');
+document.getElementById('copyBtn').addEventListener('click', ()=>{
+  const selRange=window.getSelection(); const range=document.createRange(); range.selectNodeContents(stepsDiv);
+  selRange.removeAllRanges(); selRange.addRange(range); try{ document.execCommand('copy'); }catch(e){}
+  selRange.removeAllRanges();
+});
+document.getElementById('copySteps').addEventListener('click', ()=>{ document.getElementById('copyBtn').click(); });
+
+// marker/hints
+document.getElementById('showMarkers').addEventListener('change', renderSeq);
+document.getElementById('showHints').addEventListener('change', e=>{ document.querySelectorAll('.tip').forEach(t=>t.style.display=e.target.checked?'':'none'); });
+
+// init
+document.getElementById('geneName').value='示例基因';
+function init(){ updateNHEJ(); updateHDR(); regen(); renderBE(); renderPE(); showPanel('panelNHEJ'); }
+init();
+</script>
+</body>
+</html>
