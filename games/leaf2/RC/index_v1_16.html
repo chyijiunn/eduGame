@@ -1,0 +1,2101 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+<title>Leaf / Tree / Fall Designer 3D｜v0.7.2 + Scene1 v0.752 (merged)</title>
+<style>
+  :root{ --bg:#0f172a; --panel:#0b1220; --ink:#e2e8f0; --muted:#94a3b8; --brand:#22c55e; --accent:#34d399; --danger:#ef4444 }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);font-family:ui-sans-serif,system-ui,"Noto Sans TC",Segoe UI,Roboto}
+  .wrap{display:grid;grid-template-columns:1fr 380px;height:100%}
+  #stage{position:relative;background:#0b1020;height:100%;min-height:360px}
+  canvas{display:block;width:100%;height:100%}
+  .panel{height:100%;overflow:auto;background:linear-gradient(180deg,var(--panel),#0a0f1b 55%);border-left:1px solid #1f2937;padding:14px 14px 140px}
+  .h{display:flex;align-items:center;gap:10px;margin:2px 0 8px}
+  .h .dot{width:10px;height:10px;border-radius:999px;background:var(--brand);box-shadow:0 0 16px var(--brand)}
+  h1{font-size:18px;margin:0 0 2px}
+  p.sub{margin:0;color:var(--muted);font-size:12px}
+  .g{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;margin:10px 0}
+  .row{margin:8px 0}
+  .lbl{font-size:12px;color:var(--muted);letter-spacing:.2px}
+  .val{font-variant-numeric:tabular-nums}
+  input[type=range]{width:100%}
+  select{width:100%;padding:8px;border-radius:10px;background:#0e1729;border:1px solid #243246;color:var(--ink)}
+  .btns{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}
+  button{padding:10px 12px;border:1px solid #263142;background:#0e1729;color:#e2e8f0;border-radius:12px;cursor:pointer}
+  button:hover{border-color:#334155}
+  button.primary{background:linear-gradient(180deg,#0e2d1b,#0b1f14);border-color:#1d3b29}
+  button.primary:hover{border-color:#27533a}
+  .small{font-size:12px;color:var(--muted);margin-top:8px;line-height:1.4}
+  .kpi{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+  .card{border:1px solid #1f2937;border-radius:12px;padding:10px;text-align:center}
+  .card b{display:block;font-size:16px}
+  .card span{display:block;color:#94a3b8;font-size:11px}
+  .sep{height:1px;background:#1e293b;margin:12px 0}
+  #diag{position:fixed;right:10px;top:10px;background:#0a1120e6;border:1px solid #1e293b;border-radius:10px;padding:8px 10px;color:#cbd5e1;font-size:12px;max-width:54ch;z-index:9999;display:none}
+  #diag.show{display:block}
+  /* From v0.752: */
+  .io{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+  input[type="file"]{width:100%;}
+  .debugRow{display:flex;gap:8px;align-items:center;margin-top:8px}
+  .debugRow label{font-size:12px;color:#a3b3c7}
+  .kpi + .sep{margin-top:8px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div id="stage"></div>
+  <aside class="panel">
+    <div class="h"><span class="dot"></span><div><h1>Leaf / Tree / Fall Designer 3D</h1><p class="sub">v0.7.2（樹/落葉）＋ 場景一 v0.752（葉片進階）</p></div></div>
+
+    <div class="btns" style="grid-template-columns:repeat(3,1fr);margin:8px 0 10px">
+      <button id="btnScene1" class="primary">場景一：葉片</button>
+      <button id="btnScene2">場景二：樹</button>
+      <button id="btnScene3">場景三：落葉</button>
+    </div>
+
+    <!-- Scene 1 (from v0.752, plus a 'goTree' button to keep index behavior) -->
+    <div id="sceneLeaf">
+      <div class="kpi">
+        <div class="card"><b id="kpiVerts">—</b><span>頂點</span></div>
+        <div class="card"><b id="kpiFaces">—</b><span>面數</span></div>
+        <div class="card"><b id="kpiArea">—</b><span>估算面積 (cm²)</span></div>
+      </div>
+
+      <div class="sep"></div>
+      <div class="row"><label class="lbl">葉形（Leaf Shape）</label>
+        <select id="leafShape">
+          <option value="elliptic" selected>橢圓 Elliptic</option>
+          <option value="ovate">卵形 Ovate</option>
+          <option value="obovate">倒卵形 Obovate</option>
+          <option value="lanceolate">披針 Lanceolate</option>
+          <option value="oblanceolate">倒披針 Oblanceolate</option>
+          <option value="linear">線形 Linear</option>
+          <option value="orbicular">圓形 Orbicular</option>
+          <option value="reniform">腎形 Reniform</option>
+          <option value="cordate">心形 Cordate</option>
+          <option value="sagittate">箭形 Sagittate</option>
+          <option value="spatulate">匙形 Spatulate</option>
+          <option value="palmate_lobed">掌狀深裂 Palmate-lobed</option>
+          <option value="pinnate_lobed">羽狀深裂 Pinnate-lobed</option>
+        </select>
+      </div>
+
+      <div class="row"><label class="lbl">邊緣（Margin）</label>
+        <select id="leafMargin">
+          <option value="entire" selected>全緣 Entire</option>
+          <option value="serrate">鋸齒 Serrate</option>
+          <option value="crenate">圓齒 Crenate</option>
+          <option value="dentate">具齒 Dentate</option>
+          <option value="double_serr">重鋸齒 Doubly serrate</option>
+          <option value="undulate">波狀 Undulate</option>
+        </select>
+      </div>
+
+      <div class="row"><label class="lbl">葉脈（Venation）</label>
+        <select id="leafVein">
+          <option value="pinnate" selected>羽狀 Pinnate</option>
+          <option value="palmate3">掌狀（3）</option>
+          <option value="palmate5">掌狀（5）</option>
+          <option value="palmate7">掌狀（7）</option>
+          <option value="parallel">平行 Parallel</option>
+          <option value="arcuate">弧狀 Arcuate</option>
+        </select>
+      </div>
+
+      <div class="sep"></div>
+      <!-- 基本尺寸 -->
+      <div class="row g"><label class="lbl">長度 (cm)</label><span class="val" id="valLen"></span></div>
+      <input id="len" type="range" min="4" max="40" step="0.1" value="12" />
+      <div class="row g"><label class="lbl">寬度比例</label><span class="val" id="valWidth"></span></div>
+      <input id="width" type="range" min="0.15" max="0.7" step="0.01" value="0.40" />
+      <div class="row g"><label class="lbl">尖端銳利度</label><span class="val" id="valTip"></span></div>
+      <input id="tip" type="range" min="0.2" max="2.5" step="0.01" value="1.0" />
+      <div class="row g"><label class="lbl">基部圓潤度</label><span class="val" id="valBase"></span></div>
+      <input id="base" type="range" min="0.2" max="2.5" step="0.01" value="1.0" />
+      <div class="row g"><label class="lbl">基部凹陷（心形）</label><span class="val" id="valNotch"></span></div>
+      <input id="baseNotch" type="range" min="0" max="0.4" step="0.01" value="0.00" />
+      <div class="row g"><label class="lbl">葉尖收斂（apexConverge）</label><span class="val" id="valApex"></span></div>
+      <input id="apexConverge" type="range" min="0" max="1" step="0.01" value="0.20" />
+
+      <!-- 邊緣控制 -->
+      <div class="row g"><label class="lbl">鋸齒幅度</label><span class="val" id="valSerrA"></span></div>
+      <input id="serrA" type="range" min="0" max="0.25" step="0.005" value="0.00" />
+      <div class="row g"><label class="lbl">鋸齒密度</label><span class="val" id="valSerrF"></span></div>
+      <input id="serrF" type="range" min="0" max="30" step="1" value="0" />
+      <div class="row g"><label class="lbl">鋸齒尖銳度</label><span class="val" id="valToothSharp"></span></div>
+      <input id="toothSharp" type="range" min="0" max="1" step="0.01" value="0.0" />
+      <div class="row g"><label class="lbl">重鋸齒強度</label><span class="val" id="valDoubleSerr"></span></div>
+      <input id="doubleSerr" type="range" min="0" max="1" step="0.01" value="0.0" />
+
+      <!-- 裂片 -->
+      <div class="row g"><label class="lbl">裂片數</label><span class="val" id="valLobeCount"></span></div>
+      <input id="lobeCount" type="range" min="0" max="9" step="1" value="0" />
+      <div class="row g"><label class="lbl">裂片深度</label><span class="val" id="valLobeDepth"></span></div>
+      <input id="lobeDepth" type="range" min="0" max="1" step="0.01" value="0.00" />
+      <div class="row g"><label class="lbl">裂片圓鈍度</label><span class="val" id="valLobeRound"></span></div>
+      <input id="lobeRound" type="range" min="0" max="1" step="0.01" value="0.60" />
+
+      <!-- 葉脈與視覺 -->
+      <div class="row g"><label class="lbl">主脈厚度（視覺）</label><span class="val" id="valRib"></span></div>
+      <input id="rib" type="range" min="0" max="0.6" step="0.01" value="0.12" />
+
+      <!-- 彎曲/姿態（預設為 0） -->
+      <div class="row g"><label class="lbl">捲曲度（橫向）</label><span class="val" id="valCurl"></span></div>
+      <input id="curl" type="range" min="0" max="1.2" step="0.01" value="0" />
+      <div class="row g"><label class="lbl">扭轉度（縱向）</label><span class="val" id="valTwist"></span></div>
+      <input id="twist" type="range" min="0" max="1.5" step="0.01" value="0" />
+      <div class="row g"><label class="lbl">上拱彎曲</label><span class="val" id="valBend"></span></div>
+      <input id="bend" type="range" min="-0.8" max="1.2" step="0.01" value="0.2" />
+      <div class="row g"><label class="lbl">波浪幅度</label><span class="val" id="valWaveAmp"></span></div>
+      <input id="waveAmp" type="range" min="0" max="0.3" step="0.01" value="0" />
+      <div class="row g"><label class="lbl">波浪頻率</label><span class="val" id="valWaveFreq"></span></div>
+      <input id="waveFreq" type="range" min="0" max="20" step="1" value="0" />
+      <div class="row g"><label class="lbl">非對稱度</label><span class="val" id="valAsym"></span></div>
+      <input id="asym" type="range" min="0" max="1" step="0.01" value="0" />
+
+      <div class="row"><label class="lbl"><input id="double" type="checkbox" checked> 雙面曲面</label></div>
+      <div class="row"><label class="lbl"><input id="stem" type="checkbox" checked> 顯示葉柄</label></div>
+
+      <div class="btns" style="grid-template-columns:repeat(2,1fr)">
+        <button id="reset">重設</button>
+        <button id="randomize">隨機</button>
+      </div>
+
+      <div class="sep"></div>
+      <div class="io">
+        <button id="exportCSV">匯出 CSV</button>
+        <label class="lbl" style="display:flex;align-items:center;gap:8px;border:1px solid #263142;border-radius:12px;padding:8px 10px;background:#0e1729">
+          <span>匯入 CSV</span>
+          <input id="importCSV" type="file" accept=".csv,text/csv" />
+        </label>
+      </div>
+
+      <div class="debugRow">
+        <label><input id="toggleAxes" type="checkbox"> 顯示座標軸</label>
+        <label><input id="toggleBox" type="checkbox"> 顯示包圍盒</label>
+      </div>
+
+      <div class="sep"></div>
+      <button id="goTree" class="primary" title="把目前葉片帶到下一個場景">→ 送到樹場景</button>
+      <p class="small">操作：拖曳旋轉、滾輪縮放、右鍵平移；手機可雙指縮放、兩指拖曳平移。</p>
+    </div>
+
+    <!-- Scene 2 (keep full from index v0.7.2) -->
+    <div id="sceneTree" style="display:none">
+      <div class="row g"><label class="lbl">樹高 (m)</label><span class="val" id="valTreeH"></span></div>
+      <input id="treeH" type="range" min="2" max="20" step="0.1" value="2.5" />
+      <div class="row g"><label class="lbl">樹冠半徑 (m)</label><span class="val" id="valCrownR"></span></div>
+      <input id="crownR" type="range" min="1" max="12" step="0.1" value="10" />
+      <div class="row g"><label class="lbl">分枝層數（1–100）</label><span class="val" id="valLevels"></span></div>
+      <input id="levels" type="range" min="1" max="30" step="1" value="10" />
+      <div class="row g"><label class="lbl">分枝張角 (°)</label><span class="val" id="valSpread"></span></div>
+      <input id="spread" type="range" min="10" max="120" step="1" value="65" />
+      <div class="row g"><label class="lbl">樹幹傾斜 (°)</label><span class="val" id="valLean"></span></div>
+      <input id="lean" type="range" min="-8" max="8" step="1" value="2" />
+      <div class="row g"><label class="lbl">葉片數量 <span class="warn">(高於 40k 需強效顯卡)</span></label><span class="val" id="valLeafCount"></span></div>
+      <input id="leafCount" type="range" min="50" max="100000" step="50" value="11200" />
+      <div class="row g"><label class="lbl">樹型</label><span class="val" id="valShape"></span></div>
+      <select id="shape">
+        <option value="sphere" selected>球形（自然）</option>
+        <option value="cone">圓錐</option>
+        <option value="vase">花瓶</option>
+      </select>
+      <div class="btns" style="grid-template-columns:repeat(3,1fr);margin-top:10px">
+        <button id="btnBuildTree" class="primary">生成樹</button>
+        <button id="btnClearTree">清除樹</button>
+        <button id="btnFit">視角置中</button>
+      </div>
+      <p class="small">說明：分枝層數採「迭代廣度優先 + 安全上限」，避免指數爆炸。可同時搭配葉片數量 100k。</p>
+    </div>
+
+    <!-- Scene 3 (keep full from index v0.7.2) -->
+    <div id="sceneFall" style="display:none">
+      <div class="row g"><label class="lbl">季節時間倍率</label><span class="val" id="valSeasonRate"></span></div>
+      <input id="seasonRate" type="range" min="0.1" max="4" step="0.1" value="1.0"/>
+      <div class="row g"><label class="lbl">落葉速度倍率</label><span class="val" id="valFallRate"></span></div>
+      <input id="fallRate" type="range" min="0.5" max="2" step="0.1" value="1.0"/>
+      <div class="row g"><label class="lbl">風強度</label><span class="val" id="valWind"></span></div>
+      <input id="windAmp" type="range" min="0" max="8" step="0.1" value="3.0"/>
+      <div class="row g"><label class="lbl">亂流（類 Perlin）</label><span class="val" id="valTurb"></span></div>
+      <input id="turb" type="range" min="0" max="3" step="0.05" value="1.2"/>
+      <div class="row g"><label class="lbl">再長回速度</label><span class="val" id="valRegrow"></span></div>
+      <input id="regrow" type="range" min="0.1" max="3" step="0.1" value="1.0"/>
+      <div class="row g"><label class="lbl">每幀模擬上限（葉片數）</label><span class="val" id="valMaxActive"></span></div>
+      <input id="maxActive" type="range" min="200" max="4000" step="100" value="1200"/>
+      <div class="btns" style="margin-top:10px">
+        <button id="btnStartFall" class="primary">開始落葉</button>
+        <button id="btnStopFall">停止</button>
+        <button id="btnResetFall">重置季節</button>
+      </div>
+      <p class="small">說明：落葉「逐片」脫離；100k 模式僅對上限數量的「正在飄落」葉片做物理更新。</p>
+    </div>
+  </aside>
+</div>
+
+<div id="diag"></div>
+
+<script type="module">
+import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js?module';
+import { OrbitControls } from 'https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js?module';
+
+const diagEl = document.getElementById('diag');
+function diag(msg, ok=false){ diagEl.classList.add('show'); diagEl.innerHTML = (ok?'<b style="color:#22c55e">OK</b> ':'<b style="color:#f97316">LOG</b> ') + String(msg); }
+
+// --- THREE setup ---
+const stage = document.getElementById('stage');
+const renderer = new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.setClearColor(0x0b1020, 1);
+stage.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(50, 1, 0.01, 5000);
+camera.position.set(3.2, 2.6, 3.6);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true; controls.dampingFactor = 0.06; controls.enablePan = true;
+controls.target.set(0,1.5,0);
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.35));
+const dir1 = new THREE.DirectionalLight(0xffffff, 1.0); dir1.position.set(4,6,4); scene.add(dir1);
+const dir2 = new THREE.DirectionalLight(0xffffff, 0.6); dir2.position.set(-6,2,-6); scene.add(dir2);
+const hemi = new THREE.HemisphereLight(0x8ecae6, 0x0b1020, 0.35); scene.add(hemi);
+const grid = new THREE.GridHelper(120, 60, 0x1f2937, 0x142234); grid.position.y = 0; scene.add(grid);
+
+const matLeaf = new THREE.MeshStandardMaterial({color:0xffffff, roughness:0.9, metalness:0.02, side:THREE.DoubleSide, vertexColors:true});
+const matStem = new THREE.MeshStandardMaterial({color:0x10b981, roughness:0.95});
+const groundMat = new THREE.MeshStandardMaterial({color:0x2b3344, metalness:0.0, roughness:0.95});
+
+function qs(sel){return document.querySelector(sel)}
+const KPIV = qs('#kpiVerts'), KPIF = qs('#kpiFaces'), KPIA = qs('#kpiArea');
+
+// -------- Scene switching (keep index behavior) --------
+const sceneLeaf = document.getElementById('sceneLeaf');
+const sceneTree = document.getElementById('sceneTree');
+const sceneFall = document.getElementById('sceneFall');
+document.getElementById('btnScene1').addEventListener('click', ()=> showScene(1));
+document.getElementById('btnScene2').addEventListener('click', ()=> { showScene(2); buildTree(); });
+document.getElementById('btnScene3').addEventListener('click', ()=> { showScene(3); prepareFall(); });
+function showScene(n){ sceneLeaf.style.display = (n===1)?'block':'none'; sceneTree.style.display = (n===2)?'block':'none'; sceneFall.style.display = (n===3)?'block':'none'; }
+
+// =======================
+// Scene 1 (v0.752 logic)
+// =======================
+
+const ui = {
+  shape: qs('#leafShape'), margin: qs('#leafMargin'), vein: qs('#leafVein'),
+  len: qs('#len'), width: qs('#width'), tip: qs('#tip'), base: qs('#base'), baseNotch: qs('#baseNotch'),
+  apexConverge: qs('#apexConverge'),
+  serrA: qs('#serrA'), serrF: qs('#serrF'), toothSharp: qs('#toothSharp'), doubleSerr: qs('#doubleSerr'),
+  lobeCount: qs('#lobeCount'), lobeDepth: qs('#lobeDepth'), lobeRound: qs('#lobeRound'),
+  rib: qs('#rib'), curl: qs('#curl'), twist: qs('#twist'), bend: qs('#bend'), waveAmp: qs('#waveAmp'), waveFreq: qs('#waveFreq'), asym: qs('#asym'),
+  double: qs('#double'), stem: qs('#stem'),
+  reset: qs('#reset'), rnd: qs('#randomize')
+};
+const label = {
+  len: qs('#valLen'), width: qs('#valWidth'), tip: qs('#valTip'), base: qs('#valBase'), serrA: qs('#valSerrA'), serrF: qs('#valSerrF'),
+  rib: qs('#valRib'), curl: qs('#valCurl'), twist: qs('#valTwist'), bend: qs('#valBend'),
+  baseNotch: qs('#valNotch'), apexConverge: qs('#valApex'),
+  toothSharp: qs('#valToothSharp'), doubleSerr: qs('#valDoubleSerr'),
+  lobeCount: qs('#valLobeCount'), lobeDepth: qs('#valLobeDepth'), lobeRound: qs('#valLobeRound'),
+  waveAmp: qs('#valWaveAmp'), waveFreq: qs('#valWaveFreq'), asym: qs('#valAsym')
+};
+
+const P = {
+  len: parseFloat(ui.len.value),
+  width: parseFloat(ui.width.value),
+  tip: parseFloat(ui.tip.value),
+  base: parseFloat(ui.base.value),
+  baseNotch: parseFloat(ui.baseNotch.value),
+  apexConverge: parseFloat(ui.apexConverge.value),
+  serrA: parseFloat(ui.serrA.value),
+  serrF: parseFloat(ui.serrF.value),
+  toothSharp: parseFloat(ui.toothSharp.value),
+  doubleSerr: parseFloat(ui.doubleSerr.value),
+  lobeCount: parseInt(ui.lobeCount.value),
+  lobeDepth: parseFloat(ui.lobeDepth.value),
+  lobeRound: parseFloat(ui.lobeRound.value),
+  rib: parseFloat(ui.rib.value),
+  curl: parseFloat(ui.curl.value),
+  twist: parseFloat(ui.twist.value),
+  bend: parseFloat(ui.bend.value),
+  waveAmp: parseFloat(ui.waveAmp.value),
+  waveFreq: parseFloat(ui.waveFreq.value),
+  asym: parseFloat(ui.asym.value),
+  double: qs('#double').checked,
+  stem: qs('#stem').checked,
+  resU: 64, resV: 28
+};
+let leafMesh=null, stemMesh=null, boxHelper=null, axes=null;
+let treeGroup = null;
+let leavesInst = null;
+let ground = null, groundHeights = null;
+let fallRunning = false; let fallClock = 0; let firstFit = true;
+
+// Presets
+const SHAPE = {
+  elliptic:      {len:12,width:0.40,tip:1.0,base:1.0,baseNotch:0.00,apexConverge:0.20,lobeCount:0,lobeDepth:0.00,lobeRound:0.6},
+  ovate:         {len:14,width:0.50,tip:1.1,base:1.5,baseNotch:0.00,apexConverge:0.25,lobeCount:0,lobeDepth:0.00,lobeRound:0.6},
+  obovate:       {len:14,width:0.50,tip:0.8,base:0.9,baseNotch:0.00,apexConverge:0.18,lobeCount:0,lobeDepth:0.00,lobeRound:0.6},
+  lanceolate:    {len:14,width:0.28,tip:1.6,base:0.9,baseNotch:0.00,apexConverge:0.35,lobeCount:0,lobeDepth:0.00,lobeRound:0.6},
+  oblanceolate:  {len:14,width:0.30,tip:1.0,base:1.4,baseNotch:0.00,apexConverge:0.22,lobeCount:0,lobeDepth:0.00,lobeRound:0.6},
+  linear:        {len:14,width:0.18,tip:1.2,base:1.2,baseNotch:0.00,apexConverge:0.40,lobeCount:0,lobeDepth:0.00,lobeRound:0.6},
+  orbicular:     {len:10,width:0.65,tip:0.6,base:1.8,baseNotch:0.00,apexConverge:0.10,lobeCount:0,lobeDepth:0.00,lobeRound:0.6},
+  reniform:      {len:12,width:0.65,tip:0.7,base:1.8,baseNotch:0.10,apexConverge:0.12,lobeCount:0,lobeDepth:0.00,lobeRound:0.6},
+  cordate:       {len:12,width:0.60,tip:0.9,base:1.8,baseNotch:0.25,apexConverge:0.18,lobeCount:0,lobeDepth:0.00,lobeRound:0.6},
+  sagittate:     {len:14,width:0.45,tip:1.2,base:1.3,baseNotch:0.15,apexConverge:0.22,lobeCount:0,lobeDepth:0.00,lobeRound:0.6},
+  spatulate:     {len:12,width:0.55,tip:0.8,base:1.6,baseNotch:0.00,apexConverge:0.16,lobeCount:0,lobeDepth:0.00,lobeRound:0.6},
+  palmate_lobed: {len:12,width:0.55,tip:1.2,base:1.2,baseNotch:0.00,apexConverge:0.20,lobeCount:5,lobeDepth:0.55,lobeRound:0.6},
+  pinnate_lobed: {len:12,width:0.50,tip:1.3,base:1.3,baseNotch:0.00,apexConverge:0.22,lobeCount:7,lobeDepth:0.45,lobeRound:0.5}
+};
+const MARGIN = {
+  entire:      {serrA:0.00, serrF:0,  toothSharp:0.0, doubleSerr:0.0},
+  serrate:     {serrA:0.08, serrF:12, toothSharp:0.9, doubleSerr:0.0},
+  crenate:     {serrA:0.06, serrF:8,  toothSharp:0.2, doubleSerr:0.0},
+  dentate:     {serrA:0.10, serrF:10, toothSharp:0.8, doubleSerr:0.0},
+  double_serr: {serrA:0.07, serrF:9,  toothSharp:0.9, doubleSerr:0.6},
+  undulate:    {serrA:0.03, serrF:4,  toothSharp:0.1, doubleSerr:0.0}
+};
+const VEIN = {
+  pinnate: {type:'pinnate', palmRibs:0, parallelCount:0},
+  palmate3:{type:'palmate', palmRibs:3, parallelCount:0},
+  palmate5:{type:'palmate', palmRibs:5, parallelCount:0},
+  palmate7:{type:'palmate', palmRibs:7, parallelCount:0},
+  parallel:{type:'parallel', palmRibs:0, parallelCount:12},
+  arcuate: {type:'arcuate', palmRibs:0, parallelCount:0}
+};
+let veinConf = VEIN.pinnate;
+
+// --- geometry builders ---
+function buildLeaf(){
+  let geo;
+  try{
+    geo = buildLeafGeometry(P, veinConf);
+  }catch(err){
+    diag('幾何生成錯誤，改用備援方片：'+err.message);
+    geo = new THREE.PlaneGeometry(0.6,0.3,1,1);
+  }
+  if(!leafMesh){ leafMesh = new THREE.Mesh(geo, matLeaf); scene.add(leafMesh); }
+  else { leafMesh.geometry.dispose(); leafMesh.geometry = geo; }
+
+  if(P.stem){
+    const st = buildStemGeometry(P);
+    if(!stemMesh){ stemMesh = new THREE.Mesh(st, matStem); scene.add(stemMesh); }
+    else { stemMesh.geometry.dispose(); stemMesh.geometry = st; }
+  } else if(stemMesh){ scene.remove(stemMesh); stemMesh.geometry.dispose(); stemMesh=null; }
+
+  KPIV.textContent = geo.attributes.position.count;
+  KPIF.textContent = geo.index ? (geo.index.count/3) : (geo.attributes.position.count/3);
+  KPIA.textContent = (estimateArea(geo)).toFixed(2);
+
+  if(firstFit){ fitCameraTo(leafMesh, 1.8); firstFit = false; }
+  updateHelpers();
+}
+
+function buildLeafGeometry(p, vein){
+  const L = p.len/100;
+  const Wmax = (p.len * p.width)/100;
+  const resU = p.resU, resV = p.resV;
+  const pos = new Float32Array((resU+1)*(resV+1)*3);
+  const col = new Float32Array((resU+1)*(resV+1)*3);
+  const idx=[]; let ptr=0, cptr=0;
+  for(let iu=0; iu<=resU; iu++){
+    const u = iu/resU;
+    const s = Math.sin(Math.PI * Math.min(1, Math.max(0,u)));
+    const tipPow=p.tip, basePow=p.base;
+    const tipFactor=Math.pow(1-u,tipPow);
+    const baseFactor=Math.pow(u,basePow);
+    let halfW = Wmax * s * (0.65 + 0.35*(1 - tipFactor) * (0.7 + 0.3*baseFactor));
+    halfW *= (1 - p.baseNotch * (1 - Math.min(1, u*3))); // 基部凹陷
+    const apexK = 1 - (p.apexConverge||0)*0.6 * smoothstep(0.7, 1.0, u);
+    halfW *= Math.max(0.15, apexK);
+
+    const serrAmp=(p.serrA)*Wmax;
+    for(let iv=0; iv<=resV; iv++){
+      const vv=iv/resV; const v=vv*2-1;
+      const edge = smoothstep(0.6,1.0,Math.abs(v));
+      let serr = serrAmp * Math.sin(2*Math.PI * p.serrF * u + (p.toothSharp*0.6)*Math.sign(v)) * edge * Math.sign(v);
+      if(p.doubleSerr>0){
+        serr += p.doubleSerr * serrAmp*0.5 * Math.sin(2*Math.PI * p.serrF * 2 * u + 1.2) * edge * Math.sign(v);
+      }
+
+      if(p.lobeCount>0 && p.lobeDepth>0){
+        const ang = Math.PI * (u);
+        const lobing = Math.sin(p.lobeCount * ang);
+        halfW *= (1 + p.lobeDepth * 0.25 * Math.max(0, lobing));
+      }
+
+      const asymK = 1 + p.asym * (v>0? 0.12 : -0.12);
+      let x=(u - 0.1)*L;
+      let y=(v)*(halfW + serr)*asymK;
+      let z=0;
+
+      let ribZ = 0;
+      if(vein.type==='pinnate'){
+        const mid=1 - Math.min(1, Math.abs(v)/0.8);
+        ribZ += (p.rib/100) * Math.pow(mid,2);
+      } else if(vein.type==='palmate'){
+        const m = vein.palmRibs||5;
+        for(let k=0;k<m;k++){
+          const angv = (k/(m-1)-0.5)*0.9;
+          const proj = 1 - Math.min(1, Math.abs(v - angv)/0.6);
+          ribZ += (p.rib/160) * Math.max(0, proj);
+        }
+      } else if(vein.type==='parallel'){
+        const n = vein.parallelCount||12;
+        const stripe = Math.sin(v* n * Math.PI)*0.5+0.5;
+        ribZ += (p.rib/160) * stripe;
+      } else if(vein.type==='arcuate'){
+        const arc = 1 - Math.abs(v) * (0.7 + 0.3*u);
+        ribZ += (p.rib/120) * Math.max(0, arc);
+      }
+      z += ribZ;
+
+      const curlAngle=p.curl*(u)*0.8*Math.PI*(Math.abs(v));
+      ({x,y,z}=rotY(Math.sign(v)*curlAngle,x,y,z));
+      const twA=p.twist*Math.PI*u; ({x,y,z}=rotX(twA,x,y,z));
+      z += (p.bend/100) * ( -4*Math.pow(u-0.5,2) + 1 );
+
+      if(p.waveAmp>0 && p.waveFreq>0){
+        z += p.waveAmp * Math.sin( (u*3.14159)*p.waveFreq ) * (1 - Math.abs(v));
+      }
+
+      pos[ptr++]=x; pos[ptr++]=y; pos[ptr++]=z;
+      const c = new THREE.Color().setHSL(0.33 - 0.08*u, 0.7, 0.48+0.18*(1-u));
+      col[cptr++]=c.r; col[cptr++]=c.g; col[cptr++]=c.b;
+    }
+  }
+  for(let iu=0; iu<resU; iu++) for(let iv=0; iv<resV; iv++){
+    const a=(resV+1)*iu+iv; const b=a+(resV+1); const c=b+1; const d=a+1; idx.push(a,b,d, b,c,d);
+  }
+  const geo=new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos,3));
+  geo.setAttribute('color', new THREE.BufferAttribute(col,3));
+  geo.setIndex(idx);
+  geo.computeVertexNormals();
+  return geo;
+}
+
+// Estimate leaf "thickness" from length and rib setting; use 2.5× as petiole radius.
+function estimateLeafThickness(p){
+  const L = p.len/100;
+  const ribZ = Math.max(p.rib/100, p.rib/120, p.rib/160);
+  const baseline = L * 0.002; // 0.2% of leaf length
+  return Math.max(baseline, ribZ*1.6);
+}
+
+// Petiole aligned to leaf base (u=0, x = -0.1 * L), radius tied to thickness.
+function buildStemGeometry(p){
+  const L = p.len/100;
+  const stemLen = Math.max(0.04, Math.min(0.18, L*0.18));
+  const t = estimateLeafThickness(p);
+  const r = Math.max(0.0008, Math.min(L*0.01, t*2.5)); // ≈ 葉厚 2~3 倍
+  const geo=new THREE.CylinderGeometry(r, r, stemLen, 12, 1, true);
+  geo.rotateZ(Math.PI/2);
+  const baseX = -0.1 * L;
+  geo.translate(baseX - stemLen/2, 0, 0);
+  return geo;
+}
+
+function estimateArea(geo){ const pos=geo.attributes.position, index=geo.index; let area=0; const a=new THREE.Vector3(),b=new THREE.Vector3(),c=new THREE.Vector3(); if(!index){ for(let i=0;i<pos.count;i+=9){ a.set(pos.array[i],pos.array[i+1],pos.array[i+2]); b.set(pos.array[i+3],pos.array[i+4],pos.array[i+5]); c.set(pos.array[i+6],pos.array[i+7],pos.array[i+8]); area+=triangleArea(a,b,c);} } else { for(let i=0;i<index.count;i+=3){ a.fromBufferAttribute(pos,index.getX(i)); b.fromBufferAttribute(pos,index.getX(i+1)); c.fromBufferAttribute(pos,index.getX(i+2)); area+=triangleArea(a,b,c);} } return area*10000; }
+function triangleArea(a,b,c){ const ab=new THREE.Vector3().subVectors(b,a); const ac=new THREE.Vector3().subVectors(c,a); return ab.cross(ac).length()/2; }
+
+function smoothstep(e0,e1,x){const t=Math.max(0,Math.min(1,(x-e0)/(e1-e0))); return t*t*(3-2*t)}
+function rotY(ang,x,y,z){ const c=Math.cos(ang), s=Math.sin(ang); return {x:c*x + s*z, y, z:-s*x + c*z}; }
+function rotX(ang,x,y,z){ const c=Math.cos(ang), s=Math.sin(ang); return {x, y:c*y - s*z, z:s*y + c*z}; }
+
+function fitCameraTo(obj, pad=1.8){
+  if(!obj) return;
+  const box = new THREE.Box3().setFromObject(obj);
+  const size = new THREE.Vector3(); const center = new THREE.Vector3();
+  box.getSize(size); box.getCenter(center);
+  const radius = Math.max(size.x, size.y, size.z)*0.5 || 0.1;
+  const fov = camera.fov * Math.PI/180;
+  const dist = (radius/Math.tan(fov/2)) * pad;
+  const dir = new THREE.Vector3(1,0.6,1).normalize();
+  camera.position.copy(center).addScaledVector(dir, dist);
+  camera.near = Math.max(0.001, dist/1000);
+  camera.far = dist*10 + 100;
+  camera.updateProjectionMatrix();
+  controls.target.copy(center);
+  controls.update();
+}
+
+// --- Debug helpers ---
+function updateHelpers(){
+  if(axes){ axes.position.copy(leafMesh?.position||new THREE.Vector3()); }
+  if(boxHelper){
+    boxHelper.setFromObject(leafMesh);
+    boxHelper.update();
+  }
+}
+document.getElementById('toggleAxes').addEventListener('change', e=>{
+  if(e.target.checked){
+    axes = new THREE.AxesHelper(0.5); scene.add(axes);
+  }else{
+    if(axes){ scene.remove(axes); axes=null; }
+  }
+});
+document.getElementById('toggleBox').addEventListener('change', e=>{
+  if(e.target.checked){
+    boxHelper = new THREE.BoxHelper(leafMesh, 0x22c55e); scene.add(boxHelper);
+  }else{
+    if(boxHelper){ scene.remove(boxHelper); boxHelper=null; }
+  }
+});
+
+// --- UI glue (scene 1) ---
+function syncLeafLabels(){
+  label.len.textContent=P.len.toFixed(1)+' cm';
+  label.width.textContent=P.width.toFixed(2);
+  label.tip.textContent=P.tip.toFixed(2);
+  label.base.textContent=P.base.toFixed(2);
+  label.baseNotch.textContent=P.baseNotch.toFixed(2);
+  label.apexConverge.textContent=P.apexConverge.toFixed(2);
+  label.serrA.textContent=P.serrA.toFixed(3);
+  label.serrF.textContent=String(P.serrF|0);
+  label.toothSharp.textContent=P.toothSharp.toFixed(2);
+  label.doubleSerr.textContent=P.doubleSerr.toFixed(2);
+  label.lobeCount.textContent=String(P.lobeCount|0);
+  label.lobeDepth.textContent=P.lobeDepth.toFixed(2);
+  label.lobeRound.textContent=P.lobeRound.toFixed(2);
+  label.rib.textContent=P.rib.toFixed(2)+' cm';
+  label.curl.textContent=P.curl.toFixed(2);
+  label.twist.textContent=P.twist.toFixed(2);
+  label.bend.textContent=P.bend.toFixed(2);
+  label.waveAmp.textContent=P.waveAmp.toFixed(2);
+  label.waveFreq.textContent=String(P.waveFreq|0);
+  label.asym.textContent=P.asym.toFixed(2);
+}
+
+function applyPreset(map){
+  for(const k of Object.keys(map)){
+    if(k in P){
+      P[k] = map[k];
+      const el = document.getElementById(k);
+      if(el) el.value = map[k];
+    }
+  }
+  syncLeafLabels(); buildLeaf();
+}
+
+// dropdown events
+document.getElementById('leafShape').addEventListener('change', (e)=> applyPreset(SHAPE[e.target.value]));
+document.getElementById('leafMargin').addEventListener('change', (e)=> applyPreset(MARGIN[e.target.value]));
+document.getElementById('leafVein').addEventListener('change', (e)=> { const v=e.target.value; veinConf = VEIN[v]; buildLeaf(); });
+
+// slider events
+['len','width','tip','base','baseNotch','apexConverge','serrA','serrF','toothSharp','doubleSerr','lobeCount','lobeDepth','lobeRound','rib','curl','twist','bend','waveAmp','waveFreq','asym'].forEach(k=> document.getElementById(k).addEventListener('input', (ev)=>{
+  P[k]= (k==='lobeCount'||k==='serrF'||k==='waveFreq') ? parseInt(ev.target.value) : parseFloat(ev.target.value);
+  syncLeafLabels(); buildLeaf();
+}));
+
+document.getElementById('double').addEventListener('change', e=>{ P.double=e.target.checked; matLeaf.side=P.double?THREE.DoubleSide:THREE.FrontSide; buildLeaf(); });
+document.getElementById('stem').addEventListener('change', e=>{ P.stem=e.target.checked; buildLeaf(); });
+
+document.getElementById('reset').addEventListener('click', ()=>{
+  document.getElementById('leafShape').value='elliptic';
+  document.getElementById('leafMargin').value='entire';
+  document.getElementById('leafVein').value='pinnate';
+  veinConf = VEIN.pinnate;
+  applyPreset(SHAPE.elliptic);
+  applyPreset(MARGIN.entire);
+  Object.assign(P,{curl:0,twist:0,bend:0.2,waveAmp:0,waveFreq:0,asym:0,rib:0.12});
+  ['curl','twist','bend','waveAmp','waveFreq','asym','rib','apexConverge'].forEach(k=> document.getElementById(k).value=P[k]);
+  document.getElementById('double').checked=true; document.getElementById('stem').checked=true; P.double=true; P.stem=true;
+  syncLeafLabels(); buildLeaf();
+});
+
+document.getElementById('randomize').addEventListener('click', ()=>{
+  function rnd(a,b){return a + Math.random()*(b-a)} function rndi(a,b){return (Math.random()*(b-a)+a)|0}
+  P.len=rnd(8,20); P.width=rnd(0.25,0.65); P.tip=rnd(0.6,1.6); P.base=rnd(0.8,1.8);
+  P.baseNotch=rnd(0,0.3); P.apexConverge=rnd(0.05,0.45);
+  P.serrA=rnd(0,0.18); P.serrF=rndi(0,24); P.toothSharp=rnd(0,1); P.doubleSerr=rnd(0,0.7);
+  P.lobeCount=rndi(0,7); P.lobeDepth=rnd(0,0.6);
+  ['len','width','tip','base','baseNotch','apexConverge','serrA','serrF','toothSharp','doubleSerr','lobeCount','lobeDepth'].forEach(k=> document.getElementById(k).value=P[k]);
+  syncLeafLabels(); buildLeaf();
+});
+
+// CSV export/import
+const csvKeys = ['len','width','tip','base','baseNotch','apexConverge','serrA','serrF','toothSharp','doubleSerr','lobeCount','lobeDepth','lobeRound','rib','curl','twist','bend','waveAmp','waveFreq','asym','double','stem','resU','resV'];
+document.getElementById('exportCSV').addEventListener('click', ()=>{
+  const rows = [];
+  rows.push(csvKeys.join(','));
+  const vals = csvKeys.map(k=> (typeof P[k]==='boolean') ? (P[k]?1:0) : P[k]);
+  rows.push(vals.join(','));
+  const blob = new Blob([rows.join('\\n')], {type:'text/csv'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'leaf_params_v0752.csv';
+  a.click();
+  URL.revokeObjectURL(a.href);
+  diag('CSV 已匯出。', true);
+});
+document.getElementById('importCSV').addEventListener('change', (e)=>{
+  const file = e.target.files?.[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = ()=>{
+    try{
+      const text = String(reader.result).trim();
+      const lines = text.split(/\\r?\\n/);
+      if(lines.length<2) throw new Error('CSV 無資料');
+      const header = lines[0].split(',').map(s=>s.trim());
+      const values = lines[1].split(',').map(s=>s.trim());
+      const map = {};
+      header.forEach((k,i)=>{ if(values[i]!==undefined){ const v = values[i]; map[k] = (v==='0'||v==='1') && (k==='double'||k==='stem') ? (v==='1') : parseFloat(v); }});
+      Object.assign(P, map);
+      csvKeys.forEach(k=>{ const el=document.getElementById(k); if(el){ el.value = (typeof P[k]==='boolean')?(P[k]?1:0):P[k]; if(el.type==='checkbox') el.checked = !!P[k]; }});
+      syncLeafLabels(); buildLeaf();
+      diag('CSV 匯入完成。', true);
+    }catch(err){ diag('CSV 匯入錯誤：'+err.message); }
+  };
+  reader.readAsText(file);
+});
+
+// quick jump to tree
+document.getElementById('goTree').addEventListener('click', ()=>{ showScene(2); buildTree(); });
+
+// =======================
+// Scene 2 (index v0.7.2)
+// =======================
+const treeUI = { treeH: qs('#treeH'), crownR: qs('#crownR'), levels: qs('#levels'), spread: qs('#spread'), lean: qs('#lean'), leafCount: qs('#leafCount'), shape: qs('#shape') };
+const treeLbl = { treeH: qs('#valTreeH'), crownR: qs('#valCrownR'), levels: qs('#valLevels'), spread: qs('#valSpread'), lean: qs('#valLean'), leafCount: qs('#valLeafCount'), shape: qs('#valShape') };
+['treeH','crownR','levels','spread','lean','leafCount'].forEach(k=> treeUI[k].addEventListener('input', ()=>{ syncTreeLabels(); }));
+treeUI.shape.addEventListener('change', syncTreeLabels);
+function syncTreeLabels(){ treeLbl.treeH.textContent=treeUI.treeH.value+' m'; treeLbl.crownR.textContent=treeUI.crownR.value+' m'; treeLbl.levels.textContent=treeUI.levels.value; treeLbl.spread.textContent=treeUI.spread.value+'°'; treeLbl.lean.textContent=treeUI.lean.value+'°'; treeLbl.leafCount.textContent=treeUI.leafCount.value; treeLbl.shape.textContent=treeUI.shape.value; }
+syncTreeLabels();
+
+qs('#btnBuildTree')?.addEventListener('click', buildTree);
+qs('#btnClearTree')?.addEventListener('click', clearTree);
+qs('#btnFit')?.addEventListener('click', ()=>{ if(treeGroup) fitCameraTo(treeGroup, 2.0); });
+
+function buildTree(){
+  clearTree();
+  if(!ground){
+    const g = new THREE.PlaneGeometry(120,120,120,120); g.rotateX(-Math.PI/2);
+    groundHeights = new Float32Array((121)*(121));
+    ground = new THREE.Mesh(g, groundMat); scene.add(ground);
+  }
+
+  treeGroup = new THREE.Group(); scene.add(treeGroup);
+
+  const H = parseFloat(treeUI.treeH.value);
+  const levels = Math.min(100, parseInt(treeUI.levels.value)); // 安全上限
+  const spread = parseFloat(treeUI.spread.value)*Math.PI/180;
+  const lean = parseFloat(treeUI.lean.value)*Math.PI/180;
+
+  const trunkMat = new THREE.MeshStandardMaterial({color:0x6b4f3a, roughness:0.95});
+  const branchMat = new THREE.MeshStandardMaterial({color:0x6e5840, roughness:0.95});
+  const branches = [];
+
+  // iterative BFS with caps to avoid explosion
+  const MAX_BRANCHES = 30000;           // 結構上限（安全）
+  const LEN_DECAY = 0.75;               // 長度衰減
+  const RAD_DECAY = 0.72;               // 半徑衰減
+  const CHILD_PER_NODE = 2;             // 每節分叉數
+  const PRUNE_BASE = 0.02;              // 基礎修剪概率（越高越稀疏）
+  const PRUNE_GAIN = 0.008;             // 隨層遞增修剪
+  const TIP_JITTER = 0.05;              // 末端擾動比例
+
+  const queue = [];
+  const base = new THREE.Vector3(0,0,0);
+  const trunkDir = new THREE.Vector3(Math.sin(lean), Math.cos(lean), 0).normalize();
+  const trunkLen = H*0.7;
+  const trunkTop = base.clone().addScaledVector(trunkDir, trunkLen);
+  queue.push({a:base, b:trunkTop, dir:trunkDir.clone(), len:H*0.5, r:0.12*H, lvl:1});
+
+  while(queue.length && branches.length < MAX_BRANCHES){
+    const cur = queue.shift();
+    branches.push({a:cur.a.clone(), b:cur.b.clone(), r:cur.r});
+    if(cur.lvl>=levels) continue;
+    for(let c=0;c<CHILD_PER_NODE;c++){
+      // prune probability increases with level
+      const pruneP = PRUNE_BASE + PRUNE_GAIN*cur.lvl;
+      if(Math.random()<pruneP) continue;
+      const angA = (c===0? -1:1)*(spread*(0.6+0.4*Math.random()));
+      const angY = Math.random()*Math.PI*2;
+      const tilt = new THREE.Vector3(Math.cos(angY)*Math.sin(angA), Math.cos(angA), Math.sin(angY)*Math.sin(angA));
+      const newDir = cur.dir.clone().multiplyScalar(0.35).add(tilt.multiplyScalar(0.65)).normalize();
+      const newLen = cur.len * (LEN_DECAY + 0.03*Math.random());
+      const nb = cur.b.clone().addScaledVector(newDir, newLen);
+      // slight jitter near tips
+      nb.x += (Math.random()-0.5)*newLen*TIP_JITTER;
+      nb.z += (Math.random()-0.5)*newLen*TIP_JITTER;
+      queue.push({a:cur.b.clone(), b:nb, dir:newDir, len:newLen, r:Math.max(0.012, cur.r*RAD_DECAY), lvl:cur.lvl+1});
+      if(queue.length + branches.length >= MAX_BRANCHES) break;
+    }
+  }
+
+  // build meshes
+  const cyls = new THREE.Group();
+  for(const s of branches){
+    const v = new THREE.Vector3().subVectors(s.b, s.a);
+    const len = v.length();
+    const r1 = Math.max(0.012, s.r*0.6);
+    const r2 = Math.max(0.010, s.r*0.5);
+    const geo = new THREE.CylinderGeometry(r2, r1, len, 8);
+    const mesh = new THREE.Mesh(geo, (len>H*0.45? trunkMat: branchMat));
+    const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,1,0), v.clone().normalize());
+    mesh.setRotationFromQuaternion(q);
+    mesh.position.copy(s.a).addScaledVector(v,0.5);
+    cyls.add(mesh);
+  }
+  treeGroup.add(cyls);
+
+  // Leaves instancing: use current leaf geometry
+  const leafGeo = leafMesh ? leafMesh.geometry.clone() : new THREE.PlaneGeometry(0.6,0.3,1,1);
+  const count = parseInt(treeUI.leafCount.value);
+  const leaves = new THREE.InstancedMesh(leafGeo, matLeaf, count);
+  leaves.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(count*3), 3, false);
+  matLeaf.vertexColors = true;
+  const dummy = new THREE.Object3D();
+  const tipBias = (t)=> Math.pow(t, 4);
+  for(let i=0;i<count;i++){
+    const s = branches[(Math.random()*branches.length)|0];
+    const t = 0.55 + 0.45*tipBias(Math.random());
+    const pos = s.a.clone().lerp(s.b, t);
+    const rad = (0.035 + 0.11*Math.random());
+    const ang = Math.random()*Math.PI*2;
+    pos.x += Math.cos(ang)*rad; pos.z += Math.sin(ang)*rad; pos.y += (Math.random()-0.5)*0.05;
+    dummy.position.copy(pos);
+    const dir = new THREE.Vector3().subVectors(s.b, s.a).normalize();
+    const up = new THREE.Vector3(0,1,0);
+    const side = new THREE.Vector3().crossVectors(dir, up).normalize();
+    const leafUp = new THREE.Vector3().crossVectors(side, dir).normalize();
+    const m = new THREE.Matrix4().lookAt(new THREE.Vector3(0,0,0), dir, leafUp).invert();
+    dummy.rotation.setFromRotationMatrix(m);
+    dummy.rotation.x += (Math.random()-0.5)*0.6;
+    dummy.rotation.y += (Math.random()-0.5)*Math.PI;
+    dummy.rotation.z += (Math.random()-0.5)*0.6;
+    const sc = 0.7 + Math.random()*0.7; dummy.scale.setScalar(sc);
+    dummy.updateMatrix();
+    leaves.setMatrixAt(i, dummy.matrix);
+    const c = new THREE.Color().setHSL(0.28 + 0.10*Math.random()*0.3, 0.75, 0.48);
+    leaves.setColorAt(i, c);
+  }
+  leaves.instanceMatrix.needsUpdate = true;
+  if(leaves.instanceColor) leaves.instanceColor.needsUpdate = true;
+  treeGroup.add(leaves);
+  leavesInst = leaves;
+
+  fitCameraTo(treeGroup, 2.0);
+  const info = `樹生成完成｜分枝節數：${branches.length}（安全上限 30000），葉片：${count}`;
+  diag(info, true);
+}
+
+function clearTree(){ if(treeGroup){ scene.remove(treeGroup); treeGroup.traverse(o=>{ if(o.geometry) o.geometry.dispose(); if(o.material) o.material.dispose?.(); }); treeGroup=null; leavesInst=null; } }
+
+// =======================
+// Scene 3 (index v0.7.2)
+// =======================
+const fallUI = { seasonRate: qs('#seasonRate'), fallRate: qs('#fallRate'), windAmp: qs('#windAmp'), turb: qs('#turb'), regrow: qs('#regrow'), start: qs('#btnStartFall'), stop: qs('#btnStopFall'), reset: qs('#btnResetFall'), maxActive: qs('#maxActive') };
+const fallLbl = { seasonRate: qs('#valSeasonRate'), fallRate: qs('#valFallRate'), windAmp: qs('#valWind'), turb: qs('#valTurb'), regrow: qs('#valRegrow'), maxActive: qs('#valMaxActive') };
+['seasonRate','fallRate','windAmp','turb','regrow','maxActive'].forEach(k=> fallUI[k].addEventListener('input', ()=>{ syncFallLabels(); }));
+function syncFallLabels(){ fallLbl.seasonRate.textContent=fallUI.seasonRate.value+'×'; fallLbl.fallRate.textContent=fallUI.fallRate.value+'×'; fallLbl.windAmp.textContent=fallUI.windAmp.value; fallLbl.turb.textContent=fallUI.turb.value; fallLbl.regrow.textContent=fallUI.regrow.value+'×'; fallLbl.maxActive.textContent=fallUI.maxActive.value; }
+syncFallLabels();
+fallUI.start.addEventListener('click', ()=>{ showScene(3); prepareFall(); fallRunning=true; });
+fallUI.stop.addEventListener('click', ()=>{ fallRunning=false; });
+fallUI.reset.addEventListener('click', ()=>{ resetFallSeason(); });
+
+// Fall state
+let leafVel, leafAngVel, leafPhase, leafState;
+let fallingList = [];
+let windBaseDir = 0, windTime = 0;
+
+function ensureFallArrays(n){
+  leafVel = new Array(n);
+  leafAngVel = new Array(n);
+  leafPhase = new Float32Array(n);
+  leafState = new Uint8Array(n);
+  for(let i=0;i<n;i++){ leafVel[i]=new THREE.Vector3(); leafAngVel[i]=new THREE.Vector3(); leafPhase[i]=0; leafState[i]=0; }
+  fallingList = [];
+}
+
+function prepareFall(){
+  if(!leavesInst){ buildTree(); }
+  const n = leavesInst.count;
+  if(!ground){
+    const g = new THREE.PlaneGeometry(120,120,120,120); g.rotateX(-Math.PI/2);
+    groundHeights = new Float32Array((121)*(121));
+    ground = new THREE.Mesh(g, groundMat); scene.add(ground);
+  }
+  ensureFallArrays(n);
+  fallRunning=false; fallClock=0;
+  fitCameraTo(treeGroup??leavesInst, 2.2);
+}
+
+function resetFallSeason(){ if(!leavesInst) return;
+  const n=leavesInst.count; const dm = new THREE.Matrix4(); const pos=new THREE.Vector3(); const quat=new THREE.Quaternion(); const scl=new THREE.Vector3();
+  for(let i=0;i<n;i++){
+    leavesInst.getMatrixAt(i, dm); dm.decompose(pos, quat, scl);
+    pos.y = Math.max(pos.y, 0.2);
+    dm.compose(pos, quat, scl);
+    leavesInst.setMatrixAt(i, dm);
+    leafVel[i].set(0,0,0); leafAngVel[i].set(0,0,0);
+    leafState[i]=0; leafPhase[i]=0;
+    const c = new THREE.Color().setHSL(0.28, 0.75, 0.48);
+    leavesInst.setColorAt(i, c);
+  }
+  leavesInst.instanceMatrix.needsUpdate=true;
+  if(leavesInst.instanceColor) leavesInst.instanceColor.needsUpdate=true;
+  fallClock=0; fallRunning=false; fallingList.length=0;
+}
+
+// noise & wind
+function nrand(x,y,z){ const s=Math.sin(x*127.1+y*311.7+z*74.7)*43758.5453; return s-Math.floor(s); }
+function smoothNoise(x,y,z){ const xi=Math.floor(x), yi=Math.floor(y), zi=Math.floor(z); const xf=x-xi, yf=y-yi, zf=z-zi; function fade(t){return t*t*(3-2*t)}
+  let n000=nrand(xi,yi,zi), n100=nrand(xi+1,yi,zi), n010=nrand(xi,yi+1,zi), n110=nrand(xi+1,yi+1,zi); let n001=nrand(xi,yi,zi+1), n101=nrand(xi+1,yi,zi+1), n011=nrand(xi,yi+1,zi+1), n111=nrand(xi+1,yi+1,zi+1);
+  const u=fade(xf), v=fade(yf), w=fade(zf);
+  const x00=THREE.MathUtils.lerp(n000,n100,u), x10=THREE.MathUtils.lerp(n010,n110,u), x01=THREE.MathUtils.lerp(n001,n101,u), x11=THREE.MathUtils.lerp(n011,n111,u);
+  const y0=THREE.MathUtils.lerp(x00,x10,v), y1=THREE.MathUtils.lerp(x01,x11,v);
+  return THREE.MathUtils.lerp(y0,y1,w);
+}
+function windAt(x,y,z){
+  const A=parseFloat(fallUI.windAmp.value);
+  const T=parseFloat(fallUI.turb.value);
+  const dirRad=(windBaseDir)*Math.PI/180;
+  const baseX=Math.cos(dirRad)*A, baseZ=Math.sin(dirRad)*A;
+  const n1 = smoothNoise((x*0.25)+windTime*0.8, (z*0.25)-windTime*0.6, 0);
+  const n2 = smoothNoise((-x*0.2)+windTime*0.5, (y*0.25)+windTime*0.6, 1);
+  return new THREE.Vector3(baseX + T*(n1-0.5), 0.3*T*(n2-0.5), baseZ + T*(n2-0.5));
+}
+
+function stepFall(){
+  if(!leavesInst) return;
+  const n = leavesInst.count;
+  const dm = new THREE.Matrix4(); const pos=new THREE.Vector3(); const quat=new THREE.Quaternion(); const eul=new THREE.Euler(); const scl=new THREE.Vector3();
+  const seasonRate=parseFloat(fallUI.seasonRate.value);
+  const fallRate=parseFloat(fallUI.fallRate.value);
+  const regrow=parseFloat(fallUI.regrow.value);
+  const maxActive = parseInt(fallUI.maxActive.value);
+
+  fallClock += 0.016*seasonRate; windTime += 0.01;
+  windBaseDir = (Math.sin(windTime*0.07)*15);
+
+  // detach quota (cap active)
+  const progress = Math.min(1, fallClock/30);
+  let attachQuota = Math.min(200, 5 + (n*0.0005 + n*0.002*progress)|0);
+  if(fallingList.length < maxActive){
+    for(let trial=0; trial<attachQuota; trial++){
+      const i = (Math.random()*n)|0;
+      if(leafState[i]!==0) continue;
+      leavesInst.getMatrixAt(i, dm); dm.decompose(pos, quat, scl);
+      const heightFactor = THREE.MathUtils.clamp(pos.y / (parseFloat(treeUI.treeH.value)+0.01), 0, 1);
+      const p = (0.0006 + 0.003*progress) * (0.4 + 0.8*heightFactor);
+      if(Math.random() < p){
+        leafState[i]=1; fallingList.push(i);
+        const w = windAt(pos.x,pos.y,pos.z);
+        leafVel[i].set((Math.random()-0.5)*0.05 + 0.003*w.x, -0.02, (Math.random()-0.5)*0.05 + 0.003*w.z);
+        leafAngVel[i].set((Math.random()-0.5)*1.2, (Math.random()-0.5)*0.8, (Math.random()-0.5)*1.2);
+      }
+    }
+  }
+
+  // simulate active
+  for(let k=fallingList.length-1; k>=0; k--){
+    const i = fallingList[k];
+    leavesInst.getMatrixAt(i, dm); dm.decompose(pos, quat, scl);
+    leafPhase[i] = Math.min(2, leafPhase[i] + 0.0007*seasonRate);
+    const c = (leafPhase[i]<1) ? new THREE.Color().setHSL(0.16 + 0.10*leafPhase[i], 0.7, 0.5 + 0.2*(1-leafPhase[i]))
+                               : new THREE.Color().setHSL(0.04 + 0.02*(leafPhase[i]-1), 0.8, 0.55 - 0.1*(leafPhase[i]-1));
+    leavesInst.setColorAt(i, c);
+
+    const w = windAt(pos.x,pos.y,pos.z).multiplyScalar(0.002*fallRate);
+    const L = P.len/100, W = (P.len*P.width)/100;
+    const area = L*W;
+    const curlK = 1 + P.curl*1.5;
+    const Cd = 0.8*curlK;
+    leafVel[i].y += (-0.0022*fallRate);
+    const v2 = leafVel[i].lengthSq();
+    const drag = leafVel[i].clone().multiplyScalar(-Cd*area*Math.max(0.0, v2));
+    leafVel[i].add(drag);
+    leafVel[i].x += w.x - 0.002*leafVel[i].x;
+    leafVel[i].z += w.z - 0.002*leafVel[i].z;
+    leafVel[i].y += w.y*0.3 - 0.001*leafVel[i].y;
+    const zz = Math.sin(windTime*3 + i*0.37) * 0.005 * (1 + 0.6*P.width);
+    leafVel[i].x += zz;
+
+    eul.setFromQuaternion(quat);
+    eul.x += (w.x*8 + leafAngVel[i].x)*0.01;
+    eul.y += (w.y*6 + leafAngVel[i].y)*0.01;
+    eul.z += (w.z*8 + leafAngVel[i].z)*0.01;
+    quat.setFromEuler(eul);
+    leafAngVel[i].multiplyScalar(0.98);
+    leafAngVel[i].x += (Math.random()-0.5)*0.02*curlK;
+    leafAngVel[i].z += (Math.random()-0.5)*0.02*curlK;
+
+    pos.add(leafVel[i]);
+
+    if(pos.y<=0){
+      const gx = Math.round((pos.x/120+0.5)*120); const gz = Math.round((pos.z/120+0.5)*120);
+      if(gx>=0 && gx<=120 && gz>=0 && gz<=120){
+        const gi = gz*121 + gx;
+        const h = groundHeights[gi] += 0.0015*(0.6 + 0.8*Math.random());
+        pos.y = h;
+      } else { pos.y = 0; }
+      leafVel[i].set(0,0,0); leafState[i]=2;
+      leafPhase[i] = Math.max(leafPhase[i], 1.6);
+      fallingList[k] = fallingList[fallingList.length-1]; fallingList.pop();
+    }
+
+    dm.compose(pos, quat, scl); leavesInst.setMatrixAt(i, dm);
+  }
+
+  if(fallingList.length>0){
+    leavesInst.instanceMatrix.needsUpdate=true;
+    if(leavesInst.instanceColor) leavesInst.instanceColor.needsUpdate = true;
+  }
+
+  // regrow
+  const landed = leafState.reduce((a,b)=> a+(b===2?1:0), 0);
+  if(landed>n*0.8 && fallingList.length===0){
+    const dm2 = new THREE.Matrix4(); const pos2=new THREE.Vector3(); const quat2=new THREE.Quaternion(); const scl2=new THREE.Vector3();
+    let regenBatch = Math.min(500, n - landed);
+    for(let i=0; i<n && regenBatch>0; i++){
+      if(leafState[i]!==2) continue;
+      leavesInst.getMatrixAt(i, dm2); dm2.decompose(pos2, quat2, scl2);
+      pos2.y += 0.03*regrow;
+      if(pos2.y > Math.random()*parseFloat(treeUI.treeH.value)){
+        leafState[i]=0; leafPhase[i]=0;
+        const c = new THREE.Color().setHSL(0.28, 0.75, 0.48);
+        leavesInst.setColorAt(i, c);
+        regenBatch--;
+      }
+      dm2.compose(pos2, quat2, scl2); leavesInst.setMatrixAt(i, dm2);
+    }
+    leavesInst.instanceMatrix.needsUpdate=true;
+    if(leavesInst.instanceColor) leavesInst.instanceColor.needsUpdate = true;
+  }
+}
+
+function resize(){
+  const w = stage.clientWidth || stage.getBoundingClientRect().width || window.innerWidth;
+  const h = stage.clientHeight || window.innerHeight;
+  renderer.setSize(w, h);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+}
+window.addEventListener('resize', resize);
+
+function loop(){
+  controls.update();
+  if(fallRunning && leavesInst){ stepFall(); }
+  renderer.render(scene,camera);
+  requestAnimationFrame(loop);
+}
+
+function init(){
+  // Presets: shape elliptic, margin entire, vein pinnate
+  document.getElementById('leafShape').value='elliptic';
+  document.getElementById('leafMargin').value='entire';
+  document.getElementById('leafVein').value='pinnate';
+  veinConf = VEIN.pinnate;
+  applyPreset(SHAPE.elliptic);
+  applyPreset(MARGIN.entire);
+  // Defaults for stable view
+  Object.assign(P,{curl:0,twist:0,waveAmp:0,waveFreq:0,asym:0});
+  ['curl','twist','waveAmp','waveFreq','asym'].forEach(k=> document.getElementById(k).value=P[k]);
+  syncLeafLabels();
+  buildLeaf();
+  fitCameraTo(leafMesh, 2.0);
+  loop();
+  diag('合併版啟動完成：場景一 v0.752、場景二三 v0.7.2。', true);
+}
+
+try{
+  resize();
+  init();
+}catch(err){ diag('初始化錯誤：'+err.message); }
+
+// ---- v0.15e: expose module-scoped objects to window for addons ----
+try {
+  if (typeof THREE !== 'undefined') window.THREE = THREE;
+  if (typeof scene !== 'undefined') window.scene = scene;
+  if (typeof camera !== 'undefined') window.camera = camera;
+  if (typeof renderer !== 'undefined') window.renderer = renderer;
+  if (typeof controls !== 'undefined') window.controls = controls;
+  if (typeof P !== 'undefined') window.P = P;
+  if (typeof leafMesh !== 'undefined') window.leafMesh = leafMesh;
+  if (typeof treeUI !== 'undefined') window.treeUI = treeUI;
+} catch(e) {}
+// ------------------------------------------------------------------
+</script>
+<script>
+/* v0.15b — 移除 ?.；等待 THREE/scene/camera/renderer；加上「場景四」& 將「場景三」切換為森林生成；不覆寫原渲染迴圈 */
+(function(){
+  function byId(id){return document.getElementById(id)}
+  function ensureBtnsRow(){
+    var list=document.querySelectorAll('.btns'), anchor=list.length?list[list.length-1]:null;
+    if(!anchor){ anchor=document.createElement('div'); anchor.className='btns';
+      anchor.style.display='grid'; anchor.style.gridTemplateColumns='repeat(4,1fr)'; anchor.style.gap='6px';
+      document.body.insertAdjacentElement('afterbegin',anchor);
+    } return anchor;
+  }
+  function safeDiag(t){try{if(typeof diag==='function')diag(t,true)}catch(e){}}
+  function installWhenReady(){
+    var tries=0, timer=setInterval(function(){
+      tries++;
+      var ok=(window.THREE&&window.scene&&window.camera&&window.renderer);
+      if(ok||tries>300){clearInterval(timer); if(ok) install();}
+    },100);
+  }
+
+  function install(){
+    var anchor=ensureBtnsRow();
+    if(!byId('btnScene4')){ var b=document.createElement('button'); b.id='btnScene4'; b.textContent='場景四：環境／落葉'; anchor.appendChild(b); }
+    if(!byId('sceneForest')){
+      var p=document.createElement('div'); p.id='sceneForest'; p.style.display='none';
+      p.innerHTML='\
+      <div class="group">\
+        <h3 style="font-size:13px;color:#a3b3c7;margin:0 0 6px">森林生成（分佈與數量；風/亂流移到場景四）</h3>\
+        <div class="row g"><label class="lbl">半徑（面積）</label><span class="val" id="s3v_radius"></span></div>\
+        <input id="s3_radius" type="range" min="10" max="300" step="1" value="100">\
+        <div class="row g"><label class="lbl">密度（棵/10³㎡）</label><span class="val" id="s3v_density"></span></div>\
+        <input id="s3_density" type="range" min="0.1" max="8" step="0.1" value="1.2">\
+        <div class="row g"><label class="lbl">總數量</label><span class="val" id="s3v_count"></span></div>\
+        <input id="s3_count" type="range" min="1" max="600" step="1" value="120">\
+        <div class="row g"><label class="lbl">最小間距（m）</label><span class="val" id="s3v_sep"></span></div>\
+        <input id="s3_sep" type="range" min="1" max="30" step="0.5" value="6">\
+        <div class="row g"><label class="lbl">亂數種子</label><span class="val" id="s3v_seed"></span></div>\
+        <input id="s3_seed" type="text" placeholder="留空＝隨機">\
+        <div class="btns" style="grid-template-columns:repeat(3,1fr);margin-top:10px">\
+          <button id="s3_build" class="primary">生成森林</button>\
+          <button id="s3_clear">清除</button>\
+          <button id="s3_fit">視角置中</button>\
+        </div>\
+        <p class="small">每棵樹以場景二為基礎，參數自動 ±10% 變異；葉片長在分枝末端並帶綠色光暈。</p>\
+      </div>';
+      (byId('sceneTree')?byId('sceneTree').parentElement:anchor.parentElement).insertBefore(p,anchor.nextSibling);
+    }
+    if(!byId('sceneFall')){
+      var p4=document.createElement('div'); p4.id='sceneFall'; p4.style.display='none';
+      p4.innerHTML='<div class="group"><h3>場景四：環境／地形／落葉</h3><p class="small">初始化中…</p></div>';
+      (byId('sceneForest')?byId('sceneForest').parentElement:anchor.parentElement).insertBefore(p4,anchor.nextSibling);
+    }
+    function showOnly(id){
+      ['sceneLeaf','sceneTree','sceneForest','sceneFall'].forEach(function(k){
+        var el=byId(k); if(el) el.style.display=(k===id)?'block':'none';
+      });
+    }
+    var s4btn=byId('btnScene4'); if(s4btn){ s4btn.addEventListener('click',function(){ s4_prepare(); showOnly('sceneFall'); }); }
+    var s3btn=byId('btnScene3'); if(s3btn){ s3btn.addEventListener('click',function(){ s3_prepare(); showOnly('sceneForest'); }); }
+
+    /* ---------- 場景三：森林生成 ---------- */
+    var s3_inited=false, s3_group=null, s3_forest=[], s3_ui={};
+    function s3el(id){return byId(id)}
+    function s3_base(){
+      var tu=window.treeUI||{};
+      function gv(obj,k,d){return (obj&&obj[k]&&obj[k].value!=null)?parseFloat(obj[k].value):d}
+      return {H:gv(tu,'treeH',8),R:gv(tu,'crownR',5),levels:Math.round(gv(tu,'levels',8)),
+              spreadDeg:gv(tu,'spread',55),leanDeg:gv(tu,'lean',0),leafCount:Math.round(gv(tu,'leafCount',6000))};
+    }
+    function s3_sync(){
+      if(!s3_inited) return;
+      var r=parseFloat(s3_ui.radius.value), area=Math.PI*r*r, dens=parseFloat(s3_ui.density.value);
+      if(s3_ui._last==='density'||s3_ui._last==='radius'){
+        s3_ui.count.value=String(Math.min(parseInt(s3_ui.count.max,10),Math.max(1,Math.floor(dens*(area/1000)))));
+      }
+      s3_ui.v_radius.textContent=r+' m（面積≈'+(area/1000).toFixed(1)+'×10³㎡）';
+      s3_ui.v_density.textContent=dens.toFixed(1)+' 棵/10³㎡';
+      s3_ui.v_count.textContent=s3_ui.count.value+' 棵（推算密度≈'+((parseInt(s3_ui.count.value,10)/(area/1000))||0).toFixed(2)+')';
+      s3_ui.v_sep.textContent=s3_ui.sep.value+' m'; s3_ui.v_seed.textContent=s3_ui.seed.value||'(隨機)';
+    }
+    function s3_prepare(){
+      if(!s3_inited){
+        s3_ui={radius:s3el('s3_radius'),density:s3el('s3_density'),count:s3el('s3_count'),sep:s3el('s3_sep'),seed:s3el('s3_seed'),
+               v_radius:s3el('s3v_radius'),v_density:s3el('s3v_density'),v_count:s3el('s3v_count'),v_sep:s3el('s3v_sep'),v_seed:s3el('s3v_seed'),
+               build:s3el('s3_build'),clear:s3el('s3_clear'),fit:s3el('s3_fit'),_last:null};
+        ['radius','density','count','sep','seed'].forEach(function(k){ s3_ui[k].addEventListener('input',function(){s3_ui._last=k;s3_sync();}); });
+        s3_ui.build.onclick=s3_build; s3_ui.clear.onclick=s3_clear; s3_ui.fit.onclick=s3_fit; s3_inited=true; s3_sync();
+      }
+      if(!s3_group) s3_build(); s3_fit(); safeDiag('v0.15b｜場景三：森林生成就緒');
+    }
+    function vary(x,p){return x*(1+(Math.random()*2-1)*p)}
+    function s3_build(){
+      s3_clear();
+      var r=parseFloat(s3_ui.radius.value), n=parseInt(s3_ui.count.value,10), sep=parseFloat(s3_ui.sep.value);
+      var seedStr=s3_ui.seed.value||String(Date.now()), s=0; for(var i=0;i<seedStr.length;i++){s=(s*131+seedStr.charCodeAt(i))>>>0}
+      function rnd(){s^=(s<<13); s^=(s>>>17); s^=(s<<5); return (s>>>0)/4294967296}
+      s3_group=new THREE.Group(); scene.add(s3_group);
+      var base=s3_base(), pts=[], tries=0;
+      while(pts.length<n && tries<n*7000){
+        tries++; var a=rnd()*Math.PI*2, rr=Math.sqrt(rnd())*r, x=Math.cos(a)*rr, z=Math.sin(a)*rr, ok=true;
+        for(var j=0;j<pts.length;j++){ var dx=pts[j].x-x, dz=pts[j].z-z; if(dx*dx+dz*dz<sep*sep){ok=false;break} }
+        if(!ok) continue; pts.push({x:x,z:z});
+      }
+      for(var k=0;k<pts.length;k++){
+        var cfg={H:vary(base.H,0.10),R:vary(base.R,0.10),levels:Math.max(1,Math.round(vary(base.levels,0.10))),
+                 spreadDeg:vary(base.spreadDeg,0.10),leanDeg:vary(base.leanDeg,0.10),leafCount:Math.max(50,Math.round(vary(base.leafCount,0.10)))};
+        var t=buildTree(cfg); t.group.position.set(pts[k].x,0,pts[k].z); s3_group.add(t.group); s3_forest.push(t);
+      }
+      safeDiag('森林生成完成：'+s3_forest.length+' 棵');
+    }
+    function s3_clear(){
+      if(s3_group){ scene.remove(s3_group);
+        s3_group.traverse(function(o){ if(o.geometry) o.geometry.dispose(); if(o.material && o.material.dispose) o.material.dispose(); });
+        s3_group=null; } s3_forest.length=0;
+    }
+    function s3_fit(){
+      if(!s3_group) return;
+      var box=new THREE.Box3().setFromObject(s3_group), size=new THREE.Vector3(), center=new THREE.Vector3();
+      box.getSize(size); box.getCenter(center);
+      var radius=Math.max(size.x,size.y,size.z)*0.5||1, fov=camera.fov*Math.PI/180, dist=(radius/Math.tan(fov/2))*2.8;
+      var dir=new THREE.Vector3(1,0.5,1).normalize(); camera.position.copy(center).addScaledVector(dir,dist);
+      camera.near=Math.max(0.01,dist/1000); camera.far=dist*12+800; camera.updateProjectionMatrix();
+      if(window.controls){ controls.target.copy(center); controls.update(); }
+    }
+    function buildTree(cfg){
+      var group=new THREE.Group();
+      var matTrunk=new THREE.MeshStandardMaterial({color:0x7a5a42,roughness:0.95});
+      var matBranch=new THREE.MeshStandardMaterial({color:0x6e5840,roughness:0.95});
+      var matLeaf=new THREE.MeshStandardMaterial({color:0xffffff,roughness:0.85,metalness:0.02,side:THREE.DoubleSide,vertexColors:true,emissive:new THREE.Color(0x178f42),emissiveIntensity:0.22});
+      var leafGeo=(window.leafMesh&&window.leafMesh.geometry)?window.leafMesh.geometry:new THREE.PlaneGeometry(0.6,0.3,1,1);
+      var H=cfg.H, levels=(cfg.levels|0), spread=(cfg.spreadDeg||55)*Math.PI/180, lean=(cfg.leanDeg||0)*Math.PI/180;
+      var MAX=20000,LEN=0.75,RAD=0.72,CHILD=2,PRUNE=0.02,GAIN=0.008,J=0.05;
+      var segs=[], tips=[], base=new THREE.Vector3(0,0,0), trunkDir=new THREE.Vector3(Math.sin(lean),Math.cos(lean),0).normalize();
+      var trunkTop=base.clone().addScaledVector(trunkDir,H*0.7), q=[{a:base,b:trunkTop,dir:trunkDir.clone(),len:H*0.5,r:0.12*H,lvl:1}];
+      while(q.length && segs.length<MAX){
+        var cur=q.shift(); segs.push({a:cur.a.clone(),b:cur.b.clone(),r:cur.r,isTrunk:cur.lvl===1});
+        if(cur.lvl>=levels){ tips.push({p:cur.b.clone(),dir:cur.dir.clone()}); continue; }
+        for(var c=0;c<CHILD;c++){
+          if(Math.random()<(PRUNE+GAIN*cur.lvl)) continue;
+          var angA=(c===0?-1:1)*(spread*(0.6+0.4*Math.random())), angY=Math.random()*Math.PI*2;
+          var tilt=new THREE.Vector3(Math.cos(angY)*Math.sin(angA),Math.cos(angA),Math.sin(angY)*Math.sin(angA));
+          var nd=cur.dir.clone().multiplyScalar(0.35).add(tilt.multiplyScalar(0.65)).normalize();
+          var nl=cur.len*(LEN+0.03*Math.random()); var nb=cur.b.clone().addScaledVector(nd,nl);
+          nb.x+=(Math.random()-0.5)*nl*J; nb.z+=(Math.random()-0.5)*nl*J; nb.y-=0.03*nl;
+          q.push({a:cur.b.clone(),b:nb.clone(),dir:nd,len:nl,r:cur.r*RAD,lvl:cur.lvl+1});
+        }
+      }
+      var cyls=new THREE.Group();
+      for(var i=0;i<segs.length;i++){
+        var s=segs[i], v=new THREE.Vector3().subVectors(s.b,s.a), len=v.length();
+        var geo=new THREE.CylinderGeometry(Math.max(0.009,s.r*0.6),Math.max(0.010,s.r*0.8),len,10);
+        var m=new THREE.Mesh(geo, s.isTrunk?matTrunk:matBranch); m.castShadow=true; m.receiveShadow=true;
+        var qq=new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,1,0),v.clone().normalize());
+        m.setRotationFromQuaternion(qq); m.position.copy(s.a).addScaledVector(v,0.5); cyls.add(m);
+      }
+      group.add(cyls);
+      var total=Math.max(10,(cfg.leafCount|0)), leaves=new THREE.InstancedMesh(leafGeo,matLeaf,total);
+      leaves.castShadow=true; leaves.receiveShadow=true; leaves.instanceColor=new THREE.InstancedBufferAttribute(new Float32Array(total*3),3,false);
+      var d=new THREE.Object3D();
+      for(var i2=0;i2<total;i2++){
+        var tip=tips[i2%tips.length], pos=tip.p.clone();
+        var side=new THREE.Vector3().crossVectors(tip.dir,new THREE.Vector3(0,1,0)).normalize();
+        var up=new THREE.Vector3().crossVectors(side,tip.dir).normalize();
+        pos.add(side.multiplyScalar((Math.random()*2-1)*0.25)).add(up.multiplyScalar((Math.random()*2-1)*0.18));
+        var matLook=new THREE.Matrix4().lookAt(new THREE.Vector3(0,0,0),tip.dir,up).invert(); d.rotation.setFromRotationMatrix(matLook);
+        var tlt=(Math.random()*2-1)*(20*Math.PI/180); d.rotation.x+=tlt*0.6; d.rotation.y+=tlt*0.8; d.rotation.z+=tlt*0.6;
+        d.scale.setScalar(0.8+Math.random()*0.4); d.position.copy(pos); d.updateMatrix(); leaves.setMatrixAt(i2,d.matrix);
+        var ccol=new THREE.Color().setHSL(0.30+0.05*Math.random(),0.78,0.50); leaves.setColorAt(i2,ccol);
+      }
+      leaves.instanceMatrix.needsUpdate=true; leaves.instanceColor.needsUpdate=true; group.add(leaves);
+      return {group:group,leaves:leaves,meta:{H:H,tips:tips.length}};
+    }
+    window.__forestRef=function(){return {group:s3_group,list:s3_forest}};
+
+    /* ---------- 場景四：環境／地形／落葉 ---------- */
+    var s4_inited=false,s4_running=false,s4_ui={},s4_sun,s4_sunGroup,s4_sky,s4_skyMat,s4_terrain,s4_rocks,s4_windT=0,s4_seasonClock=0,s4_stars,s4_moon;
+    var s4_leafVel=[],s4_leafState=[],s4_leafPhase=[],s4_active=[];
+    function s4_prepare(){
+      var wrap=byId('sceneFall');
+      if(!s4_inited){
+        wrap.innerHTML='\
+        <div class="group">\
+          <h3 style="font-size:13px;color:#a3b3c7;margin:0 0 6px">太陽／天空（含月亮與星空）</h3>\
+          <div class="row g"><label class="lbl">時間（時）</label><span class="val" id="s4v_time"></span></div>\
+          <input id="s4_time" type="range" min="0" max="24" step="0.05" value="10">\
+          <div class="row g"><label class="lbl">時間加速</label><span class="val" id="s4v_timeRate"></span></div>\
+          <input id="s4_timeRate" type="range" min="0" max="20" step="0.5" value="2">\
+          <div class="row"><label class="lbl"><input id="s4_animSun" type="checkbox" checked> 太陽自動運行</label></div>\
+        </div>\
+        <div class="group">\
+          <h3 style="font-size:13px;color:#a3b3c7;margin:6px 0">地形地貌</h3>\
+          <div class="row g"><label class="lbl">坡度幅度</label><span class="val" id="s4v_slope"></span></div>\
+          <input id="s4_slope" type="range" min="0" max="0.6" step="0.01" value="0.2">\
+          <div class="row g"><label class="lbl">粗糙度</label><span class="val" id="s4v_rough"></span></div>\
+          <input id="s4_rough" type="range" min="0.1" max="2.0" step="0.05" value="0.8">\
+          <div class="row g"><label class="lbl">地貌樣式</label><span class="val" id="s4v_ground"></span></div>\
+          <select id="s4_ground"><option value="soil" selected>土壤</option><option value="rock">岩地</option><option value="mixed">混合</option></select>\
+          <div class="row g"><label class="lbl">石塊密度</label><span class="val" id="s4v_rocks"></span></div>\
+          <input id="s4_rocks" type="range" min="0" max="1" step="0.02" value="0.2">\
+          <div class="btns" style="grid-template-columns:repeat(2,1fr);margin-top:10px">\
+            <button id="s4_fit">視角置中</button><button id="s4_rebuildTerrain">重建地形</button>\
+          </div>\
+        </div>\
+        <div class="group">\
+          <h3 style="font-size:13px;color:#a3b3c7;margin:6px 0">落葉（季節/風場在此調整）</h3>\
+          <div class="row g"><label class="lbl">季節推進</label><span class="val" id="s4v_season"></span></div>\
+          <input id="s4_season" type="range" min="0.1" max="4" step="0.1" value="1.0">\
+          <div class="row g"><label class="lbl">落葉速度</label><span class="val" id="s4v_fall"></span></div>\
+          <input id="s4_fall" type="range" min="0.5" max="2" step="0.1" value="1.0">\
+          <div class="row g"><label class="lbl">風強度</label><span class="val" id="s4v_wind"></span></div>\
+          <input id="s4_wind" type="range" min="0" max="10" step="0.1" value="3.0">\
+          <div class="row g"><label class="lbl">亂流</label><span class="val" id="s4v_turb"></span></div>\
+          <input id="s4_turb" type="range" min="0" max="3" step="0.05" value="1.2">\
+          <div class="row g"><label class="lbl">再長回速度</label><span class="val" id="s4v_regrow"></span></div>\
+          <input id="s4_regrow" type="range" min="0.1" max="3" step="0.1" value="1.0">\
+          <div class="row g"><label class="lbl">同時模擬上限（片）</label><span class="val" id="s4v_maxActive"></span></div>\
+          <input id="s4_maxActive" type="range" min="200" max="8000" step="100" value="2000">\
+          <div class="btns" style="grid-template-columns:repeat(3,1fr);margin-top:10px">\
+            <button id="s4_start" class="primary">開始落葉</button><button id="s4_stop">停止</button><button id="s4_reset">重置季節</button>\
+          </div>\
+        </div>';
+        function g(id){return byId(id)}
+        s4_ui={time:g('s4_time'),rate:g('s4_timeRate'),anim:g('s4_animSun'),
+               slope:g('s4_slope'),rough:g('s4_rough'),ground:g('s4_ground'),rocks:g('s4_rocks'),
+               season:g('s4_season'),fall:g('s4_fall'),wind:g('s4_wind'),turb:g('s4_turb'),regrow:g('s4_regrow'),max:g('s4_maxActive'),
+               fit:g('s4_fit'),terr:g('s4_rebuildTerrain'),start:g('s4_start'),stop:g('s4_stop'),reset:g('s4_reset'),
+               v_time:g('s4v_time'),v_rate:g('s4v_timeRate'),v_slope:g('s4v_slope'),v_rough:g('s4v_rough'),v_ground:g('s4v_ground'),v_rocks:g('s4v_rocks'),
+               v_season:g('s4v_season'),v_fall:g('s4v_fall'),v_wind:g('s4v_wind'),v_turb:g('s4v_turb'),v_regrow:g('s4v_regrow'),v_max:g('s4v_maxActive')};
+        function sync(){
+          s4_ui.v_time.textContent=Number(s4_ui.time.value).toFixed(2)+' h';
+          s4_ui.v_rate.textContent=s4_ui.rate.value+'×';
+          s4_ui.v_slope.textContent=s4_ui.slope.value; s4_ui.v_rough.textContent=s4_ui.rough.value;
+          s4_ui.v_ground.textContent=s4_ui.ground.value; s4_ui.v_rocks.textContent=s4_ui.rocks.value;
+          s4_ui.v_season.textContent=s4_ui.season.value+'×'; s4_ui.v_fall.textContent=s4_ui.fall.value+'×';
+          s4_ui.v_wind.textContent=s4_ui.wind.value; s4_ui.v_turb.textContent=s4_ui.turb.value;
+          s4_ui.v_regrow.textContent=s4_ui.regrow.value+'×'; s4_ui.v_max.textContent=s4_ui.max.value;
+        }
+        ['time','rate','slope','rough','ground','rocks','season','fall','wind','turb','regrow','max'].forEach(function(k){
+          s4_ui[k].addEventListener('input',sync);
+        });
+        s4_ui.fit.onclick=function(){s4_fit()}; s4_ui.terr.onclick=function(){s4_buildTerrain(true)};
+        s4_ui.start.onclick=function(){ if(!s4_terrain) s4_buildTerrain(true); s4_prepareSeason(); s4_running=true; };
+        s4_ui.stop.onclick=function(){ s4_running=false; };
+        s4_ui.reset.onclick=function(){ s4_resetSeason(); };
+        sync(); s4_installEnvironment(); s4_inited=true;
+      }
+      s4_fit(); s4_running=false; safeDiag('v0.15b｜場景四就緒');
+    }
+
+    function nfade(t){return t*t*(3-2*t)}
+    function s4_noise(x,y,z){
+      var xi=Math.floor(x),yi=Math.floor(y),zi=Math.floor(z),xf=x-xi,yf=y-yi,zf=z-zi;
+      function rnd(a,b,c){var s=Math.sin(a*127.1+b*311.7+c*74.7)*43758.5453; return s-Math.floor(s)}
+      var n000=rnd(xi,yi,zi),n100=rnd(xi+1,yi,zi),n010=rnd(xi,yi+1,zi),n110=rnd(xi+1,yi+1,zi),n001=rnd(xi,yi,zi+1),n101=rnd(xi+1,yi,zi+1),n011=rnd(xi,yi+1,zi+1),n111=rnd(xi+1,yi+1,zi+1);
+      var u=nfade(xf),v=nfade(yf),w=nfade(zf);
+      var x00=n000*(1-u)+n100*u,x10=n010*(1-u)+n110*u,x01=n001*(1-u)+n101*u,x11=n011*(1-u)+n111*u;
+      var y0=x00*(1-v)+x10*v,y1=x01*(1-v)+x11*v; return y0*(1-w)+y1*w;
+    }
+    function s4_fbm(x,z,oct,g){if(oct==null)oct=4;if(g==null)g=0.5;var a=1,s=0,n=0;for(var i=0;i<oct;i++){n+=a*s4_noise(x,0,z);s+=a;a*=g;x*=2;z*=2}return n/(s||1)}
+    function s4_h(x,z){var slope=parseFloat(s4_ui.slope.value),rough=parseFloat(s4_ui.rough.value);return slope*(x/500)+s4_fbm(x*0.008,z*0.008,5,0.5)*22*rough}
+    function s4_ground(x,y,z){
+      var mode=s4_ui.ground.value, hN=THREE.MathUtils.clamp((y+30)/110,0,1);
+      var soil=new THREE.Color().setHSL(0.10,0.6,0.30+0.25*hN), rock=new THREE.Color().setHSL(0.58,0.05,0.45-0.25*hN);
+      if(mode==='soil') return soil; if(mode==='rock') return rock; return soil.clone().lerp(rock,0.5+0.5*(Math.sin((x+z)*0.008)));
+    }
+    function s4_buildTerrain(rebuild){
+      if(!rebuild&&s4_terrain) return;
+      if(s4_terrain){scene.remove(s4_terrain); if(s4_terrain.geometry) s4_terrain.geometry.dispose(); if(s4_terrain.material&&s4_terrain.material.dispose) s4_terrain.material.dispose(); s4_terrain=null;}
+      if(s4_rocks){scene.remove(s4_rocks); s4_rocks.traverse(function(o){if(o.geometry)o.geometry.dispose(); if(o.material&&o.material.dispose)o.material.dispose();}); s4_rocks=null;}
+      var size=1000,seg=220,g=new THREE.PlaneGeometry(size,size,seg,seg); g.rotateX(-Math.PI/2);
+      var pos=g.attributes.position, col=new Float32Array(pos.count*3);
+      for(var i=0;i<pos.count;i++){ var x=pos.getX(i),z=pos.getZ(i),y=s4_h(x,z),c=s4_ground(x,y,z); pos.setY(i,y); col[i*3]=c.r; col[i*3+1]=c.g; col[i*3+2]=c.b; }
+      g.setAttribute('color',new THREE.BufferAttribute(col,3)); g.computeVertexNormals();
+      s4_terrain=new THREE.Mesh(g,new THREE.MeshStandardMaterial({vertexColors:true,roughness:0.95})); s4_terrain.receiveShadow=true; scene.add(s4_terrain);
+      s4_rocks=new THREE.Group(); var d=parseFloat(s4_ui.rocks.value);
+      if(d>0){ var m=new THREE.MeshStandardMaterial({color:0x8c8f92,roughness:0.95}), geo=new THREE.IcosahedronGeometry(1,0), N=Math.round(d*1400);
+        for(var i2=0;i2<N;i2++){ var x2=(Math.random()-0.5)*size*0.9, z2=(Math.random()-0.5)*size*0.9, y2=s4_h(x2,z2);
+          var k2=new THREE.Mesh(geo,m); k2.castShadow=true; k2.receiveShadow=true; k2.scale.setScalar(0.4+Math.random()*2.6); k2.position.set(x2,y2,z2); k2.rotation.y=Math.random()*Math.PI*2; s4_rocks.add(k2);
+        }
+      } scene.add(s4_rocks);
+    }
+    function s4_updateSun(){
+      var t=parseFloat(s4_ui.time.value), az=(t/24)*Math.PI*2, el=Math.sin((t-6)/12*Math.PI)*0.9, r=1400;
+      var x=Math.cos(az)*Math.cos(el)*r, y=Math.max(10,Math.sin(el)*r), z=Math.sin(az)*Math.cos(el)*r;
+      s4_sun.position.set(x,y,z); s4_sun.target.position.set(0,0,0); s4_sun.target.updateMatrixWorld();
+      if(s4_sunGroup) s4_sunGroup.position.copy(s4_sun.position);
+      var elN=Math.max(0,Math.sin(el)); s4_sun.intensity=0.15+1.25*elN;
+      if(s4_skyMat&&s4_skyMat.uniforms&&s4_skyMat.uniforms.night){ s4_skyMat.uniforms.night.value=1.0-THREE.MathUtils.smoothstep(elN,0.05,0.25); }
+      if(s4_stars&&s4_skyMat&&s4_skyMat.uniforms){ s4_stars.material.opacity=THREE.MathUtils.clamp(s4_skyMat.uniforms.night.value*1.2,0,1); }
+      if(s4_moon){
+        var maz=az+Math.PI*0.9, mel=-el*0.95, mr=1380;
+        s4_moon.position.set(Math.cos(maz)*Math.cos(mel)*mr, Math.max(5,Math.sin(mel)*mr), Math.sin(maz)*Math.cos(mel)*mr);
+        s4_moon.visible = (s4_skyMat&&s4_skyMat.uniforms)? (s4_skyMat.uniforms.night.value>0.05) : true;
+      }
+    }
+    function s4_installEnvironment(){
+      if(renderer&&renderer.shadowMap&&!renderer.shadowMap.enabled){renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap;}
+      s4_sun=new THREE.DirectionalLight(0xffffff,1.2); s4_sun.castShadow=true; s4_sun.position.set(60,120,0);
+      s4_sun.shadow.mapSize.set(2048,2048); s4_sun.shadow.camera.near=1; s4_sun.shadow.camera.far=4000;
+      s4_sun.shadow.camera.left=-1200; s4_sun.shadow.camera.right=1200; s4_sun.shadow.camera.top=1200; s4_sun.shadow.camera.bottom=-1200;
+      scene.add(s4_sun); scene.add(s4_sun.target);
+      s4_sunGroup=new THREE.Group(); scene.add(s4_sunGroup);
+      var sunDisk=new THREE.Mesh(new THREE.SphereGeometry(3,32,32),new THREE.MeshBasicMaterial({color:0xfff2a8})); s4_sunGroup.add(sunDisk);
+      var c=document.createElement('canvas'); c.width=c.height=256; var g=c.getContext('2d'), r=128;
+      var grd=g.createRadialGradient(r,r,0,r,r,r); grd.addColorStop(0,'rgba(255,250,170,1)'); grd.addColorStop(0.4,'rgba(255,220,120,0.55)'); grd.addColorStop(1,'rgba(255,180,80,0)'); g.fillStyle=grd; g.fillRect(0,0,256,256);
+      var t=new THREE.CanvasTexture(c); if(THREE.SRGBColorSpace) t.colorSpace=THREE.SRGBColorSpace;
+      var glow=new THREE.Sprite(new THREE.SpriteMaterial({map:t,transparent:true,depthWrite:false})); glow.scale.set(50,50,50); s4_sunGroup.add(glow);
+      var skyGeo=new THREE.SphereGeometry(30000,32,16);
+      s4_skyMat=new THREE.ShaderMaterial({side:THREE.BackSide,depthWrite:false,uniforms:{topColor:{value:new THREE.Color(0x13346b)},midColor:{value:new THREE.Color(0x3a6ea8)},bottomColor:{value:new THREE.Color(0x8ec5ff)},mixH:{value:0.35},horizonSoft:{value:0.65},night:{value:0.0}},
+        vertexShader:'varying vec3 vW; void main(){ vW=(modelMatrix*vec4(position,1.)).xyz; gl_Position=projectionMatrix*viewMatrix*vec4(vW,1.); }',
+        fragmentShader:'varying vec3 vW; uniform vec3 topColor,midColor,bottomColor; uniform float mixH,horizonSoft,night; \
+          void main(){ vec3 n=normalize(vW); float h=clamp(n.y*0.5+0.5,0.,1.); \
+          vec3 dayTop=topColor,dayMid=midColor,dayBot=bottomColor; \
+          vec3 nightTop=vec3(0.02,0.03,0.07),nightMid=vec3(0.04,0.06,0.12),nightBot=vec3(0.03,0.04,0.09); \
+          vec3 tTop=mix(nightTop,dayTop,1.-night); vec3 tMid=mix(nightMid,dayMid,1.-night); vec3 tBot=mix(nightBot,dayBot,1.-night); \
+          vec3 col=mix(tTop,mix(tMid,tBot,smoothstep(mixH-0.1,mixH+0.1,h)), smoothstep(0.,1.,h)); gl_FragColor=vec4(col,1.); }'
+      });
+      s4_sky=new THREE.Mesh(skyGeo,s4_skyMat); scene.add(s4_sky);
+      var starGeo=new THREE.BufferGeometry(), N=4000, pos=new Float32Array(N*3);
+      for(var i=0;i<N;i++){ var u=Math.random()*2*Math.PI, v=Math.acos(2*Math.random()-1), R=28000; pos[i*3]=R*Math.sin(v)*Math.cos(u); pos[i*3+1]=R*Math.cos(v); pos[i*3+2]=R*Math.sin(v)*Math.sin(u); }
+      starGeo.setAttribute('position',new THREE.BufferAttribute(pos,3));
+      var starMat=new THREE.PointsMaterial({size:6,sizeAttenuation:true,color:0xffffff,transparent:true,opacity:0});
+      s4_stars=new THREE.Points(starGeo,starMat); scene.add(s4_stars);
+      s4_moon=new THREE.Mesh(new THREE.SphereGeometry(2.6,32,32),new THREE.MeshStandardMaterial({color:0xf4f2ea,roughness:0.9})); scene.add(s4_moon);
+      s4_buildTerrain(true);
+      (function loop(){ try{s4_step()}catch(e){} requestAnimationFrame(loop) })();
+    }
+
+    function s4_prepareSeason(){
+      var f=(window.__forestRef&&window.__forestRef())||null;
+      if(!f||!f.list||!f.list.length){safeDiag('尚未在場景三生成森林，請先建立');return}
+      s4_leafVel.length=f.list.length; s4_leafState.length=f.list.length; s4_leafPhase.length=f.list.length; s4_active.length=f.list.length;
+      for(var ti=0;ti<f.list.length;ti++){ var mesh=f.list[ti].leaves, n=mesh.count;
+        s4_leafVel[ti]=new Array(n); s4_leafState[ti]=new Uint8Array(n); s4_leafPhase[ti]=new Float32Array(n); s4_active[ti]=[];
+        for(var i=0;i<n;i++){ s4_leafVel[ti][i]=new THREE.Vector3(); s4_leafState[ti][i]=0; s4_leafPhase[ti][i]=0; }
+      } s4_seasonClock=0; s4_windT=0;
+    }
+    function s4_resetSeason(){
+      var f=(window.__forestRef&&window.__forestRef())||null; if(!f||!f.list) return;
+      for(var ti=0;ti<f.list.length;ti++){ var mesh=f.list[ti].leaves, n=mesh.count, dm=new THREE.Matrix4(), pos=new THREE.Vector3(), quat=new THREE.Quaternion(), scl=new THREE.Vector3();
+        for(var i=0;i<n;i++){ mesh.getMatrixAt(i,dm); dm.decompose(pos,quat,scl); pos.y=Math.max(pos.y,0.2); dm.compose(pos,quat,scl); mesh.setMatrixAt(i,dm);
+          s4_leafVel[ti][i].set(0,0,0); s4_leafState[ti][i]=0; s4_leafPhase[ti][i]=0; mesh.setColorAt(i,new THREE.Color().setHSL(0.31,0.78,0.50)); }
+        mesh.instanceMatrix.needsUpdate=true; if(mesh.instanceColor) mesh.instanceColor.needsUpdate=true; s4_active[ti].length=0;
+      } s4_seasonClock=0; s4_running=false;
+    }
+    function s4_windAt(x,y,z){
+      var A=parseFloat(s4_ui.wind.value), T=parseFloat(s4_ui.turb.value), dir=(Math.sin(s4_windT*0.07)*15)*Math.PI/180;
+      var bx=Math.cos(dir)*A, bz=Math.sin(dir)*A, n1=s4_noise((x*0.25)+s4_windT*0.8,0,(z*0.25)-s4_windT*0.6), n2=s4_noise((-x*0.2)+s4_windT*0.5,0,(y*0.25)+s4_windT*0.6);
+      return new THREE.Vector3(bx+T*(n1-0.5), 0.3*T*(n2-0.5), bz+T*(n2-0.5));
+    }
+    function s4_colorFor(ph){
+      if(ph<0.4){var k=ph/0.4; return new THREE.Color().setHSL(0.31-0.03*k,0.78,0.50-0.05*k)}
+      if(ph<1.0){var k2=(ph-0.4)/0.6; return new THREE.Color().setHSL(0.14+0.10*k2,0.85,0.55-0.12*k2)}
+      var k3=Math.min(1,(ph-1.0)/1.0); return new THREE.Color().setHSL(0.02+0.03*k3,0.75,0.45-0.15*k3)
+    }
+    function s4_step(){
+      if(!s4_ui.time) return;
+      s4_windT+=0.01; s4_seasonClock+=0.016*parseFloat(s4_ui.season.value);
+      if(s4_ui.anim&&s4_ui.anim.checked){ s4_ui.time.value=String((parseFloat(s4_ui.time.value)+0.016*parseFloat(s4_ui.rate.value))%24); }
+      s4_updateSun();
+      if(!s4_running) return;
+      var f=(window.__forestRef&&window.__forestRef())||null; if(!f||!f.list) return;
+      var global=0; for(var gi=0;gi<s4_active.length;gi++){global+=s4_active[gi].length}
+      var budget=Math.max(0,parseInt(s4_ui.max.value,10)-global);
+      for(var ti=0;ti<f.list.length&&budget>0;ti++){
+        var mesh=f.list[ti].leaves, n=mesh.count, dm=new THREE.Matrix4(), pos=new THREE.Vector3(), quat=new THREE.Quaternion(), scl=new THREE.Vector3();
+        var tries=0, perTry=Math.min(120, 5+((n*0.0008 + n*0.002*Math.min(1,s4_seasonClock/30))|0));
+        while(tries<perTry&&budget>0){
+          tries++; var i=(Math.random()*n)|0; if(s4_leafState[ti][i]!==0) continue;
+          mesh.getMatrixAt(i,dm); dm.decompose(pos,quat,scl);
+          var age=Math.min(2,s4_seasonClock/35), windK=Math.min(1,parseFloat(s4_ui.wind.value)/10);
+          var p=(0.0004+0.0025*age)*(0.3+0.9*Math.min(1,pos.y/(f.list[ti].meta.H||8)))+0.001*windK;
+          if(Math.random()<p){ s4_leafState[ti][i]=1; s4_active[ti].push(i); budget--; var w=s4_windAt(pos.x,pos.y,pos.z); s4_leafVel[ti][i].set((Math.random()-0.5)*0.05+0.003*w.x,-0.02,(Math.random()-0.5)*0.05+0.003*w.z); }
+        }
+      }
+      for(var ti2=0;ti2<f.list.length;ti2++){
+        var mesh=f.list[ti2].leaves, dm=new THREE.Matrix4(), pos=new THREE.Vector3(), quat=new THREE.Quaternion(), scl=new THREE.Vector3(), n2=mesh.count;
+        for(var j=0;j<n2;j++){
+          if(s4_leafState[ti2][j]===0){
+            s4_leafPhase[ti2][j]=Math.min(2,s4_leafPhase[ti2][j]+0.0004*parseFloat(s4_ui.season.value));
+            mesh.setColorAt(j, s4_colorFor(s4_leafPhase[ti2][j]));
+          }
+        }
+        var act=s4_active[ti2];
+        for(var k=act.length-1;k>=0;k--){
+          var i2=act[k]; mesh.getMatrixAt(i2,dm); dm.decompose(pos,quat,scl);
+          s4_leafPhase[ti2][i2]=Math.min(2,s4_leafPhase[ti2][i2]+0.0010*parseFloat(s4_ui.season.value)); mesh.setColorAt(i2,s4_colorFor(s4_leafPhase[ti2][i2]));
+          var w=s4_windAt(pos.x,pos.y,pos.z).multiplyScalar(0.002*parseFloat(s4_ui.fall.value));
+          var L=((window.P&&window.P.len)?window.P.len:10)/100, W=((window.P&&window.P.len&&window.P.width)?(window.P.len*window.P.width):5)/100, area=L*W, Cd=0.8*((window.P&&window.P.curl)?(1+(window.P.curl)*1.5):1);
+          var v=s4_leafVel[ti2][i2]; v.y+=(-0.0022*parseFloat(s4_ui.fall.value));
+          var v2=v.lengthSq(), drag=v.clone().multiplyScalar(-Cd*area*Math.max(0.0,v2)); v.add(drag);
+          v.x+=w.x-0.002*v.x; v.z+=w.z-0.002*v.z; v.y+=w.y*0.3-0.001*v.y; pos.add(v);
+          var gy=s4_terrain?s4_h(pos.x,pos.z):0; if(pos.y<=gy){ pos.y=gy; v.set(0,0,0); s4_leafState[ti2][i2]=2; act[k]=act[act.length-1]; act.pop(); }
+          var dm2=new THREE.Matrix4(); dm2.compose(pos,quat,scl); mesh.setMatrixAt(i2,dm2);
+        }
+        mesh.instanceMatrix.needsUpdate=true; if(mesh.instanceColor) mesh.instanceColor.needsUpdate=true;
+      }
+    }
+    function s4_fit(){
+      var f=(window.__forestRef&&window.__forestRef())||null;
+      if(f&&f.group){
+        var box=new THREE.Box3().setFromObject(f.group), size=new THREE.Vector3(), center=new THREE.Vector3(); box.getSize(size); box.getCenter(center);
+        var radius=Math.max(size.x,size.y,size.z)*0.5||1, fov=camera.fov*Math.PI/180, dist=(radius/Math.tan(fov/2))*3.2, dir=new THREE.Vector3(1,0.4,1).normalize();
+        camera.position.copy(center).addScaledVector(dir,dist); camera.near=Math.max(0.01,dist/1000); camera.far=dist*12+800; camera.updateProjectionMatrix();
+        if(window.controls){ controls.target.copy(center); controls.update(); }
+      }
+    }
+
+    safeDiag('v0.15b 補丁載入完成');
+  } // install
+
+  if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',installWhenReady,{once:true})}else{installWhenReady()}
+})();
+</script>
+
+
+<!-- v0.15e addon: Scene3 Forest + Scene4 Environment/Leaves, with global APIs -->
+<script>
+(function(){
+  function byId(id){ return document.getElementById(id); }
+  function safeLog(msg){ try{ if(typeof diag==='function') diag(msg,true); else console.log('[forest]',msg); }catch(e){} }
+  function ready(cb){ if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', cb, {once:true}); else cb(); }
+  function waitWorld(cb){
+    var n=0,t=setInterval(function(){
+      n++; if (window.THREE && window.scene && window.camera && window.renderer){ clearInterval(t); cb(); }
+      else if(n>480){ clearInterval(t); console.warn('v0.15e addon timeout waiting world'); }
+    }, 62);
+  }
+
+  // --- create panels and behaviors ---
+  var s3_inited=false, s3_group=null, s3_forest=[], s3_ui={};
+  var s4_inited=false, s4_running=false, s4_ui={}, s4_sun, s4_sunGroup, s4_sky, s4_skyMat, s4_terrain, s4_rocks, s4_windT=0, s4_seasonClock=0, s4_stars, s4_moon;
+  var s4_leafVel=[], s4_leafState=[], s4_leafPhase=[], s4_active=[];
+
+  function ensurePanels(){
+    // Scene 3 panel
+    if(!byId('sceneForest')){
+      var p3 = document.createElement('div'); p3.id='sceneForest'; p3.style.display='none';
+      p3.style.position='fixed'; p3.style.top='60px'; p3.style.right='10px'; p3.style.maxWidth='360px'; p3.style.zIndex='1001';
+      p3.style.background='rgba(20,25,35,.85)'; p3.style.padding='10px'; p3.style.borderRadius='8px'; p3.style.color='#cfe9ff'; p3.style.font='12px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans TC","PingFang TC",Arial';
+      p3.innerHTML = ''
+      + '<div class="group">'
+      + '  <h3 style="margin:0 0 6px;font-size:14px">森林生成（分佈／數量）</h3>'
+      + '  <div>半徑：<span id="s3v_radius"></span></div><input id="s3_radius" type="range" min="10" max="300" step="1" value="100">'
+      + '  <div>密度：<span id="s3v_density"></span></div><input id="s3_density" type="range" min="0.1" max="8" step="0.1" value="1.2">'
+      + '  <div>總數量：<span id="s3v_count"></span></div><input id="s3_count" type="range" min="1" max="600" step="1" value="120">'
+      + '  <div>最小間距(m)：<span id="s3v_sep"></span></div><input id="s3_sep" type="range" min="1" max="30" step="0.5" value="6">'
+      + '  <div>亂數種子：<span id="s3v_seed"></span></div><input id="s3_seed" type="text" placeholder="留空＝隨機">'
+      + '  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:8px">'
+      + '    <button id="s3_build">生成森林</button><button id="s3_clear">清除</button><button id="s3_fit">視角置中</button>'
+      + '  </div>'
+      + '  <p style="opacity:.8;margin-top:6px">每棵樹以場景二為基礎，參數 ±10% 變異；葉片長在分枝末端並帶綠色光暈。落葉請到場景四控制。</p>'
+      + '</div>';
+      document.body.appendChild(p3);
+    }
+    // Scene 4 panel
+    if(!byId('sceneFall')){
+      var p4 = document.createElement('div'); p4.id='sceneFall'; p4.style.display='none';
+      p4.style.position='fixed'; p4.style.top='60px'; p4.style.right='10px'; p4.style.maxWidth='380px'; p4.style.zIndex='1001';
+      p4.style.background='rgba(20,25,35,.85)'; p4.style.padding='10px'; p4.style.borderRadius='8px'; p4.style.color='#cfe9ff'; p4.style.font='12px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans TC","PingFang TC",Arial';
+      p4.innerHTML = '<div class="group"><h3 style="margin:0 0 6px;font-size:14px">場景四：環境／地形／落葉</h3><p>初始化中…</p></div>';
+      document.body.appendChild(p4);
+    }
+  }
+
+  function hookButtons(){
+    var btn3 = byId('btnScene3');
+    if(btn3){
+      btn3.textContent = '場景三：森林生成';
+      btn3.addEventListener('click', function(e){ e.preventDefault(); e.stopPropagation(); window.s3_prepare(true); }, true);
+    }
+    var btn4 = byId('btnScene4');
+    if(!btn4){
+      var bar = (btn3 && btn3.parentElement) ? btn3.parentElement : document.querySelector('.btns');
+      if(bar){
+        btn4 = document.createElement('button'); btn4.id='btnScene4'; btn4.textContent='場景四：環境／落葉'; bar.appendChild(btn4);
+      }
+    } else {
+      btn4.textContent='場景四：環境／落葉';
+    }
+    if(btn4){
+      btn4.addEventListener('click', function(e){ e.preventDefault(); e.stopPropagation(); window.s4_prepare(true); }, true);
+    }
+  }
+
+  function s3_baseTree(){
+    var tu = window.treeUI || {};
+    function gv(obj,k,d){ return (obj && obj[k] && obj[k].value!=null)? parseFloat(obj[k].value) : d; }
+    return { H:gv(tu,'treeH',8), R:gv(tu,'crownR',5), levels:Math.round(gv(tu,'levels',8)), spreadDeg:gv(tu,'spread',55), leanDeg:gv(tu,'lean',0), leafCount:Math.round(gv(tu,'leafCount',6000)) };
+  }
+  function s3_sync(){
+    if(!s3_inited) return;
+    var r=parseFloat(s3_ui.radius.value), area=Math.PI*r*r, dens=parseFloat(s3_ui.density.value);
+    if(s3_ui._last==='density'||s3_ui._last==='radius'){
+      s3_ui.count.value = String(Math.min(parseInt(s3_ui.count.max,10), Math.max(1, Math.floor(dens*(area/1000)))));
+    }
+    byId('s3v_radius').textContent = r+' m（面積≈'+(area/1000).toFixed(1)+'×10³㎡）';
+    byId('s3v_density').textContent = dens.toFixed(1)+' 棵/10³㎡';
+    byId('s3v_count').textContent = s3_ui.count.value;
+    byId('s3v_sep').textContent = s3_ui.sep.value+' m';
+    byId('s3v_seed').textContent = s3_ui.seed.value||'(隨機)';
+  }
+  function vary(x,p){ return x*(1+(Math.random()*2-1)*p); }
+  function buildTree(cfg){
+    var group=new THREE.Group();
+    var matTrunk=new THREE.MeshStandardMaterial({color:0x7a5a42, roughness:0.95});
+    var matBranch=new THREE.MeshStandardMaterial({color:0x6e5840, roughness:0.95});
+    var matLeaf=new THREE.MeshStandardMaterial({color:0xffffff, roughness:0.85, metalness:0.02, side:THREE.DoubleSide, vertexColors:true, emissive:new THREE.Color(0x178f42), emissiveIntensity:0.22});
+    var leafGeo=(window.leafMesh && window.leafMesh.geometry)? window.leafMesh.geometry : new THREE.PlaneGeometry(0.6,0.3,1,1);
+    var H=cfg.H, levels=(cfg.levels|0), spread=(cfg.spreadDeg||55)*Math.PI/180, lean=(cfg.leanDeg||0)*Math.PI/180;
+    var MAX=20000, LEN=0.75, RAD=0.72, CHILD=2, PRUNE=0.02, GAIN=0.008, J=0.05;
+    var segs=[], tips=[]; var base=new THREE.Vector3(0,0,0); var trunkDir=new THREE.Vector3(Math.sin(lean), Math.cos(lean), 0).normalize();
+    var trunkTop=base.clone().addScaledVector(trunkDir,H*0.7); var q=[{a:base,b:trunkTop,dir:trunkDir.clone(),len:H*0.5,r:0.12*H,lvl:1}];
+    while(q.length && segs.length<MAX){
+      var cur=q.shift(); segs.push({a:cur.a.clone(), b:cur.b.clone(), r:cur.r, isTrunk:cur.lvl===1});
+      if(cur.lvl>=levels){ tips.push({p:cur.b.clone(), dir:cur.dir.clone()}); continue; }
+      for(var c=0;c<CHILD;c++){
+        if(Math.random()<(PRUNE+GAIN*cur.lvl)) continue;
+        var angA=(c===0?-1:1)*(spread*(0.6+0.4*Math.random())), angY=Math.random()*Math.PI*2;
+        var tilt=new THREE.Vector3(Math.cos(angY)*Math.sin(angA), Math.cos(angA), Math.sin(angY)*Math.sin(angA));
+        var nd=cur.dir.clone().multiplyScalar(0.35).add(tilt.multiplyScalar(0.65)).normalize();
+        var nl=cur.len*(LEN+0.03*Math.random()); var nb=cur.b.clone().addScaledVector(nd,nl);
+        nb.x+=(Math.random()-0.5)*nl*J; nb.z+=(Math.random()-0.5)*nl*J; nb.y-=0.03*nl;
+        q.push({a:cur.b.clone(), b:nb.clone(), dir:nd, len:nl, r:cur.r*RAD, lvl:cur.lvl+1});
+      }
+    }
+    var cyls=new THREE.Group();
+    for(var i=0;i<segs.length;i++){
+      var s=segs[i]; var v=new THREE.Vector3().subVectors(s.b,s.a), len=v.length();
+      var geo=new THREE.CylinderGeometry(Math.max(0.009,s.r*0.6), Math.max(0.010,s.r*0.8), len, 10);
+      var m=new THREE.Mesh(geo, s.isTrunk?matTrunk:matBranch); m.castShadow=true; m.receiveShadow=true;
+      var qq=new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,1,0), v.clone().normalize());
+      m.setRotationFromQuaternion(qq); m.position.copy(s.a).addScaledVector(v,0.5); cyls.add(m);
+    }
+    group.add(cyls);
+
+    var total=Math.max(10, (cfg.leafCount|0)); var leaves=new THREE.InstancedMesh(leafGeo, matLeaf, total);
+    leaves.castShadow=true; leaves.receiveShadow=true; leaves.instanceColor=new THREE.InstancedBufferAttribute(new Float32Array(total*3),3,false);
+    var d=new THREE.Object3D();
+    for(var i2=0;i2<total;i2++){
+      var tip=tips[i2%tips.length]; var pos=tip.p.clone();
+      var side=new THREE.Vector3().crossVectors(tip.dir,new THREE.Vector3(0,1,0)).normalize();
+      var up=new THREE.Vector3().crossVectors(side,tip.dir).normalize();
+      pos.add(side.multiplyScalar((Math.random()*2-1)*0.25)).add(up.multiplyScalar((Math.random()*2-1)*0.18));
+      var matLook=new THREE.Matrix4().lookAt(new THREE.Vector3(0,0,0), tip.dir, up).invert(); d.rotation.setFromRotationMatrix(matLook);
+      var tlt=(Math.random()*2-1)*(20*Math.PI/180); d.rotation.x+=tlt*0.6; d.rotation.y+=tlt*0.8; d.rotation.z+=tlt*0.6;
+      d.scale.setScalar(0.8+Math.random()*0.4); d.position.copy(pos); d.updateMatrix(); leaves.setMatrixAt(i2,d.matrix);
+      var ccol=new THREE.Color().setHSL(0.30+0.05*Math.random(),0.78,0.50); leaves.setColorAt(i2,ccol);
+    }
+    leaves.instanceMatrix.needsUpdate=true; leaves.instanceColor.needsUpdate=true; group.add(leaves);
+    return {group:group, leaves:leaves, meta:{H:H, tips:tips.length}};
+  }
+  function s3_clear(){
+    if(s3_group){
+      scene.remove(s3_group);
+      s3_group.traverse(function(o){ if(o.geometry) o.geometry.dispose(); if(o.material&&o.material.dispose) o.material.dispose(); });
+      s3_group=null;
+    }
+    s3_forest.length=0;
+  }
+  function s3_fit(){
+    if(!s3_group) return;
+    var box=new THREE.Box3().setFromObject(s3_group); var size=new THREE.Vector3(); var center=new THREE.Vector3(); box.getSize(size); box.getCenter(center);
+    var radius=Math.max(size.x,size.y,size.z)*0.5||1; var fov= camera.fov*Math.PI/180; var dist=(radius/Math.tan(fov/2))*2.8;
+    var dir=new THREE.Vector3(1,0.5,1).normalize(); camera.position.copy(center).addScaledVector(dir,dist);
+    camera.near=Math.max(0.01,dist/1000); camera.far=dist*12+800; camera.updateProjectionMatrix(); if(window.controls){ controls.target.copy(center); controls.update(); }
+  }
+  function s3_build(){
+    s3_clear();
+    var r=parseFloat(byId('s3_radius').value), n=parseInt(byId('s3_count').value,10), sep=parseFloat(byId('s3_sep').value);
+    var seedStr=byId('s3_seed').value||String(Date.now()); var s=0; for(var i=0;i<seedStr.length;i++){ s=(s*131+seedStr.charCodeAt(i))>>>0; }
+    function rnd(){ s^=(s<<13); s^=(s>>>17); s^=(s<<5); return (s>>>0)/4294967296; }
+    s3_group=new THREE.Group(); scene.add(s3_group);
+    var base=s3_baseTree(), pts=[], tries=0;
+    while(pts.length<n && tries<n*7000){
+      tries++; var a=rnd()*Math.PI*2, rr=Math.sqrt(rnd())*r; var x=Math.cos(a)*rr, z=Math.sin(a)*rr;
+      var ok=true; for(var j=0;j<pts.length;j++){ var dx=pts[j].x-x, dz=pts[j].z-z; if(dx*dx+dz*dz<sep*sep){ ok=false; break; } } if(!ok) continue;
+      pts.push({x:x,z:z});
+    }
+    for(var k=0;k<pts.length;k++){
+      var cfg={ H:vary(base.H,0.10), R:vary(base.R,0.10), levels:Math.max(1,Math.round(vary(base.levels,0.10))), spreadDeg:vary(base.spreadDeg,0.10), leanDeg:vary(base.leanDeg,0.10), leafCount:Math.max(50,Math.round(vary(base.leafCount,0.10))) };
+      var t=buildTree(cfg); t.group.position.set(pts[k].x,0,pts[k].z); s3_group.add(t.group); s3_forest.push(t);
+    }
+    s3_sync(); safeLog('森林生成完成：'+s3_forest.length+' 棵'); s3_fit();
+  }
+  window.__forestRef = function(){ return {group:s3_group, list:s3_forest}; };
+
+  // ---------- Scene 4 environment ----------
+  function s4_ui_sync(){
+    s4_ui.v_time.textContent = Number(s4_ui.time.value).toFixed(2)+' h';
+    s4_ui.v_rate.textContent = s4_ui.rate.value+'×';
+    s4_ui.v_slope.textContent = s4_ui.slope.value; s4_ui.v_rough.textContent = s4_ui.rough.value;
+    s4_ui.v_ground.textContent = s4_ui.ground.value; s4_ui.v_rocks.textContent = s4_ui.rocks.value;
+    s4_ui.v_season.textContent = s4_ui.season.value+'×'; s4_ui.v_fall.textContent = s4_ui.fall.value+'×';
+    s4_ui.v_wind.textContent = s4_ui.wind.value; s4_ui.v_turb.textContent = s4_ui.turb.value;
+    s4_ui.v_regrow.textContent = s4_ui.regrow.value+'×'; s4_ui.v_max.textContent = s4_ui.max.value;
+  }
+  function nfade(t){ return t*t*(3-2*t); }
+  function s4_noise(x,y,z){
+    var xi=Math.floor(x), yi=Math.floor(y), zi=Math.floor(z);
+    var xf=x-xi, yf=y-yi, zf=z-zi;
+    function rnd(a,b,c){ var s=Math.sin(a*127.1+b*311.7+c*74.7)*43758.5453; return s-Math.floor(s); }
+    var n000=rnd(xi,yi,zi), n100=rnd(xi+1,yi,zi), n010=rnd(xi,yi+1,zi), n110=rnd(xi+1,yi+1,zi), n001=rnd(xi,yi,zi+1), n101=rnd(xi+1,yi,zi+1), n011=rnd(xi,yi+1,zi+1), n111=rnd(xi+1,yi+1,zi+1);
+    var u=nfade(xf), v=nfade(yf), w=nfade(zf);
+    var x00=n000*(1-u)+n100*u, x10=n010*(1-u)+n110*u, x01=n001*(1-u)+n101*u, x11=n011*(1-u)+n111*u;
+    var y0=x00*(1-v)+x10*v, y1=x01*(1-v)+x11*v; return y0*(1-w)+y1*w;
+  }
+  function s4_fbm(x,z,oct,g){ if(oct==null) oct=4; if(g==null) g=0.5; var a=1,s=0,n=0; for(var i=0;i<oct;i++){ n+=a*s4_noise(x,0,z); s+=a; a*=g; x*=2; z*=2; } return n/(s||1); }
+  function s4_h(x,z){ var slope=parseFloat(s4_ui.slope.value), rough=parseFloat(s4_ui.rough.value); return slope*(x/500) + s4_fbm(x*0.008,z*0.008,5,0.5)*22*rough; }
+  function s4_ground(x,y,z){
+    var mode=s4_ui.ground.value; var hN=THREE.MathUtils.clamp((y+30)/110,0,1);
+    var soil=new THREE.Color().setHSL(0.10,0.6,0.30+0.25*hN); var rock=new THREE.Color().setHSL(0.58,0.05,0.45-0.25*hN);
+    if(mode==='soil') return soil; if(mode==='rock') return rock; return soil.clone().lerp(rock, 0.5+0.5*(Math.sin((x+z)*0.008)));
+  }
+  function s4_buildTerrain(rebuild){
+    if(!rebuild && s4_terrain) return;
+    if(s4_terrain){ scene.remove(s4_terrain); if(s4_terrain.geometry) s4_terrain.geometry.dispose(); if(s4_terrain.material && s4_terrain.material.dispose) s4_terrain.material.dispose(); s4_terrain=null; }
+    if(s4_rocks){ scene.remove(s4_rocks); s4_rocks.traverse(function(o){ if(o.geometry) o.geometry.dispose(); if(o.material&&o.material.dispose) o.material.dispose(); }); s4_rocks=null; }
+    var size=1000, seg=220; var g=new THREE.PlaneGeometry(size,size,seg,seg); g.rotateX(-Math.PI/2);
+    var pos=g.attributes.position; var col=new Float32Array(pos.count*3);
+    for(var i=0;i<pos.count;i++){ var x=pos.getX(i), z=pos.getZ(i); var y=s4_h(x,z); pos.setY(i,y); var c=s4_ground(x,y,z); col[i*3]=c.r; col[i*3+1]=c.g; col[i*3+2]=c.b; }
+    g.setAttribute('color', new THREE.BufferAttribute(col,3)); g.computeVertexNormals();
+    s4_terrain=new THREE.Mesh(g,new THREE.MeshStandardMaterial({vertexColors:true, roughness:0.95})); s4_terrain.receiveShadow=true; scene.add(s4_terrain);
+    s4_rocks=new THREE.Group(); var d=parseFloat(s4_ui.rocks.value); if(d>0){ var m=new THREE.MeshStandardMaterial({color:0x8c8f92, roughness:0.95}); var geo=new THREE.IcosahedronGeometry(1,0); var N=Math.round(d*1400);
+      for(var i2=0;i2<N;i2++){ var x2=(Math.random()-0.5)*size*0.9, z2=(Math.random()-0.5)*size*0.9, y2=s4_h(x2,z2); var k2=new THREE.Mesh(geo,m); k2.castShadow=true; k2.receiveShadow=true; k2.scale.setScalar(0.4+Math.random()*2.6); k2.position.set(x2,y2,z2); k2.rotation.y=Math.random()*Math.PI*2; s4_rocks.add(k2); } }
+    scene.add(s4_rocks);
+  }
+  function s4_updateSun(){
+    var t=parseFloat(s4_ui.time.value), az=(t/24)*Math.PI*2, el=Math.sin((t-6)/12*Math.PI)*0.9, r=1400;
+    var x=Math.cos(az)*Math.cos(el)*r, y=Math.max(10,Math.sin(el)*r), z=Math.sin(az)*Math.cos(el)*r;
+    s4_sun.position.set(x,y,z); s4_sun.target.position.set(0,0,0); s4_sun.target.updateMatrixWorld();
+    if(s4_sunGroup) s4_sunGroup.position.copy(s4_sun.position);
+    var elN=Math.max(0,Math.sin(el)); s4_sun.intensity=0.15+1.25*elN;
+    if(s4_skyMat && s4_skyMat.uniforms && s4_skyMat.uniforms.night){ s4_skyMat.uniforms.night.value=1.0-THREE.MathUtils.smoothstep(elN,0.05,0.25); }
+    if(s4_stars && s4_skyMat && s4_skyMat.uniforms){ s4_stars.material.opacity = THREE.MathUtils.clamp(s4_skyMat.uniforms.night.value*1.2,0,1); }
+    if(s4_moon){
+      var maz=az+Math.PI*0.9, mel=-el*0.95, mr=1380;
+      s4_moon.position.set(Math.cos(maz)*Math.cos(mel)*mr, Math.max(5,Math.sin(mel)*mr), Math.sin(maz)*Math.cos(mel)*mr);
+      s4_moon.visible = (s4_skyMat && s4_skyMat.uniforms)? (s4_skyMat.uniforms.night.value>0.05) : true;
+    }
+  }
+  function s4_prepareSeason(){
+    var f = (window.__forestRef && window.__forestRef()) || null;
+    if(!f || !f.list || !f.list.length){ safeLog('尚未在場景三生成森林，請先建立'); return; }
+    s4_leafVel.length=f.list.length; s4_leafState.length=f.list.length; s4_leafPhase.length=f.list.length; s4_active.length=f.list.length;
+    for(var ti=0; ti<f.list.length; ti++){
+      var mesh=f.list[ti].leaves, n=mesh.count;
+      s4_leafVel[ti]=new Array(n); s4_leafState[ti]=new Uint8Array(n); s4_leafPhase[ti]=new Float32Array(n); s4_active[ti]=[];
+      for(var i=0;i<n;i++){ s4_leafVel[ti][i]=new THREE.Vector3(); s4_leafState[ti][i]=0; s4_leafPhase[ti][i]=0; }
+    }
+    s4_seasonClock=0; s4_windT=0;
+  }
+  function s4_resetSeason(){
+    var f = (window.__forestRef && window.__forestRef()) || null; if(!f || !f.list) return;
+    for(var ti=0; ti<f.list.length; ti++){
+      var mesh=f.list[ti].leaves, n=mesh.count; var dm=new THREE.Matrix4(), pos=new THREE.Vector3(), quat=new THREE.Quaternion(), scl=new THREE.Vector3();
+      for(var i=0;i<n;i++){ mesh.getMatrixAt(i,dm); dm.decompose(pos,quat,scl); pos.y=Math.max(pos.y,0.2); dm.compose(pos,quat,scl); mesh.setMatrixAt(i,dm);
+        s4_leafVel[ti][i].set(0,0,0); s4_leafState[ti][i]=0; s4_leafPhase[ti][i]=0; mesh.setColorAt(i, new THREE.Color().setHSL(0.31,0.78,0.50)); }
+      mesh.instanceMatrix.needsUpdate=true; if(mesh.instanceColor) mesh.instanceColor.needsUpdate=true; s4_active[ti].length=0;
+    }
+    s4_seasonClock=0; s4_running=false;
+  }
+  function s4_windAt(x,y,z){
+    var A=parseFloat(s4_ui.wind.value), T=parseFloat(s4_ui.turb.value);
+    var dir=(Math.sin(s4_windT*0.07)*15)*Math.PI/180; var bx=Math.cos(dir)*A, bz=Math.sin(dir)*A;
+    var n1=s4_noise((x*0.25)+s4_windT*0.8,0,(z*0.25)-s4_windT*0.6);
+    var n2=s4_noise((-x*0.2)+s4_windT*0.5,0,(y*0.25)+s4_windT*0.6);
+    return new THREE.Vector3(bx+T*(n1-0.5), 0.3*T*(n2-0.5), bz+T*(n2-0.5));
+  }
+  function s4_colorFor(ph){
+    if(ph<0.4){ var k=ph/0.4; return new THREE.Color().setHSL(0.31-0.03*k,0.78,0.50-0.05*k); }
+    if(ph<1.0){ var k2=(ph-0.4)/0.6; return new THREE.Color().setHSL(0.14+0.10*k2,0.85,0.55-0.12*k2); }
+    var k3=Math.min(1,(ph-1.0)/1.0); return new THREE.Color().setHSL(0.02+0.03*k3,0.75,0.45-0.15*k3);
+  }
+  function s4_step(){
+    if(!s4_ui.time) return;
+    s4_windT+=0.01; s4_seasonClock+=0.016*parseFloat(s4_ui.season.value);
+    if(s4_ui.anim && s4_ui.anim.checked){ s4_ui.time.value=String((parseFloat(s4_ui.time.value)+0.016*parseFloat(s4_ui.rate.value))%24); }
+    s4_updateSun();
+    if(!s4_running) return;
+    var f = (window.__forestRef && window.__forestRef()) || null; if(!f || !f.list) return;
+
+    var global=0; for(var gi=0;gi<s4_active.length;gi++){ global+=s4_active[gi].length; }
+    var budget=Math.max(0, parseInt(s4_ui.max.value,10)-global);
+    for(var ti=0; ti<f.list.length && budget>0; ti++){
+      var mesh=f.list[ti].leaves, n=mesh.count; var dm=new THREE.Matrix4(), pos=new THREE.Vector3(), quat=new THREE.Quaternion(), scl=new THREE.Vector3();
+      var tries=0, perTry=Math.min(120, 5 + (n*0.0008 + n*0.002*Math.min(1,s4_seasonClock/30))|0);
+      while(tries<perTry && budget>0){
+        tries++; var i=(Math.random()*n)|0; if(s4_leafState[ti][i]!==0) continue;
+        mesh.getMatrixAt(i,dm); dm.decompose(pos,quat,scl);
+        var age=Math.min(2,s4_seasonClock/35), windK=Math.min(1, parseFloat(s4_ui.wind.value)/10);
+        var p=(0.0004+0.0025*age)*(0.3+0.9*Math.min(1,pos.y/(f.list[ti].meta.H||8)))+0.001*windK;
+        if(Math.random()<p){ s4_leafState[ti][i]=1; s4_active[ti].push(i); budget--; var w=s4_windAt(pos.x,pos.y,pos.z); s4_leafVel[ti][i].set((Math.random()-0.5)*0.05+0.003*w.x,-0.02,(Math.random()-0.5)*0.05+0.003*w.z); }
+      }
+    }
+    for(var ti2=0; ti2<f.list.length; ti2++){
+      var mesh=f.list[ti2].leaves; var dm=new THREE.Matrix4(), pos=new THREE.Vector3(), quat=new THREE.Quaternion(), scl=new THREE.Vector3();
+      var n2=mesh.count;
+      for(var j=0;j<n2;j++){
+        if(s4_leafState[ti2][j]===0){
+          s4_leafPhase[ti2][j]=Math.min(2, s4_leafPhase[ti2][j]+0.0004*parseFloat(s4_ui.season.value));
+          mesh.setColorAt(j, s4_colorFor(s4_leafPhase[ti2][j]));
+        }
+      }
+      var act=s4_active[ti2];
+      for(var k=act.length-1;k>=0;k--){
+        var i2=act[k]; mesh.getMatrixAt(i2,dm); dm.decompose(pos,quat,scl);
+        s4_leafPhase[ti2][i2]=Math.min(2, s4_leafPhase[ti2][i2]+0.0010*parseFloat(s4_ui.season.value)); mesh.setColorAt(i2, s4_colorFor(s4_leafPhase[ti2][i2]));
+        var w=s4_windAt(pos.x,pos.y,pos.z).multiplyScalar(0.002*parseFloat(s4_ui.fall.value));
+        var L=((window.P && window.P.len)? window.P.len:10)/100, W=((window.P && window.P.len && window.P.width)? (window.P.len*window.P.width):5)/100, area=L*W, Cd=0.8*((window.P && window.P.curl)? (1+(window.P.curl)*1.5):1);
+        var v = s4_leafVel[ti2][i2];
+        v.y += (-0.0022*parseFloat(s4_ui.fall.value));
+        var v2=v.lengthSq(); var drag=v.clone().multiplyScalar(-Cd*area*Math.max(0.0,v2)); v.add(drag);
+        v.x += w.x - 0.002*v.x; v.z += w.z - 0.002*v.z; v.y += w.y*0.3 - 0.001*v.y;
+        pos.add(v);
+        var gy=s4_terrain? s4_h(pos.x,pos.z) : 0; if(pos.y<=gy){ pos.y=gy; v.set(0,0,0); s4_leafState[ti2][i2]=2; act[k]=act[act.length-1]; act.pop(); }
+        var dm2=new THREE.Matrix4(); dm2.compose(pos,quat,scl); mesh.setMatrixAt(i2,dm2);
+      }
+      mesh.instanceMatrix.needsUpdate=true; if(mesh.instanceColor) mesh.instanceColor.needsUpdate=true;
+    }
+  }
+  function s4_fit(){
+    var f = (window.__forestRef && window.__forestRef()) || null;
+    if(f && f.group){
+      var box=new THREE.Box3().setFromObject(f.group); var size=new THREE.Vector3(); var center=new THREE.Vector3(); box.getSize(size); box.getCenter(center);
+      var radius=Math.max(size.x,size.y,size.z)*0.5||1; var fov=camera.fov*Math.PI/180; var dist=(radius/Math.tan(fov/2))*3.2; var dir=new THREE.Vector3(1,0.4,1).normalize();
+      camera.position.copy(center).addScaledVector(dir,dist); camera.near=Math.max(0.01, dist/1000); camera.far=dist*12+800; camera.updateProjectionMatrix(); if(window.controls){ controls.target.copy(center); controls.update(); }
+    }
+  }
+
+  // Expose global APIs so external buttons can call them
+  window.s3_prepare = function(forceOpen){
+    ensurePanels();
+    if(!s3_inited){
+      s3_ui = {
+        radius: byId('s3_radius'), density: byId('s3_density'), count: byId('s3_count'),
+        sep: byId('s3_sep'), seed: byId('s3_seed'),
+        build: byId('s3_build'), clear: byId('s3_clear'), fit: byId('s3_fit'), _last:null
+      };
+      ['radius','density','count','sep','seed'].forEach(function(k){ s3_ui[k].addEventListener('input', function(){ s3_ui._last=k; s3_sync(); }); });
+      s3_ui.build.onclick=s3_build; s3_ui.clear.onclick=s3_clear; s3_ui.fit.onclick=s3_fit;
+      s3_inited=true; s3_sync();
+    }
+    if(forceOpen){
+      byId('sceneForest').style.display='block';
+      var p4=byId('sceneFall'); if(p4) p4.style.display='none';
+    }
+  };
+  window.s4_prepare = function(forceOpen){
+    ensurePanels();
+    var wrap=byId('sceneFall');
+    if(!s4_inited){
+      wrap.innerHTML=''
+      + '<div class="group">'
+      + '  <h3 style="margin:0 0 6px;font-size:14px">太陽／天空（含星空與月亮）</h3>'
+      + '  <div>時間：<span id="s4v_time"></span></div><input id="s4_time" type="range" min="0" max="24" step="0.05" value="10">'
+      + '  <div>時間加速：<span id="s4v_rate"></span></div><input id="s4_rate" type="range" min="0" max="20" step="0.5" value="2">'
+      + '  <label style="display:block;margin-top:4px"><input id="s4_anim" type="checkbox" checked> 太陽自動運行</label>'
+      + '</div>'
+      + '<div class="group" style="margin-top:8px">'
+      + '  <h3 style="margin:0 0 6px;font-size:14px">地形地貌</h3>'
+      + '  <div>坡度幅度：<span id="s4v_slope"></span></div><input id="s4_slope" type="range" min="0" max="0.6" step="0.01" value="0.2">'
+      + '  <div>粗糙度：<span id="s4v_rough"></span></div><input id="s4_rough" type="range" min="0.1" max="2.0" step="0.05" value="0.8">'
+      + '  <div>地貌樣式：<span id="s4v_ground"></span></div><select id="s4_ground"><option value="soil" selected>土壤</option><option value="rock">岩地</option><option value="mixed">混合</option></select>'
+      + '  <div>石塊密度：<span id="s4v_rocks"></span></div><input id="s4_rocks" type="range" min="0" max="1" step="0.02" value="0.2">'
+      + '  <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:6px;margin-top:6px"><button id="s4_fit">視角置中</button><button id="s4_terr">重建地形</button></div>'
+      + '</div>'
+      + '<div class="group" style="margin-top:8px">'
+      + '  <h3 style="margin:0 0 6px;font-size:14px">落葉</h3>'
+      + '  <div>季節推進：<span id="s4v_season"></span></div><input id="s4_season" type="range" min="0.1" max="4" step="0.1" value="1">'
+      + '  <div>落葉速度：<span id="s4v_fall"></span></div><input id="s4_fall" type="range" min="0.5" max="2" step="0.1" value="1">'
+      + '  <div>風強度：<span id="s4v_wind"></span></div><input id="s4_wind" type="range" min="0" max="10" step="0.1" value="3">'
+      + '  <div>亂流：<span id="s4v_turb"></span></div><input id="s4_turb" type="range" min="0" max="3" step="0.05" value="1.2">'
+      + '  <div>再長回速度：<span id="s4v_regrow"></span></div><input id="s4_regrow" type="range" min="0.1" max="3" step="0.1" value="1">'
+      + '  <div>同時模擬上限：<span id="s4v_max"></span></div><input id="s4_max" type="range" min="200" max="8000" step="100" value="2000">'
+      + '  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:6px"><button id="s4_start">開始落葉</button><button id="s4_stop">停止</button><button id="s4_reset">重置季節</button></div>'
+      + '</div>';
+      function g(id){ return byId(id); }
+      s4_ui={
+        time:g('s4_time'), rate:g('s4_rate'), anim:g('s4_anim'),
+        slope:g('s4_slope'), rough:g('s4_rough'), ground:g('s4_ground'), rocks:g('s4_rocks'),
+        season:g('s4_season'), fall:g('s4_fall'), wind:g('s4_wind'), turb:g('s4_turb'), regrow:g('s4_regrow'), max:g('s4_max'),
+        fit:g('s4_fit'), terr:g('s4_terr'), start:g('s4_start'), stop:g('s4_stop'), reset:g('s4_reset'),
+        v_time:g('s4v_time'), v_rate:g('s4v_rate'), v_slope:g('s4v_slope'), v_rough:g('s4v_rough'), v_ground:g('s4v_ground'), v_rocks:g('s4v_rocks'),
+        v_season:g('s4v_season'), v_fall:g('s4v_fall'), v_wind:g('s4v_wind'), v_turb:g('s4v_turb'), v_regrow:g('s4v_regrow'), v_max:g('s4v_max')
+      };
+      ['time','rate','slope','rough','ground','rocks','season','fall','wind','turb','regrow','max'].forEach(function(k){
+        s4_ui[k].addEventListener('input', s4_ui_sync);
+      });
+      s4_ui.fit.onclick=function(){ s4_fit(); };
+      s4_ui.terr.onclick=function(){ s4_buildTerrain(true); };
+      s4_ui.start.onclick=function(){ if(!s4_terrain) s4_buildTerrain(true); s4_prepareSeason(); s4_running=true; };
+      s4_ui.stop.onclick=function(){ s4_running=false; };
+      s4_ui.reset.onclick=function(){ s4_resetSeason(); };
+      s4_ui_sync();
+      s4_installEnvironment();
+    }
+    if(forceOpen){
+      var p3=byId('sceneForest'); if(p3) p3.style.display='none';
+      wrap.style.display='block';
+    }
+  };
+
+  function s4_installEnvironment(){
+    if (renderer && renderer.shadowMap && !renderer.shadowMap.enabled){ renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap; }
+    s4_sun=new THREE.DirectionalLight(0xffffff,1.2); s4_sun.castShadow=true; s4_sun.position.set(60,120,0);
+    s4_sun.shadow.mapSize.set(2048,2048);
+    s4_sun.shadow.camera.near=1; s4_sun.shadow.camera.far=4000;
+    s4_sun.shadow.camera.left=-1200; s4_sun.shadow.camera.right=1200; s4_sun.shadow.camera.top=1200; s4_sun.shadow.camera.bottom=-1200;
+    scene.add(s4_sun); scene.add(s4_sun.target);
+    s4_sunGroup=new THREE.Group(); scene.add(s4_sunGroup);
+    var sunDisk=new THREE.Mesh(new THREE.SphereGeometry(3,32,32), new THREE.MeshBasicMaterial({color:0xfff2a8})); s4_sunGroup.add(sunDisk);
+    var c=document.createElement('canvas'); c.width=c.height=256; var g=c.getContext('2d'); var r=128;
+    var grd=g.createRadialGradient(r,r,0,r,r,r); grd.addColorStop(0,'rgba(255,250,170,1)'); grd.addColorStop(0.4,'rgba(255,220,120,0.55)'); grd.addColorStop(1,'rgba(255,180,80,0)'); g.fillStyle=grd; g.fillRect(0,0,256,256);
+    var t=new THREE.CanvasTexture(c); if(THREE.SRGBColorSpace) t.colorSpace=THREE.SRGBColorSpace;
+    var glow=new THREE.Sprite(new THREE.SpriteMaterial({map:t, transparent:true, depthWrite:false})); glow.scale.set(50,50,50); s4_sunGroup.add(glow);
+    var skyGeo=new THREE.SphereGeometry(30000,32,16);
+    s4_skyMat=new THREE.ShaderMaterial({side:THREE.BackSide, depthWrite:false, uniforms:{
+      topColor:{value:new THREE.Color(0x13346b)}, midColor:{value:new THREE.Color(0x3a6ea8)}, bottomColor:{value:new THREE.Color(0x8ec5ff)},
+      mixH:{value:0.35}, horizonSoft:{value:0.65}, night:{value:0.0}
+    },
+    vertexShader:'varying vec3 vW; void main(){ vW=(modelMatrix*vec4(position,1.)).xyz; gl_Position=projectionMatrix*viewMatrix*vec4(vW,1.); }',
+    fragmentShader:'varying vec3 vW; uniform vec3 topColor,midColor,bottomColor; uniform float mixH,horizonSoft,night;'
+     +'void main(){ vec3 n=normalize(vW); float h=clamp(n.y*0.5+0.5,0.,1.);'
+     +'vec3 dt=topColor, dm=midColor, db=bottomColor; vec3 nt=vec3(0.02,0.03,0.07), nm=vec3(0.04,0.06,0.12), nb=vec3(0.03,0.04,0.09);'
+     +'vec3 tTop=mix(nt,dt,1.-night), tMid=mix(nm,dm,1.-night), tBot=mix(nb,db,1.-night);'
+     +'vec3 col=mix(tTop,mix(tMid,tBot,smoothstep(mixH-0.1,mixH+0.1,h)), smoothstep(0.,1.,h)); gl_FragColor=vec4(col,1.); }'
+    });
+    s4_sky=new THREE.Mesh(skyGeo,s4_skyMat); scene.add(s4_sky);
+    var starGeo=new THREE.BufferGeometry(); var N=4000; var pos=new Float32Array(N*3);
+    for(var i=0;i<N;i++){ var u=Math.random()*2*Math.PI, v=Math.acos(2*Math.random()-1), R=28000; pos[i*3]=R*Math.sin(v)*Math.cos(u); pos[i*3+1]=R*Math.cos(v); pos[i*3+2]=R*Math.sin(v)*Math.sin(u); }
+    starGeo.setAttribute('position', new THREE.BufferAttribute(pos,3));
+    var starMat=new THREE.PointsMaterial({size:6, sizeAttenuation:true, color:0xffffff, transparent:true, opacity:0});
+    s4_stars=new THREE.Points(starGeo,starMat); scene.add(s4_stars);
+    s4_moon=new THREE.Mesh(new THREE.SphereGeometry(2.6,32,32), new THREE.MeshStandardMaterial({color:0xf4f2ea, roughness:0.9})); scene.add(s4_moon);
+    s4_buildTerrain(true);
+    (function loop(){ try{s4_step();}catch(e){} requestAnimationFrame(loop); })();
+  }
+
+  function install(){ ensurePanels(); hookButtons(); safeLog('v0.15e installed'); }
+
+  ready(function(){ waitWorld(install); });
+})();
+</script>
+
+<!-- v0.15f UI dock & panel fixes -->
+<style>
+  .ui-dock-mini{position:fixed; top:10px; left:10px; z-index:20000; display:flex; gap:6px}
+  .ui-dock-mini button{padding:6px 10px; border-radius:8px; border:1px solid rgba(255,255,255,.2); background:rgba(25,35,55,.8); color:#cfe9ff; cursor:pointer}
+  #sceneForest, #sceneFall{max-height:80vh; overflow:auto; z-index:20000}
+</style>
+<script>
+(function(){
+  function byId(id){ return document.getElementById(id); }
+  function ensureDock(){
+    var dock = document.querySelector('.ui-dock-mini');
+    if(!dock){
+      dock = document.createElement('div');
+      dock.className='ui-dock-mini';
+      var b3=document.createElement('button'); b3.id='dock_scene3'; b3.textContent='場景三：森林生成';
+      var b4=document.createElement('button'); b4.id='dock_scene4'; b4.textContent='場景四：環境／落葉';
+      dock.appendChild(b3); dock.appendChild(b4);
+      document.body.appendChild(dock);
+      b3.onclick=function(){ if(window.s3_prepare) window.s3_prepare(true); };
+      b4.onclick=function(){ if(window.s4_prepare) window.s4_prepare(true); };
+    }
+  }
+  function addSwitchButtons(){
+    var p3 = byId('sceneForest'); if(p3 && !byId('s3_to_s4')){
+      var wrap=document.createElement('div'); wrap.style.marginTop='8px'; wrap.style.display='flex'; wrap.style.justifyContent='flex-end';
+      var btn=document.createElement('button'); btn.id='s3_to_s4'; btn.textContent='→ 前往場景四'; btn.style.padding='6px 10px'; btn.style.borderRadius='8px';
+      p3.appendChild(wrap); wrap.appendChild(btn);
+      btn.onclick=function(e){ e.preventDefault(); e.stopPropagation(); if(window.s4_prepare) window.s4_prepare(true); };
+    }
+    var p4 = byId('sceneFall'); if(p4 && !byId('s4_to_s3')){
+      var wrap2=document.createElement('div'); wrap2.style.marginTop='8px'; wrap2.style.display='flex'; wrap2.style.justifyContent='space-between';
+      var btn2=document.createElement('button'); btn2.id='s4_to_s3'; btn2.textContent='← 回到場景三'; btn2.style.padding='6px 10px'; btn2.style.borderRadius='8px';
+      p4.appendChild(wrap2); wrap2.appendChild(btn2);
+      btn2.onclick=function(e){ e.preventDefault(); e.stopPropagation(); if(window.s3_prepare) window.s3_prepare(true); };
+    }
+  }
+  function hotkeys(e){
+    if(e.altKey && e.key==='3'){ if(window.s3_prepare) window.s3_prepare(true); }
+    if(e.altKey && e.key==='4'){ if(window.s4_prepare) window.s4_prepare(true); }
+    if(e.key==='Escape'){
+      var p3=byId('sceneForest'), p4=byId('sceneFall');
+      if(p3) p3.style.display='none'; if(p4) p4.style.display='none';
+    }
+  }
+  function init(){
+    ensureDock();
+    addSwitchButtons();
+    document.addEventListener('keydown', hotkeys);
+    // Re-run when our addon APIs get installed
+    setTimeout(addSwitchButtons, 800);
+    setTimeout(addSwitchButtons, 1600);
+  }
+  if(document.readyState==='loading'){ document.addEventListener('DOMContentLoaded', init, {once:true}); } else { init(); }
+})();
+</script>
+
+<!-- v1.16 UI/Env upgrade -->
+<style>
+  /* Hide previous mini dock entirely */
+  .ui-dock-mini{ display:none !important; }
+  /* Shell with slide-in/out and a tiny triangle handle */
+  #panelShell{ position:fixed; top:56px; right:0; z-index:20000;
+    width:400px; max-width:85vw; background:rgba(18,22,32,.9); color:#cfe9ff;
+    border-radius:8px 0 0 8px; box-shadow:0 6px 24px rgba(0,0,0,.35); overflow:hidden;
+    transform:translateX(0); transition:transform .22s ease; }
+  #panelShell.hidden{ transform:translateX(calc(100% - 16px)); }
+  #panelHandle{ position:fixed; top:120px; right:0; z-index:20001; width:18px; height:32px;
+    background:rgba(18,22,32,.95); color:#cfe9ff; display:flex; align-items:center; justify-content:center;
+    border-radius:6px 0 0 6px; cursor:pointer; user-select:none; font-size:12px; line-height:1; }
+  #panelTabs{ display:flex; gap:6px; padding:8px; border-bottom:1px solid rgba(255,255,255,.08); }
+  #panelTabs button{ flex:1; padding:6px 8px; border-radius:6px; border:1px solid rgba(255,255,255,.18);
+    background:rgba(26,36,56,.85); color:#cfe9ff; cursor:pointer; }
+  #panelBody{ max-height:76vh; overflow:auto; padding:8px; }
+  /* Ensure our scene panels fit the shell body */
+  #panelBody > #sceneForest, #panelBody > #sceneFall{ position:relative !important; top:0 !important; right:auto !important;
+    max-width:unset !important; background:transparent !important; padding:0 !important; border-radius:0 !important; }
+  #sceneForest .group, #sceneFall .group{ background:rgba(24,28,40,.66); padding:8px; border-radius:8px; margin-bottom:8px; }
+  /* Sliders */
+  #sceneForest input[type=range], #sceneFall input[type=range]{ width:100%; }
+</style>
+<script>
+(function(){
+  function byId(id){ return document.getElementById(id); }
+  function ensureShell(){
+    var shell = byId('panelShell');
+    if(!shell){
+      shell = document.createElement('div'); shell.id='panelShell';
+      shell.innerHTML='<div id="panelTabs">'
+        +'<button id="tabS1">場景一</button>'
+        +'<button id="tabS2">場景二</button>'
+        +'<button id="tabS3">場景三</button>'
+        +'<button id="tabS4">場景四</button>'
+        +'</div><div id="panelBody"></div>';
+      document.body.appendChild(shell);
+      var handle = document.createElement('div'); handle.id='panelHandle'; handle.textContent='◀'; document.body.appendChild(handle);
+      function setHidden(h){
+        if(h){ shell.classList.add('hidden'); handle.textContent='▶'; }
+        else { shell.classList.remove('hidden'); handle.textContent='◀'; }
+      }
+      handle.onclick=function(){ setHidden(!shell.classList.contains('hidden')); };
+      // Tab wiring
+      byId('tabS1').onclick=function(){ try{ document.dispatchEvent(new CustomEvent('openScene1Panel')); }catch(e){} };
+      byId('tabS2').onclick=function(){ try{ document.dispatchEvent(new CustomEvent('openScene2Panel')); }catch(e){} };
+      byId('tabS3').onclick=function(){ if(window.s3_prepare) window.s3_prepare(true); };
+      byId('tabS4').onclick=function(){ if(window.s4_prepare) window.s4_prepare(true); };
+      // Expose to others
+      window.__panelShell = {setHidden:setHidden, el:shell, body:byId('panelBody')};
+    }
+    return shell;
+  }
+  function mountPanel(el){
+    ensureShell();
+    var body = byId('panelBody');
+    if(!el.parentElement || el.parentElement.id!=='panelBody'){
+      body.appendChild(el);
+    }
+    // Hide others
+    var kids = body.children;
+    for(var i=0;i<kids.length;i++){
+      kids[i].style.display = (kids[i]===el)? 'block':'none';
+    }
+    // Always open shell when switching
+    if(window.__panelShell){ window.__panelShell.setHidden(false); }
+  }
+  // Hook our prepare functions (if already defined) to mount into shell
+  function hook(){
+    var oldS3 = window.s3_prepare;
+    window.s3_prepare = function(forceOpen){
+      if(oldS3) oldS3(forceOpen);
+      var el = byId('sceneForest'); if(el){ mountPanel(el); }
+    };
+    var oldS4 = window.s4_prepare;
+    window.s4_prepare = function(forceOpen){
+      if(oldS4) oldS4(forceOpen);
+      var el = byId('sceneFall'); if(el){ mountPanel(el); }
+    };
+  }
+  // Strengthen atmospheric colors & soil darkness; expand fall speed to 10x
+  function strengthenEnv(){
+    // Expand fall speed UI max to 10
+    var f = byId('s4_fall'); if(f){ f.max='10'; var label=byId('s4v_fall'); if(label) label.textContent = f.value+'×（最高 10×）'; }
+    // Deepen soil by overriding s4_ground if present
+    if(typeof s4_ground === 'function'){
+      window.s4_ground = function(x,y,z){
+        var mode=s4_ui.ground.value;
+        var hN=THREE.MathUtils.clamp((y+30)/110,0,1);
+        var soil=new THREE.Color().setHSL(0.10, 0.70, 0.20+0.18*hN); // darker, more saturated
+        var rock=new THREE.Color().setHSL(0.58, 0.08, 0.35-0.20*hN);
+        if(mode==='soil') return soil;
+        if(mode==='rock') return rock;
+        return soil.clone().lerp(rock, 0.45+0.45*(Math.sin((x+z)*0.008)));
+      };
+    }
+    // Replace sky shader to respond strongly to sun elevation (simple Rayleigh/Mie tint)
+    if (window.s4_skyMat && s4_skyMat.uniforms){
+      // add new uniforms
+      s4_skyMat.uniforms.sunN = {value: 0.8};
+      s4_skyMat.uniforms.tRay = {value: new THREE.Color(0.45,0.70,1.0)};
+      s4_skyMat.uniforms.tMie = {value: new THREE.Color(1.0,0.55,0.1)};
+      s4_skyMat.fragmentShader = `
+        varying vec3 vW;
+        uniform vec3 topColor,midColor,bottomColor;
+        uniform float mixH,horizonSoft,night;
+        uniform float sunN;
+        uniform vec3 tRay; // bluish
+        uniform vec3 tMie; // warm
+        void main(){
+          vec3 n = normalize(vW);
+          float h = clamp(n.y*0.5+0.5,0.,1.);
+          // Base gradient
+          vec3 nt=vec3(0.02,0.03,0.07), nm=vec3(0.04,0.06,0.12), nb=vec3(0.03,0.04,0.09);
+          vec3 dt=topColor, dm=midColor, db=bottomColor;
+          vec3 gTop=mix(nt,dt,1.-night);
+          vec3 gMid=mix(nm,dm,1.-night);
+          vec3 gBot=mix(nb,db,1.-night);
+          vec3 base = mix(gTop, mix(gMid,gBot,smoothstep(mixH-0.1,mixH+0.1,h)), smoothstep(0.,1.,h));
+          // Simple scattering blend: more Rayleigh when sun high, more Mie when sun low
+          float k = clamp(sunN, 0.0, 1.0); // sun elevation [0..1]
+          vec3 scatter = mix(tMie, tRay, k); // dusk->dawn
+          vec3 col = mix(base, base * scatter, 0.35*(1.0-night));
+          gl_FragColor = vec4(col,1.0);
+        }
+      `;
+      s4_skyMat.needsUpdate = true;
+      // Patch updateSun to feed sunN & strengthen stars at night; ensure shadows are on
+      var oldUpd = window.s4_updateSun;
+      window.s4_updateSun = function(){
+        oldUpd && oldUpd();
+        // recompute elevation -> sunN
+        var t=parseFloat(s4_ui.time.value), el=Math.sin((t-6)/12*Math.PI)*0.9;
+        var elN=Math.max(0.0, Math.sin(el));
+        if (s4_skyMat && s4_skyMat.uniforms && s4_skyMat.uniforms.sunN){
+          s4_skyMat.uniforms.sunN.value = elN;
+        }
+      };
+    }
+    // Ensure tree meshes cast shadow & terrain receives it
+    try{
+      if (renderer && renderer.shadowMap){ renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap; }
+      var fr = (window.__forestRef && window.__forestRef()) || null;
+      if(fr && fr.group){
+        fr.group.traverse(function(o){
+          if(o.isMesh){ o.castShadow = true; o.receiveShadow = o.receiveShadow || (o.material && !o.material.transparent); }
+        });
+      }
+      if(window.s4_terrain){ s4_terrain.receiveShadow = true; }
+    }catch(e){}
+  }
+
+  function init(){
+    ensureShell();
+    // If our addons already installed, re-hook them into the shell
+    if(window.s3_prepare) window.s3_prepare = (function(prev){ return function(forceOpen){ prev && prev(forceOpen); var el=byId('sceneForest'); if(el){ mountPanel(el);} }; })(window.s3_prepare);
+    if(window.s4_prepare) window.s4_prepare = (function(prev){ return function(forceOpen){ prev && prev(forceOpen); var el=byId('sceneFall'); if(el){ mountPanel(el);} }; })(window.s4_prepare);
+    // When scene 4 loads the UI, strengthen env
+    var once=false;
+    var tick=setInterval(function(){
+      if(!once && window.s4_ui && byId('s4_fall')){ strengthenEnv(); once=true; clearInterval(tick); }
+    }, 120);
+    // Auto-collapse earlier panel when switching
+    document.addEventListener('click', function(e){
+      var id = (e.target && e.target.id) || '';
+      if(id==='btnScene3' && window.__panelShell){ window.__panelShell.setHidden(false); }
+      if(id==='btnScene4' && window.__panelShell){ window.__panelShell.setHidden(false); }
+    }, true);
+  }
+  if(document.readyState==='loading'){ document.addEventListener('DOMContentLoaded', init, {once:true}); } else { init(); }
+})();
+</script>
+</body>
+</html>
