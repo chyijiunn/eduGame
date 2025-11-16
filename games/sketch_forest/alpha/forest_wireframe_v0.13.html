@@ -1,0 +1,1251 @@
+
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no" />
+  <title>3D 線稿森林 v0.13</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #000;
+      color: #fff;
+      font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,"Noto Sans","PingFang TC","Microsoft JhengHei",sans-serif;
+      touch-action: none;
+    }
+    #container {
+      position: fixed;
+      inset: 0;
+    }
+    #info {
+      position: fixed;
+      top: 8px;
+      left: 8px;
+      padding: 4px 8px;
+      background: rgba(0,0,0,0.5);
+      font-size: 12px;
+      border-radius: 4px;
+      pointer-events: none;
+    }
+    #minimap {
+      position: fixed;
+      left: 8px;
+      bottom: 8px;
+      width: 140px;
+      height: 140px;
+      border-radius: 8px;
+      background: rgba(10,10,20,0.9);
+      border: 1px solid rgba(255,255,255,0.2);
+      box-shadow: 0 0 8px rgba(0,0,0,0.8);
+      z-index: 5;
+    }
+    #minimap canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+    #touchHint {
+      position: fixed;
+      right: 8px;
+      bottom: 8px;
+      padding: 4px 8px;
+      background: rgba(0,0,0,0.4);
+      font-size: 11px;
+      border-radius: 4px;
+      max-width: 40vw;
+      z-index: 5;
+    }
+    @media (min-width: 900px) {
+      #touchHint { display: none; }
+    }
+    #crosshair {
+      position: fixed;
+      left: 50%;
+      top: 50%;
+      width: 18px;
+      height: 18px;
+      margin-left: -9px;
+      margin-top: -9px;
+      pointer-events: none;
+      opacity: 0.65;
+      z-index: 6;
+    }
+    #crosshair:before,
+    #crosshair:after {
+      content: "";
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(255,255,255,0.9);
+    }
+    #crosshair:before {
+      width: 1px;
+      height: 14px;
+    }
+    #crosshair:after {
+      width: 14px;
+      height: 1px;
+    }
+    #joystick {
+      position: fixed;
+      left: 10px;
+      bottom: 10px;
+      width: 120px;
+      height: 120px;
+      z-index: 10;
+      display: none;
+      touch-action: none;
+    }
+    #joy-base {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 90px;
+      height: 90px;
+      margin-left: -45px;
+      margin-top: -45px;
+      border-radius: 50%;
+      border: 2px solid rgba(255,255,255,0.35);
+      background: radial-gradient(circle, rgba(255,255,255,0.08) 0, rgba(0,0,0,0.4) 60%, rgba(0,0,0,0.8) 100%);
+    }
+    #joy-knob {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 46px;
+      height: 46px;
+      margin-left: -23px;
+      margin-top: -23px;
+      border-radius: 50%;
+      border: 2px solid rgba(255,255,255,0.8);
+      background: radial-gradient(circle, rgba(255,255,255,0.9) 0, rgba(255,255,255,0.2) 40%, rgba(0,0,0,0.2) 100%);
+      box-shadow: 0 0 10px rgba(0,0,0,0.8);
+    }
+  </style>
+</head>
+<body>
+  <div id="container"></div>
+  <div id="info">
+    3D 線稿森林 v0.13<br/>
+    滑鼠移動：視角　W：前進　S：後退　A/D：側移　滾輪 / 兩指：縮放
+  </div>
+  <div id="minimap"><canvas></canvas></div>
+  <div id="touchHint">行動裝置：左下搖桿移動｜單指拖曳旋轉視角｜雙指縮放視角</div>
+  <div id="crosshair"></div>
+  <div id="joystick">
+    <div id="joy-base"></div>
+    <div id="joy-knob"></div>
+  </div>
+
+  <script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
+  <script>
+  (() => {
+    const container = document.getElementById('container');
+    const miniWrap = document.getElementById('minimap');
+    const miniCanvas = miniWrap.querySelector('canvas');
+    const miniCtx = miniCanvas.getContext('2d');
+    const joystick = document.getElementById('joystick');
+    const joyBase = document.getElementById('joy-base');
+    const joyKnob = document.getElementById('joy-knob');
+
+    let width = window.innerWidth;
+    let height = window.innerHeight;
+
+    // 判斷是否為行動裝置（手機/平板）
+    const isMobile = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+    if (isMobile) {
+      joystick.style.display = 'block';
+    }
+
+    // THREE 基本設定
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setPixelRatio(window.devicePixelRatio || 1);
+    renderer.setSize(width, height);
+    renderer.setClearColor(0x000000, 1);
+    container.appendChild(renderer.domElement);
+
+    const scene = new THREE.Scene();
+
+    const camera = new THREE.PerspectiveCamera(60, width / height, 0.1, 1500);
+    camera.position.set(0, 5, 20);
+
+    // 用一個 holder 來做視角晃動 + 位置
+    const cameraHolder = new THREE.Object3D();
+    cameraHolder.position.set(0, 3, 0);
+    cameraHolder.add(camera);
+    scene.add(cameraHolder);
+
+    // 地面線框
+    const gridSize = 400;
+    const gridDivisions = 40;
+    const gridHelper = new THREE.GridHelper(gridSize, gridDivisions, 0x333333, 0x111111);
+    gridHelper.material.transparent = true;
+    gridHelper.material.opacity = 0.7;
+    scene.add(gridHelper);
+
+    // 簡單霧化讓遠方淡出
+    scene.fog = new THREE.FogExp2(0x000000, 0.002);
+
+    // 樹的生成（多種樹型）
+    const trees = [];
+    const treePositions = [];
+    const treeCount = 260;
+    const forestRadius = 180;
+
+    // 共用幾種幾何
+    const trunkThinGeo   = new THREE.CylinderGeometry(0.25, 0.35, 5, 8);
+    const trunkThickGeo  = new THREE.CylinderGeometry(0.5, 0.7, 6, 8);
+    const trunkTallGeo   = new THREE.CylinderGeometry(0.3, 0.4, 8, 6);
+    const crownConeGeo   = new THREE.ConeGeometry(2, 5, 10);
+    const crownWideConeGeo = new THREE.ConeGeometry(3, 4, 12);
+    const crownSphereGeo = new THREE.SphereGeometry(2.2, 10, 8);
+    const crownSmallSphereGeo = new THREE.SphereGeometry(1.4, 10, 8);
+    const crownBoxGeo    = new THREE.BoxGeometry(3, 3, 3);
+    const bushGeo        = new THREE.SphereGeometry(1.3, 8, 6);
+
+    // 果實幾何與材質
+    const fruitGeo = new THREE.SphereGeometry(0.3, 8, 8);
+    const fruitMaterial = new THREE.MeshBasicMaterial({
+      color: 0x99ffee,
+      wireframe: true,
+      transparent: true,
+      opacity: 0.55
+    });
+    const fruits = [];
+
+    function createWireMaterial(colorHex) {
+      return new THREE.MeshBasicMaterial({
+        color: colorHex,
+        wireframe: true
+      });
+    }
+
+    function createTreeVariant(typeIndex) {
+      const group = new THREE.Group();
+      const trunkMats = [];
+      const crownMats = [];
+      const baseY = 0;
+
+      switch (typeIndex) {
+        // 0 - 單層針葉樹
+        case 0: {
+          const trunkMat = createWireMaterial(0x227744);
+          const crownMat = createWireMaterial(0x55ff99);
+          const trunk = new THREE.Mesh(trunkThinGeo, trunkMat);
+          trunk.position.y = baseY + 3;
+          trunk.scale.y = 1 + Math.random() * 0.8;
+
+          const crown = new THREE.Mesh(crownConeGeo, crownMat);
+          crown.position.y = trunk.position.y + 3.5;
+          crown.scale.y = 0.9 + Math.random() * 0.6;
+
+          group.add(trunk, crown);
+          trunkMats.push(trunkMat);
+          crownMats.push(crownMat);
+        } break;
+
+        // 1 - 多層針葉樹（聖誕樹型）
+        case 1: {
+          const trunkMat = createWireMaterial(0x227744);
+          const crownMat = createWireMaterial(0x66ffcc);
+          const trunk = new THREE.Mesh(trunkTallGeo, trunkMat);
+          trunk.position.y = baseY + 4;
+          trunk.scale.y = 1.2 + Math.random() * 0.8;
+          group.add(trunk);
+          trunkMats.push(trunkMat);
+
+          const levels = 3 + Math.floor(Math.random() * 2);
+          for (let i = 0; i < levels; i++) {
+            const crown = new THREE.Mesh(crownWideConeGeo, crownMat);
+            crown.position.y = trunk.position.y + 1.5 + i * 1.8;
+            const scale = 1.2 - i * 0.2;
+            crown.scale.set(scale, scale, scale);
+            group.add(crown);
+            crownMats.push(crownMat);
+          }
+        } break;
+
+        // 2 - 圓冠闊葉樹
+        case 2: {
+          const trunkMat = createWireMaterial(0x885533);
+          const crownMat = createWireMaterial(0x88ff88);
+          const trunk = new THREE.Mesh(trunkThickGeo, trunkMat);
+          trunk.position.y = baseY + 3;
+          trunk.scale.y = 1 + Math.random() * 0.6;
+          group.add(trunk);
+          trunkMats.push(trunkMat);
+
+          const crown = new THREE.Mesh(crownSphereGeo, crownMat);
+          crown.position.y = trunk.position.y + 3.5;
+          crown.scale.set(1 + Math.random() * 0.5, 1 + Math.random() * 0.5, 1 + Math.random() * 0.5);
+          group.add(crown);
+          crownMats.push(crownMat);
+
+          // 側邊多幾個小球當側枝
+          for (let i = 0; i < 2; i++) {
+            const side = new THREE.Mesh(crownSmallSphereGeo, crownMat);
+            const angle = Math.random() * Math.PI * 2;
+            const r = 2 + Math.random() * 1;
+            side.position.set(
+              crown.position.x + Math.cos(angle) * r,
+              crown.position.y - 0.4 + (Math.random() - 0.5),
+              crown.position.z + Math.sin(angle) * r
+            );
+            group.add(side);
+            crownMats.push(crownMat);
+          }
+        } break;
+
+        // 3 - 方塊（像素）樹
+        case 3: {
+          const trunkMat = createWireMaterial(0x996633);
+          const crownMat = createWireMaterial(0x66ff88);
+          const trunk = new THREE.Mesh(trunkThinGeo, trunkMat);
+          trunk.position.y = baseY + 2.8;
+          trunk.scale.y = 0.9 + Math.random() * 0.5;
+          group.add(trunk);
+          trunkMats.push(trunkMat);
+
+          const crown = new THREE.Mesh(crownBoxGeo, crownMat);
+          crown.position.y = trunk.position.y + 3;
+          crown.scale.set(1.3 + Math.random() * 0.6, 1.2 + Math.random() * 0.4, 1.3 + Math.random() * 0.6);
+          group.add(crown);
+          crownMats.push(crownMat);
+        } break;
+
+        // 4 - 矮灌木 / 叢林樹
+        default: {
+          const trunkMat = createWireMaterial(0x335533);
+          const crownMat = createWireMaterial(0x77ffbb);
+          const trunk = new THREE.Mesh(trunkThinGeo, trunkMat);
+          trunk.position.y = baseY + 1.8;
+          trunk.scale.y = 0.6 + Math.random() * 0.4;
+          group.add(trunk);
+          trunkMats.push(trunkMat);
+
+          const bushCount = 3 + Math.floor(Math.random() * 3);
+          for (let i = 0; i < bushCount; i++) {
+            const bush = new THREE.Mesh(bushGeo, crownMat);
+            const angle = (i / bushCount) * Math.PI * 2 + Math.random() * 0.4;
+            const r = 1.2 + Math.random() * 0.8;
+            bush.position.set(
+              Math.cos(angle) * r,
+              trunk.position.y + 1 + Math.random() * 0.6,
+              Math.sin(angle) * r
+            );
+            group.add(bush);
+            crownMats.push(crownMat);
+          }
+        } break;
+      }
+
+      return { group, trunkMats, crownMats };
+    }
+
+    function spawnFruitsForTree(tree, count) {
+      for (let i = 0; i < count; i++) {
+        const mesh = new THREE.Mesh(fruitGeo, fruitMaterial.clone());
+        const angle = Math.random() * Math.PI * 2;
+        const radius = 1.5 + Math.random() * 1.2;
+        const height = 3 + Math.random() * 3;
+        mesh.position.set(
+          tree.group.position.x + Math.cos(angle) * radius,
+          height + Math.random(),
+          tree.group.position.z + Math.sin(angle) * radius
+        );
+        mesh.userData = {
+          vy: 0,
+          age: Math.random() * 5,
+          fallDelay: 2 + Math.random() * 6,
+          attached: true,
+          baseTreeX: tree.group.position.x,
+          baseTreeZ: tree.group.position.z
+        };
+        scene.add(mesh);
+        fruits.push(mesh);
+      }
+    }
+
+    for (let i = 0; i < treeCount; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const radius = (Math.random() * 0.7 + 0.3) * forestRadius;
+      const x = Math.cos(angle) * radius;
+      const z = Math.sin(angle) * radius;
+
+      const typeIndex = Math.floor(Math.random() * 5);
+      const tree = createTreeVariant(typeIndex);
+      tree.group.position.set(x, 0, z);
+      scene.add(tree.group);
+
+      trees.push(tree);
+      treePositions.push({ x, z });
+
+      // 每棵樹放少量果實
+      spawnFruitsForTree(tree, 2 + Math.floor(Math.random() * 3));
+    }
+
+    // 河流：用多條矩形片段 + 迷你地圖路徑
+    const riverSegments = [];
+    const riverPoints = [];
+
+    function addRiverStrip(x1, z1, x2, z2, widthStrip) {
+      const dx = x2 - x1;
+      const dz = z2 - z1;
+      const length = Math.sqrt(dx * dx + dz * dz) || 1;
+      const angle = Math.atan2(dx, dz);
+      const geo = new THREE.PlaneGeometry(widthStrip, length, 2, 2);
+      const mat = new THREE.MeshBasicMaterial({
+        color: 0x3399ff,
+        wireframe: true,
+        side: THREE.DoubleSide
+      });
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.rotation.x = -Math.PI / 2;
+      mesh.rotation.z = angle;
+      mesh.position.set((x1 + x2) / 2, 0.02, (z1 + z2) / 2);
+      scene.add(mesh);
+      riverSegments.push({ x1, z1, x2, z2 });
+    }
+
+    // 簡單彎曲河流
+    const riverPath = [
+      { x: -120, z: -40 },
+      { x: -60, z: -20 },
+      { x:  10, z:  10 },
+      { x:  70, z:  40 },
+      { x: 130, z:  80 }
+    ];
+    const riverWidth = 14;
+
+    for (let i = 0; i < riverPath.length - 1; i++) {
+      const p1 = riverPath[i];
+      const p2 = riverPath[i + 1];
+      addRiverStrip(p1.x, p1.z, p2.x, p2.z, riverWidth);
+      riverPoints.push(p1);
+    }
+    riverPoints.push(riverPath[riverPath.length - 1]);
+
+    // 簡易計算某點是否接近河流（用在鹿與吃草）
+    function distanceToRiver(x, z) {
+      let minDist = Infinity;
+      for (let i = 0; i < riverPath.length - 1; i++) {
+        const p1 = riverPath[i];
+        const p2 = riverPath[i + 1];
+        const vx = p2.x - p1.x;
+        const vz = p2.z - p1.z;
+        const wx = x - p1.x;
+        const wz = z - p1.z;
+        const len2 = vx*vx + vz*vz || 1;
+        const t = Math.max(0, Math.min(1, (wx*vx + wz*vz)/len2));
+        const projx = p1.x + vx*t;
+        const projz = p1.z + vz*t;
+        const dx = x - projx;
+        const dz = z - projz;
+        const d = Math.sqrt(dx*dx + dz*dz);
+        if (d < minDist) minDist = d;
+      }
+      return minDist;
+    }
+
+    // 鍵盤控制
+    const keys = {};
+    window.addEventListener('keydown', (e) => { keys[e.key.toLowerCase()] = true; });
+    window.addEventListener('keyup',   (e) => { keys[e.key.toLowerCase()] = false; });
+
+    // 滑鼠視角：不需按住，只要移動就旋轉
+    let yaw = 0;
+    let pitch = 0;
+    let lastMouseX = null;
+    let lastMouseY = null;
+
+    camera.lookAt(new THREE.Vector3(0, 2, -10));
+    yaw = 0;
+    pitch = 0;
+
+    function updateCameraRotation() {
+      camera.rotation.order = 'YXZ';
+      camera.rotation.y = yaw;
+      camera.rotation.x = pitch;
+    }
+    updateCameraRotation();
+
+    function onMouseMove(e) {
+      if (isMobile) return; // 行動裝置用觸控
+      if (lastMouseX === null) {
+        lastMouseX = e.clientX;
+        lastMouseY = e.clientY;
+        return;
+      }
+      const dx = e.clientX - lastMouseX;
+      const dy = e.clientY - lastMouseY;
+      lastMouseX = e.clientX;
+      lastMouseY = e.clientY;
+      const sensitivity = 0.003;
+      yaw -= dx * sensitivity;
+      pitch -= dy * sensitivity;
+      const limit = Math.PI / 2 - 0.05;
+      if (pitch > limit) pitch = limit;
+      if (pitch < -limit) pitch = -limit;
+      updateCameraRotation();
+    }
+    window.addEventListener('mousemove', onMouseMove);
+
+    // 觸控旋轉視角（單指在畫面任意位置拖曳）
+    let isTouchRotating = false;
+    let touchLastX = 0;
+    let touchLastY = 0;
+
+    renderer.domElement.addEventListener('touchstart', (e) => {
+      if (!isMobile) return;
+      if (e.target === joyBase || e.target === joyKnob || e.target === joystick) {
+        return; // 搖桿區域由搖桿處理
+      }
+      if (e.touches.length === 1) {
+        isTouchRotating = true;
+        touchLastX = e.touches[0].clientX;
+        touchLastY = e.touches[0].clientY;
+      }
+      if (e.touches.length === 2) {
+        pinchStart(e);
+      }
+    }, { passive: false });
+
+    renderer.domElement.addEventListener('touchmove', (e) => {
+      if (!isMobile) return;
+      if (e.touches.length === 1 && isTouchRotating) {
+        const x = e.touches[0].clientX;
+        const y = e.touches[0].clientY;
+        const dx = x - touchLastX;
+        const dy = y - touchLastY;
+        touchLastX = x;
+        touchLastY = y;
+        const sensitivity = 0.003;
+        yaw -= dx * sensitivity;
+        pitch -= dy * sensitivity;
+        const limit = Math.PI / 2 - 0.05;
+        if (pitch > limit) pitch = limit;
+        if (pitch < -limit) pitch = -limit;
+        updateCameraRotation();
+      } else if (e.touches.length === 2) {
+        pinchMove(e);
+      }
+      e.preventDefault();
+    }, { passive: false });
+
+    renderer.domElement.addEventListener('touchend', (e) => {
+      if (!isMobile) return;
+      if (e.touches.length === 0) {
+        isTouchRotating = false;
+      }
+      if (e.touches.length < 2) {
+        pinchActive = false;
+      }
+    });
+
+    // 視角縮放：滑鼠滾輪 / 兩指
+    function onWheel(e) {
+      e.preventDefault();
+      const delta = e.deltaY || e.wheelDelta;
+      camera.fov += delta * 0.02;
+      if (camera.fov < 30) camera.fov = 30;
+      if (camera.fov > 90) camera.fov = 90;
+      camera.updateProjectionMatrix();
+    }
+    window.addEventListener('wheel', onWheel, { passive: false });
+
+    let pinchActive = false;
+    let pinchStartDist = 0;
+    let pinchStartFov = camera.fov;
+
+    function distanceTouches(t0, t1) {
+      const dx = t0.clientX - t1.clientX;
+      const dy = t0.clientY - t1.clientY;
+      return Math.sqrt(dx * dx + dy * dy);
+    }
+    function pinchStart(e) {
+      if (e.touches.length < 2) return;
+      pinchActive = true;
+      pinchStartDist = distanceTouches(e.touches[0], e.touches[1]);
+      pinchStartFov = camera.fov;
+    }
+    function pinchMove(e) {
+      if (!pinchActive || e.touches.length < 2) return;
+      const dist = distanceTouches(e.touches[0], e.touches[1]);
+      const scale = dist / (pinchStartDist || dist);
+      camera.fov = pinchStartFov / scale;
+      if (camera.fov < 30) camera.fov = 30;
+      if (camera.fov > 90) camera.fov = 90;
+      camera.updateProjectionMatrix();
+    }
+
+    // 行動裝置搖桿控制
+    let mobileForwardFactor = 0;
+    let mobileStrafeFactor = 0;
+    let joyActive = false;
+    let joyCenterX = 0;
+    let joyCenterY = 0;
+    const joyRadius = 40;
+
+    function handleJoyStart(e) {
+      if (!isMobile) return;
+      joyActive = true;
+      const rect = joyBase.getBoundingClientRect();
+      joyCenterX = rect.left + rect.width / 2;
+      joyCenterY = rect.top + rect.height / 2;
+      const touch = e.touches[0];
+      updateJoystick(touch.clientX, touch.clientY);
+    }
+    function handleJoyMove(e) {
+      if (!isMobile || !joyActive) return;
+      const touch = e.touches[0];
+      updateJoystick(touch.clientX, touch.clientY);
+      e.preventDefault();
+    }
+    function handleJoyEnd(e) {
+      if (!isMobile) return;
+      if (e.touches.length === 0) {
+        joyActive = false;
+        mobileForwardFactor = 0;
+        mobileStrafeFactor = 0;
+        joyKnob.style.transform = "translate(-50%, -50%)";
+      }
+    }
+    function updateJoystick(x, y) {
+      const dx = x - joyCenterX;
+      const dy = y - joyCenterY;
+      const dist = Math.sqrt(dx*dx + dy*dy);
+      const maxDist = joyRadius;
+      let nx = dx;
+      let ny = dy;
+      if (dist > maxDist) {
+        const s = maxDist / (dist || 1);
+        nx *= s;
+        ny *= s;
+      }
+      const normX = nx / maxDist;  // -1..1
+      const normY = ny / maxDist;  // -1..1
+      // y 上為負，但我們希望上 = 前進 (positive)
+      mobileStrafeFactor = normX;
+      mobileForwardFactor = -normY;
+      joyKnob.style.transform = `translate(calc(-50% + ${nx}px), calc(-50% + ${ny}px))`;
+    }
+
+    joystick.addEventListener('touchstart', handleJoyStart, { passive: false });
+    joystick.addEventListener('touchmove', handleJoyMove, { passive: false });
+    joystick.addEventListener('touchend',  handleJoyEnd,  { passive: false });
+    joystick.addEventListener('touchcancel', handleJoyEnd, { passive: false });
+
+    // 視角晃動
+    let bobPhase = 0;
+    let lastTime = performance.now();
+
+    // 用來給迷你地圖畫箭頭的前方向量（x,z）
+    const forwardVec = new THREE.Vector3(0, 0, -1);
+    let mapForwardX = 0;
+    let mapForwardZ = -1;
+
+    const tmpForward = new THREE.Vector3();
+    const tmpRight = new THREE.Vector3();
+    const upVec = new THREE.Vector3(0, 1, 0);
+
+    // 動物系統
+    const animalsByType = {
+      beetle: [],
+      rabbit: [],
+      squirrel: [],
+      deer: [],
+      bird: []
+    };
+    const animalTypes = ["beetle", "rabbit", "squirrel", "deer", "bird"];
+    const animalColor = 0xffee55; // 黃色線稿
+
+    function createAnimalMesh(type) {
+      const group = new THREE.Group();
+      const mat = new THREE.MeshBasicMaterial({
+        color: animalColor,
+        wireframe: true
+      });
+
+      if (type === "beetle") {
+        const body = new THREE.Mesh(new THREE.SphereGeometry(0.4, 8, 8), mat);
+        const head = new THREE.Mesh(new THREE.SphereGeometry(0.25, 8, 8), mat);
+        head.position.z = 0.45;
+        const wingL = new THREE.Mesh(new THREE.SphereGeometry(0.25, 8, 8), mat);
+        const wingR = wingL.clone();
+        wingL.position.set(-0.3, 0.05, 0);
+        wingR.position.set(0.3, 0.05, 0);
+        group.add(body, head, wingL, wingR);
+      } else if (type === "rabbit") {
+        const body = new THREE.Mesh(new THREE.SphereGeometry(0.7, 10, 10), mat);
+        const head = new THREE.Mesh(new THREE.SphereGeometry(0.45, 10, 10), mat);
+        head.position.set(0.4, 0.2, 0);
+        const earL = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.6, 6), mat);
+        const earR = earL.clone();
+        earL.position.set(0.35, 0.8, 0.15);
+        earR.position.set(0.45, 0.8, -0.15);
+        group.add(body, head, earL, earR);
+      } else if (type === "squirrel") {
+        const body = new THREE.Mesh(new THREE.SphereGeometry(0.7, 10, 10), mat);
+        const head = new THREE.Mesh(new THREE.SphereGeometry(0.45, 10, 10), mat);
+        head.position.set(0.5, 0.2, 0);
+        const tail = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.25, 1.2, 8), mat);
+        tail.position.set(-0.6, 0.4, 0);
+        tail.rotation.z = Math.PI / 2;
+        group.add(body, head, tail);
+      } else if (type === "deer") {
+        const body = new THREE.Mesh(new THREE.BoxGeometry(1.8, 1.0, 0.6), mat);
+        const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.2, 0.8, 8), mat);
+        const head = new THREE.Mesh(new THREE.SphereGeometry(0.4, 8, 8), mat);
+        const legGeo = new THREE.CylinderGeometry(0.08, 0.1, 0.8, 6);
+        const leg1 = new THREE.Mesh(legGeo, mat);
+        const leg2 = leg1.clone();
+        const leg3 = leg1.clone();
+        const leg4 = leg1.clone();
+        body.position.y = 0.6;
+        neck.position.set(0.6, 1.1, 0);
+        neck.rotation.z = -Math.PI/6;
+        head.position.set(1.1, 1.4, 0);
+        leg1.position.set(-0.6, 0.1,  0.2);
+        leg2.position.set( 0.6, 0.1,  0.2);
+        leg3.position.set(-0.6, 0.1, -0.2);
+        leg4.position.set( 0.6, 0.1, -0.2);
+        group.add(body, neck, head, leg1, leg2, leg3, leg4);
+      } else if (type === "bird") {
+        const body = new THREE.Mesh(new THREE.SphereGeometry(0.4, 8, 8), mat);
+        const head = new THREE.Mesh(new THREE.SphereGeometry(0.25, 8, 8), mat);
+        const wingGeo = new THREE.BoxGeometry(0.7, 0.12, 0.3);
+        const wingL = new THREE.Mesh(wingGeo, mat);
+        const wingR = new THREE.Mesh(wingGeo, mat);
+        head.position.set(0.35, 0.1, 0);
+        wingL.position.set(-0.4, 0, 0.3);
+        wingR.position.set(-0.4, 0,-0.3);
+        group.add(body, head, wingL, wingR);
+      }
+
+      return group;
+    }
+
+    function spawnAnimal(type, initialPosition) {
+      const group = createAnimalMesh(type);
+      const p = initialPosition || randomPositionInForest();
+      group.position.set(p.x, p.y, p.z);
+      scene.add(group);
+      const baseY = (type === "bird") ? (8 + Math.random() * 4)
+                    : (type === "beetle") ? (1 + Math.random() * 4)
+                    : 0.3;
+      const speed =
+        type === "beetle" ? (8 + Math.random() * 3) :
+        type === "bird"   ? (9 + Math.random() * 3) :
+        type === "deer"   ? (5 + Math.random() * 2) :
+        (4 + Math.random() * 2);
+
+      const animal = {
+        type,
+        group,
+        speed,
+        baseY,
+        vx: 0,
+        vz: 0,
+        wanderPhase: Math.random() * Math.PI * 2,
+        target: null
+      };
+      animalsByType[type].push(animal);
+      return animal;
+    }
+
+    function randomPositionInForest() {
+      const angle = Math.random() * Math.PI * 2;
+      const radius = Math.random() * forestRadius * 0.9;
+      const x = Math.cos(angle) * radius;
+      const z = Math.sin(angle) * radius;
+      return { x, y: 0.3, z };
+    }
+
+    // 初始動物數量（符合能量塔：底層多，上層少）
+    function initAnimals() {
+      for (let i = 0; i < 40; i++) spawnAnimal("beetle");
+      for (let i = 0; i < 22; i++) spawnAnimal("rabbit");
+      for (let i = 0; i < 18; i++) spawnAnimal("squirrel");
+      for (let i = 0; i < 8;  i++) spawnAnimal("deer");
+      for (let i = 0; i < 14; i++) spawnAnimal("bird");
+    }
+    initAnimals();
+
+    // 更新果實掉落
+    function updateFruits(dt) {
+      for (const fruit of fruits) {
+        const data = fruit.userData;
+        data.age += dt;
+        if (data.attached) {
+          // 達到掉落時間就開始下墜
+          if (data.age > data.fallDelay) {
+            data.attached = false;
+            data.vy = 0;
+          }
+        } else {
+          data.vy -= 9.8 * dt * 0.8;
+          fruit.position.y += data.vy * dt;
+          if (fruit.position.y <= 0.1) {
+            fruit.position.y = 0.1;
+            data.vy = 0;
+            // 靜置一小段時間後再「重生」回樹上
+            if (!data.resetTimer) {
+              data.resetTimer = 1.5 + Math.random() * 3;
+            } else {
+              data.resetTimer -= dt;
+              if (data.resetTimer <= 0) {
+                data.resetTimer = null;
+                data.attached = true;
+                data.age = 0;
+                data.fallDelay = 2 + Math.random() * 6;
+                const angle = Math.random() * Math.PI * 2;
+                const radius = 1.5 + Math.random() * 1.2;
+                const height = 3 + Math.random() * 3;
+                fruit.position.set(
+                  data.baseTreeX + Math.cos(angle) * radius,
+                  height + Math.random(),
+                  data.baseTreeZ + Math.sin(angle) * radius
+                );
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // 找最近的果實（地面或空中皆可）
+    function findNearestFruit(x, z, maxDist) {
+      let best = null;
+      let bestDist = maxDist;
+      for (const f of fruits) {
+        const dx = f.position.x - x;
+        const dz = f.position.z - z;
+        const d = Math.sqrt(dx*dx + dz*dz);
+        if (d < bestDist) {
+          bestDist = d;
+          best = f;
+        }
+      }
+      return best;
+    }
+
+    // 動物行為更新
+    function updateAnimals(dt) {
+      for (const type of animalTypes) {
+        const list = animalsByType[type];
+        for (const a of list) {
+          // 隨機小晃動
+          a.wanderPhase += dt;
+          const wanderStrength = 0.5;
+
+          if (type === "beetle") {
+            // 甲蟲：在樹附近與空中飄動，偶爾找果子
+            if (!a.target && Math.random() < 0.02) {
+              a.target = findNearestFruit(a.group.position.x, a.group.position.z, 40);
+            }
+            if (a.target) {
+              const tx = a.target.position.x;
+              const tz = a.target.position.z;
+              let dx = tx - a.group.position.x;
+              let dz = tz - a.group.position.z;
+              const len = Math.sqrt(dx*dx + dz*dz) || 1;
+              dx /= len; dz /= len;
+              a.vx += dx * a.speed * 0.3 * dt;
+              a.vz += dz * a.speed * 0.3 * dt;
+              if (len < 1.5) {
+                // 視為吃到果子，讓果子提早重生
+                const data = a.target.userData;
+                data.attached = false;
+                data.resetTimer = 0.5;
+                a.target = null;
+              }
+            } else {
+              a.vx += Math.cos(a.wanderPhase * 1.7) * wanderStrength * dt;
+              a.vz += Math.sin(a.wanderPhase * 1.3) * wanderStrength * dt;
+            }
+            // 高度在 1~5 之間飄動
+            a.group.position.y = a.baseY + Math.sin(a.wanderPhase * 2) * 0.6;
+          }
+          else if (type === "rabbit") {
+            // 兔子：在地面跑，偏好靠近樹與河邊
+            if (!a.target && Math.random() < 0.015) {
+              const fruit = findNearestFruit(a.group.position.x, a.group.position.z, 25);
+              if (fruit) a.target = fruit;
+            }
+            if (a.target) {
+              const tx = a.target.position.x;
+              const tz = a.target.position.z;
+              let dx = tx - a.group.position.x;
+              let dz = tz - a.group.position.z;
+              const len = Math.sqrt(dx*dx + dz*dz) || 1;
+              dx /= len; dz /= len;
+              a.vx += dx * a.speed * 0.4 * dt;
+              a.vz += dz * a.speed * 0.4 * dt;
+              if (len < 1.5) {
+                // 吃掉果子
+                const data = a.target.userData;
+                data.attached = false;
+                data.resetTimer = 0.5;
+                a.target = null;
+              }
+            } else {
+              a.vx += Math.cos(a.wanderPhase * 1.3) * wanderStrength * dt;
+              a.vz += Math.sin(a.wanderPhase * 1.1) * wanderStrength * dt;
+            }
+            a.group.position.y = a.baseY;
+          }
+          else if (type === "squirrel") {
+            // 松鼠：可以在地上跑，也會跳到樹間找果子
+            if (!a.target && Math.random() < 0.03) {
+              const fruit = findNearestFruit(a.group.position.x, a.group.position.z, 30);
+              if (fruit) a.target = fruit;
+            }
+            if (a.target) {
+              const tx = a.target.position.x;
+              const ty = a.target.position.y;
+              const tz = a.target.position.z;
+              let dx = tx - a.group.position.x;
+              let dz = tz - a.group.position.z;
+              const len = Math.sqrt(dx*dx + dz*dz) || 1;
+              dx /= len; dz /= len;
+              a.vx += dx * a.speed * 0.5 * dt;
+              a.vz += dz * a.speed * 0.5 * dt;
+              // 高度在地面與樹冠間跳動
+              const targetY = ty > 2 ? ty : a.baseY;
+              a.group.position.y += (targetY - a.group.position.y) * 0.08;
+              if (len < 1.5 && Math.abs(a.group.position.y - ty) < 1.5) {
+                const data = a.target.userData;
+                data.attached = false;
+                data.resetTimer = 0.5;
+                a.target = null;
+              }
+            } else {
+              a.vx += Math.cos(a.wanderPhase * 1.6) * wanderStrength * dt;
+              a.vz += Math.sin(a.wanderPhase * 1.4) * wanderStrength * dt;
+              a.group.position.y = a.baseY + Math.abs(Math.sin(a.wanderPhase * 3)) * 1.2;
+            }
+          }
+          else if (type === "deer") {
+            // 麋鹿：喜歡待在河流附近吃草
+            const dRiver = distanceToRiver(a.group.position.x, a.group.position.z);
+            if (dRiver > riverWidth * 0.6) {
+              // 往最近河流靠近（簡單取中段河流作為目標）
+              const midIdx = Math.floor(riverPath.length / 2);
+              const p = riverPath[midIdx];
+              let dx = p.x - a.group.position.x;
+              let dz = p.z - a.group.position.z;
+              const len = Math.sqrt(dx*dx + dz*dz) || 1;
+              dx /= len; dz /= len;
+              a.vx += dx * a.speed * 0.3 * dt;
+              a.vz += dz * a.speed * 0.3 * dt;
+            } else {
+              a.vx += Math.cos(a.wanderPhase * 0.7) * wanderStrength * dt;
+              a.vz += Math.sin(a.wanderPhase * 0.9) * wanderStrength * dt;
+            }
+            a.group.position.y = a.baseY;
+          }
+          else if (type === "bird") {
+            // 鳥：在天空盤旋，偶爾朝甲蟲或果實俯衝
+            if (!a.target && Math.random() < 0.02) {
+              // 以甲蟲為優先目標
+              const beetles = animalsByType["beetle"];
+              if (beetles.length > 0 && Math.random() < 0.7) {
+                const targetBeetle = beetles[Math.floor(Math.random() * beetles.length)];
+                a.target = targetBeetle;
+              } else {
+                const fruit = findNearestFruit(a.group.position.x, a.group.position.z, 50);
+                if (fruit) a.target = fruit;
+              }
+            }
+
+            if (a.target && a.target.group) {
+              // 目標是動物（甲蟲）
+              const tx = a.target.group.position.x;
+              const tz = a.target.group.position.z;
+              let dx = tx - a.group.position.x;
+              let dz = tz - a.group.position.z;
+              const len = Math.sqrt(dx*dx + dz*dz) || 1;
+              dx /= len; dz /= len;
+              a.vx += dx * a.speed * 0.4 * dt;
+              a.vz += dz * a.speed * 0.4 * dt;
+              a.group.position.y += ((a.baseY + 2) - a.group.position.y) * 0.05;
+              if (len < 1.5) {
+                // 視為吃掉甲蟲：移除後過一段時間再補充
+                const list = animalsByType["beetle"];
+                const idx = list.indexOf(a.target);
+                if (idx >= 0) {
+                  scene.remove(list[idx].group);
+                  list.splice(idx, 1);
+                }
+                a.target = null;
+              }
+            } else if (a.target && a.target.position) {
+              // 目標是果實
+              const tx = a.target.position.x;
+              const tz = a.target.position.z;
+              let dx = tx - a.group.position.x;
+              let dz = tz - a.group.position.z;
+              const len = Math.sqrt(dx*dx + dz*dz) || 1;
+              dx /= len; dz /= len;
+              a.vx += dx * a.speed * 0.4 * dt;
+              a.vz += dz * a.speed * 0.4 * dt;
+              a.group.position.y += (a.baseY - a.group.position.y) * 0.05;
+              if (len < 1.5) {
+                const data = a.target.userData;
+                data.attached = false;
+                data.resetTimer = 0.5;
+                a.target = null;
+              }
+            } else {
+              // 沒有目標時在天空盤旋
+              a.vx += Math.cos(a.wanderPhase * 0.9) * wanderStrength * dt;
+              a.vz += Math.sin(a.wanderPhase * 1.1) * wanderStrength * dt;
+              a.group.position.y = a.baseY + Math.sin(a.wanderPhase * 1.5) * 1.5;
+            }
+          }
+
+          // 基本阻尼與移動
+          a.vx *= 0.96;
+          a.vz *= 0.96;
+          a.group.position.x += a.vx * dt;
+          a.group.position.z += a.vz * dt;
+
+          // 限制在森林半徑內
+          const distCenter = Math.sqrt(a.group.position.x*a.group.position.x + a.group.position.z*a.group.position.z);
+          if (distCenter > forestRadius * 0.9) {
+            const factor = (forestRadius * 0.9) / (distCenter || 1);
+            a.group.position.x *= factor;
+            a.group.position.z *= factor;
+          }
+        }
+      }
+    }
+
+    // 根據資源調整動物數量（非常簡化的能量塔動態）
+    let populationTimer = 0;
+    function updatePopulation(dt) {
+      populationTimer += dt;
+      if (populationTimer < 8) return;
+      populationTimer = 0;
+
+      const fruitCount = fruits.length;
+      const fruitFactor = Math.min(fruitCount / (treeCount * 3), 1);
+
+      const beetles = animalsByType["beetle"];
+
+      const targetCounts = {
+        beetle: 30 + Math.round(30 * fruitFactor),
+        rabbit: 10 + Math.round(15 * fruitFactor),
+        squirrel: 8 + Math.round(12 * fruitFactor),
+        deer: 4 + Math.round(4 * fruitFactor * 0.7)
+      };
+
+      const beetleFactor = Math.min(beetles.length / 35, 1);
+      targetCounts.bird = 6 + Math.round(10 * beetleFactor);
+
+      for (const type of animalTypes) {
+        const list = animalsByType[type];
+        const target = targetCounts[type] || list.length;
+        if (list.length < target) {
+          const need = target - list.length;
+          for (let i = 0; i < need; i++) spawnAnimal(type);
+        } else if (list.length > target) {
+          const removeCount = list.length - target;
+          for (let i = 0; i < removeCount; i++) {
+            const a = list.pop();
+            scene.remove(a.group);
+          }
+        }
+      }
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+      const now = performance.now();
+      const dt = (now - lastTime) / 1000;
+      lastTime = now;
+
+      const baseSpeed = 18;
+      const forwardKey = (keys['w'] || keys['arrowup'] ? 1 : 0) - (keys['s'] || keys['arrowdown'] ? 1 : 0);
+      const strafeKey  = (keys['d'] || keys['arrowright'] ? 1 : 0) - (keys['a'] || keys['arrowleft'] ? 1 : 0);
+      const forwardTotal = forwardKey + mobileForwardFactor;
+      const strafeTotal  = strafeKey  + mobileStrafeFactor;
+
+      // 以 camera 真實方向為前方
+      camera.getWorldDirection(tmpForward);
+      tmpForward.y = 0;
+      if (tmpForward.lengthSq() > 0.0001) {
+        tmpForward.normalize();
+        forwardVec.copy(tmpForward);
+      }
+
+      // 右方向 = forward × up
+      tmpRight.crossVectors(forwardVec, upVec).normalize();
+
+      let moveX = 0;
+      let moveZ = 0;
+
+      moveX += forwardVec.x * forwardTotal * baseSpeed * dt;
+      moveZ += forwardVec.z * forwardTotal * baseSpeed * dt;
+      moveX += tmpRight.x * strafeTotal * baseSpeed * dt;
+      moveZ += tmpRight.z * strafeTotal * baseSpeed * dt;
+
+      cameraHolder.position.x += moveX;
+      cameraHolder.position.z += moveZ;
+      cameraHolder.position.y = 3;
+
+      const moving = Math.abs(moveX) + Math.abs(moveZ) > 0.001;
+      if (moving) {
+        bobPhase += dt * 7;
+      } else {
+        bobPhase *= 0.9;
+      }
+
+      const bobHeight = Math.sin(bobPhase * 2) * 0.2;
+      const bobSide = Math.sin(bobPhase * 4) * 0.12;
+      camera.position.set(bobSide, 2 + bobHeight, 0);
+
+      // 根據距離設定樹的顏色
+      const camPos = cameraHolder.position;
+      for (const t of trees) {
+        const gp = t.group.position;
+        const dx = gp.x - camPos.x;
+        const dz = gp.z - camPos.z;
+        const dist = Math.sqrt(dx*dx + dz*dz);
+        const maxDist = 260;
+        const k = Math.min(dist / maxDist, 1);
+        const bright = 1 - k;
+        const g = 0.3 + 0.7 * bright;
+        const b = 0.2 + 0.5 * k;
+
+        const trunkColor = new THREE.Color(0, g * 0.5, 0);
+        const crownColor = new THREE.Color(0, g, b);
+
+        for (const m of t.trunkMats) m.color.copy(trunkColor);
+        for (const m of t.crownMats) m.color.copy(crownColor);
+      }
+
+      // 更新水果、動物與族群數量
+      updateFruits(dt);
+      updateAnimals(dt);
+      updatePopulation(dt);
+
+      // 更新給迷你地圖用的方向
+      mapForwardX = forwardVec.x;
+      mapForwardZ = forwardVec.z;
+
+      renderer.render(scene, camera);
+
+      // 更新迷你地圖
+      drawMinimap(camPos, mapForwardX, mapForwardZ);
+    }
+
+    function drawMinimap(camPos, fwdX, fwdZ) {
+      const size = Math.min(miniWrap.clientWidth, miniWrap.clientHeight);
+      if (miniCanvas.width !== size || miniCanvas.height !== size) {
+        miniCanvas.width = size;
+        miniCanvas.height = size;
+      }
+      const ctx = miniCtx;
+      const w = miniCanvas.width;
+      const h = miniCanvas.height;
+      ctx.clearRect(0, 0, w, h);
+
+      // 背景
+      ctx.fillStyle = 'rgba(5,10,20,0.98)';
+      ctx.fillRect(0, 0, w, h);
+
+      // 邊框
+      ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(2, 2, w-4, h-4);
+
+      const cx = w * 0.5;
+      const cy = h * 0.5;
+      const worldScale = 0.6 / forestRadius;
+
+      // 河流
+      ctx.strokeStyle = 'rgba(80,160,255,0.9)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      for (let i = 0; i < riverPoints.length; i++) {
+        const p = riverPoints[i];
+        const sx = cx + p.x * worldScale * w;
+        const sy = cy - p.z * worldScale * h;
+        if (i === 0) ctx.moveTo(sx, sy);
+        else ctx.lineTo(sx, sy);
+      }
+      ctx.stroke();
+
+      // 樹
+      ctx.fillStyle = 'rgba(80,255,140,0.85)';
+      for (const pos of treePositions) {
+        const sx = cx + (pos.x) * worldScale * w;
+        const sy = cy - (pos.z) * worldScale * h;
+        const dx = pos.x - camPos.x;
+        const dz = pos.z - camPos.z;
+        const dist = Math.sqrt(dx*dx + dz*dz);
+        if (dist < forestRadius * 1.2) {
+          const r = dist < 30 ? 2.2 : 1.4;
+          ctx.beginPath();
+          ctx.arc(sx, sy, r, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+
+      // 玩家位置
+      const px = cx + camPos.x * worldScale * w;
+      const py = cy - camPos.z * worldScale * h;
+
+      // 箭頭方向以「視野前方」為準
+      const len = 7;
+      const angle = Math.atan2(-fwdZ, fwdX); // fwdZ 往南 => 畫布下
+
+      ctx.fillStyle = 'rgba(255,90,90,0.95)';
+      ctx.beginPath();
+      ctx.moveTo(px + Math.cos(angle) * len, py + Math.sin(angle) * len);
+      ctx.lineTo(px + Math.cos(angle + 2.4) * len * 0.6, py + Math.sin(angle + 2.4) * len * 0.6);
+      ctx.lineTo(px + Math.cos(angle - 2.4) * len * 0.6, py + Math.sin(angle - 2.4) * len * 0.6);
+      ctx.closePath();
+      ctx.fill();
+
+      // 指北針（地圖上方為北）
+      ctx.fillStyle = 'rgba(255,255,255,0.9)';
+      ctx.font = '10px system-ui';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+
+      const compassRadius = 18;
+      const compassCx = w - compassRadius - 8;
+      const compassCy = compassRadius + 8;
+
+      ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+      ctx.lineWidth = 1.3;
+      ctx.beginPath();
+      ctx.arc(compassCx, compassCy, compassRadius, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.fillText('N', compassCx, compassCy - compassRadius + 7);
+      ctx.fillText('S', compassCx, compassCy + compassRadius - 7);
+    }
+
+    function onResize() {
+      width = window.innerWidth;
+      height = window.innerHeight;
+      camera.aspect = width / height;
+      camera.updateProjectionMatrix();
+      renderer.setSize(width, height);
+    }
+    window.addEventListener('resize', onResize);
+
+    animate();
+  })();
+  </script>
+</body>
+</html>
