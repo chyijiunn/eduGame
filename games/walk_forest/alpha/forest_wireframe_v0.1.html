@@ -1,0 +1,501 @@
+
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no" />
+  <title>3D 線稿森林 v0.1</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #000;
+      color: #fff;
+      font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,"Noto Sans","PingFang TC","Microsoft JhengHei",sans-serif;
+      touch-action: none;
+    }
+    #container {
+      position: fixed;
+      inset: 0;
+    }
+    #info {
+      position: fixed;
+      top: 8px;
+      left: 8px;
+      padding: 4px 8px;
+      background: rgba(0,0,0,0.5);
+      font-size: 12px;
+      border-radius: 4px;
+      pointer-events: none;
+    }
+    #minimap {
+      position: fixed;
+      left: 8px;
+      bottom: 8px;
+      width: 140px;
+      height: 140px;
+      border-radius: 8px;
+      background: rgba(10,10,20,0.9);
+      border: 1px solid rgba(255,255,255,0.2);
+      box-shadow: 0 0 8px rgba(0,0,0,0.8);
+    }
+    #minimap canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+    #touchHint {
+      position: fixed;
+      right: 8px;
+      bottom: 8px;
+      padding: 4px 8px;
+      background: rgba(0,0,0,0.4);
+      font-size: 11px;
+      border-radius: 4px;
+      max-width: 40vw;
+    }
+    @media (min-width: 900px) {
+      #touchHint { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div id="container"></div>
+  <div id="info">
+    3D 線稿森林 v0.1<br/>
+    WASD / 方向鍵：移動　滑鼠拖曳：視角　滾輪 / 兩指：縮放
+  </div>
+  <div id="minimap"><canvas></canvas></div>
+  <div id="touchHint">單指拖曳旋轉視角｜畫面左側上下滑動可前進/後退｜雙指縮放視角</div>
+
+  <script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
+  <script>
+  (() => {
+    const container = document.getElementById('container');
+    const miniWrap = document.getElementById('minimap');
+    const miniCanvas = miniWrap.querySelector('canvas');
+    const miniCtx = miniCanvas.getContext('2d');
+
+    let width = window.innerWidth;
+    let height = window.innerHeight;
+
+    // THREE 基本設定
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setPixelRatio(window.devicePixelRatio || 1);
+    renderer.setSize(width, height);
+    renderer.setClearColor(0x000000, 1);
+    container.appendChild(renderer.domElement);
+
+    const scene = new THREE.Scene();
+
+    const camera = new THREE.PerspectiveCamera(60, width / height, 0.1, 1500);
+    camera.position.set(0, 5, 20);
+
+    // 用一個 holder 來做視角晃動
+    const cameraHolder = new THREE.Object3D();
+    cameraHolder.position.set(0, 3, 0);
+    cameraHolder.add(camera);
+    scene.add(cameraHolder);
+
+    // 地面線框
+    const gridSize = 400;
+    const gridDivisions = 40;
+    const gridHelper = new THREE.GridHelper(gridSize, gridDivisions, 0x333333, 0x111111);
+    gridHelper.material.transparent = true;
+    gridHelper.material.opacity = 0.7;
+    scene.add(gridHelper);
+
+    // 簡單霧化讓遠方淡出
+    scene.fog = new THREE.FogExp2(0x000000, 0.002);
+
+    // 樹的生成
+    const trees = [];
+    const treePositions = [];
+    const treeCount = 220;
+    const forestRadius = 180;
+
+    const trunkGeo = new THREE.CylinderGeometry(0.3, 0.3, 5, 6, 1);
+    const crownGeo = new THREE.ConeGeometry(2, 5, 10, 1);
+
+    for (let i = 0; i < treeCount; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const radius = (Math.random() * 0.7 + 0.3) * forestRadius;
+      const x = Math.cos(angle) * radius;
+      const z = Math.sin(angle) * radius;
+
+      const group = new THREE.Group();
+
+      const heightRand = 2 + Math.random() * 6;
+      const trunk = new THREE.Mesh(trunkGeo, new THREE.MeshBasicMaterial({
+        color: 0x339933,
+        wireframe: true
+      }));
+      trunk.scale.y = heightRand * 0.18;
+      trunk.position.y = trunk.scale.y * 2.5 * 0.5;
+
+      const crown = new THREE.Mesh(crownGeo, new THREE.MeshBasicMaterial({
+        color: 0x55ff99,
+        wireframe: true
+      }));
+      crown.position.y = trunk.position.y + 2.8;
+      crown.scale.y = 0.6 + Math.random() * 0.9;
+
+      group.add(trunk);
+      group.add(crown);
+      group.position.set(x, 0, z);
+      scene.add(group);
+
+      trees.push({ group, trunk, crown });
+      treePositions.push({ x, z });
+    }
+
+    // 河流：用多條矩形片段 + 迷你地圖路徑
+    const riverSegments = [];
+    const riverPoints = [];
+
+    function addRiverStrip(x1, z1, x2, z2, width) {
+      const dx = x2 - x1;
+      const dz = z2 - z1;
+      const length = Math.sqrt(dx * dx + dz * dz) || 1;
+      const angle = Math.atan2(dx, dz);
+      const geo = new THREE.PlaneGeometry(width, length, 2, 2);
+      const mat = new THREE.MeshBasicMaterial({
+        color: 0x3399ff,
+        wireframe: true,
+        side: THREE.DoubleSide
+      });
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.rotation.x = -Math.PI / 2;
+      mesh.rotation.z = angle;
+      mesh.position.set((x1 + x2) / 2, 0.02, (z1 + z2) / 2);
+      scene.add(mesh);
+      riverSegments.push({ x1, z1, x2, z2 });
+    }
+
+    // 簡單彎曲河流
+    const riverPath = [
+      { x: -120, z: -40 },
+      { x: -60, z: -20 },
+      { x:  10, z:  10 },
+      { x:  70, z:  40 },
+      { x: 130, z:  80 }
+    ];
+    const riverWidth = 14;
+
+    for (let i = 0; i < riverPath.length - 1; i++) {
+      const p1 = riverPath[i];
+      const p2 = riverPath[i + 1];
+      addRiverStrip(p1.x, p1.z, p2.x, p2.z, riverWidth);
+      riverPoints.push(p1);
+    }
+    riverPoints.push(riverPath[riverPath.length - 1]);
+
+    // 簡單鍵盤控制
+    const keys = {};
+    window.addEventListener('keydown', (e) => { keys[e.key.toLowerCase()] = true; });
+    window.addEventListener('keyup',   (e) => { keys[e.key.toLowerCase()] = false; });
+
+    // 滑鼠視角拖曳
+    let isPointerDown = false;
+    let lastX = 0, lastY = 0;
+    let yaw = 0;
+    let pitch = 0;
+
+    camera.lookAt(new THREE.Vector3(0, 2, 0));
+    yaw = 0;
+    pitch = 0;
+
+    function updateCameraRotation() {
+      camera.rotation.order = 'YXZ';
+      camera.rotation.y = yaw;
+      camera.rotation.x = pitch;
+    }
+    updateCameraRotation();
+
+    function pointerDown(e) {
+      isPointerDown = true;
+      lastX = (e.clientX !== undefined ? e.clientX : e.touches[0].clientX);
+      lastY = (e.clientY !== undefined ? e.clientY : e.touches[0].clientY);
+    }
+    function pointerMove(e) {
+      if (!isPointerDown || e.touches && e.touches.length > 1) return;
+      const x = (e.clientX !== undefined ? e.clientX : e.touches[0].clientX);
+      const y = (e.clientY !== undefined ? e.clientY : e.touches[0].clientY);
+      const dx = x - lastX;
+      const dy = y - lastY;
+      lastX = x;
+      lastY = y;
+      const sensitivity = 0.003;
+      yaw -= dx * sensitivity;
+      pitch -= dy * sensitivity;
+      const limit = Math.PI / 2 - 0.05;
+      if (pitch > limit) pitch = limit;
+      if (pitch < -limit) pitch = -limit;
+      updateCameraRotation();
+    }
+    function pointerUp() { isPointerDown = false; }
+
+    renderer.domElement.addEventListener('mousedown', pointerDown);
+    window.addEventListener('mousemove', pointerMove);
+    window.addEventListener('mouseup', pointerUp);
+
+    renderer.domElement.addEventListener('touchstart', (e) => {
+      if (e.touches.length === 1) {
+        pointerDown(e);
+      }
+      if (e.touches.length === 2) {
+        pinchStart(e);
+      }
+    }, { passive: false });
+    renderer.domElement.addEventListener('touchmove', (e) => {
+      if (e.touches.length === 1) {
+        pointerMove(e);
+      } else if (e.touches.length === 2) {
+        pinchMove(e);
+      }
+      e.preventDefault();
+    }, { passive: false });
+    renderer.domElement.addEventListener('touchend', (e) => {
+      if (e.touches.length < 2) {
+        pinchActive = false;
+      }
+      if (e.touches.length === 0) {
+        pointerUp();
+      }
+    });
+
+    // 視角縮放：滑鼠滾輪 / 兩指
+    function onWheel(e) {
+      e.preventDefault();
+      const delta = e.deltaY || e.wheelDelta;
+      camera.fov += delta * 0.02;
+      if (camera.fov < 30) camera.fov = 30;
+      if (camera.fov > 90) camera.fov = 90;
+      camera.updateProjectionMatrix();
+    }
+    window.addEventListener('wheel', onWheel, { passive: false });
+
+    let pinchActive = false;
+    let pinchStartDist = 0;
+    let pinchStartFov = camera.fov;
+
+    function distanceTouches(t0, t1) {
+      const dx = t0.clientX - t1.clientX;
+      const dy = t0.clientY - t1.clientY;
+      return Math.sqrt(dx * dx + dy * dy);
+    }
+    function pinchStart(e) {
+      pinchActive = true;
+      pinchStartDist = distanceTouches(e.touches[0], e.touches[1]);
+      pinchStartFov = camera.fov;
+    }
+    function pinchMove(e) {
+      if (!pinchActive || e.touches.length < 2) return;
+      const dist = distanceTouches(e.touches[0], e.touches[1]);
+      const scale = dist / (pinchStartDist || dist);
+      camera.fov = pinchStartFov / scale;
+      if (camera.fov < 30) camera.fov = 30;
+      if (camera.fov > 90) camera.fov = 90;
+      camera.updateProjectionMatrix();
+    }
+
+    // 手機上簡單的「前進/後退」：靠近左邊 1/3 區域上下滑動
+    let mobileForwardFactor = 0;
+    renderer.domElement.addEventListener('touchmove', (e) => {
+      if (e.touches.length === 1) {
+        const t = e.touches[0];
+        if (t.clientX < window.innerWidth * 0.3) {
+          const centerY = window.innerHeight * 0.5;
+          const dy = centerY - t.clientY;
+          mobileForwardFactor = dy / centerY; // -1~1
+        } else {
+          mobileForwardFactor = 0;
+        }
+      }
+    }, { passive: false });
+    renderer.domElement.addEventListener('touchend', (e) => {
+      if (e.touches.length === 0) mobileForwardFactor = 0;
+    });
+
+    // 視角晃動
+    let bobPhase = 0;
+    let lastTime = performance.now();
+
+    function animate() {
+      requestAnimationFrame(animate);
+      const now = performance.now();
+      const dt = (now - lastTime) / 1000;
+      lastTime = now;
+
+      const speed = 18;
+      const forward = (keys['w'] || keys['arrowup'] ? 1 : 0) - (keys['s'] || keys['arrowdown'] ? 1 : 0);
+      const strafe = (keys['d'] || keys['arrowright'] ? 1 : 0) - (keys['a'] || keys['arrowleft'] ? 1 : 0);
+      const mobileSpeed = mobileForwardFactor;
+
+      let moveX = 0;
+      let moveZ = 0;
+
+      const sinY = Math.sin(yaw);
+      const cosY = Math.cos(yaw);
+
+      if (forward !== 0 || mobileSpeed !== 0) {
+        const f = forward + mobileSpeed;
+        moveX += sinY * f * speed * dt;
+        moveZ += cosY * f * speed * dt;
+      }
+      if (strafe !== 0) {
+        moveX += cosY * strafe * speed * dt;
+        moveZ -= sinY * strafe * speed * dt;
+      }
+
+      cameraHolder.position.x += moveX;
+      cameraHolder.position.z += moveZ;
+
+      // 限制高度
+      cameraHolder.position.y = 3;
+
+      const moving = Math.abs(moveX) + Math.abs(moveZ) > 0.001;
+      if (moving) {
+        bobPhase += dt * 7;
+      } else {
+        bobPhase *= 0.9;
+      }
+
+      const bobHeight = Math.sin(bobPhase * 2) * 0.2;
+      const bobSide = Math.sin(bobPhase * 4) * 0.12;
+      camera.position.set(bobSide, 2 + bobHeight, 0);
+
+      // 根據距離設定樹的顏色
+      const camPos = cameraHolder.position;
+      for (const t of trees) {
+        const gp = t.group.position;
+        const dx = gp.x - camPos.x;
+        const dz = gp.z - camPos.z;
+        const dist = Math.sqrt(dx*dx + dz*dz);
+        const maxDist = 260;
+        const k = Math.min(dist / maxDist, 1);
+        const bright = 1 - k;
+        const g = 0.3 + 0.7 * bright;
+        const b = 0.2 + 0.5 * k;
+        const trunkColor = new THREE.Color(0, g * 0.5, 0);
+        const crownColor = new THREE.Color(0, g, b);
+        t.trunk.material.color.copy(trunkColor);
+        t.crown.material.color.copy(crownColor);
+      }
+
+      renderer.render(scene, camera);
+
+      // 更新迷你地圖
+      drawMinimap();
+    }
+
+    function drawMinimap() {
+      const size = Math.min(miniWrap.clientWidth, miniWrap.clientHeight);
+      if (miniCanvas.width !== size || miniCanvas.height !== size) {
+        miniCanvas.width = size;
+        miniCanvas.height = size;
+      }
+      const ctx = miniCtx;
+      const w = miniCanvas.width;
+      const h = miniCanvas.height;
+      ctx.clearRect(0, 0, w, h);
+
+      // 背景
+      ctx.fillStyle = 'rgba(5,10,20,0.98)';
+      ctx.fillRect(0, 0, w, h);
+
+      // 邊框
+      ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(2, 2, w-4, h-4);
+
+      // 中心
+      const cx = w * 0.5;
+      const cy = h * 0.5;
+      const worldScale = 0.6 / forestRadius; // world -> mini 相對尺度
+
+      // 河流
+      ctx.strokeStyle = 'rgba(80,160,255,0.9)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      for (let i = 0; i < riverPoints.length; i++) {
+        const p = riverPoints[i];
+        const sx = cx + p.x * worldScale * w;
+        const sy = cy - p.z * worldScale * h;
+        if (i === 0) ctx.moveTo(sx, sy);
+        else ctx.lineTo(sx, sy);
+      }
+      ctx.stroke();
+
+      // 樹
+      ctx.fillStyle = 'rgba(80,255,140,0.85)';
+      const camPos = cameraHolder.position;
+      for (const pos of treePositions) {
+        const sx = cx + (pos.x - 0) * worldScale * w;
+        const sy = cy - (pos.z - 0) * worldScale * h;
+        const dx = pos.x - camPos.x;
+        const dz = pos.z - camPos.z;
+        const dist = Math.sqrt(dx*dx + dz*dz);
+        if (dist < forestRadius * 1.2) {
+          const r = dist < 30 ? 2.2 : 1.4;
+          ctx.beginPath();
+          ctx.arc(sx, sy, r, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+
+      // 玩家位置 + 朝向
+      const px = cx + camPos.x * worldScale * w;
+      const py = cy - camPos.z * worldScale * h;
+
+      ctx.fillStyle = 'rgba(255,90,90,0.95)';
+      ctx.beginPath();
+      const len = 7;
+      const angle = yaw;
+      const left = angle + Math.PI * 0.75;
+      const right = angle - Math.PI * 0.75;
+      ctx.moveTo(px + Math.sin(angle) * len, py - Math.cos(angle) * len);
+      ctx.lineTo(px + Math.sin(left) * len * 0.6,  py - Math.cos(left) * len * 0.6);
+      ctx.lineTo(px + Math.sin(right) * len * 0.6, py - Math.cos(right) * len * 0.6);
+      ctx.closePath();
+      ctx.fill();
+
+      // 指北針
+      ctx.fillStyle = 'rgba(255,255,255,0.9)';
+      ctx.font = '10px system-ui';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+
+      const compassRadius = 18;
+      const compassCx = w - compassRadius - 8;
+      const compassCy = compassRadius + 8;
+
+      ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+      ctx.lineWidth = 1.3;
+      ctx.beginPath();
+      ctx.arc(compassCx, compassCy, compassRadius, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // 北(地圖上方為北)
+      ctx.fillText('N', compassCx, compassCy - compassRadius + 7);
+      ctx.fillText('S', compassCx, compassCy + compassRadius - 7);
+    }
+
+    function onResize() {
+      width = window.innerWidth;
+      height = window.innerHeight;
+      camera.aspect = width / height;
+      camera.updateProjectionMatrix();
+      renderer.setSize(width, height);
+    }
+    window.addEventListener('resize', onResize);
+
+    animate();
+  })();
+  </script>
+</body>
+</html>
