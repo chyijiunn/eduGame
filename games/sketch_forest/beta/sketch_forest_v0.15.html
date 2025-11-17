@@ -1,0 +1,762 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<title>漫苗森林 sketch forest v0.15</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:100%;height:100%;overflow:hidden;background:#000;color:#fff;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang TC","Microsoft JhengHei",sans-serif;touch-action:none}
+#c{position:fixed;inset:0}
+#info{position:fixed;left:8px;top:8px;padding:4px 8px;background:rgba(0,0,0,.5);font-size:12px;border-radius:4px;z-index:5;pointer-events:none}
+#mini{position:fixed;left:8px;bottom:8px;width:140px;height:140px;border-radius:8px;background:rgba(10,10,20,.9);border:1px solid rgba(255,255,255,.2);box-shadow:0 0 8px rgba(0,0,0,.8);z-index:5}
+#mini canvas{width:100%;height:100%;display:block}
+#cross{position:fixed;left:50%;top:50%;width:18px;height:18px;margin:-9px 0 0 -9px;z-index:6;pointer-events:none;opacity:.7}
+#cross:before,#cross:after{content:"";position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);background:rgba(255,255,255,.9)}
+#cross:before{width:1px;height:14px}
+#cross:after{width:14px;height:1px}
+#joy{position:fixed;left:10px;bottom:10px;width:120px;height:120px;z-index:10;display:none;touch-action:none}
+#joyb{position:absolute;left:50%;top:50%;width:90px;height:90px;margin:-45px 0 0 -45px;border-radius:50%;border:2px solid rgba(255,255,255,.4);background:radial-gradient(circle,rgba(255,255,255,.1),rgba(0,0,0,.7))}
+#joyk{position:absolute;left:50%;top:50%;width:46px;height:46px;margin:-23px 0 0 -23px;border-radius:50%;border:2px solid #fff;background:radial-gradient(circle,#fff,rgba(0,0,0,.2));box-shadow:0 0 8px #000}
+#hint{position:fixed;right:8px;bottom:8px;padding:3px 8px;background:rgba(0,0,0,.45);font-size:11px;border-radius:4px;z-index:5;max-width:40vw}
+@media(min-width:900px){#hint{display:none}}
+#stats{position:fixed;left:8px;top:110px;width:190px;max-height:310px;background:rgba(5,5,10,.93);border-radius:8px;border:1px solid rgba(255,255,255,.18);box-shadow:0 0 10px rgba(0,0,0,.9);z-index:6;font-size:12px;overflow:hidden}
+#statsHd{padding:4px 8px;background:linear-gradient(90deg,#5096ff,#3ce6aa);display:flex;align-items:center;justify-content:space-between;font-weight:600;cursor:pointer;user-select:none}
+#statsBd{padding:4px}
+.srow{display:flex;align-items:center;justify-content:space-between;padding:2px 4px;margin-bottom:2px;border-radius:4px;background:rgba(255,255,255,.02);cursor:pointer}
+.srow:hover{background:rgba(255,255,255,.08)}
+.sname{flex:1}
+.sval{margin-left:6px;font-variant-numeric:tabular-nums;opacity:.9}
+#stats.collapsed #statsBd{display:none}
+#chart{width:100%;height:80px;display:block;margin-top:4px;background:rgba(255,255,255,.02);border-radius:4px}
+#helpBtn{position:fixed;top:8px;right:8px;padding:4px 10px;font-size:12px;border-radius:999px;border:1px solid rgba(255,255,255,.7);background:rgba(0,0,0,.6);color:#fff;z-index:7;cursor:pointer}
+#helpBtn:hover{background:rgba(255,255,255,.15)}
+#help{position:fixed;inset:0;background:rgba(0,0,0,.8);display:none;align-items:center;justify-content:center;z-index:20}
+#hDlg{width:min(640px,94vw);max-height:80vh;background:#050814;border-radius:10px;border:1px solid rgba(255,255,255,.25);box-shadow:0 0 20px #000;display:flex;flex-direction:column;overflow:hidden}
+#hHd{padding:8px 12px;background:linear-gradient(90deg,#3f8cff,#38d996);display:flex;align-items:center;justify-content:space-between;font-size:13px;font-weight:600}
+#hClose{border:none;border-radius:999px;padding:2px 10px;font-size:12px;background:rgba(0,0,0,.4);color:#fff;cursor:pointer}
+#hClose:hover{background:rgba(0,0,0,.7)}
+#hBody{padding:8px 10px;flex:1;overflow:auto}
+#hText{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px;white-space:pre-wrap;line-height:1.4}
+#hFt{padding:6px 10px 8px;border-top:1px solid rgba(255,255,255,.12);display:flex;justify-content:flex-end}
+#hDl{color:#9be8ff;text-decoration:none;border-radius:999px;border:1px solid rgba(155,232,255,.7);padding:2px 10px}
+#hDl:hover{background:rgba(155,232,255,.12)}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="info">漫苗森林 sketch forest v0.15<br>滑鼠移動視角｜W 前進 S 後退 A/D 側移｜滾輪/雙指縮放</div>
+<div id="mini"><canvas></canvas></div>
+<div id="cross"></div>
+<div id="joy"><div id="joyb"></div><div id="joyk"></div></div>
+<div id="hint">行動裝置：左下搖桿移動，單指旋轉視角，雙指縮放視角</div>
+<div id="stats">
+  <div id="statsHd"><span>生態統計</span><span id="statsArrow">▼</span></div>
+  <div id="statsBd">
+    <div class="srow" data-e="fruit"><span class="sname">果實</span><span class="sval" id="nFruit">0</span></div>
+    <div class="srow" data-e="beetle"><span class="sname">甲蟲</span><span class="sval" id="nBeetle">0</span></div>
+    <div class="srow" data-e="rabbit"><span class="sname">兔子</span><span class="sval" id="nRabbit">0</span></div>
+    <div class="srow" data-e="squirrel"><span class="sname">松鼠</span><span class="sval" id="nSquirrel">0</span></div>
+    <div class="srow" data-e="deer"><span class="sname">麋鹿</span><span class="sval" id="nDeer">0</span></div>
+    <div class="srow" data-e="bird"><span class="sname">鳥</span><span class="sval" id="nBird">0</span></div>
+    <canvas id="chart" width="176" height="80"></canvas>
+  </div>
+</div>
+<button id="helpBtn">說明</button>
+<div id="help">
+  <div id="hDlg">
+    <div id="hHd"><span>漫苗森林說明（readme.md）</span><button id="hClose">關閉</button></div>
+    <div id="hBody"><pre id="hText"></pre></div>
+    <div id="hFt"><a id="hDl" href="#" download="readme.md">下載 readme.md</a></div>
+  </div>
+</div>
+<script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
+<script>
+(()=>{
+// readme
+const README=`# 漫苗森林 sketch forest v0.15
+
+- 線稿 3D 森林，第一人稱視角。
+- 電腦：滑鼠移動視角，WASD 移動，滾輪縮放。
+- 手機/平板：左下搖桿移動，單指拖曳旋轉視角，雙指縮放。
+- 樹都是輪廓線，距離越遠越淡。掉落的果實若沒被吃掉，落地後會長出小樹，小樹在迷你地圖以不同顏色顯示，會隨時間長大。
+- 森林中有甲蟲、兔子、松鼠、麋鹿、鳥五種動物（黃色線稿），會自由移動，並尋找果實或甲蟲。
+- 能量級數（消耗量）：
+  - 甲蟲：1 級。
+  - 兔子、松鼠：10 級。
+  - 麋鹿、鳥：100 級。
+- 左側「生態統計」面板：
+  - 即時顯示六種生物（含果實）數量。
+  - 點擊「果實」「甲蟲」名稱，每次增加 10 個體；其餘每次 +1。
+  - 下方曲線圖是時間軸，追蹤數量變化。
+- 若果實產量不足，系統會依能量級數讓高級消費者率先減少，模擬競爭與能量塔概念。`;
+
+const hText=document.getElementById("hText");
+const hDl=document.getElementById("hDl");
+const help=document.getElementById("help");
+document.getElementById("helpBtn").onclick=()=>help.style.display="flex";
+document.getElementById("hClose").onclick=()=>help.style.display="none";
+help.onclick=e=>{if(e.target===help)help.style.display="none";}
+hText.textContent=README;
+hDl.href="data:text/markdown;charset=utf-8,"+encodeURIComponent(README);
+
+// minimap & UI refs
+const mini=document.querySelector("#mini canvas"),mCtx=mini.getContext("2d");
+const stats=document.getElementById("stats");
+const statsHd=document.getElementById("statsHd");
+const statsArrow=document.getElementById("statsArrow");
+const chart=document.getElementById("chart"),chCtx=chart.getContext("2d");
+const nFruit=document.getElementById("nFruit");
+const nBeetle=document.getElementById("nBeetle");
+const nRabbit=document.getElementById("nRabbit");
+const nSquirrel=document.getElementById("nSquirrel");
+const nDeer=document.getElementById("nDeer");
+const nBird=document.getElementById("nBird");
+
+// panel fold
+statsHd.onclick=()=>{
+  stats.classList.toggle("collapsed");
+  statsArrow.textContent=stats.classList.contains("collapsed")?"▲":"▼";
+};
+
+// add entity by click
+stats.addEventListener("click",e=>{
+  let t=e.target;
+  while(t && !t.classList.contains("srow")) t=t.parentElement;
+  if(!t) return;
+  addEntity(t.dataset.e);
+});
+
+// three init
+const canvas=document.getElementById("c");
+const renderer=new THREE.WebGLRenderer({canvas,antialias:true});
+renderer.setPixelRatio(window.devicePixelRatio||1);
+renderer.setSize(window.innerWidth,window.innerHeight);
+renderer.setClearColor(0x000000,1);
+const scene=new THREE.Scene();
+scene.fog=new THREE.FogExp2(0x000000,0.002);
+const camera=new THREE.PerspectiveCamera(60,window.innerWidth/window.innerHeight,0.1,1500);
+const holder=new THREE.Object3D();
+holder.position.set(0,3,0);
+camera.position.set(0,2,0);
+holder.add(camera);
+scene.add(holder);
+
+// grid
+const grid=new THREE.GridHelper(400,40,0x333333,0x111111);
+grid.material.transparent=true;grid.material.opacity=0.6;
+scene.add(grid);
+
+// trees
+const trees=[],treePos=[],saplings=[];
+const forestR=180;
+function wMat(c){return new THREE.MeshBasicMaterial({color:c,wireframe:true});}
+const trunkThin=new THREE.CylinderGeometry(.25,.35,5,8);
+const trunkThick=new THREE.CylinderGeometry(.5,.7,6,8);
+const tall=new THREE.CylinderGeometry(.3,.4,8,6);
+const cone=new THREE.ConeGeometry(2,5,10);
+const coneW=new THREE.ConeGeometry(3,4,12);
+const sph=new THREE.SphereGeometry(2.2,10,8);
+const sSph=new THREE.SphereGeometry(1.4,10,8);
+const box=new THREE.BoxGeometry(3,3,3);
+const bush=new THREE.SphereGeometry(1.3,8,6);
+
+function makeTree(type){
+  const g=new THREE.Group(),tm=[],cm=[];
+  if(type===0){
+    const mT=wMat(0x226633),mC=wMat(0x55ff99);
+    const t=new THREE.Mesh(trunkThin,mT);t.position.y=3;t.scale.y=1+Math.random();
+    const c=new THREE.Mesh(cone,mC);c.position.y=t.position.y+3.5;
+    g.add(t,c);tm.push(mT);cm.push(mC);
+  }else if(type===1){
+    const mT=wMat(0x226633),mC=wMat(0x66ffcc);
+    const t=new THREE.Mesh(tall,mT);t.position.y=4;t.scale.y=1+Math.random();
+    g.add(t);tm.push(mT);
+    const lv=3+Math.floor(Math.random()*2);
+    for(let i=0;i<lv;i++){
+      const c=new THREE.Mesh(coneW,mC);
+      c.position.y=t.position.y+1.5+i*1.8;
+      const s=1.1-i*0.2;c.scale.set(s,s,s);
+      g.add(c);cm.push(mC);
+    }
+  }else if(type===2){
+    const mT=wMat(0x885533),mC=wMat(0x88ff88);
+    const t=new THREE.Mesh(trunkThick,mT);t.position.y=3;
+    const c=new THREE.Mesh(sph,mC);c.position.y=t.position.y+3.5;
+    g.add(t,c);tm.push(mT);cm.push(mC);
+    for(let i=0;i<2;i++){
+      const s=new THREE.Mesh(sSph,mC);
+      const a=Math.random()*Math.PI*2,r=2+Math.random();
+      s.position.set(c.position.x+Math.cos(a)*r,c.position.y-0.4+Math.random(),c.position.z+Math.sin(a)*r);
+      g.add(s);cm.push(mC);
+    }
+  }else if(type===3){
+    const mT=wMat(0x996633),mC=wMat(0x66ff88);
+    const t=new THREE.Mesh(trunkThin,mT);t.position.y=2.8;
+    const c=new THREE.Mesh(box,mC);c.position.y=t.position.y+3;
+    g.add(t,c);tm.push(mT);cm.push(mC);
+  }else{
+    const mT=wMat(0x335533),mC=wMat(0x77ffbb);
+    const t=new THREE.Mesh(trunkThin,mT);t.position.y=1.8;t.scale.y=.7;
+    g.add(t);tm.push(mT);
+    const n=3+Math.floor(Math.random()*3);
+    for(let i=0;i<n;i++){
+      const b=new THREE.Mesh(bush,mC);
+      const a=i/n*Math.PI*2+Math.random()*0.4,r=1.2+Math.random();
+      b.position.set(Math.cos(a)*r,t.position.y+1+Math.random(),Math.sin(a)*r);
+      g.add(b);cm.push(mC);
+    }
+  }
+  return {g,tm,cm};
+}
+
+const fruitGeo=new THREE.SphereGeometry(.3,8,8);
+const fruitMat=new THREE.MeshBasicMaterial({color:0x99ffee,wireframe:true,transparent:true,opacity:.6});
+const fruits=[];
+function spawnFruit(t){
+  const m=new THREE.Mesh(fruitGeo,fruitMat.clone());
+  const a=Math.random()*Math.PI*2,r=1.5+Math.random()*1.2,h=3+Math.random()*3;
+  m.position.set(t.g.position.x+Math.cos(a)*r,h,t.g.position.z+Math.sin(a)*r);
+  m.userData={vy:0,age:0,delay:2+Math.random()*6,attached:true,eaten:false,sapling:false};
+  scene.add(m);fruits.push(m);
+}
+
+for(let i=0;i<220;i++){
+  const a=Math.random()*Math.PI*2,r=(.3+.7*Math.random())*forestR;
+  const x=Math.cos(a)*r,z=Math.sin(a)*r;
+  const t=makeTree(Math.floor(Math.random()*5));
+  t.g.position.set(x,0,z);
+  scene.add(t.g);
+  trees.push(t);treePos.push({x,z,s:false});
+  const n=2+Math.floor(Math.random()*3);
+  for(let k=0;k<n;k++)spawnFruit(t);
+}
+
+// river
+const riverPts=[{x:-120,z:-40},{x:-60,z:-20},{x:10,z:10},{x:70,z:40},{x:130,z:80}],riverW=14,riverMini=[];
+function addRiver(p1,p2){
+  const dx=p2.x-p1.x,dz=p2.z-p1.z,len=Math.hypot(dx,dz)||1,ang=Math.atan2(dx,dz);
+  const g=new THREE.PlaneGeometry(riverW,len,1,1);
+  const m=new THREE.MeshBasicMaterial({color:0x3399ff,wireframe:true,side:THREE.DoubleSide});
+  const mesh=new THREE.Mesh(g,m);
+  mesh.rotation.x=-Math.PI/2;mesh.rotation.z=ang;
+  mesh.position.set((p1.x+p2.x)/2,0.02,(p1.z+p2.z)/2);
+  scene.add(mesh);
+}
+for(let i=0;i<riverPts.length-1;i++){
+  addRiver(riverPts[i],riverPts[i+1]);
+  riverMini.push(riverPts[i]);
+}
+riverMini.push(riverPts[riverPts.length-1]);
+
+function distRiver(x,z){
+  let m=1e9;
+  for(let i=0;i<riverPts.length-1;i++){
+    const p1=riverPts[i],p2=riverPts[i+1];
+    const vx=p2.x-p1.x,vz=p2.z-p1.z,wx=x-p1.x,wz=z-p1.z;
+    const L=vx*vx+vz*vz||1,t=Math.max(0,Math.min(1,(wx*vx+wz*vz)/L));
+    const px=p1.x+vx*t,pz=p1.z+vz*t;
+    const d=Math.hypot(x-px,z-pz);
+    if(d<m)m=d;
+  }
+  return m;
+}
+
+// camera control
+let yaw=0,pitch=0,lastX=null,lastY=null;
+function updRot(){camera.rotation.order="YXZ";camera.rotation.y=yaw;camera.rotation.x=pitch;}
+updRot();
+const isMobile=("ontouchstart" in window)||navigator.maxTouchPoints>0;
+const joy=document.getElementById("joy"),joyb=document.getElementById("joyb"),joyk=document.getElementById("joyk");
+if(isMobile) joy.style.display="block";
+
+// mouse look
+window.addEventListener("mousemove",e=>{
+  if(isMobile) return;
+  if(lastX==null){lastX=e.clientX;lastY=e.clientY;return;}
+  const dx=e.clientX-lastX,dy=e.clientY-lastY;lastX=e.clientX;lastY=e.clientY;
+  const s=0.003;yaw-=dx*s;pitch-=dy*s;
+  const L=Math.PI/2-0.05;
+  if(pitch>L)pitch=L;if(pitch<-L)pitch=-L;updRot();
+});
+
+// keys
+const keys={};
+window.addEventListener("keydown",e=>keys[e.key.toLowerCase()]=true);
+window.addEventListener("keyup",e=>keys[e.key.toLowerCase()]=false);
+
+// wheel zoom
+window.addEventListener("wheel",e=>{
+  e.preventDefault();
+  camera.fov+=e.deltaY*0.02;
+  if(camera.fov<30)camera.fov=30;
+  if(camera.fov>90)camera.fov=90;
+  camera.updateProjectionMatrix();
+},{passive:false});
+
+// touch rotate & pinch
+let tRot=false,tLastX=0,tLastY=0,pinch=false,pinchStart=0,pinchFov=60;
+canvas.addEventListener("touchstart",e=>{
+  if(!isMobile)return;
+  if(e.target===joy||e.target===joyb||e.target===joyk)return;
+  if(e.touches.length===1){
+    tRot=true;tLastX=e.touches[0].clientX;tLastY=e.touches[0].clientY;
+  }else if(e.touches.length===2){
+    pinch=true;
+    const dx=e.touches[0].clientX-e.touches[1].clientX;
+    const dy=e.touches[0].clientY-e.touches[1].clientY;
+    pinchStart=Math.hypot(dx,dy);pinchFov=camera.fov;
+  }
+},{passive:false});
+canvas.addEventListener("touchmove",e=>{
+  if(!isMobile)return;
+  if(e.touches.length===1 && tRot){
+    const x=e.touches[0].clientX,y=e.touches[0].clientY;
+    const dx=x-tLastX,dy=y-tLastY;tLastX=x;tLastY=y;
+    const s=0.003;yaw-=dx*s;pitch-=dy*s;
+    const L=Math.PI/2-0.05;
+    if(pitch>L)pitch=L;if(pitch<-L)pitch=-L;updRot();
+  }else if(e.touches.length===2 && pinch){
+    const dx=e.touches[0].clientX-e.touches[1].clientX;
+    const dy=e.touches[0].clientY-e.touches[1].clientY;
+    const d=Math.hypot(dx,dy);
+    const scale=d/(pinchStart||d);
+    camera.fov=pinchFov/scale;
+    if(camera.fov<30)camera.fov=30;
+    if(camera.fov>90)camera.fov=90;
+    camera.updateProjectionMatrix();
+  }
+  e.preventDefault();
+},{passive:false});
+canvas.addEventListener("touchend",e=>{
+  if(!isMobile)return;
+  if(e.touches.length===0)tRot=false;
+  if(e.touches.length<2)pinch=false;
+});
+
+// joystick
+let jAct=false,jCX=0,jCY=0,jR=40,jF=0,jS=0;
+function jStart(e){
+  if(!isMobile)return;
+  jAct=true;
+  const r=joyb.getBoundingClientRect();
+  jCX=r.left+r.width/2;jCY=r.top+r.height/2;
+  const t=e.touches[0];jMove(t.clientX,t.clientY);
+}
+function jMove(x,y){
+  let dx=x-jCX,dy=y-jCY;
+  const d=Math.hypot(dx,dy),mx=jR;
+  if(d>mx){const s=mx/(d||1);dx*=s;dy*=s;}
+  const nx=dx/mx,ny=dy/mx;
+  jS=nx;jF=-ny;
+  joyk.style.transform=`translate(calc(-50% + ${dx}px),calc(-50% + ${dy}px))`;
+}
+function jMoveEvt(e){
+  if(!jAct)return;
+  const t=e.touches[0];jMove(t.clientX,t.clientY);
+  e.preventDefault();
+}
+function jEnd(e){
+  if(e.touches.length===0){
+    jAct=false;jF=0;jS=0;joyk.style.transform="translate(-50%,-50%)";
+  }
+}
+joy.addEventListener("touchstart",jStart,{passive:false});
+joy.addEventListener("touchmove",jMoveEvt,{passive:false});
+joy.addEventListener("touchend",jEnd,{passive:false});
+joy.addEventListener("touchcancel",jEnd,{passive:false});
+
+// animals
+const animals={beetle:[],rabbit:[],squirrel:[],deer:[],bird:[]};
+const aCol=0xffee55;
+function aMesh(type){
+  const g=new THREE.Group(),m=new THREE.MeshBasicMaterial({color:aCol,wireframe:true});
+  if(type==="beetle"){
+    const b=new THREE.Mesh(new THREE.SphereGeometry(.4,8,8),m);
+    const h=new THREE.Mesh(new THREE.SphereGeometry(.25,8,8),m);h.position.z=.45;
+    g.add(b,h);
+  }else if(type==="rabbit"){
+    const body=new THREE.Mesh(new THREE.SphereGeometry(.7,10,10),m);
+    const head=new THREE.Mesh(new THREE.SphereGeometry(.4,10,10),m);head.position.set(.5,.2,0);
+    g.add(body,head);
+  }else if(type==="squirrel"){
+    const body=new THREE.Mesh(new THREE.SphereGeometry(.7,10,10),m);
+    const head=new THREE.Mesh(new THREE.SphereGeometry(.4,10,10),m);head.position.set(.4,.2,0);
+    const tail=new THREE.Mesh(new THREE.CylinderGeometry(.15,.25,1.2,8),m);tail.position.set(-.6,.4,0);tail.rotation.z=Math.PI/2;
+    g.add(body,head,tail);
+  }else if(type==="deer"){
+    const body=new THREE.Mesh(new THREE.BoxGeometry(1.8,1,.6),m);body.position.y=.6;
+    const head=new THREE.Mesh(new THREE.SphereGeometry(.4,8,8),m);head.position.set(1.1,1.4,0);
+    g.add(body,head);
+  }else if(type==="bird"){
+    const body=new THREE.Mesh(new THREE.SphereGeometry(.4,8,8),m);
+    const head=new THREE.Mesh(new THREE.SphereGeometry(.25,8,8),m);head.position.set(.35,.1,0);
+    g.add(body,head);
+  }
+  return g;
+}
+function randPos(){
+  const a=Math.random()*Math.PI*2,r=Math.random()*forestR*0.9;
+  return {x:Math.cos(a)*r,z:Math.sin(a)*r};
+}
+function spawnAnimal(type){
+  const g=aMesh(type),p=randPos();
+  const y=type==="bird"?8+Math.random()*4:type==="beetle"?1+Math.random()*3:.3;
+  g.position.set(p.x,y,p.z);
+  scene.add(g);
+  const sp=type==="deer"?6:type==="bird"?8:4;
+  const obj={type,g,s:sp,vx:0,vz:0,t:Math.random()*Math.PI*2,target:null,baseY:y};
+  animals[type].push(obj);
+}
+function initAnimals(){
+  for(let i=0;i<40;i++)spawnAnimal("beetle");
+  for(let i=0;i<20;i++)spawnAnimal("rabbit");
+  for(let i=0;i<18;i++)spawnAnimal("squirrel");
+  for(let i=0;i<8;i++)spawnAnimal("deer");
+  for(let i=0;i<14;i++)spawnAnimal("bird");
+}
+initAnimals();
+
+// fruits & saplings update
+function remFruit(f){
+  const i=fruits.indexOf(f);
+  if(i>=0)fruits.splice(i,1);
+  if(f.parent)f.parent.remove(f);
+}
+function updFruits(dt){
+  for(const f of fruits){
+    const d=f.userData;d.age+=dt;
+    if(d.attached){
+      if(d.age>d.delay){d.attached=false;d.vy=0;}
+    }else{
+      d.vy-=9.8*dt*.8;
+      f.position.y+=d.vy*dt;
+      if(f.position.y<=0.1){
+        f.position.y=0.1;d.vy=0;
+        if(!d.eaten && !d.sapling){
+          const t=makeTree(Math.floor(Math.random()*5));
+          t.g.position.set(f.position.x,0,f.position.z);
+          t.g.scale.set(.2,.2,.2);
+          scene.add(t.g);trees.push(t);
+          treePos.push({x:t.g.position.x,z:t.g.position.z,s:true});
+          saplings.push({t,age:0,target:.9+Math.random()*.6});
+          d.sapling=true;
+        }
+      }
+    }
+  }
+}
+function updSaplings(dt){
+  for(const s of saplings){
+    s.age+=dt;
+    const k=Math.min(s.age/60,1),b=.2,sc=b+(s.target-b)*k;
+    s.t.g.scale.set(sc,sc,sc);
+  }
+}
+
+// nearest fruit helper
+function nearFruit(x,z,maxD){
+  let best=null,b=maxD;
+  for(const f of fruits){
+    const d=Math.hypot(f.position.x-x,f.position.z-z);
+    if(d<b){b=d;best=f;}
+  }
+  return best;
+}
+
+// animals update（含覓食）
+function updAnimals(dt){
+  const w=0.5;
+  for(const type of["beetle","rabbit","squirrel","deer","bird"]){
+    const list=animals[type];
+    for(const a of list){
+      a.t+=dt;
+      if(type==="beetle"){
+        if(!a.target && Math.random()<.02)a.target=nearFruit(a.g.position.x,a.g.position.z,40);
+        if(a.target){
+          const tx=a.target.position.x,tz=a.target.position.z;
+          const dx=tx-a.g.position.x,dz=tz-a.g.position.z,len=Math.hypot(dx,dz)||1;
+          const nx=dx/len,nz=dz/len;
+          a.vx+=nx*a.s*.3*dt;a.vz+=nz*a.s*.3*dt;
+          if(len<1.2){a.target.userData.eaten=true;remFruit(a.target);a.target=null;}
+        }else{
+          a.vx+=Math.cos(a.t*1.7)*w*dt;a.vz+=Math.sin(a.t*1.3)*w*dt;
+        }
+      }else if(type==="rabbit"){
+        if(!a.target && Math.random()<.02)a.target=nearFruit(a.g.position.x,a.g.position.z,25);
+        if(a.target){
+          const tx=a.target.position.x,tz=a.target.position.z;
+          const dx=tx-a.g.position.x,dz=tz-a.g.position.z,len=Math.hypot(dx,dz)||1;
+          const nx=dx/len,nz=dz/len;
+          a.vx+=nx*a.s*.4*dt;a.vz+=nz*a.s*.4*dt;
+          if(len<1.4){a.target.userData.eaten=true;remFruit(a.target);a.target=null;}
+        }else{
+          a.vx+=Math.cos(a.t*1.3)*w*dt;a.vz+=Math.sin(a.t*1.1)*w*dt;
+        }
+      }else if(type==="squirrel"){
+        if(!a.target && Math.random()<.03)a.target=nearFruit(a.g.position.x,a.g.position.z,30);
+        if(a.target){
+          const tx=a.target.position.x,ty=a.target.position.y,tz=a.target.position.z;
+          const dx=tx-a.g.position.x,dz=tz-a.g.position.z,len=Math.hypot(dx,dz)||1;
+          const nx=dx/len,nz=dz/len;
+          a.vx+=nx*a.s*.45*dt;a.vz+=nz*a.s*.45*dt;
+          const ty2=ty>2?ty:a.baseY;
+          a.g.position.y+=(ty2-a.g.position.y)*.1;
+          if(len<1.4 && Math.abs(a.g.position.y-ty)<1.5){a.target.userData.eaten=true;remFruit(a.target);a.target=null;}
+        }else{
+          a.vx+=Math.cos(a.t*1.6)*w*dt;a.vz+=Math.sin(a.t*1.4)*w*dt;
+          a.g.position.y=a.baseY+Math.abs(Math.sin(a.t*3))*1.1;
+        }
+      }else if(type==="deer"){
+        if(!a.target && Math.random()<.02)a.target=nearFruit(a.g.position.x,a.g.position.z,35);
+        if(a.target){
+          const tx=a.target.position.x,tz=a.target.position.z;
+          const dx=tx-a.g.position.x,dz=tz-a.g.position.z,len=Math.hypot(dx,dz)||1;
+          const nx=dx/len,nz=dz/len;
+          a.vx+=nx*a.s*.35*dt;a.vz+=nz*a.s*.35*dt;
+          if(len<2){a.target.userData.eaten=true;remFruit(a.target);a.target=null;}
+        }else{
+          const dR=distRiver(a.g.position.x,a.g.position.z);
+          if(dR>riverW*.8){
+            const mid=riverPts[Math.floor(riverPts.length/2)];
+            const dx=mid.x-a.g.position.x,dz=mid.z-a.g.position.z,len=Math.hypot(dx,dz)||1;
+            const nx=dx/len,nz=dz/len;
+            a.vx+=nx*a.s*.25*dt;a.vz+=nz*a.s*.25*dt;
+          }else{
+            a.vx+=Math.cos(a.t*.7)*w*dt;a.vz+=Math.sin(a.t*.9)*w*dt;
+          }
+        }
+        a.g.position.y=a.baseY;
+      }else if(type==="bird"){
+        if(!a.target && Math.random()<.02){
+          const bs=animals.beetle;
+          if(bs.length && Math.random()<.7)a.target=bs[Math.floor(Math.random()*bs.length)];
+          else a.target=nearFruit(a.g.position.x,a.g.position.z,50);
+        }
+        if(a.target && a.target.g){ // 目標甲蟲
+          const tx=a.target.g.position.x,tz=a.target.g.position.z;
+          const dx=tx-a.g.position.x,dz=tz-a.g.position.z,len=Math.hypot(dx,dz)||1;
+          const nx=dx/len,nz=dz/len;
+          a.vx+=nx*a.s*.4*dt;a.vz+=nz*a.s*.4*dt;
+          a.g.position.y+=(a.baseY+2-a.g.position.y)*.05;
+          if(len<1.6){
+            const arr=animals.beetle,idx=arr.indexOf(a.target);
+            if(idx>=0){scene.remove(arr[idx].g);arr.splice(idx,1);}
+            a.target=null;
+          }
+        }else if(a.target && a.target.position){ // 目標果實
+          const tx=a.target.position.x,tz=a.target.position.z;
+          const dx=tx-a.g.position.x,dz=tz-a.g.position.z,len=Math.hypot(dx,dz)||1;
+          const nx=dx/len,nz=dz/len;
+          a.vx+=nx*a.s*.4*dt;a.vz+=nz*a.s*.4*dt;
+          a.g.position.y+=(a.baseY-a.g.position.y)*.05;
+          if(len<1.6){a.target.userData.eaten=true;remFruit(a.target);a.target=null;}
+        }else{
+          a.vx+=Math.cos(a.t*.9)*w*dt;a.vz+=Math.sin(a.t*1.1)*w*dt;
+          a.g.position.y=a.baseY+Math.sin(a.t*1.5)*1.2;
+        }
+      }
+      a.vx*=.96;a.vz*=.96;
+      a.g.position.x+=a.vx*dt;
+      a.g.position.z+=a.vz*dt;
+      const dC=Math.hypot(a.g.position.x,a.g.position.z);
+      if(dC>forestR*.95){
+        const f=(forestR*.95)/(dC||1);
+        a.g.position.x*=f;a.g.position.z*=f;
+      }
+    }
+  }
+}
+
+// population control by energy
+let popTimer=0;
+function updPop(dt){
+  popTimer+=dt;if(popTimer<8)return;popTimer=0;
+  const fN=fruits.length;
+  const bt=animals.beetle,rb=animals.rabbit,sq=animals.squirrel,de=animals.deer,bd=animals.bird;
+  const fFactor=Math.min(fN/(trees.length*3),1);
+  const tgt={
+    beetle:30+Math.round(30*fFactor),
+    rabbit:10+Math.round(12*fFactor),
+    squirrel:8+Math.round(10*fFactor),
+    deer:4+Math.round(4*fFactor*.7)
+  };
+  const bFactor=Math.min(bt.length/35,1);
+  tgt.bird=6+Math.round(10*bFactor);
+  for(const k of["beetle","rabbit","squirrel","deer","bird"]){
+    const arr=animals[k],t=tgt[k]||arr.length;
+    if(arr.length<t){
+      for(let i=0;i<t-arr.length;i++)spawnAnimal(k);
+    }else if(arr.length>t){
+      for(let i=0;i<arr.length-t;i++){
+        const a=arr.pop();scene.remove(a.g);
+      }
+    }
+  }
+  const cap=fN*100;
+  const demand=bt.length*1+(rb.length+sq.length)*10+(de.length+bd.length)*100;
+  if(cap<=0 || demand<=cap)return;
+  let extra=demand-cap;
+  function cull(list,cost){
+    while(extra>0 && list.length){
+      const a=list.pop();scene.remove(a.g);extra-=cost;
+    }
+  }
+  cull(de,100);cull(bd,100);cull(rb,10);cull(sq,10);cull(bt,1);
+}
+
+// stats history
+const hist=[],histMax=120;let histAcc=0;
+function recHist(dt){
+  histAcc+=dt;if(histAcc<1)return;histAcc-=1;
+  hist.push({fruit:fruits.length,beetle:animals.beetle.length,rabbit:animals.rabbit.length,squirrel:animals.squirrel.length,deer:animals.deer.length,bird:animals.bird.length});
+  if(hist.length>histMax)hist.shift();
+}
+function drawChart(){
+  const w=chart.width,h=chart.height,ctx=chCtx;
+  ctx.clearRect(0,0,w,h);
+  if(hist.length<2)return;
+  let max=1;
+  for(const s of hist)max=Math.max(max,s.fruit,s.beetle,s.rabbit,s.squirrel,s.deer,s.bird);
+  const left=4,right=4,top=3,bottom=10,uw=w-left-right,uh=h-top-bottom;
+  const series=[
+    {k:"fruit",c:"#99ffee"},
+    {k:"beetle",c:"#ffd85c"},
+    {k:"rabbit",c:"#ff9866"},
+    {k:"squirrel",c:"#ff66cc"},
+    {k:"deer",c:"#7aa9ff"},
+    {k:"bird",c:"#ffffff"}
+  ];
+  for(const s of series){
+    ctx.beginPath();
+    for(let i=0;i<hist.length;i++){
+      const v=hist[i][s.k],t=i/(hist.length-1);
+      const x=left+t*uw,y=h-bottom-(v/max)*uh;
+      if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);
+    }
+    ctx.strokeStyle=s.c;ctx.lineWidth=1;ctx.stroke();
+  }
+}
+
+// minimap
+function drawMini(cam,fx,fz){
+  const size=Math.min( mini.parentElement.clientWidth, mini.parentElement.clientHeight );
+  if(mini.width!==size||mini.height!==size){mini.width=size;mini.height=size;}
+  const w=mini.width,h=mini.height,ctx=mCtx;
+  ctx.clearRect(0,0,w,h);
+  ctx.fillStyle="rgba(5,10,20,.98)";ctx.fillRect(0,0,w,h);
+  ctx.strokeStyle="rgba(255,255,255,.25)";ctx.lineWidth=2;
+  ctx.strokeRect(2,2,w-4,h-4);
+  const cx=w*.5,cy=h*.5,scale=0.6/forestR;
+  // river
+  ctx.beginPath();
+  riverMini.forEach((p,i)=>{
+    const x=cx+p.x*scale*w,y=cy-p.z*scale*h;
+    if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);
+  });
+  ctx.strokeStyle="rgba(80,160,255,.9)";ctx.lineWidth=2;ctx.stroke();
+  // trees
+  for(const p of treePos){
+    const x=cx+p.x*scale*w,y=cy-p.z*scale*h;
+    const dx=p.x-cam.x,dz=p.z-cam.z;
+    const d=Math.hypot(dx,dz);
+    if(d<forestR*1.2){
+      ctx.beginPath();ctx.arc(x,y,d<30?2:1.4,0,Math.PI*2);
+      ctx.fillStyle=p.s?"rgba(170,255,170,.95)":"rgba(80,255,140,.85)";
+      ctx.fill();
+    }
+  }
+  // player arrow
+  const px=cx+cam.x*scale*w,py=cy-cam.z*scale*h,len=7,a=Math.atan2(-fz,fx);
+  ctx.beginPath();
+  ctx.moveTo(px+Math.cos(a)*len,py+Math.sin(a)*len);
+  ctx.lineTo(px+Math.cos(a+2.4)*len*.6,py+Math.sin(a+2.4)*len*.6);
+  ctx.lineTo(px+Math.cos(a-2.4)*len*.6,py+Math.sin(a-2.4)*len*.6);
+  ctx.closePath();ctx.fillStyle="rgba(255,90,90,.95)";ctx.fill();
+  // compass
+  const r=18,cx2=w-r-8,cy2=r+8;
+  ctx.beginPath();ctx.arc(cx2,cy2,r,0,Math.PI*2);
+  ctx.strokeStyle="rgba(255,255,255,.6)";ctx.lineWidth=1.3;ctx.stroke();
+  ctx.fillStyle="#fff";ctx.font="10px system-ui";ctx.textAlign="center";ctx.textBaseline="middle";
+  ctx.fillText("N",cx2,cy2-r+7);ctx.fillText("S",cx2,cy2+r-7);
+}
+
+// stats panel numbers
+function updStats(){
+  nFruit.textContent=fruits.length;
+  nBeetle.textContent=animals.beetle.length;
+  nRabbit.textContent=animals.rabbit.length;
+  nSquirrel.textContent=animals.squirrel.length;
+  nDeer.textContent=animals.deer.length;
+  nBird.textContent=animals.bird.length;
+}
+
+// add entities by click
+function addEntity(t){
+  if(t==="fruit"){
+    for(let i=0;i<10;i++){
+      const tr=trees[Math.floor(Math.random()*trees.length)];
+      spawnFruit(tr);
+    }
+  }else if(t==="beetle"){
+    for(let i=0;i<10;i++)spawnAnimal("beetle");
+  }else if(t==="rabbit")spawnAnimal("rabbit");
+  else if(t==="squirrel")spawnAnimal("squirrel");
+  else if(t==="deer")spawnAnimal("deer");
+  else if(t==="bird")spawnAnimal("bird");
+}
+
+// resize
+window.addEventListener("resize",()=>{
+  renderer.setSize(window.innerWidth,window.innerHeight);
+  camera.aspect=window.innerWidth/window.innerHeight;
+  camera.updateProjectionMatrix();
+});
+
+// main loop
+let last=performance.now(),bob=0;
+const fwd=new THREE.Vector3(),right=new THREE.Vector3(),up=new THREE.Vector3(0,1,0),tmp=new THREE.Vector3();
+function loop(){
+  requestAnimationFrame(loop);
+  const now=performance.now(),dt=(now-last)/1000;last=now;
+  const base=18;
+  const kF=(keys["w"]||keys["arrowup"]?1:0)-(keys["s"]||keys["arrowdown"]?1:0);
+  const kS=(keys["d"]||keys["arrowright"]?1:0)-(keys["a"]||keys["arrowleft"]?1:0);
+  const mF=kF+jF,mS=kS+jS;
+  camera.getWorldDirection(tmp);tmp.y=0;
+  if(tmp.lengthSq()>1e-4)tmp.normalize();
+  fwd.copy(tmp);
+  right.crossVectors(fwd,up).normalize();
+  holder.position.x+= (fwd.x*mF+right.x*mS)*base*dt;
+  holder.position.z+= (fwd.z*mF+right.z*mS)*base*dt;
+  const dC=Math.hypot(holder.position.x,holder.position.z);
+  if(dC>forestR*.95){
+    const s=(forestR*.95)/(dC||1);
+    holder.position.x*=s;holder.position.z*=s;
+  }
+  holder.position.y=3;
+  const moving=Math.abs(mF)+Math.abs(mS)>0.01;
+  if(moving)bob+=dt*7;else bob*=.9;
+  camera.position.set(Math.sin(bob*4)*.12,2+Math.sin(bob*2)*.2,0);
+
+  // tree color by distance
+  const cam=holder.position;
+  for(const t of trees){
+    const p=t.g.position;
+    const d=Math.hypot(p.x-cam.x,p.z-cam.z),k=Math.min(d/260,1);
+    const g=.3+.7*(1-k),b=.2+.5*k;
+    const tc=new THREE.Color(0,g*0.5,0),cc=new THREE.Color(0,g,b);
+    t.tm.forEach(m=>m.color.copy(tc));
+    t.cm.forEach(m=>m.color.copy(cc));
+  }
+
+  updFruits(dt);updSaplings(dt);updAnimals(dt);updPop(dt);recHist(dt);
+  renderer.render(scene,camera);
+  drawMini(cam,fwd.x,fwd.z);
+  updStats();drawChart();
+}
+loop();
+})();
+</script>
+</body>
+</html>
