@@ -1,0 +1,1732 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<title>漫苗森林 sketch forest v0.25a</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{
+  width:100%;height:100%;overflow:hidden;
+  background:#000;color:#fff;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang TC","Microsoft JhengHei",sans-serif;
+  touch-action:none;
+}
+#c{position:fixed;inset:0}
+
+/* 左上說明按鈕 */
+#helpBtn{
+  position:fixed;left:8px;top:8px;
+  z-index:7;
+  padding:4px 10px;
+  border-radius:14px;
+  border:1px solid rgba(255,255,255,.6);
+  background:rgba(0,0,0,.7);
+  color:#fff;font-size:12px;
+  cursor:pointer;
+}
+#helpBtn:hover{background:rgba(255,255,255,.08);}
+
+/* 說明浮動視窗 */
+#helpOverlay{
+  position:fixed;inset:0;
+  background:rgba(0,0,0,.8);
+  z-index:40;
+  display:none;
+}
+#helpBox{
+  position:absolute;left:50%;top:50%;
+  transform:translate(-50%,-50%);
+  width:min(900px,92vw);
+  height:min(80vh,620px);
+  background:#05060a;
+  border-radius:10px;
+  border:1px solid rgba(255,255,255,.6);
+  box-shadow:0 0 20px rgba(0,0,0,.9);
+  display:flex;flex-direction:column;
+}
+#helpTitleBar{
+  padding:8px 12px;
+  background:linear-gradient(90deg,#5096ff,#3ce6aa);
+  display:flex;align-items:center;justify-content:space-between;
+  font-size:13px;
+}
+#helpClose{
+  border:none;
+  background:rgba(0,0,0,.2);
+  color:#fff;
+  border-radius:12px;
+  padding:2px 8px;
+  cursor:pointer;
+  font-size:12px;
+}
+#helpClose:hover{background:rgba(0,0,0,.35);}
+#helpBody{
+  padding:10px 14px;
+  font-family:"JetBrains Mono","SF Mono","Consolas","Menlo",monospace;
+  font-size:11px;
+  line-height:1.55;
+  white-space:pre-wrap;
+  overflow:auto;
+}
+
+/* 原本左上 info 向下移一點，讓出說明按鈕空間 */
+#info{
+  position:fixed;left:8px;top:36px;
+  padding:4px 8px;
+  background:rgba(0,0,0,.6);
+  font-size:12px;border-radius:4px;
+  z-index:5;white-space:pre-line;
+  max-width:70vw;
+}
+
+/* 準星 */
+#cross{
+  position:fixed;left:50%;top:50%;
+  width:18px;height:18px;
+  margin:-9px 0 0 -9px;
+  z-index:6;pointer-events:none;opacity:.7;
+}
+#cross:before,#cross:after{
+  content:"";position:absolute;left:50%;top:50%;
+  transform:translate(-50%,-50%);
+  background:rgba(255,255,255,.95);
+}
+#cross:before{width:1px;height:14px}
+#cross:after{width:14px;height:1px}
+
+/* 愛心動畫 ＆ 右上恭喜文字 */
+#birthFX{
+  position:fixed;left:50%;top:50%;
+  transform:translate(-50%,-50%) scale(0.2);
+  pointer-events:none;opacity:0;
+  z-index:20;
+}
+#birthHeart{
+  font-size:72px;
+  color:#ff6fb0;
+  text-shadow:0 0 12px rgba(255,105,180,.9);
+}
+#birthMsg{
+  margin-top:8px;
+  font-size:14px;
+  text-align:center;
+}
+#birthFX.show{
+  animation:birthPop 1s ease-out forwards;
+}
+@keyframes birthPop{
+  0%{transform:translate(-50%,-50%) scale(0.2);opacity:0;}
+  15%{transform:translate(-50%,-50%) scale(1.1);opacity:1;}
+  60%{transform:translate(-50%,-50%) scale(1.0);opacity:1;}
+  100%{transform:translate(-50%,-50%) scale(1.4);opacity:0;}
+}
+#birthToast{
+  position:fixed;right:12px;top:12px;
+  padding:6px 10px;
+  background:rgba(0,0,0,.75);
+  border-radius:6px;
+  border:1px solid rgba(255,255,255,.4);
+  font-size:12px;
+  z-index:21;
+  opacity:0;
+  transition:opacity .3s;
+}
+
+/* 小時鐘與時間倍率 */
+#dayClockWrap{
+  position:fixed;left:8px;top:80px;
+  z-index:6;font-size:11px;
+  display:flex;align-items:center;gap:8px;
+}
+#clkFace{
+  width:40px;height:40px;border-radius:50%;
+  border:1px solid rgba(255,255,255,.7);
+  background:radial-gradient(circle,rgba(255,255,255,.06),rgba(0,0,0,.9));
+  position:relative;
+}
+#clkFace::after{
+  content:"";position:absolute;left:50%;top:50%;
+  width:4px;height:4px;border-radius:50%;
+  background:#fff;transform:translate(-50%,-50%);
+}
+#clkHand{
+  position:absolute;left:50%;top:50%;
+  width:2px;height:16px;background:#ffeb99;
+  transform-origin:50% 100%;
+  transform:translate(-50%,-100%) rotate(0deg);
+}
+#dayText{margin-top:2px;color:#fff;font-size:11px}
+#timeCtrl{
+  display:flex;flex-direction:column;gap:2px;
+}
+#timeCtrl label{font-size:10px}
+#timeScale{width:120px}
+
+/* 生態統計面板（略放大，作為基準寬度） */
+#stats{
+  position:fixed;left:8px;top:140px;
+  width:230px;
+  background:rgba(5,5,10,.9);
+  border-radius:8px;
+  border:1px solid rgba(255,255,255,.2);
+  box-shadow:0 0 10px rgba(0,0,0,.8);
+  z-index:6;font-size:11px;
+}
+#statsHd{
+  padding:4px 8px;
+  background:linear-gradient(90deg,#5096ff,#3ce6aa);
+  display:flex;align-items:center;justify-content:space-between;
+  cursor:pointer;
+}
+#statsBd{padding:4px}
+.srow{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:2px 4px;margin-bottom:2px;
+  border-radius:4px;background:rgba(255,255,255,.02);
+}
+.srow:hover{background:rgba(255,255,255,.06);cursor:pointer;}
+.sname{flex:1}
+.sval{margin-left:6px;font-variant-numeric:tabular-nums}
+
+/* 生物量面板（放在 stats 下方） */
+#bioPanel{
+  position:fixed;left:8px;top:340px;
+  width:230px;
+  background:rgba(5,5,10,.9);
+  border-radius:8px;
+  border:1px solid rgba(255,255,255,.2);
+  box-shadow:0 0 10px rgba(0,0,0,.8);
+  z-index:6;font-size:11px;
+  padding:4px;
+}
+#bioHd{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:2px 4px 4px;
+  cursor:pointer;
+}
+#bioArrow{font-size:10px;}
+#bioChart{
+  width:100%;height:70px;
+  background:#05060a;border-radius:4px;
+}
+#bioText{margin-top:2px;font-size:10px;}
+#bioDetail{
+  margin-top:4px;
+  padding-top:4px;
+  border-top:1px solid rgba(255,255,255,.15);
+  display:none;
+}
+#bioLegend{
+  display:flex;flex-wrap:wrap;
+  gap:2px 6px;
+  margin-bottom:4px;
+}
+#bioLegend label{
+  font-size:10px;
+  display:flex;align-items:center;
+}
+#bioLegend input{margin-right:2px;}
+#bioDetailChart{
+  width:100%;height:110px;
+  background:#05060a;border-radius:4px;
+}
+
+/* 迷你地圖：左下 */
+#miniMap{
+  position:fixed;left:8px;bottom:8px;
+  width:170px;height:170px;
+  background:rgba(0,0,0,.7);
+  border-radius:6px;
+  border:1px solid rgba(255,255,255,.3);
+  z-index:6;
+}
+#miniMap canvas{width:100%;height:100%;display:block;}
+#miniMapLabel{
+  position:absolute;left:6px;top:6px;
+  font-size:10px;color:#fff;
+}
+#miniMapNS{
+  position:absolute;right:6px;top:6px;
+  font-size:10px;color:#fff;
+}
+
+/* 行動裝置搖桿與射擊 */
+#joy{
+  position:fixed;left:10px;bottom:10px;
+  width:120px;height:120px;
+  z-index:10;display:none;touch-action:none;
+}
+#joyb{
+  position:absolute;left:50%;top:50%;
+  width:90px;height:90px;margin:-45px 0 0 -45px;
+  border-radius:50%;
+  border:2px solid rgba(255,255,255,.4);
+  background:radial-gradient(circle,rgba(255,255,255,.1),rgba(0,0,0,.7));
+}
+#joyk{
+  position:absolute;left:50%;top:50%;
+  width:46px;height:46px;margin:-23px 0 0 -23px;
+  border-radius:50%;border:2px solid #fff;
+  background:radial-gradient(circle,#fff,rgba(0,0,0,.2));
+  box-shadow:0 0 8px #000;
+}
+#shootBtn{
+  position:fixed;right:14px;bottom:82px;
+  width:52px;height:52px;border-radius:50%;
+  border:2px solid rgba(255,255,255,.85);
+  background:radial-gradient(circle,rgba(0,0,0,.4),rgba(0,0,0,.9));
+  color:#fff;font-size:22px;line-height:48px;
+  text-align:center;z-index:11;display:none;
+}
+#shootBtn:active{transform:scale(.95)}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<button id="helpBtn">說明</button>
+
+<div id="helpOverlay">
+  <div id="helpBox">
+    <div id="helpTitleBar">
+      <span>漫苗森林 sketch forest v0.25a 說明（readme.md）</span>
+      <button id="helpClose">關閉</button>
+    </div>
+    <div id="helpBody"></div>
+  </div>
+</div>
+
+<div id="info">漫苗森林 sketch forest v0.25a
+W 前進 / S 後退 / A D 側移 ｜ 滑鼠移動視角（Tab 鎖定／解鎖滑鼠）
+滑鼠左鍵：消滅準星上的生物／種果實／移除樹
+行動裝置：左下搖桿移動、右下按鈕攻擊或種果實</div>
+
+<div id="cross"></div>
+
+<!-- 愛心動畫 ＆ 右上恭喜字樣 -->
+<div id="birthFX">
+  <div id="birthHeart">❤</div>
+  <div id="birthMsg"></div>
+</div>
+<div id="birthToast"></div>
+
+<!-- 小時鐘與時間倍率 -->
+<div id="dayClockWrap">
+  <div>
+    <div id="clkFace"><div id="clkHand"></div></div>
+    <div id="dayText">已過 0 天</div>
+  </div>
+  <div id="timeCtrl">
+    <label for="timeScale">時間倍率：<span id="timeScaleLabel">1x</span></label>
+    <input id="timeScale" type="range" min="1" max="10" step="1" value="1">
+  </div>
+</div>
+
+<!-- 行動裝置搖桿＋射擊 -->
+<div id="joy"><div id="joyb"></div><div id="joyk"></div></div>
+<button id="shootBtn">✕</button>
+
+<!-- 生態統計 -->
+<div id="stats">
+  <div id="statsHd"><span>生態統計（點名稱可新增）</span><span id="statsArrow">▼</span></div>
+  <div id="statsBd">
+    <div class="srow" data-type="fruit"><span class="sname">果實</span><span class="sval" id="nFruit">0</span></div>
+    <div class="srow" data-type="butterfly"><span class="sname">蝴蝶</span><span class="sval" id="nButterfly">0</span></div>
+    <div class="srow" data-type="squirrel"><span class="sname">松鼠</span><span class="sval" id="nSquirrel">0</span></div>
+    <div class="srow" data-type="rabbit"><span class="sname">兔子</span><span class="sval" id="nRabbit">0</span></div>
+    <div class="srow" data-type="deer"><span class="sname">麋鹿</span><span class="sval" id="nDeer">0</span></div>
+    <div class="srow" data-type="bird"><span class="sname">鳥</span><span class="sval" id="nBird">0</span></div>
+  </div>
+</div>
+
+<!-- 生物量圖（總覽＋可點開詳細） -->
+<div id="bioPanel">
+  <div id="bioHd"><span>生物量總覽（點我展開詳細）</span><span id="bioArrow">▼</span></div>
+  <canvas id="bioChart" width="230" height="70"></canvas>
+  <div id="bioText">總生物量：0</div>
+  <div id="bioDetail">
+    <div id="bioLegend">
+      <label><input type="checkbox" data-key="butterflyN" checked>蝴蝶數量</label>
+      <label><input type="checkbox" data-key="birdN" checked>鳥數量</label>
+      <label><input type="checkbox" data-key="deerN" checked>麋鹿數量</label>
+      <label><input type="checkbox" data-key="treeBiomass" checked>樹生物量</label>
+      <label><input type="checkbox" data-key="rabbitN">兔子數量</label>
+      <label><input type="checkbox" data-key="squirrelN">松鼠數量</label>
+      <label><input type="checkbox" data-key="fruitN">果實數量</label>
+    </div>
+    <canvas id="bioDetailChart" width="230" height="110"></canvas>
+  </div>
+</div>
+
+<!-- 迷你地圖 左下 -->
+<div id="miniMap">
+  <div id="miniMapLabel">迷你地圖</div>
+  <div id="miniMapNS">N↑ S↓</div>
+  <canvas id="miniMapCanvas" width="170" height="170"></canvas>
+</div>
+
+<script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
+<script>
+(() => {
+const info = document.getElementById("info");
+if (typeof THREE === "undefined") {
+  info.textContent += "\\n⚠ 無法載入 three.js，請確認網路或改用本機版本。";
+  return;
+}
+
+/* ====== readme 文字（顯示在說明視窗） ====== */
+const readmeMdText =
+"漫苗森林 sketch forest v0.25a 說明（readme.md）\\n" +
+"\\n" +
+"本模擬是一個以「線稿 3D 森林」為舞台的生態系統模型。\\n" +
+"玩家以第一人稱在森林中移動，觀察樹、果實與五種動物（蝴蝶、松鼠、兔子、麋鹿、鳥）\\n" +
+"之間的能量流動、進食、生殖與族群變化。\\n" +
+"\\n" +
+"--- 操作方式摘要 ---\\n" +
+"電腦：\\n" +
+"  W/S/A/D 移動，滑鼠移動視角，滑鼠左鍵射擊或種果實，滾輪縮放視角。\\n" +
+"  Tab 切換滑鼠鎖定（適合遊戲操作）與解鎖（適合點擊介面）。\\n" +
+"行動裝置：\\n" +
+"  左下搖桿移動，單指旋轉視角，雙指縮放視角，右下按鈕進行射擊或種果實。\\n" +
+"\\n" +
+"--- 生態核心規則 ---\\n" +
+"1. 樹有三個階段：小樹 / 中樹 / 大樹，分別對應不同生物量，會隨時間與被啃食而成長或退化。\\n" +
+"2. 樹會不定期結果實：小樹 1 顆、中樹 3 顆、大樹 5 顆，果實先長在樹上。\\n" +
+"3. 果實掛在樹上若連續幾天沒被吃掉，會掉到地上；再過一段時間仍未被吃掉，就會在地上發芽成小樹。\\n" +
+"4. 動物有體重與每日能量需求，吃不到足夠食物就會變瘦，嚴重飢餓（低於原始體重 30%）會死亡。\\n" +
+"5. 動物吃飽後會嘗試與同種異性接近，滿足距離與生殖條件時會生出一隻新個體。\\n" +
+"   生殖當下：畫面中央出現愛心動畫，右上角顯示「恭喜某某物種誕生一隻新個體」。\\n" +
+"6. 各物種食性：\\n" +
+"   - 蝴蝶：吃樹上的果實，會躲避鳥並躲進樹叢。\\n" +
+"   - 鳥：優先捕食蝴蝶，沒有蝴蝶時改吃樹上果實。\\n" +
+"   - 松鼠：地面與樹上都會找果實。\\n" +
+"   - 兔子：只吃地上的果實，地面移動速度最快。\\n" +
+"   - 麋鹿：有果實時先吃果實，果實不足時改啃食樹葉，降低樹的生物量。\\n" +
+"7. 每隻動物有生殖潛能值，用完之後即壽終正寢，即使尚未餓死也會自然消失。\\n" +
+"8. 左方統計面板中可看到各物種的數量，點擊名稱可以在準星附近生成更多個體或果實（果實一次加 10 顆）。\\n" +
+"9. 生物量總覽圖與詳細折線圖：\\n" +
+"   - 總生物量 = 所有動物體重加總。\\n" +
+"   - 樹生物量 = 所有樹的能量加總。\\n" +
+"   - 可以勾選蝴蝶、鳥、麋鹿、兔子、松鼠、果實、樹生物量等項目，觀察時間變化。\\n" +
+"10. 小地圖顯示森林邊界、河流、樹分布，以及玩家在森林中的位置與朝向。\\n" +
+"11. 左上方小時鐘指針轉一圈代表一天，旁邊的時間倍率可將模擬速度加快至 10 倍。\\n" +
+"12. 本 readme.md 同時可作為 GitHub 專案的說明檔，方便課堂教學或自學時參考完整規則。\\n";
+
+/* 說明視窗控制 */
+const helpBtn   = document.getElementById("helpBtn");
+const helpOv    = document.getElementById("helpOverlay");
+const helpClose = document.getElementById("helpClose");
+const helpBody  = document.getElementById("helpBody");
+
+helpBody.textContent = readmeMdText;
+
+helpBtn.onclick = () => {
+  helpOv.style.display = "block";
+};
+helpClose.onclick = () => {
+  helpOv.style.display = "none";
+};
+helpOv.addEventListener("click", (e) => {
+  if (e.target === helpOv) helpOv.style.display = "none";
+});
+
+/* ====== 原本模擬程式 ====== */
+
+const canvas = document.getElementById("c");
+const renderer = new THREE.WebGLRenderer({ canvas, antialias:true });
+renderer.setPixelRatio(window.devicePixelRatio || 1);
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setClearColor(0x000000, 1);
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.FogExp2(0x000000, 0.002);
+
+const camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 1500);
+const holder = new THREE.Object3D();
+holder.position.set(0, 2.5, 0);
+holder.add(camera);
+scene.add(holder);
+
+const grid = new THREE.GridHelper(400, 40, 0x333333, 0x111111);
+grid.material.transparent = true;
+grid.material.opacity = 0.6;
+scene.add(grid);
+
+const raycaster = new THREE.Raycaster();
+const mouseNDC = new THREE.Vector2(0,0); // 準星固定畫面中央
+
+/* ==== 生態資料結構 ==== */
+const DAY_SEC = 120;
+const forestR = 180;
+
+const PLANT_ENERGY = {
+  fruit:   Math.pow(14, 0),
+  sapling: Math.pow(14, 1),
+  mid:     Math.pow(14, 2),
+  big:     Math.pow(14, 3)
+};
+
+const trees = [];
+const fruits = [];
+const animals = [];
+
+const animalCfg = {
+  butterfly:{initW:2,   dailyNeed:3,  losePerDay:0.1, color:0xffff66, repro:100},
+  squirrel: {initW:40,  dailyNeed:10, losePerDay:1,   color:0xffcc66, repro:10},
+  rabbit:   {initW:40,  dailyNeed:10, losePerDay:1,   color:0xffaa55, repro:10},
+  deer:     {initW:200, dailyNeed:30, losePerDay:5,   color:0xffddaa, repro:2},
+  bird:     {initW:100, dailyNeed:15, losePerDay:2.5, color:0xffffaa, repro:5}
+};
+
+/* 種類對應中文名 */
+const speciesNameMap = {
+  butterfly:"蝴蝶",
+  squirrel:"松鼠",
+  rabbit:"兔子",
+  deer:"麋鹿",
+  bird:"鳥"
+};
+
+/* ==== UI  DOM ==== */
+const nFruit = document.getElementById("nFruit");
+const nButterfly = document.getElementById("nButterfly");
+const nSquirrel = document.getElementById("nSquirrel");
+const nRabbit = document.getElementById("nRabbit");
+const nDeer = document.getElementById("nDeer");
+const nBird = document.getElementById("nBird");
+
+const clkHand = document.getElementById("clkHand");
+const dayText = document.getElementById("dayText");
+const timeScaleSlider = document.getElementById("timeScale");
+const timeScaleLabel = document.getElementById("timeScaleLabel");
+
+let timeScale = 1;
+timeScaleSlider.addEventListener("input", e=>{
+  timeScale = Number(e.target.value)||1;
+  timeScaleLabel.textContent = timeScale + "x";
+});
+
+/* 生態統計面板收合 */
+const statsHd = document.getElementById("statsHd");
+const statsArrow = document.getElementById("statsArrow");
+statsHd.onclick = () => {
+  const bd = document.getElementById("statsBd");
+  const hide = bd.style.display === "none";
+  bd.style.display = hide ? "block" : "none";
+  statsArrow.textContent = hide ? "▼" : "▲";
+  layoutPanels();
+};
+
+/* 生物量面板收合 */
+const bioHd = document.getElementById("bioHd");
+const bioArrow = document.getElementById("bioArrow");
+const bioDetail = document.getElementById("bioDetail");
+bioHd.onclick = () => {
+  const hide = bioDetail.style.display === "none";
+  bioDetail.style.display = hide ? "block" : "none";
+  bioArrow.textContent = hide ? "▲" : "▼";
+  layoutPanels();
+};
+
+/* 愛心動畫＆恭喜文字 */
+const birthFX = document.getElementById("birthFX");
+const birthMsg = document.getElementById("birthMsg");
+const birthToast = document.getElementById("birthToast");
+let birthToastTimer = null;
+
+function showBirthFX(cnName){
+  const text = "恭喜 " + cnName + " 誕生一隻新個體！";
+  birthMsg.textContent = text;
+  birthToast.textContent = text;
+
+  birthFX.classList.remove("show");
+  void birthFX.offsetWidth;
+  birthFX.classList.add("show");
+
+  birthToast.style.opacity = "1";
+  clearTimeout(birthToastTimer);
+  birthToastTimer = setTimeout(()=>{birthToast.style.opacity="0";}, 2500);
+}
+
+/* ==== Three.js 輔助 ==== */
+function wMat(c){return new THREE.MeshBasicMaterial({color:c,wireframe:true});}
+
+/* 樹造型 */
+const trunkThin  = new THREE.CylinderGeometry(.25, .35, 5, 8);
+const trunkThick = new THREE.CylinderGeometry(.5, .7, 6, 8);
+const tall       = new THREE.CylinderGeometry(.3, .4, 8, 6);
+const cone       = new THREE.ConeGeometry(2, 5, 10);
+const coneW      = new THREE.ConeGeometry(3, 4, 12);
+const sph        = new THREE.SphereGeometry(2.2, 10, 8);
+const box        = new THREE.BoxGeometry(3, 3, 3);
+
+function makeTreeMesh(kind){
+  const g = new THREE.Group();
+  const tMat = wMat(0x226633);
+  const cMat = wMat(0x66ff88);
+  if(kind===0){
+    const t = new THREE.Mesh(trunkThin,tMat);
+    t.position.y=3;
+    const c = new THREE.Mesh(cone,cMat);
+    c.position.y=6.5;
+    g.add(t,c);
+  }else if(kind===1){
+    const t = new THREE.Mesh(tall,tMat);
+    t.position.y=4;
+    g.add(t);
+    for(let i=0;i<3;i++){
+      const c = new THREE.Mesh(coneW,cMat);
+      c.position.y=4+1.5+i*1.5;
+      const s = 1.1-i*0.2;
+      c.scale.set(s,s,s);
+      g.add(c);
+    }
+  }else if(kind===2){
+    const t = new THREE.Mesh(trunkThick,tMat);
+    t.position.y=3;
+    const c = new THREE.Mesh(sph,cMat);
+    c.position.y=6.5;
+    g.add(t,c);
+  }else{
+    const t = new THREE.Mesh(trunkThin,tMat);
+    t.position.y=2.5;
+    const c = new THREE.Mesh(box,cMat);
+    c.position.y=5;
+    g.add(t,c);
+  }
+  g.traverse(o=>{if(o.isMesh)o.userData.isTreePart=true;});
+  return g;
+}
+
+function addTree(x,z,stage="big"){
+  const kind = Math.floor(Math.random()*4);
+  const g = makeTreeMesh(kind);
+  g.position.set(x,0,z);
+  let energy,scale;
+  if(stage==="sapling"){
+    energy = PLANT_ENERGY.sapling*1.2;
+    scale = 0.4;
+  }else if(stage==="mid"){
+    energy = PLANT_ENERGY.mid*1.2;
+    scale = 0.7;
+  }else{
+    energy = PLANT_ENERGY.big*0.8;
+    scale = 1.0;
+  }
+  g.scale.set(scale,scale,scale);
+  scene.add(g);
+  trees.push({g,stage,energy,ageSec:0,lastFruitDay:-1});
+}
+
+for(let i=0;i<220;i++){
+  const a = Math.random()*Math.PI*2;
+  const r = (0.3+0.7*Math.random())*forestR;
+  addTree(Math.cos(a)*r, Math.sin(a)*r, "big");
+}
+
+/* 河流線稿 */
+const riverPts = [
+  {x:-120,z:-40},
+  {x:-60,z:-20},
+  {x:10,z:10},
+  {x:70,z:40},
+  {x:130,z:80}
+];
+(function(){
+  function addSeg(p1,p2){
+    const dx=p2.x-p1.x,dz=p2.z-p1.z;
+    const len=Math.hypot(dx,dz)||1;
+    const ang=Math.atan2(dx,dz);
+    const g=new THREE.PlaneGeometry(14,len,1,1);
+    const m=new THREE.MeshBasicMaterial({color:0x3399ff,wireframe:true,side:THREE.DoubleSide});
+    const mesh=new THREE.Mesh(g,m);
+    mesh.rotation.x=-Math.PI/2;
+    mesh.rotation.z=ang;
+    mesh.position.set((p1.x+p2.x)/2,0.02,(p1.z+p2.z)/2);
+    scene.add(mesh);
+  }
+  for(let i=0;i<riverPts.length-1;i++) addSeg(riverPts[i],riverPts[i+1]);
+})();
+
+/* 果實 */
+const fruitGeo = new THREE.SphereGeometry(0.3,8,8);
+const fruitMat = new THREE.MeshBasicMaterial({color:0x99ffee,wireframe:true,transparent:true,opacity:0.6});
+
+function spawnFruitOnTree(tree){
+  const m = new THREE.Mesh(fruitGeo,fruitMat.clone());
+  const a = Math.random()*Math.PI*2;
+  const r = 1.5+Math.random()*1.2;
+  const h = 3+Math.random()*3;
+  m.position.set(tree.g.position.x+Math.cos(a)*r,h,tree.g.position.z+Math.sin(a)*r);
+  m.userData = {
+    ageSec:0,
+    attached:true,
+    fromTree:true,
+    parentTree:tree,
+    seeded:false,
+    eaten:false,
+    dropAgeSec:null,
+    vx:0,vy:0,vz:0
+  };
+  scene.add(m);
+  fruits.push(m);
+}
+function spawnFruitAt(x,z){
+  const m = new THREE.Mesh(fruitGeo,fruitMat.clone());
+  m.position.set(x,0.3,z);
+  m.userData = {
+    ageSec:0,
+    attached:false,
+    fromTree:false,
+    parentTree:null,
+    seeded:false,
+    eaten:false,
+    dropAgeSec:0,
+    vx:0,vy:0,vz:0
+  };
+  scene.add(m);
+  fruits.push(m);
+}
+
+function createSaplingFromFruit(fruit){
+  const t = {g:makeTreeMesh(0),stage:"sapling",energy:PLANT_ENERGY.sapling,ageSec:0,lastFruitDay:-1};
+  t.g.position.set(fruit.position.x,0,fruit.position.z);
+  t.g.scale.set(0.4,0.4,0.4);
+  scene.add(t.g);
+  trees.push(t);
+}
+
+function updateFruits(dt){
+  for(const f of fruits){
+    const d=f.userData;
+    d.ageSec+=dt;
+    if(d.eaten) continue;
+
+    if(d.attached){
+      if(d.fromTree && d.ageSec>=3*DAY_SEC){
+        d.attached=false;
+        const tree=d.parentTree;
+        let dirX=0,dirZ=0;
+        if(tree){
+          const dx=f.position.x-tree.g.position.x;
+          const dz=f.position.z-tree.g.position.z;
+          const len=Math.hypot(dx,dz)||1;
+          dirX=dx/len;dirZ=dz/len;
+        }else{
+          const ang=Math.random()*Math.PI*2;
+          dirX=Math.cos(ang);dirZ=Math.sin(ang);
+        }
+        d.vx=dirX*1.5;d.vz=dirZ*1.5;d.vy=0;
+        d.dropAgeSec = d.ageSec;
+      }
+    }else{
+      d.vy=(d.vy||0)-9.8*dt*0.7;
+      f.position.y+=d.vy*dt;
+      f.position.x+=(d.vx||0)*dt;
+      f.position.z+=(d.vz||0)*dt;
+      if(f.position.y<=0.1){
+        f.position.y=0.1;
+        d.vy=0;
+        d.vx=(d.vx||0)*0.9;
+        d.vz=(d.vz||0)*0.9;
+        const baseDrop = (d.dropAgeSec!=null?d.dropAgeSec:0);
+        if(!d.seeded && d.ageSec-baseDrop>=5*DAY_SEC){
+          createSaplingFromFruit(f);
+          d.seeded=true;
+        }
+      }
+    }
+  }
+  for(let i=fruits.length-1;i>=0;i--){
+    const f=fruits[i];
+    if(f.userData.eaten || f.userData.seeded){
+      scene.remove(f);
+      fruits.splice(i,1);
+    }
+  }
+}
+
+/* 樹光合作用成長 */
+function updateTrees(dt){
+  const rate = {
+    sapling:PLANT_ENERGY.sapling*0.02,
+    mid:PLANT_ENERGY.mid*0.01,
+    big:PLANT_ENERGY.big*0.004
+  };
+  for(const t of trees){
+    if(!t.g.parent) continue;
+    t.ageSec += dt;
+    t.energy += rate[t.stage]*dt/DAY_SEC;
+
+    if(t.energy < PLANT_ENERGY.mid*0.5){
+      t.stage="sapling";
+    }else if(t.energy < PLANT_ENERGY.big*0.8){
+      t.stage="mid";
+    }else{
+      t.stage="big";
+    }
+
+    let baseScale = t.stage==="sapling"?0.4:(t.stage==="mid"?0.7:1.0);
+    const extra = Math.min(0.6, Math.log10(1+t.energy/PLANT_ENERGY.sapling)*0.15);
+    const s = baseScale+extra;
+    t.g.scale.set(s,s,s);
+  }
+}
+
+/* 動物造型（線稿） */
+function createAnimalMesh(type,color){
+  const g = new THREE.Group();
+  const mat = wMat(color);
+  if(type==="deer"){
+    const bodyGeo = new THREE.BoxGeometry(3,1.2,1.0);
+    const neckGeo = new THREE.CylinderGeometry(0.25,0.3,0.9,6);
+    const headGeo = new THREE.BoxGeometry(0.9,0.7,0.7);
+    const legGeo  = new THREE.CylinderGeometry(0.15,0.18,1.2,6);
+    const body = new THREE.Mesh(bodyGeo,mat);
+    body.position.set(0,1.1,0); g.add(body);
+    const neck = new THREE.Mesh(neckGeo,mat);
+    neck.position.set(1.2,1.8,0); neck.rotation.z=-0.3; g.add(neck);
+    const head = new THREE.Mesh(headGeo,mat);
+    head.position.set(2.0,2.2,0); g.add(head);
+    const legY=0.6,offX=1.1,offZ=0.35;
+    function leg(sx,sz){const l=new THREE.Mesh(legGeo,mat);l.position.set(sx,legY,sz);g.add(l);}
+    leg(offX,offZ);leg(offX,-offZ);leg(-offX,offZ);leg(-offX,-offZ);
+  }else if(type==="rabbit"){
+    const bodyGeo = new THREE.SphereGeometry(0.45,12,10);
+    const headGeo = new THREE.SphereGeometry(0.35,10,8);
+    const earGeo  = new THREE.BoxGeometry(0.12,0.7,0.15);
+    const legGeo  = new THREE.CylinderGeometry(0.08,0.1,0.4,6);
+    const body = new THREE.Mesh(bodyGeo,mat);
+    body.scale.set(1.5,1,1); body.position.set(0,0.45,0); g.add(body);
+    const head = new THREE.Mesh(headGeo,mat);
+    head.position.set(0.55,0.75,0); g.add(head);
+    const earL = new THREE.Mesh(earGeo,mat);
+    earL.position.set(0.7,1.1,0.12); earL.rotation.z=0.1;
+    const earR = earL.clone(); earR.position.z=-0.12; earR.rotation.z=-0.1;
+    g.add(earL,earR);
+    const legY=0.2;
+    function leg(sx,sz){const l=new THREE.Mesh(legGeo,mat);l.position.set(sx,legY,sz);g.add(l);}
+    leg(0.35,0.22);leg(0.35,-0.22);leg(-0.2,0.24);leg(-0.2,-0.24);
+  }else if(type==="squirrel"){
+    const bodyGeo = new THREE.SphereGeometry(0.4,12,10);
+    const headGeo = new THREE.SphereGeometry(0.3,10,8);
+    const tailGeo = new THREE.SphereGeometry(0.35,10,8);
+    const legGeo  = new THREE.CylinderGeometry(0.07,0.09,0.35,6);
+    const body = new THREE.Mesh(bodyGeo,mat);
+    body.scale.set(1.4,0.9,1); body.position.set(0,0.4,0); g.add(body);
+    const head = new THREE.Mesh(headGeo,mat);
+    head.position.set(0.55,0.7,0); g.add(head);
+    const tail = new THREE.Mesh(tailGeo,mat);
+    tail.scale.set(0.8,1.6,0.8); tail.position.set(-0.55,0.9,0); tail.rotation.z=0.7; g.add(tail);
+    const legY=0.2;
+    function leg(sx,sz){const l=new THREE.Mesh(legGeo,mat);l.position.set(sx,legY,sz);g.add(l);}
+    leg(0.3,0.2);leg(0.3,-0.2);leg(-0.1,0.22);leg(-0.1,-0.22);
+  }else if(type==="bird"){
+    const bodyGeo = new THREE.SphereGeometry(0.3,12,10);
+    const headGeo = new THREE.SphereGeometry(0.22,10,8);
+    const wingGeo = new THREE.BoxGeometry(0.05,0.35,0.7);
+    const tailGeo = new THREE.BoxGeometry(0.2,0.05,0.4);
+    const body = new THREE.Mesh(bodyGeo,mat);
+    body.scale.set(1.5,1,1); body.position.set(0,0.5,0); g.add(body);
+    const head = new THREE.Mesh(headGeo,mat);
+    head.position.set(0.4,0.72,0); g.add(head);
+    const wingL = new THREE.Mesh(wingGeo,mat);
+    wingL.position.set(0,0.5,0.5);
+    const wingR = wingL.clone(); wingR.position.z=-0.5;
+    g.add(wingL,wingR);
+    const tail = new THREE.Mesh(tailGeo,mat);
+    tail.position.set(-0.4,0.45,0); g.add(tail);
+  }else if(type==="butterfly"){
+    const bodyGeo = new THREE.CylinderGeometry(0.05,0.05,0.5,6);
+    const wingGeo = new THREE.PlaneGeometry(0.7,0.9);
+    const body = new THREE.Mesh(bodyGeo,mat);
+    body.position.set(0,0.6,0); body.rotation.z=Math.PI/2; g.add(body);
+    const wingL = new THREE.Mesh(wingGeo,mat);
+    wingL.position.set(0,0.6,0.35); wingL.rotation.y=Math.PI/2.4;
+    const wingR = wingL.clone(); wingR.position.z=-0.35; wingR.rotation.y=-Math.PI/2.4;
+    g.add(wingL,wingR);
+  }else{
+    const geo=new THREE.SphereGeometry(0.3,8,8);
+    const m=new THREE.Mesh(geo,mat);m.position.set(0,0.4,0);g.add(m);
+  }
+  return g;
+}
+
+function addAnimal(type,pos){
+  const cfg = animalCfg[type]; if(!cfg) return;
+  const g = createAnimalMesh(type,cfg.color);
+  g.position.copy(pos||new THREE.Vector3());
+  scene.add(g);
+  animals.push({
+    type,g,
+    weight:cfg.initW,
+    initW:cfg.initW,
+    dailyNeed:cfg.dailyNeed,
+    dailyFood:0,
+    losePerDay:cfg.losePerDay,
+    sex:Math.random()<0.5?"M":"F",
+    repro:cfg.repro,
+    energyGainToday:0,
+    lastBirthTime:0,
+    full:false,
+    _walkSeed:Math.random()*Math.PI*2,
+    hiddenFromBird:false
+  });
+}
+
+/* 初始生物 */
+(function initAnimals(){
+  function randPos(r1,r2){
+    const a=Math.random()*Math.PI*2;
+    const r=r1+Math.random()*(r2-r1);
+    return new THREE.Vector3(Math.cos(a)*r,0,Math.sin(a)*r);
+  }
+  for(let i=0;i<4;i++) addAnimal("deer",randPos(40,80));
+  for(let i=0;i<10;i++) addAnimal("rabbit",randPos(30,70));
+  for(let i=0;i<10;i++) addAnimal("squirrel",randPos(30,70));
+  for(let i=0;i<14;i++) addAnimal("bird",randPos(40,90));
+  for(let i=0;i<20;i++) addAnimal("butterfly",randPos(20,80));
+})();
+
+/* 搜尋工具 */
+function nearestFruit(pos,maxDist,filterFn){
+  let best=null,bestD=maxDist;
+  for(const f of fruits){
+    if(f.userData.eaten) continue;
+    if(filterFn && !filterFn(f)) continue;
+    const d=pos.distanceTo(f.position);
+    if(d<bestD){bestD=d;best=f;}
+  }
+  return best;
+}
+function nearestAnimalOfType(pos,type,maxDist,filterFn){
+  let best=null,bestD=maxDist;
+  for(const a of animals){
+    if(a.type!==type) continue;
+    if(filterFn && !filterFn(a)) continue;
+    const d = pos.distanceTo(a.g.position);
+    if(d<bestD){bestD=d;best=a;}
+  }
+  return best;
+}
+function nearestMate(a,maxDist){
+  let best=null,bestD=maxDist;
+  for(const b of animals){
+    if(b===a) continue;
+    if(b.type!==a.type) continue;
+    if(b.sex===a.sex) continue;
+    if(!b.full) continue;
+    if(b.repro<=0) continue;
+    const d = a.g.position.distanceTo(b.g.position);
+    if(d<bestD){bestD=d;best=b;}
+  }
+  return best;
+}
+function nearestTreeWithEnergy(pos,maxDist){
+  let best=null,bestD=maxDist;
+  for(const t of trees){
+    if(!t.g.parent || t.energy<=PLANT_ENERGY.sapling*0.3) continue;
+    const d = pos.distanceTo(t.g.position);
+    if(d<bestD){bestD=d;best=t;}
+  }
+  return best;
+}
+
+/* 進食 */
+function eatFruit(animal,f){
+  if(!f || f.userData.eaten) return;
+  if(animal.full) return;
+  const e = PLANT_ENERGY.fruit;
+  animal.dailyFood += e;
+  animal.energyGainToday += e;
+  const gainFactor = animal.type==="deer"?0.1:0.05;
+  animal.weight += e*gainFactor;
+  if(animal.dailyFood >= animal.dailyNeed) animal.full=true;
+  f.userData.eaten=true;
+}
+function deerEatTree(animal,tree,dt){
+  if(animal.full) return;
+  const maxBite = 15*dt;
+  const bite = Math.min(maxBite, tree.energy);
+  if(bite<=0) return;
+  tree.energy -= bite;
+  const e = bite;
+  animal.dailyFood += e;
+  animal.energyGainToday += e;
+  animal.weight += e*0.1;
+  if(animal.dailyFood >= animal.dailyNeed) animal.full=true;
+}
+function birdEatButterfly(bird,butterfly){
+  if(!butterfly || bird.full) return;
+  const e = PLANT_ENERGY.fruit*2;
+  bird.dailyFood += e;
+  bird.energyGainToday += e;
+  bird.weight += e*0.1;
+  if(bird.dailyFood >= bird.dailyNeed) bird.full=true;
+  scene.remove(butterfly.g);
+  const idx = animals.indexOf(butterfly);
+  if(idx>=0) animals.splice(idx,1);
+}
+
+/* 生殖 */
+function tryReproduce(a,now){
+  if(!a.full) return;
+  if(a.repro<=0) return;
+  const mate = nearestMate(a,4);
+  if(!mate) return;
+  if(!mate.full) return;
+  const dist = a.g.position.distanceTo(mate.g.position);
+  if(dist>2) return;
+
+  const pos = a.g.position.clone().add(mate.g.position).multiplyScalar(0.5);
+  addAnimal(a.type,pos);
+
+  const cn = speciesNameMap[a.type] || a.type;
+  showBirthFX(cn);
+
+  function afterBirth(x){
+    x.weight *= 0.5;
+    x.dailyFood = 0;
+    x.energyGainToday = 0;
+    x.full = false;
+    x.repro--;
+  }
+  afterBirth(a);
+  afterBirth(mate);
+
+  if(a.repro<=0){
+    scene.remove(a.g);
+    const idx = animals.indexOf(a);
+    if(idx>=0) animals.splice(idx,1);
+  }
+  if(mate.repro<=0){
+    scene.remove(mate.g);
+    const idx2 = animals.indexOf(mate);
+    if(idx2>=0) animals.splice(idx2,1);
+  }
+}
+
+/* 動物更新 */
+function updateAnimals(dt,now){
+  const center = new THREE.Vector3(0,0,0);
+  for(let i=animals.length-1;i>=0;i--){
+    const a = animals[i];
+    const cfg = animalCfg[a.type];
+    if(!a.g.parent){animals.splice(i,1);continue;}
+
+    const dayFrac = dt/DAY_SEC;
+    a.weight -= cfg.losePerDay*dayFrac;
+    if(a.weight <= a.initW*0.3){
+      scene.remove(a.g); animals.splice(i,1); continue;
+    }
+
+    const ratio = a.weight/a.initW;
+    const scale = Math.max(0.4,Math.min(1.6,ratio));
+    a.g.scale.set(scale,scale,scale);
+    let color = cfg.color;
+    if(ratio<=0.4) color=0xff5555;
+    else if(ratio<=0.5) color=0xffaa55;
+    a.g.traverse(o=>{if(o.isMesh)o.material.color.set(color);});
+
+    const pos = a.g.position;
+    let vel = new THREE.Vector3();
+    a.hiddenFromBird = false;
+
+    const dC = pos.length();
+    const maxR = a.type==="butterfly"?forestR*1.3:forestR;
+    if(dC>maxR){
+      vel.add(center.clone().sub(pos).normalize().multiplyScalar(6));
+    }
+
+    if(a.type==="butterfly"){
+      const hideTree = nearestTreeWithEnergy(pos,30);
+      const predator = nearestAnimalOfType(pos,"bird",25);
+      if(predator && predator.g.position.distanceTo(pos)<20){
+        if(hideTree){
+          const dir = hideTree.g.position.clone().sub(pos); dir.y=0;
+          vel.add(dir.normalize().multiplyScalar(6));
+          if(pos.distanceTo(hideTree.g.position)<2.5){
+            a.hiddenFromBird = true;
+          }
+        }else{
+          const fleeDir = pos.clone().sub(predator.g.position).setY(0).normalize();
+          vel.add(fleeDir.multiplyScalar(6));
+        }
+      }else if(a.full){
+        const mate = nearestMate(a,25);
+        if(mate){
+          const dir = mate.g.position.clone().sub(pos); dir.y=0;
+          vel.add(dir.normalize().multiplyScalar(4));
+        }
+      }else{
+        const food = nearestFruit(pos,35,f=>f.userData.attached || f.position.y>0.5);
+        if(food){
+          const dir = food.position.clone().sub(pos); dir.y=0;
+          vel.add(dir.normalize().multiplyScalar(4));
+          if(pos.distanceTo(food.position)<1){
+            eatFruit(a,food);
+          }
+        }
+      }
+      vel.add(new THREE.Vector3(
+        Math.cos(now*0.4+a._walkSeed),
+        0,
+        Math.sin(now*0.4+a._walkSeed)
+      ).multiplyScalar(2.2));
+      pos.y = 1.0 + Math.sin(now*3+a._walkSeed)*0.3;
+      if(hideTree && pos.distanceTo(hideTree.g.position)<2.5){
+        a.hiddenFromBird = true;
+      }
+
+    }else if(a.type==="bird"){
+      if(a.full){
+        const mate = nearestMate(a,35);
+        if(mate){
+          const dir = mate.g.position.clone().sub(pos); dir.y=0;
+          vel.add(dir.normalize().multiplyScalar(7));
+        }
+      }else{
+        let prey = nearestAnimalOfType(pos,"butterfly",35,b=>!b.hiddenFromBird);
+        let chasingButterfly = false;
+        if(prey){
+          const dist = pos.distanceTo(prey.g.position);
+          const dir = prey.g.position.clone().sub(pos).setY(0).normalize();
+          vel.add(dir.multiplyScalar(9));
+          if(dist<1.2) birdEatButterfly(a,prey);
+          chasingButterfly = true;
+        }
+        if(!chasingButterfly){
+          const food = nearestFruit(pos,50,f=>f.userData.attached || f.position.y>0.5);
+          if(food){
+            const dir = food.position.clone().sub(pos); dir.y=0;
+            vel.add(dir.normalize().multiplyScalar(7));
+            if(pos.distanceTo(food.position)<1.2){
+              eatFruit(a,food);
+            }
+          }
+        }
+      }
+      if(pos.length()>forestR*1.05){
+        vel.add(center.clone().sub(pos).normalize().multiplyScalar(8));
+      }
+      pos.y = 3 + Math.sin(now*2+a._walkSeed)*0.8;
+
+    }else if(a.type==="deer"){
+      if(a.full){
+        const mate = nearestMate(a,35);
+        if(mate){
+          const dir = mate.g.position.clone().sub(pos); dir.y=0;
+          vel.add(dir.normalize().multiplyScalar(4.5));
+        }
+      }else{
+        const tree = nearestTreeWithEnergy(pos,40);
+        if(tree){
+          const dir = tree.g.position.clone().sub(pos).setY(0).normalize();
+          vel.add(dir.multiplyScalar(5));
+          const dist = pos.distanceTo(tree.g.position);
+          if(dist<3){
+            deerEatTree(a,tree,dt);
+          }
+        }
+      }
+      if(vel.lengthSq()===0){
+        vel.add(new THREE.Vector3(
+          Math.cos(now*0.3+a._walkSeed),
+          0,
+          Math.sin(now*0.3+a._walkSeed)
+        ).multiplyScalar(2.5));
+      }
+      pos.y = 0;
+
+    }else if(a.type==="rabbit" || a.type==="squirrel"){
+      const searchRadius = a.type==="rabbit"?40:30;
+      const moveSpeed    = a.type==="rabbit"?8:5;
+
+      if(a.full){
+        const mate = nearestMate(a,25);
+        if(mate){
+          const dir = mate.g.position.clone().sub(pos); dir.y=0;
+          vel.add(dir.normalize().multiplyScalar(moveSpeed));
+        }
+      }else{
+        const food = nearestFruit(pos,searchRadius, f=>{
+          if(a.type==="rabbit") return f.position.y<=0.6;
+          return true;
+        });
+        if(food){
+          const dir = food.position.clone().sub(pos).setY(0).normalize();
+          vel.add(dir.multiplyScalar(moveSpeed));
+          if(pos.distanceTo(food.position)<1){
+            eatFruit(a,food);
+          }
+        }
+      }
+      if(vel.lengthSq()===0){
+        vel.add(new THREE.Vector3(
+          Math.cos(now*0.5+a._walkSeed),
+          0,
+          Math.sin(now*0.5+a._walkSeed)
+        ).multiplyScalar(moveSpeed*0.6));
+      }
+      if(a.type==="squirrel"){
+        const tree = nearestTreeWithEnergy(pos,8);
+        if(tree){
+          const dist = pos.distanceTo(tree.g.position);
+          if(dist<3){
+            pos.y = 1.5+Math.sin(now*3+a._walkSeed)*0.6;
+          }else{
+            pos.y = 0;
+          }
+        }else pos.y=0;
+      }else{
+        pos.y = 0;
+      }
+    }
+
+    pos.add(vel.multiplyScalar(dt));
+    if(a.type==="deer" || a.type==="rabbit") pos.y=0;
+    if(a.type==="butterfly" && pos.y<0.6) pos.y=0.6;
+
+    tryReproduce(a,now);
+  }
+}
+
+/* 每日事件 & 結果實 tick */
+let dayTimer = 0;
+let simTime = 0;
+function dailyUpdate(){
+  for(const a of animals){
+    a.dailyFood = 0;
+    a.energyGainToday = 0;
+    a.full = false;
+  }
+}
+
+let fruitTickTimer = 0;
+const FRUIT_INTERVAL = DAY_SEC / 6;
+function fruitTick(){
+  const currentDay = Math.floor(simTime/DAY_SEC);
+  for(const t of trees){
+    if(!t.g.parent) continue;
+    if(t.lastFruitDay === currentDay) continue;
+    if(Math.random() < 0.3){
+      const num = t.stage==="sapling"?1:(t.stage==="mid"?3:5);
+      for(let i=0;i<num;i++) spawnFruitOnTree(t);
+      t.lastFruitDay = currentDay;
+    }
+  }
+}
+
+/* 射擊/種果實/移除樹 */
+function handleShoot(){
+  raycaster.setFromCamera(mouseNDC,camera);
+  const hits = raycaster.intersectObjects(scene.children,true);
+  if(hits.length>0){
+    const obj = hits[0].object;
+    for(let i=0;i<animals.length;i++){
+      const g = animals[i].g;
+      if(obj===g || obj.parent===g || obj.parent?.parent===g){
+        scene.remove(g);
+        animals.splice(i,1);
+        return;
+      }
+    }
+    for(let i=0;i<trees.length;i++){
+      const t=trees[i];
+      if(obj===t.g || obj.parent===t.g || obj.userData.isTreePart){
+        scene.remove(t.g);
+        trees.splice(i,1);
+        return;
+      }
+    }
+    for(let i=0;i<fruits.length;i++){
+      if(fruits[i]===obj){
+        obj.userData.eaten=true;
+        return;
+      }
+    }
+  }
+  const groundHits = raycaster.intersectObject(grid,true);
+  if(groundHits.length){
+    const p = groundHits[0].point;
+    spawnFruitAt(p.x,p.z);
+  }
+}
+canvas.addEventListener("mousedown",e=>{
+  if(e.button===0) handleShoot();
+});
+const shootBtn = document.getElementById("shootBtn");
+shootBtn.onclick = handleShoot;
+
+/* 從準星位置生成物種 */
+function getCrosshairPoint(defaultY=0){
+  raycaster.setFromCamera(mouseNDC,camera);
+  const groundHits = raycaster.intersectObject(grid,true);
+  if(groundHits.length){
+    return groundHits[0].point.clone();
+  }
+  return holder.position.clone().setY(defaultY);
+}
+function spawnFromStats(type){
+  const basePos = getCrosshairPoint(0);
+  if(type==="fruit"){
+    for(let i=0;i<10;i++){
+      const dx=(Math.random()-0.5)*4;
+      const dz=(Math.random()-0.5)*4;
+      spawnFruitAt(basePos.x+dx,basePos.z+dz);
+    }
+  }else if(type==="butterfly"){
+    for(let i=0;i<10;i++){
+      const p = basePos.clone();
+      p.x += (Math.random()-0.5)*6;
+      p.z += (Math.random()-0.5)*6;
+      addAnimal("butterfly",p);
+    }
+  }else{
+    const p = basePos.clone();
+    addAnimal(type,p);
+  }
+}
+document.querySelectorAll("#statsBd .srow").forEach(row=>{
+  row.addEventListener("click",()=>{
+    const tp = row.getAttribute("data-type");
+    spawnFromStats(tp);
+  });
+});
+
+/* 視角與鍵盤移動（Tab 鎖定滑鼠） */
+let yaw=0,pitch=0,lastX=null,lastY=null;
+let lockView=true;
+function updRot(){
+  camera.rotation.order="YXZ";
+  camera.rotation.y=yaw;
+  camera.rotation.x=pitch;
+}
+updRot();
+
+const keys={};
+window.addEventListener("keydown",e=>{
+  const k=e.key.toLowerCase();
+  if(k==="tab"){
+    e.preventDefault();
+    lockView=!lockView;
+    document.body.style.cursor=lockView?"none":"default";
+    lastX=lastY=null;
+    return;
+  }
+  keys[k]=true;
+});
+window.addEventListener("keyup",e=>{keys[e.key.toLowerCase()]=false;});
+
+window.addEventListener("mousemove",e=>{
+  if(isMobile || !lockView) return;
+  if(lastX===null){lastX=e.clientX;lastY=e.clientY;return;}
+  const dx=e.clientX-lastX,dy=e.clientY-lastY;
+  lastX=e.clientX;lastY=e.clientY;
+  const s=0.003;
+  yaw-=dx*s;pitch-=dy*s;
+  const L=Math.PI/2-0.05;
+  if(pitch>L)pitch=L;
+  if(pitch<-L)pitch=-L;
+  updRot();
+});
+
+window.addEventListener("wheel",e=>{
+  e.preventDefault();
+  camera.fov += e.deltaY*0.02;
+  if(camera.fov<30)camera.fov=30;
+  if(camera.fov>90)camera.fov=90;
+  camera.updateProjectionMatrix();
+},{passive:false});
+
+/* 行動裝置：旋轉/縮放 + 搖桿 */
+const isMobile = ("ontouchstart" in window)||navigator.maxTouchPoints>0;
+const joy = document.getElementById("joy");
+const joyb = document.getElementById("joyb");
+const joyk = document.getElementById("joyk");
+if(isMobile){
+  joy.style.display="block";
+  shootBtn.style.display="block";
+  document.body.style.cursor="default";
+  lockView=false;
+}
+
+let tRot=false,tLastX=0,tLastY=0,pinch=false,pinchStart=0,pinchFov=60;
+canvas.addEventListener("touchstart",e=>{
+  if(!isMobile)return;
+  if(e.touches.length===1){
+    tRot=true;tLastX=e.touches[0].clientX;tLastY=e.touches[0].clientY;
+  }else if(e.touches.length===2){
+    pinch=true;
+    const dx=e.touches[0].clientX-e.touches[1].clientX;
+    const dy=e.touches[0].clientY-e.touches[1].clientY;
+    pinchStart=Math.hypot(dx,dy);pinchFov=camera.fov;
+  }
+},{passive:false});
+canvas.addEventListener("touchmove",e=>{
+  if(!isMobile)return;
+  if(e.touches.length===1&&tRot){
+    const x=e.touches[0].clientX,y=e.touches[0].clientY;
+    const dx=x-tLastX,dy=y-tLastY;tLastX=x;tLastY=y;
+    const s=0.003;yaw-=dx*s;pitch-=dy*s;
+    const L=Math.PI/2-0.05;
+    if(pitch>L)pitch=L;
+    if(pitch<-L)pitch=-L;
+    updRot();
+  }else if(e.touches.length===2&&pinch){
+    const dx=e.touches[0].clientX-e.touches[1].clientX;
+    const dy=e.touches[0].clientY-e.touches[1].clientY;
+    const d=Math.hypot(dx,dy);
+    const scale=d/(pinchStart||d);
+    camera.fov=pinchFov/scale;
+    if(camera.fov<30)camera.fov=30;
+    if(camera.fov>90)camera.fov=90;
+    camera.updateProjectionMatrix();
+  }
+  e.preventDefault();
+},{passive:false});
+canvas.addEventListener("touchend",e=>{
+  if(!isMobile)return;
+  if(e.touches.length===0)tRot=false;
+  if(e.touches.length<2)pinch=false;
+});
+
+/* 搖桿 */
+let jAct=false,jCX=0,jCY=0,jR=40,jF=0,jS=0;
+function jStart(e){
+  if(!isMobile)return;
+  jAct=true;
+  const r=joyb.getBoundingClientRect();
+  jCX=r.left+r.width/2;jCY=r.top+r.height/2;
+  const t=e.touches[0];jMove(t.clientX,t.clientY);
+}
+function jMove(x,y){
+  let dx=x-jCX,dy=y-jCY;
+  const d=Math.hypot(dx,dy),mx=jR;
+  if(d>mx){const s=mx/(d||1);dx*=s;dy*=s;}
+  const nx=dx/mx,ny=dy/mx;
+  jS=nx;jF=-ny;
+  joyk.style.transform="translate(calc(-50% + "+dx+"px), calc(-50% + "+dy+"px))";
+}
+function jMoveEvt(e){
+  if(!jAct)return;
+  const t=e.touches[0];jMove(t.clientX,t.clientY);
+  e.preventDefault();
+}
+function jEnd(e){
+  if(e.touches.length===0){
+    jAct=false;jF=0;jS=0;
+    joyk.style.transform="translate(-50%,-50%)";
+  }
+}
+joy.addEventListener("touchstart",jStart,{passive:false});
+joy.addEventListener("touchmove",jMoveEvt,{passive:false});
+joy.addEventListener("touchend",jEnd,{passive:false});
+joy.addEventListener("touchcancel",jEnd,{passive:false});
+
+/* 位移、鏡頭晃動 */
+const fwdVec = new THREE.Vector3();
+const rightVec = new THREE.Vector3();
+const upVec = new THREE.Vector3(0,1,0);
+let bob=0;
+
+/* 生態統計 */
+function updateStats(){
+  let cFruit=0,cB=0,cSq=0,cR=0,cD=0,cBird=0;
+  cFruit = fruits.length;
+  for(const a of animals){
+    if(a.type==="butterfly")cB++;
+    else if(a.type==="squirrel")cSq++;
+    else if(a.type==="rabbit")cR++;
+    else if(a.type==="deer")cD++;
+    else if(a.type==="bird")cBird++;
+  }
+  nFruit.textContent=cFruit;
+  nButterfly.textContent=cB;
+  nSquirrel.textContent=cSq;
+  nRabbit.textContent=cR;
+  nDeer.textContent=cD;
+  nBird.textContent=cBird;
+}
+
+/* 生物量圖資料 */
+const bioCanvas = document.getElementById("bioChart");
+const bioCtx = bioCanvas.getContext("2d");
+const bioText = document.getElementById("bioText");
+const bioDetailCanvas = document.getElementById("bioDetailChart");
+const bioDetailCtx = bioDetailCanvas.getContext("2d");
+let bioHistory = [];
+let bioSampleTimer = 0;
+
+const bioColors = {
+  total:"#00ff88",
+  butterflyN:"#ff66ff",
+  birdN:"#ffff66",
+  deerN:"#ffb366",
+  rabbitN:"#66ff66",
+  squirrelN:"#66ffff",
+  treeBiomass:"#00bbaa",
+  fruitN:"#ff99ff"
+};
+
+function drawBioChart(){
+  const w=bioCanvas.width,h=bioCanvas.height;
+  bioCtx.clearRect(0,0,w,h);
+  if(bioHistory.length<2) return;
+  let maxVal = 0;
+  for(const p of bioHistory) if(p.total>maxVal) maxVal=p.total;
+  if(maxVal<=0) maxVal=1;
+
+  const maxT = bioHistory[bioHistory.length-1].t || simTime;
+  const totalT = maxT>0?maxT:1;
+
+  bioCtx.strokeStyle="#444";
+  bioCtx.lineWidth=1;
+  bioCtx.beginPath();
+  bioCtx.moveTo(0,h-1);
+  bioCtx.lineTo(w,h-1);
+  bioCtx.stroke();
+
+  bioCtx.strokeStyle=bioColors.total;
+  bioCtx.lineWidth=1;
+  bioCtx.beginPath();
+  for(let i=0;i<bioHistory.length;i++){
+    const p = bioHistory[i];
+    const x = w * (p.t / totalT);
+    const y = h - (p.total/maxVal)*(h-4) - 2;
+    if(i===0) bioCtx.moveTo(x,y);
+    else bioCtx.lineTo(x,y);
+  }
+  bioCtx.stroke();
+}
+
+function drawBioDetailChart(){
+  const w=bioDetailCanvas.width,h=bioDetailCanvas.height;
+  bioDetailCtx.clearRect(0,0,w,h);
+  if(bioHistory.length<2) return;
+
+  const checks = Array.from(document.querySelectorAll("#bioLegend input"));
+  const keys = checks.filter(c=>c.checked).map(c=>c.dataset.key);
+  if(keys.length===0) return;
+
+  let maxVal=0;
+  for(const p of bioHistory){
+    for(const k of keys){
+      if(p[k]>maxVal) maxVal = p[k];
+    }
+  }
+  if(maxVal<=0) maxVal=1;
+
+  const maxT = bioHistory[bioHistory.length-1].t || simTime;
+  const totalT = maxT>0?maxT:1;
+
+  bioDetailCtx.strokeStyle="#444";
+  bioDetailCtx.lineWidth=1;
+  bioDetailCtx.beginPath();
+  bioDetailCtx.moveTo(0,h-1);
+  bioDetailCtx.lineTo(w,h-1);
+  bioDetailCtx.stroke();
+
+  for(const k of keys){
+    const col = bioColors[k] || "#ffffff";
+    bioDetailCtx.strokeStyle=col;
+    bioDetailCtx.lineWidth=1;
+    bioDetailCtx.beginPath();
+    for(let i=0;i<bioHistory.length;i++){
+      const p = bioHistory[i];
+      const x = w * (p.t / totalT);
+      const y = h - (p[k]/maxVal)*(h-4) - 2;
+      if(i===0) bioDetailCtx.moveTo(x,y);
+      else bioDetailCtx.lineTo(x,y);
+    }
+    bioDetailCtx.stroke();
+  }
+}
+
+/* 迷你地圖 */
+const miniCanvas = document.getElementById("miniMapCanvas");
+const miniCtx = miniCanvas.getContext("2d");
+
+function drawMiniMap(){
+  const w = miniCanvas.width, h = miniCanvas.height;
+  miniCtx.clearRect(0,0,w,h);
+  miniCtx.fillStyle="#05060a";
+  miniCtx.fillRect(0,0,w,h);
+
+  const cx=w/2, cy=h/2;
+  const scale = (Math.min(w,h)*0.45)/forestR;
+
+  miniCtx.strokeStyle="rgba(255,255,255,.3)";
+  miniCtx.lineWidth=1;
+  miniCtx.beginPath();
+  miniCtx.arc(cx,cy,forestR*scale,0,Math.PI*2);
+  miniCtx.stroke();
+
+  miniCtx.strokeStyle="rgba(80,160,255,.9)";
+  miniCtx.lineWidth=2;
+  miniCtx.beginPath();
+  for(let i=0;i<riverPts.length;i++){
+    const p=riverPts[i];
+    const x = cx + p.x*scale;
+    const y = cy + p.z*scale;
+    if(i===0) miniCtx.moveTo(x,y);
+    else miniCtx.lineTo(x,y);
+  }
+  miniCtx.stroke();
+
+  for(const t of trees){
+    if(!t.g.parent) continue;
+    const p = t.g.position;
+    const x = cx + p.x*scale;
+    const y = cy + p.z*scale;
+    if(t.stage==="sapling") miniCtx.fillStyle="#66ff66";
+    else if(t.stage==="mid") miniCtx.fillStyle="#00cc66";
+    else miniCtx.fillStyle="#007744";
+    miniCtx.fillRect(x-1,y-1,2,2);
+  }
+
+  const hp = holder.position;
+  const px = cx + hp.x*scale;
+  const py = cy + hp.z*scale;
+  const dir = new THREE.Vector3();
+  camera.getWorldDirection(dir); dir.y=0; dir.normalize();
+  const angle = Math.atan2(dir.z,dir.x);
+  const len = 6;
+  miniCtx.fillStyle="#ffff66";
+  miniCtx.beginPath();
+  miniCtx.moveTo(px + Math.cos(angle)*len,    py + Math.sin(angle)*len);
+  miniCtx.lineTo(px + Math.cos(angle+2.5)*4,  py + Math.sin(angle+2.5)*4);
+  miniCtx.lineTo(px + Math.cos(angle-2.5)*4,  py + Math.sin(angle-2.5)*4);
+  miniCtx.closePath();
+  miniCtx.fill();
+}
+
+/* 版面位置：bioPanel 放在 stats 下方 */
+function layoutPanels(){
+  const stats = document.getElementById("stats");
+  const bioPanel = document.getElementById("bioPanel");
+  const rect = stats.getBoundingClientRect();
+  bioPanel.style.left = rect.left + "px";
+  bioPanel.style.top  = (rect.bottom + 8) + "px";
+}
+
+/* 主迴圈 */
+let last = performance.now();
+let dayClockAngle = 0;
+
+function loop(){
+  requestAnimationFrame(loop);
+  const nowPerf = performance.now();
+  let dt = (nowPerf-last)/1000; if(dt>0.1)dt=0.1; last=nowPerf;
+
+  const simDt = dt * timeScale;
+  simTime += simDt;
+
+  fruitTickTimer += simDt;
+  while(fruitTickTimer >= FRUIT_INTERVAL){
+    fruitTickTimer -= FRUIT_INTERVAL;
+    fruitTick();
+  }
+
+  const base=18;
+  const kF=(keys["w"]||keys["arrowup"]?1:0)-(keys["s"]||keys["arrowdown"]?1:0);
+  const kS=(keys["d"]||keys["arrowright"]?1:0)-(keys["a"]||keys["arrowleft"]?1:0);
+  const mF=kF+jF,mS=kS+jS;
+
+  camera.getWorldDirection(fwdVec);
+  fwdVec.y=0;if(fwdVec.lengthSq()>1e-4)fwdVec.normalize();
+  rightVec.crossVectors(fwdVec,upVec).normalize();
+
+  holder.position.x += (fwdVec.x*mF+rightVec.x*mS)*base*simDt;
+  holder.position.z += (fwdVec.z*mF+rightVec.z*mS)*base*simDt;
+  const dC=Math.hypot(holder.position.x,holder.position.z);
+  if(dC>forestR*0.95){
+    const s=(forestR*0.95)/(dC||1);
+    holder.position.x*=s;holder.position.z*=s;
+  }
+  holder.position.y=2.5;
+
+  const moving=Math.abs(mF)+Math.abs(mS)>0.01;
+  if(moving) bob+=simDt*7; else bob*=.9;
+  camera.position.set(Math.sin(bob*4)*.1,1.8+Math.sin(bob*2)*.2,0);
+
+  const nowSec = simTime;
+
+  updateFruits(simDt);
+  updateTrees(simDt);
+  updateAnimals(simDt,nowSec);
+  updateStats();
+
+  let totalBio=0,cB=0,cBird=0,cD=0,cR=0,cSq=0;
+  for(const a of animals){
+    totalBio += a.weight;
+    if(a.type==="butterfly")cB++;
+    else if(a.type==="bird")cBird++;
+    else if(a.type==="deer")cD++;
+    else if(a.type==="rabbit")cR++;
+    else if(a.type==="squirrel")cSq++;
+  }
+  let treeBio=0;
+  for(const t of trees){
+    if(!t.g.parent) continue;
+    treeBio += t.energy;
+  }
+  const fruitN = fruits.length;
+
+  bioSampleTimer += simDt;
+  if(bioSampleTimer>=1){
+    bioSampleTimer-=1;
+    bioHistory.push({
+      t:simTime,
+      total:totalBio,
+      butterflyN:cB,
+      birdN:cBird,
+      deerN:cD,
+      rabbitN:cR,
+      squirrelN:cSq,
+      treeBiomass:treeBio,
+      fruitN:fruitN
+    });
+    if(bioHistory.length>600) bioHistory.shift();
+  }
+
+  drawBioChart();
+  if(bioDetail.style.display!=="none") drawBioDetailChart();
+  bioText.textContent="總生物量：" + totalBio.toFixed(1) + "｜樹生物量：" + treeBio.toFixed(1);
+
+  dayTimer+=simDt;
+  if(dayTimer>=DAY_SEC){
+    dayTimer-=DAY_SEC;
+    dailyUpdate();
+  }
+  const frac=dayTimer/DAY_SEC;
+  clkHand.style.transform="translate(-50%,-100%) rotate("+(frac*360)+"deg)";
+  const daysPassed = Math.floor(simTime/DAY_SEC);
+  dayText.textContent="已過 "+daysPassed+" 天";
+
+  drawMiniMap();
+
+  renderer.render(scene,camera);
+}
+loop();
+
+info.textContent += "\\nv0.25a：新增左上說明按鈕與說明浮窗，內容對應 readme.md。";
+
+window.addEventListener("resize",()=>{
+  renderer.setSize(window.innerWidth,window.innerHeight);
+  camera.aspect=window.innerWidth/window.innerHeight;
+  camera.updateProjectionMatrix();
+  layoutPanels();
+});
+
+// 生物量詳圖勾選事件
+document.querySelectorAll("#bioLegend input").forEach(cb=>{
+  cb.addEventListener("change",drawBioDetailChart);
+});
+
+window.addEventListener("load",layoutPanels);
+})();
+</script>
+</body>
+</html>
