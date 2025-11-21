@@ -1,0 +1,1057 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Drone PID 三維練習模擬 v0.2</title>
+<style>
+    :root {
+        color-scheme: dark;
+        --bg: #050712;
+        --bg-panel: rgba(12, 16, 32, 0.92);
+        --accent: #45e0ff;
+        --accent-soft: rgba(69, 224, 255, 0.2);
+        --accent-strong: #00ffc6;
+        --text-main: #f5f7ff;
+        --text-sub: #a8b3d1;
+        --danger: #ff5b7a;
+        --good: #73ff9b;
+    }
+    *,
+    *::before,
+    *::after {
+        box-sizing: border-box;
+    }
+    html,
+    body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+            Roboto, "Helvetica Neue", Arial, "Noto Sans TC", "PingFang TC",
+            "Microsoft JhengHei", sans-serif;
+        background: radial-gradient(circle at top, #20284a 0, #050712 55%);
+        color: var(--text-main);
+    }
+    #app {
+        position: relative;
+        width: 100%;
+        height: 100%;
+    }
+    #view {
+        position: absolute;
+        inset: 0;
+        display: block;
+        width: 100%;
+        height: 100%;
+        touch-action: none;
+    }
+    .ui-panel {
+        position: absolute;
+        top: 12px;
+        left: 12px;
+        max-width: 360px;
+        padding: 12px 14px 14px;
+        border-radius: 14px;
+        background: var(--bg-panel);
+        box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.03),
+            0 18px 45px rgba(0, 0, 0, 0.7);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        z-index: 10;
+    }
+    .ui-panel h1 {
+        margin: 0 0 2px;
+        font-size: 16px;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: var(--accent-strong);
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+    .ui-panel h1 span.badge {
+        font-size: 10px;
+        padding: 2px 6px;
+        border-radius: 999px;
+        background: rgba(0, 0, 0, 0.45);
+        color: var(--text-sub);
+    }
+    .ui-panel .subtitle {
+        font-size: 12px;
+        color: var(--text-sub);
+        margin-bottom: 10px;
+    }
+    .slider-group {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        margin-bottom: 10px;
+    }
+    .slider-row {
+        display: grid;
+        grid-template-columns: 40px 1fr 50px;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+        color: var(--text-sub);
+    }
+    .slider-row label {
+        font-weight: 600;
+        letter-spacing: 0.05em;
+    }
+    .slider-row input[type="range"] {
+        width: 100%;
+        -webkit-appearance: none;
+        appearance: none;
+        height: 4px;
+        border-radius: 999px;
+        background: linear-gradient(90deg, var(--accent-soft), #222840);
+        outline: none;
+    }
+    .slider-row input[type="range"]::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        background: var(--accent);
+        box-shadow: 0 0 0 4px rgba(69, 224, 255, 0.25);
+        border: none;
+        cursor: pointer;
+    }
+    .slider-row input[type="range"]::-moz-range-thumb {
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        background: var(--accent);
+        border: none;
+        cursor: pointer;
+    }
+    .slider-row span.value {
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+        color: var(--accent-strong);
+    }
+
+    .targets-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 6px;
+        margin-bottom: 8px;
+    }
+    .field {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        font-size: 11px;
+    }
+    .field label {
+        color: var(--text-sub);
+    }
+    .field input[type="range"] {
+        width: 100%;
+        -webkit-appearance: none;
+        appearance: none;
+        height: 4px;
+        border-radius: 999px;
+        background: linear-gradient(90deg, rgba(255,255,255,0.1), #222840);
+        outline: none;
+    }
+    .field span.small-val {
+        font-size: 11px;
+        color: var(--accent-strong);
+        font-variant-numeric: tabular-nums;
+        text-align: right;
+    }
+
+    .buttons-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-bottom: 4px;
+    }
+    button {
+        border-radius: 999px;
+        border: none;
+        padding: 6px 10px;
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+        background: radial-gradient(circle at top left, #45e0ff 0, #0057ff 40%, #001447 100%);
+        color: #f5f7ff;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.6);
+        transition: transform 0.08s ease, box-shadow 0.08s ease,
+            filter 0.08s ease;
+        white-space: nowrap;
+    }
+    button.secondary {
+        background: rgba(15, 21, 40, 0.9);
+        color: var(--text-sub);
+        box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.06);
+    }
+    button.danger {
+        background: radial-gradient(circle at top left, #ff7b9c 0, #ff1648 45%, #5a001b 100%);
+        color: #fff;
+    }
+    button:active {
+        transform: translateY(1px) scale(0.98);
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+        filter: brightness(0.98);
+    }
+
+    .status-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        font-size: 11px;
+        margin-top: 4px;
+        color: var(--text-sub);
+        gap: 6px;
+    }
+    .status-row .tag {
+        padding: 2px 6px;
+        border-radius: 999px;
+        background: rgba(0, 0, 0, 0.4);
+    }
+    .status-row .tag span {
+        font-variant-numeric: tabular-nums;
+        color: var(--good);
+    }
+    .status-row .hint {
+        text-align: right;
+    }
+    .status-row .hint strong {
+        color: var(--accent);
+        font-weight: 500;
+    }
+
+    .bottom-right-buttons {
+        position: absolute;
+        right: 12px;
+        bottom: 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        z-index: 10;
+    }
+
+    .badge-fps {
+        position: absolute;
+        left: 12px;
+        bottom: 12px;
+        font-size: 10px;
+        padding: 3px 8px;
+        border-radius: 999px;
+        background: rgba(0, 0, 0, 0.6);
+        color: var(--text-sub);
+        font-variant-numeric: tabular-nums;
+        z-index: 10;
+    }
+    .badge-fps span {
+        color: var(--accent-strong);
+    }
+
+    .altitude-bar-wrap {
+        position: absolute;
+        left: 50%;
+        transform: translateX(-50%);
+        bottom: 16px;
+        width: min(260px, 70vw);
+        height: 30px;
+        border-radius: 999px;
+        padding: 6px 10px;
+        background: rgba(2, 6, 18, 0.9);
+        box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.04),
+            0 12px 24px rgba(0, 0, 0, 0.6);
+        font-size: 11px;
+        color: var(--text-sub);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        z-index: 10;
+    }
+    .altitude-bar-label {
+        flex: 0 0 auto;
+        font-variant-numeric: tabular-nums;
+    }
+    .altitude-bar {
+        flex: 1;
+        position: relative;
+        height: 4px;
+        border-radius: 999px;
+        background: linear-gradient(90deg, #15192a, #262b40);
+        overflow: hidden;
+    }
+    .altitude-bar .fill {
+        position: absolute;
+        top: 0;
+        left: 0;
+        bottom: 0;
+        width: 0%;
+        border-radius: inherit;
+        background: linear-gradient(90deg, #ff7b9c, #ffe26b, #73ff9b);
+        transition: width 0.1s linear;
+    }
+    .altitude-bar .target-mark {
+        position: absolute;
+        top: -3px;
+        width: 2px;
+        bottom: -3px;
+        background: var(--accent);
+        opacity: 0.8;
+    }
+
+    .overlay-tip {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        padding: 8px 12px;
+        border-radius: 999px;
+        background: rgba(0, 0, 0, 0.7);
+        color: var(--text-sub);
+        font-size: 11px;
+        pointer-events: none;
+        z-index: 9;
+        opacity: 0;
+        transition: opacity 0.4s ease;
+    }
+    .overlay-tip.visible {
+        opacity: 1;
+    }
+
+    @media (max-width: 768px) {
+        .ui-panel {
+            max-width: 94vw;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+        .badge-fps {
+            left: 50%;
+            transform: translateX(-50%);
+            bottom: 52px;
+        }
+        .altitude-bar-wrap {
+            bottom: 52px;
+        }
+    }
+</style>
+</head>
+<body>
+<div id="app">
+    <canvas id="view"></canvas>
+
+    <div class="ui-panel">
+        <h1>
+            Drone PID Lab
+            <span class="badge">v0.2 三維</span>
+        </h1>
+        <div class="subtitle">
+            一顆「會飛的質點」在 <strong>3D 空間</strong> 中，用一組 Kp / Ki / Kd
+            自動飛向目標位置 (X, Y, Z)；感受震盪、拖泥帶水、慢慢飄掉。
+        </div>
+
+        <div class="slider-group">
+            <div class="slider-row">
+                <label for="kpRange">Kp</label>
+                <input id="kpRange" type="range" min="0" max="10" step="0.1" value="3.0" />
+                <span class="value" id="kpValue">3.0</span>
+            </div>
+            <div class="slider-row">
+                <label for="kiRange">Ki</label>
+                <input id="kiRange" type="range" min="0" max="2" step="0.02" value="0.30" />
+                <span class="value" id="kiValue">0.30</span>
+            </div>
+            <div class="slider-row">
+                <label for="kdRange">Kd</label>
+                <input id="kdRange" type="range" min="0" max="8" step="0.1" value="2.0" />
+                <span class="value" id="kdValue">2.0</span>
+            </div>
+        </div>
+
+        <div class="targets-row">
+            <div class="field">
+                <label for="targetAltRange">目標 Y (高度)</label>
+                <input id="targetAltRange" type="range" min="1" max="20" step="0.5" value="6" />
+                <span class="small-val"><span id="targetAltValue">6.0</span> m</span>
+            </div>
+            <div class="field">
+                <label for="disturbRange">擾動強度</label>
+                <input id="disturbRange" type="range" min="0" max="3" step="0.1" value="1.0" />
+                <span class="small-val" id="disturbValue">1.0 g</span>
+            </div>
+        </div>
+
+        <div class="targets-row">
+            <div class="field">
+                <label for="targetXRange">目標 X</label>
+                <input id="targetXRange" type="range" min="-15" max="15" step="0.5" value="0" />
+                <span class="small-val"><span id="targetXValue">0.0</span> m</span>
+            </div>
+            <div class="field">
+                <label for="targetZRange">目標 Z</label>
+                <input id="targetZRange" type="range" min="-15" max="15" step="0.5" value="10" />
+                <span class="small-val"><span id="targetZValue">10.0</span> m</span>
+            </div>
+        </div>
+
+        <div class="buttons-row">
+            <button id="presetSoft">平緩</button>
+            <button id="presetBalanced">均衡</button>
+            <button id="presetAggressive" class="danger">很兇</button>
+            <button id="btnRandomTarget" class="secondary">隨機目標</button>
+        </div>
+        <div class="buttons-row">
+            <button id="btnKick" class="secondary">給它一腳 (擾動)</button>
+            <button id="btnReset" class="secondary">重置 Drone</button>
+            <button id="btnRecenter" class="secondary">🔍 找回視角</button>
+        </div>
+        <div class="status-row">
+            <div class="tag">
+                |e| ≈ <span id="errorValue">0.00</span> m
+            </div>
+            <div class="hint">
+                <strong>Kp</strong> 太大：空間裡亂彈；
+                <strong>Kd</strong> 太大：像黏在空氣；
+                <strong>Ki</strong> 太大：越飛越歪。
+            </div>
+        </div>
+    </div>
+
+    <div class="badge-fps">
+        dt ≈ <span id="dtLabel">0.016</span> s ・ FPS ≈ <span id="fpsLabel">60</span>
+    </div>
+
+    <div class="altitude-bar-wrap">
+        <div class="altitude-bar-label">
+            Y 高度 <span id="altitudeLabel">0.0</span> / <span id="altitudeMaxLabel">20</span> m
+        </div>
+        <div class="altitude-bar">
+            <div class="fill" id="altitudeFill"></div>
+            <div class="target-mark" id="altitudeTargetMark"></div>
+        </div>
+    </div>
+
+    <div class="overlay-tip" id="tipCenter">
+        這顆亮黃的就是 drone，拖曳畫面旋轉看看 👆
+    </div>
+</div>
+
+<script>
+(function () {
+    "use strict";
+
+    const canvas = document.getElementById("view");
+    const ctx = canvas.getContext("2d");
+
+    const kpRange = document.getElementById("kpRange");
+    const kiRange = document.getElementById("kiRange");
+    const kdRange = document.getElementById("kdRange");
+    const kpValue = document.getElementById("kpValue");
+    const kiValue = document.getElementById("kiValue");
+    const kdValue = document.getElementById("kdValue");
+
+    const targetAltRange = document.getElementById("targetAltRange");
+    const targetAltValue = document.getElementById("targetAltValue");
+    const targetXRange = document.getElementById("targetXRange");
+    const targetXValue = document.getElementById("targetXValue");
+    const targetZRange = document.getElementById("targetZRange");
+    const targetZValue = document.getElementById("targetZValue");
+    const disturbRange = document.getElementById("disturbRange");
+    const disturbValue = document.getElementById("disturbValue");
+
+    const errorValue = document.getElementById("errorValue");
+    const dtLabel = document.getElementById("dtLabel");
+    const fpsLabel = document.getElementById("fpsLabel");
+    const altitudeLabel = document.getElementById("altitudeLabel");
+    const altitudeMaxLabel = document.getElementById("altitudeMaxLabel");
+    const altitudeFill = document.getElementById("altitudeFill");
+    const altitudeTargetMark = document.getElementById("altitudeTargetMark");
+
+    const btnKick = document.getElementById("btnKick");
+    const btnReset = document.getElementById("btnReset");
+    const btnRecenter = document.getElementById("btnRecenter");
+    const btnRandomTarget = document.getElementById("btnRandomTarget");
+    const btnPresetSoft = document.getElementById("presetSoft");
+    const btnPresetBalanced = document.getElementById("presetBalanced");
+    const btnPresetAggressive = document.getElementById("presetAggressive");
+    const tipCenter = document.getElementById("tipCenter");
+
+    altitudeMaxLabel.textContent = targetAltRange.max;
+
+    function syncPidLabels() {
+        kpValue.textContent = Number(kpRange.value).toFixed(1);
+        kiValue.textContent = Number(kiRange.value).toFixed(2);
+        kdValue.textContent = Number(kdRange.value).toFixed(1);
+    }
+    syncPidLabels();
+
+    function syncTargetLabels() {
+        targetAltValue.textContent = Number(targetAltRange.value).toFixed(1);
+        targetXValue.textContent = Number(targetXRange.value).toFixed(1);
+        targetZValue.textContent = Number(targetZRange.value).toFixed(1);
+        disturbValue.textContent = Number(disturbRange.value).toFixed(1) + " g";
+    }
+    syncTargetLabels();
+
+    kpRange.addEventListener("input", syncPidLabels);
+    kiRange.addEventListener("input", syncPidLabels);
+    kdRange.addEventListener("input", syncPidLabels);
+    targetAltRange.addEventListener("input", syncTargetLabels);
+    targetXRange.addEventListener("input", syncTargetLabels);
+    targetZRange.addEventListener("input", syncTargetLabels);
+    disturbRange.addEventListener("input", syncTargetLabels);
+
+    let width = 0;
+    let height = 0;
+    function resize() {
+        const rect = canvas.getBoundingClientRect();
+        width = rect.width * window.devicePixelRatio;
+        height = rect.height * window.devicePixelRatio;
+        canvas.width = width;
+        canvas.height = height;
+    }
+    window.addEventListener("resize", resize);
+    resize();
+
+    const sim = {
+        mass: 1.0,
+        gravity: 9.8,
+        pos: { x: 0, y: 3, z: 0 },
+        vel: { x: 0, y: 0, z: 0 },
+        target: { x: 0, y: 6, z: 10 },
+        err: { x: 0, y: 0, z: 0 },
+        prevErr: { x: 0, y: 0, z: 0 },
+        integral: { x: 0, y: 0, z: 0 },
+        disturbKick: { x: 0, y: 0, z: 0 }
+    };
+
+    const camera = {
+        yaw: Math.PI * 0.25,
+        pitch: Math.PI * 0.28,
+        distance: 26,
+        offsetX: 0,
+        offsetZ: 0
+    };
+
+    function resetDrone() {
+        sim.pos.x = 0;
+        sim.pos.y = 3;
+        sim.pos.z = 0;
+        sim.vel.x = sim.vel.y = sim.vel.z = 0;
+        sim.integral.x = sim.integral.y = sim.integral.z = 0;
+        sim.prevErr.x = sim.prevErr.y = sim.prevErr.z = 0;
+        sim.err.x = sim.err.y = sim.err.z = 0;
+        sim.disturbKick.x = sim.disturbKick.y = sim.disturbKick.z = 0;
+    }
+
+    function recenterCamera() {
+        camera.yaw = Math.PI * 0.25;
+        camera.pitch = Math.PI * 0.28;
+        camera.distance = 26;
+        camera.offsetX = 0;
+        camera.offsetZ = 0;
+        tipCenter.classList.add("visible");
+        setTimeout(() => tipCenter.classList.remove("visible"), 2000);
+    }
+
+    function randomTarget() {
+        const r = () => (Math.random() * 30 - 15).toFixed(1);
+        targetXRange.value = r();
+        targetZRange.value = r();
+        targetAltRange.value = (Math.random() * 18 + 2).toFixed(1);
+        syncTargetLabels();
+    }
+
+    btnReset.addEventListener("click", function () {
+        resetDrone();
+        recenterCamera();
+    });
+    btnRecenter.addEventListener("click", function () {
+        recenterCamera();
+    });
+    btnRandomTarget.addEventListener("click", function () {
+        randomTarget();
+    });
+    btnKick.addEventListener("click", function () {
+        const s = Number(disturbRange.value) * sim.gravity * 0.6;
+        const randVec = () => (Math.random() - 0.5) * s;
+        sim.disturbKick.x += randVec();
+        sim.disturbKick.y += randVec();
+        sim.disturbKick.z += randVec();
+    });
+
+    btnPresetSoft.addEventListener("click", function () {
+        kpRange.value = 1.5;
+        kiRange.value = 0.08;
+        kdRange.value = 1.2;
+        syncPidLabels();
+    });
+    btnPresetBalanced.addEventListener("click", function () {
+        kpRange.value = 3.0;
+        kiRange.value = 0.3;
+        kdRange.value = 2.0;
+        syncPidLabels();
+    });
+    btnPresetAggressive.addEventListener("click", function () {
+        kpRange.value = 6.0;
+        kiRange.value = 0.9;
+        kdRange.value = 3.5;
+        syncPidLabels();
+    });
+
+    function updateSimulation(dt) {
+        sim.target.x = Number(targetXRange.value);
+        sim.target.y = Number(targetAltRange.value);
+        sim.target.z = Number(targetZRange.value);
+
+        const kp = Number(kpRange.value);
+        const ki = Number(kiRange.value);
+        const kd = Number(kdRange.value);
+
+        const disturbScale = Number(disturbRange.value) * sim.gravity * 0.5;
+
+        const rand = () => (Math.random() - 0.5) * disturbScale;
+        const disturbance = { x: rand(), y: rand(), z: rand() };
+
+        const axes = ["x", "y", "z"];
+        let errMagSq = 0;
+        axes.forEach(axis => {
+            const e = sim.target[axis] - sim.pos[axis];
+            sim.err[axis] = e;
+            errMagSq += e * e;
+            sim.integral[axis] += e * dt;
+            const leak = Math.exp(-dt * 0.3);
+            sim.integral[axis] *= leak;
+            const derivative = (e - sim.prevErr[axis]) / Math.max(dt, 1e-4);
+            sim.prevErr[axis] = e;
+
+            const integralClamped = Math.max(Math.min(sim.integral[axis], 50), -50);
+            sim.integral[axis] = integralClamped;
+
+            const u = kp * e + ki * integralClamped + kd * derivative;
+            sim.vel[axis] += (u / sim.mass) * dt;
+        });
+
+        sim.disturbKick.x *= Math.exp(-dt * 2.5);
+        sim.disturbKick.y *= Math.exp(-dt * 2.5);
+        sim.disturbKick.z *= Math.exp(-dt * 2.5);
+
+        sim.vel.x += (disturbance.x + sim.disturbKick.x) / sim.mass * dt;
+        sim.vel.y += ((disturbance.y + sim.disturbKick.y) / sim.mass - sim.gravity) * dt;
+        sim.vel.z += (disturbance.z + sim.disturbKick.z) / sim.mass * dt;
+
+        const drag = 0.7;
+        sim.vel.x *= Math.exp(-drag * dt);
+        sim.vel.y *= Math.exp(-drag * dt);
+        sim.vel.z *= Math.exp(-drag * dt);
+
+        axes.forEach(axis => {
+            sim.pos[axis] += sim.vel[axis] * dt;
+        });
+
+        if (sim.pos.y < 0) {
+            sim.pos.y = 0;
+            if (sim.vel.y < 0) sim.vel.y = -sim.vel.y * 0.3;
+        }
+
+        const planeLimit = 60;
+        const limitAxis = (axis) => {
+            if (sim.pos[axis] < -planeLimit) {
+                sim.pos[axis] = -planeLimit;
+                if (sim.vel[axis] < 0) sim.vel[axis] = -sim.vel[axis] * 0.2;
+            }
+            if (sim.pos[axis] > planeLimit) {
+                sim.pos[axis] = planeLimit;
+                if (sim.vel[axis] > 0) sim.vel[axis] = -sim.vel[axis] * 0.2;
+            }
+        };
+        limitAxis("x");
+        limitAxis("z");
+
+        const errMag = Math.sqrt(errMagSq);
+        errorValue.textContent = errMag.toFixed(2);
+        altitudeLabel.textContent = sim.pos.y.toFixed(1);
+
+        const maxAlt = Number(targetAltRange.max);
+        const ratio = Math.min(Math.max(sim.pos.y / maxAlt, 0), 1);
+        altitudeFill.style.width = (ratio * 100).toFixed(1) + "%";
+
+        const targetRatio = Math.min(sim.target.y / maxAlt, 1);
+        altitudeTargetMark.style.left = (targetRatio * 100).toFixed(1) + "%";
+    }
+
+    function projectPoint(x, y, z) {
+        x -= camera.offsetX;
+        z -= camera.offsetZ;
+
+        const yaw = camera.yaw;
+        const pitch = camera.pitch;
+        const cosy = Math.cos(yaw);
+        const siny = Math.sin(yaw);
+        const x1 = x * cosy - z * siny;
+        const z1 = x * siny + z * cosy;
+
+        const cosp = Math.cos(pitch);
+        const sinp = Math.sin(pitch);
+        const y2 = y * cosp - z1 * sinp;
+        const z2 = y * sinp + z1 * cosp;
+
+        const scale = (height / 600) * (40 / camera.distance);
+        const sx = width * 0.5 + x1 * scale;
+        const sy = height * 0.55 - y2 * scale;
+
+        return { x: sx, y: sy, depth: z2 };
+    }
+
+    function drawLine3D(x1, y1, z1, x2, y2, z2, color, widthPx, alpha) {
+        const p1 = projectPoint(x1, y1, z1);
+        const p2 = projectPoint(x2, y2, z2);
+        ctx.strokeStyle = color;
+        ctx.globalAlpha = alpha == null ? 1 : alpha;
+        ctx.lineWidth = widthPx;
+        ctx.beginPath();
+        ctx.moveTo(p1.x, p1.y);
+        ctx.lineTo(p2.x, p2.y);
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+    }
+
+    function drawCircle3D(x, y, z, radiusWorld, colorFill, alphaFill, colorStroke) {
+        const p = projectPoint(x, y, z);
+        const pR = projectPoint(x + radiusWorld, y, z);
+        const rPx = Math.max(1, Math.abs(pR.x - p.x));
+        ctx.globalAlpha = alphaFill;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, rPx, 0, Math.PI * 2);
+        if (colorFill) {
+            ctx.fillStyle = colorFill;
+            ctx.fill();
+        }
+        if (colorStroke) {
+            ctx.lineWidth = 1;
+            ctx.strokeStyle = colorStroke;
+            ctx.stroke();
+        }
+        ctx.globalAlpha = 1;
+    }
+
+    function draw() {
+        const grad = ctx.createRadialGradient(
+            width * 0.5,
+            height * 0.0,
+            0,
+            width * 0.5,
+            height * 0.6,
+            height * 0.9
+        );
+        grad.addColorStop(0, "rgba(76,106,190,0.45)");
+        grad.addColorStop(1, "rgba(2,5,16,1)");
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, width, height);
+
+        const gridSize = 40;
+        const step = 2;
+
+        for (let x = -gridSize; x <= gridSize; x += step) {
+            const isAxis = Math.abs(x) < 1e-6;
+            drawLine3D(
+                x, 0, -gridSize,
+                x, 0, gridSize,
+                isAxis ? "#4fd1ff" : "rgba(40,46,80,0.9)",
+                isAxis ? 1.6 : 1,
+                isAxis ? 0.9 : 0.7
+            );
+        }
+        for (let z = -gridSize; z <= gridSize; z += step) {
+            const isAxis = Math.abs(z) < 1e-6;
+            drawLine3D(
+                -gridSize, 0, z,
+                gridSize, 0, z,
+                isAxis ? "#ff7b9c" : "rgba(32,38,72,0.9)",
+                isAxis ? 1.6 : 1,
+                isAxis ? 0.9 : 0.7
+            );
+        }
+
+        drawLine3D(0, 0, 0, 0, 16, 0, "#7cfc9b", 1.2, 0.85);
+
+        drawLine3D(-0.8, 0.01, 0, 0.8, 0.01, 0, "#606580", 1.2, 0.9);
+        drawLine3D(0, 0.01, -0.8, 0, 0.01, 0.8, "#606580", 1.2, 0.9);
+
+        drawCircle3D(sim.target.x, 0.02, sim.target.z, 0.4, "rgba(255,220,130,0.7)", 1, "#ffe49b");
+        drawLine3D(sim.target.x, 0, sim.target.z, sim.target.x, sim.target.y, sim.target.z, "rgba(255,220,130,0.8)", 1.2, 0.8);
+        drawCircle3D(sim.target.x, sim.target.y, sim.target.z, 0.3, "rgba(255,220,130,0.9)", 1, "#ffffff");
+
+        const px = sim.pos.x;
+        const py = sim.pos.y;
+        const pz = sim.pos.z;
+
+        drawCircle3D(px, 0.01, pz, 1.8, null, 1, "rgba(69,224,255,0.55)");
+        drawLine3D(px, 0, pz, px, py, pz, "rgba(69,224,255,0.85)", 1.4, 0.9);
+
+        const bodyHalf = 1.5;
+        const bodyHeight = 0.4;
+
+        function rotateLocal(x, y, z) {
+            const ex = sim.err.x;
+            const ez = sim.err.z;
+            const vx = sim.vel.x;
+            const vz = sim.vel.z;
+            const tiltX = (ez * 0.02 + vz * 0.01);
+            const tiltZ = (-ex * 0.02 - vx * 0.01);
+            const cx = Math.cos(tiltX), sx = Math.sin(tiltX);
+            const cz = Math.cos(tiltZ), sz = Math.sin(tiltZ);
+            let y1 = y * cx - z * sx;
+            let z1 = y * sx + z * cx;
+            let x2 = x * cz - y1 * sz;
+            let y2 = x * sz + y1 * cz;
+            return { x: x2 + px, y: y2 + py, z: z1 + pz };
+        }
+
+        const topCornersLocal = [
+            [-bodyHalf, bodyHeight, -bodyHalf],
+            [ bodyHalf, bodyHeight, -bodyHalf],
+            [ bodyHalf, bodyHeight,  bodyHalf],
+            [-bodyHalf, bodyHeight,  bodyHalf]
+        ];
+        ctx.fillStyle = "rgba(249,255,130,0.95)";
+        ctx.strokeStyle = "#202020";
+        ctx.lineWidth = 1.4;
+        ctx.beginPath();
+        let p = projectPoint(...Object.values(rotateLocal(...topCornersLocal[0])));
+        ctx.moveTo(p.x, p.y);
+        for (let i = 1; i < topCornersLocal.length; i++) {
+            p = projectPoint(...Object.values(rotateLocal(...topCornersLocal[i])));
+            ctx.lineTo(p.x, p.y);
+        }
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+
+        const armLen = 3.0;
+        const armWidth = 0.25;
+        const armHalfL = armLen * 0.5;
+        const armHalfW = armWidth * 0.5;
+
+        const arm1Local = [
+            [-armHalfL, bodyHeight * 0.6, -armHalfW],
+            [ armHalfL, bodyHeight * 0.6, -armHalfW],
+            [ armHalfL, bodyHeight * 0.6,  armHalfW],
+            [-armHalfL, bodyHeight * 0.6,  armHalfW]
+        ];
+        const arm2Local = arm1Local.map(([x,y,z]) => [-z, y, x]);
+
+        function fillQuad(localPoints) {
+            ctx.fillStyle = "rgba(12,18,36,0.95)";
+            ctx.beginPath();
+            let p0 = projectPoint(...Object.values(rotateLocal(...localPoints[0])));
+            ctx.moveTo(p0.x, p0.y);
+            for (let i = 1; i < localPoints.length; i++) {
+                const pi = projectPoint(...Object.values(rotateLocal(...localPoints[i])));
+                ctx.lineTo(pi.x, pi.y);
+            }
+            ctx.closePath();
+            ctx.fill();
+        }
+        fillQuad(arm1Local);
+        fillQuad(arm2Local);
+
+        const rotorR = 0.45;
+        const rotorHeight = bodyHeight * 0.9;
+        const rotorPosLocal = [
+            [ armHalfL, rotorHeight,  armHalfL],
+            [-armHalfL, rotorHeight,  armHalfL],
+            [-armHalfL, rotorHeight, -armHalfL],
+            [ armHalfL, rotorHeight, -armHalfL]
+        ];
+        rotorPosLocal.forEach((loc, i) => {
+            const world = rotateLocal(...loc);
+            const color = i % 2 === 0 ? "#00ffc6" : "#ff5b7a";
+            drawCircle3D(world.x, world.y, world.z, rotorR, color, 0.95, "#111622");
+        });
+    }
+
+    let lastTime = performance.now();
+    let fpsCounter = 0;
+    let fpsAccumTime = 0;
+    let dtSmoothed = 0.016;
+
+    function loop() {
+        requestAnimationFrame(loop);
+        const now = performance.now();
+        let dt = (now - lastTime) / 1000;
+        if (!isFinite(dt) || dt <= 0) dt = 0.016;
+        dt = Math.min(dt, 0.05);
+        lastTime = now;
+
+        dtSmoothed = dtSmoothed * 0.9 + dt * 0.1;
+        fpsCounter++;
+        fpsAccumTime += dt;
+        if (fpsAccumTime >= 0.4) {
+            const fps = fpsCounter / fpsAccumTime;
+            fpsLabel.textContent = fps.toFixed(0);
+            dtLabel.textContent = dtSmoothed.toFixed(3);
+            fpsCounter = 0;
+            fpsAccumTime = 0;
+        }
+
+        updateSimulation(dt);
+        ctx.clearRect(0, 0, width, height);
+        draw();
+    }
+
+    let isRotating = false;
+    let isPanning = false;
+    let lastX = 0;
+    let lastY = 0;
+
+    canvas.addEventListener("contextmenu", (e) => e.preventDefault());
+
+    canvas.addEventListener("mousedown", (e) => {
+        e.preventDefault();
+        if (e.button === 0) {
+            isRotating = true;
+        } else if (e.button === 2) {
+            isPanning = true;
+        }
+        lastX = e.clientX;
+        lastY = e.clientY;
+    });
+
+    window.addEventListener("mouseup", () => {
+        isRotating = false;
+        isPanning = false;
+    });
+
+    window.addEventListener("mousemove", (e) => {
+        if (!isRotating && !isPanning) return;
+        const dx = e.clientX - lastX;
+        const dy = e.clientY - lastY;
+        lastX = e.clientX;
+        lastY = e.clientY;
+        const rotSpeed = 0.01;
+        const panSpeed = camera.distance * 0.002;
+
+        if (isRotating) {
+            camera.yaw += dx * rotSpeed;
+            camera.pitch += dy * rotSpeed;
+            const minPitch = 0.05;
+            const maxPitch = Math.PI * 0.48;
+            if (camera.pitch < minPitch) camera.pitch = minPitch;
+            if (camera.pitch > maxPitch) camera.pitch = maxPitch;
+        } else if (isPanning) {
+            const cosy = Math.cos(camera.yaw);
+            const siny = Math.sin(camera.yaw);
+            camera.offsetX += (-dx * cosy + dy * siny) * panSpeed * 0.05;
+            camera.offsetZ += (-dx * siny - dy * cosy) * panSpeed * 0.05;
+        }
+    });
+
+    canvas.addEventListener("wheel", (e) => {
+        e.preventDefault();
+        const delta = e.deltaY;
+        const zoomFactor = 1 + Math.sign(delta) * 0.1;
+        camera.distance *= zoomFactor;
+        if (camera.distance < 8) camera.distance = 8;
+        if (camera.distance > 80) camera.distance = 80;
+    }, { passive: false });
+
+    let touchMode = null;
+    let lastTouchDist = 0;
+    let lastTouchCenter = { x: 0, y: 0 };
+    let baseOffsetX = 0;
+    let baseOffsetZ = 0;
+    let baseCamDistance = 0;
+
+    function getTouchCenter(touches) {
+        let x = 0, y = 0;
+        for (let i = 0; i < touches.length; i++) {
+            x += touches[i].clientX;
+            y += touches[i].clientY;
+        }
+        return { x: x / touches.length, y: y / touches.length };
+    }
+    function getTouchDist(touches) {
+        if (touches.length < 2) return 0;
+        const dx = touches[0].clientX - touches[1].clientX;
+        const dy = touches[0].clientY - touches[1].clientY;
+        return Math.sqrt(dx * dx + dy * dy);
+    }
+
+    canvas.addEventListener("touchstart", (e) => {
+        e.preventDefault();
+        const touches = e.touches;
+        if (touches.length === 1) {
+            touchMode = "rotate";
+            lastX = touches[0].clientX;
+            lastY = touches[0].clientY;
+        } else if (touches.length >= 2) {
+            touchMode = "zoompan";
+            lastTouchDist = getTouchDist(touches);
+            lastTouchCenter = getTouchCenter(touches);
+            baseOffsetX = camera.offsetX;
+            baseOffsetZ = camera.offsetZ;
+            baseCamDistance = camera.distance;
+        }
+    }, { passive: false });
+
+    canvas.addEventListener("touchmove", (e) => {
+        e.preventDefault();
+        const touches = e.touches;
+        if (touchMode === "rotate" && touches.length === 1) {
+            const t = touches[0];
+            const dx = t.clientX - lastX;
+            const dy = t.clientY - lastY;
+            lastX = t.clientX;
+            lastY = t.clientY;
+            const rotSpeed = 0.01;
+            camera.yaw += dx * rotSpeed;
+            camera.pitch += dy * rotSpeed;
+            const minPitch = 0.05;
+            const maxPitch = Math.PI * 0.48;
+            if (camera.pitch < minPitch) camera.pitch = minPitch;
+            if (camera.pitch > maxPitch) camera.pitch = maxPitch;
+        } else if (touchMode === "zoompan" && touches.length >= 2) {
+            const dist = getTouchDist(touches);
+            const center = getTouchCenter(touches);
+            if (lastTouchDist > 0) {
+                const zoomRatio = dist / lastTouchDist;
+                camera.distance = baseCamDistance / zoomRatio;
+                if (camera.distance < 8) camera.distance = 8;
+                if (camera.distance > 80) camera.distance = 80;
+            }
+            const dx = center.x - lastTouchCenter.x;
+            const dy = center.y - lastTouchCenter.y;
+            const cosy = Math.cos(camera.yaw);
+            const siny = Math.sin(camera.yaw);
+            const panSpeed = camera.distance * 0.002;
+            camera.offsetX = baseOffsetX + (-dx * cosy + dy * siny) * panSpeed * 0.05;
+            camera.offsetZ = baseOffsetZ + (-dx * siny - dy * cosy) * panSpeed * 0.05;
+        }
+    }, { passive: false });
+
+    canvas.addEventListener("touchend", (e) => {
+        if (e.touches.length === 0) {
+            touchMode = null;
+        }
+    });
+
+    resetDrone();
+    recenterCamera();
+    loop();
+})();
+</script>
+</body>
+</html>

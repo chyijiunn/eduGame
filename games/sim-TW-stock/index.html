@@ -1,0 +1,1167 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head><script src="/eduGame/ga4.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>台灣股市模擬交易系統 v0.12</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Microsoft JhengHei', Arial, sans-serif;
+        }
+        
+        body {
+            background-color: #121212;
+            color: #e0e0e0;
+            overflow-x: hidden;
+        }
+        
+        .container {
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+            padding: 10px;
+        }
+        
+        header {
+            background-color: #1a1a2e;
+            color: #e0e0e0;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+            border: 1px solid #2d2d42;
+        }
+        
+        h1 {
+            font-size: 1.5rem;
+            margin-bottom: 10px;
+            color: #4fc3f7;
+        }
+        
+        .market-info {
+            display: flex;
+            justify-content: space-between;
+            flex-wrap: wrap;
+        }
+        
+        .market-data {
+            font-size: 1.2rem;
+            font-weight: bold;
+        }
+        
+        .up {
+            color: #ff5252;
+        }
+        
+        .down {
+            color: #4caf50;
+        }
+        
+        .main-content {
+            display: flex;
+            flex: 1;
+            gap: 15px;
+        }
+        
+        .chart-container {
+            flex: 1;
+            background-color: #1e1e2e;
+            border-radius: 8px;
+            padding: 15px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+            position: relative;
+            overflow: hidden;
+            border: 1px solid #2d2d42;
+        }
+        
+        .chart {
+            width: 100%;
+            height: 400px;
+            background-color: #121212;
+            border: 1px solid #2d2d42;
+            border-radius: 4px;
+            position: relative;
+        }
+        
+        .controls {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 15px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        
+        button {
+            padding: 8px 15px;
+            background-color: #1a237e;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        
+        button:hover {
+            background-color: #283593;
+        }
+        
+        button:disabled {
+            background-color: #424242;
+            cursor: not-allowed;
+        }
+        
+        .speed-control {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .stock-list {
+            width: 300px;
+            background-color: #1e1e2e;
+            border-radius: 8px;
+            padding: 15px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+            overflow-y: auto;
+            max-height: 500px;
+            border: 1px solid #2d2d42;
+        }
+        
+        .stock-item {
+            padding: 10px;
+            border-bottom: 1px solid #2d2d42;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        
+        .stock-item:hover {
+            background-color: #2a2a3a;
+        }
+        
+        .stock-code {
+            font-weight: bold;
+        }
+        
+        .stock-price {
+            float: right;
+            font-weight: bold;
+        }
+        
+        .user-panel {
+            width: 300px;
+            background-color: #1e1e2e;
+            border-radius: 8px;
+            padding: 15px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+            border: 1px solid #2d2d42;
+        }
+        
+        .user-info {
+            margin-bottom: 20px;
+        }
+        
+        .user-info h3 {
+            margin-bottom: 10px;
+            color: #4fc3f7;
+        }
+        
+        .balance {
+            font-size: 1.2rem;
+            font-weight: bold;
+            margin-bottom: 15px;
+        }
+        
+        .input-group {
+            margin-bottom: 15px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #b0b0b0;
+        }
+        
+        input, textarea, select {
+            width: 100%;
+            padding: 8px;
+            background-color: #2d2d42;
+            color: #e0e0e0;
+            border: 1px solid #3d3d5c;
+            border-radius: 4px;
+        }
+        
+        input:focus, textarea:focus, select:focus {
+            outline: none;
+            border-color: #4fc3f7;
+        }
+        
+        .holdings-panel {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 300px;
+            background-color: #1e1e2e;
+            border-radius: 8px;
+            padding: 15px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            border: 1px solid #2d2d42;
+            max-height: 400px;
+            overflow-y: auto;
+            z-index: 100;
+        }
+        
+        .holdings-panel h3 {
+            margin-bottom: 10px;
+            color: #4fc3f7;
+            border-bottom: 1px solid #2d2d42;
+            padding-bottom: 5px;
+        }
+        
+        .holding-item {
+            padding: 8px;
+            border-bottom: 1px solid #2d2d42;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .holding-item:last-child {
+            border-bottom: none;
+        }
+        
+        .holding-actions {
+            display: flex;
+            gap: 5px;
+        }
+        
+        .holding-btn {
+            padding: 4px 8px;
+            font-size: 0.8rem;
+        }
+        
+        .buy-btn {
+            background-color: #ff5252;
+        }
+        
+        .sell-btn {
+            background-color: #4caf50;
+        }
+        
+        .order-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.7);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .modal-content {
+            background-color: #1e1e2e;
+            padding: 20px;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 400px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+            border: 1px solid #2d2d42;
+        }
+        
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        
+        .close-modal {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: #b0b0b0;
+        }
+        
+        .order-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        
+        .five-level {
+            margin-top: 15px;
+            border-top: 1px solid #2d2d42;
+            padding-top: 15px;
+        }
+        
+        .level-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 5px 0;
+        }
+        
+        .bid {
+            color: #4caf50;
+        }
+        
+        .ask {
+            color: #ff5252;
+        }
+        
+        .seed-input {
+            margin-top: 20px;
+            padding-top: 15px;
+            border-top: 1px solid #2d2d42;
+        }
+        
+        @media (max-width: 768px) {
+            .main-content {
+                flex-direction: column;
+            }
+            
+            .stock-list, .user-panel {
+                width: 100%;
+            }
+            
+            .holdings-panel {
+                position: static;
+                width: 100%;
+                margin-top: 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>台灣股市模擬交易系統 v0.12</h1>
+            <div class="market-info">
+                <div class="market-data">
+                    加權指數: <span id="taiex-value">17,500.3</span> 
+                    <span id="taiex-change" class="up">+125.4 (+0.7%)</span>
+                </div>
+                <div id="current-time">2023-11-21 09:00:00</div>
+            </div>
+        </header>
+        
+        <div class="main-content">
+            <div class="chart-container">
+                <h2 id="chart-title">加權指數走勢圖</h2>
+                <div class="chart" id="stock-chart">
+                    <!-- 圖表將由JavaScript繪製 -->
+                </div>
+                <div class="controls">
+                    <button id="start-btn">開始交易</button>
+                    <button id="pause-btn" disabled>暫停</button>
+                    <div class="speed-control">
+                        <label for="speed-slider">速度:</label>
+                        <input type="range" id="speed-slider" min="1" max="20" value="1">
+                        <span id="speed-value">1x</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="stock-list">
+                <h3>股票列表</h3>
+                <div id="stock-items">
+                    <!-- 股票列表將由JavaScript生成 -->
+                </div>
+            </div>
+            
+            <div class="user-panel">
+                <div class="user-info">
+                    <h3>帳戶資訊</h3>
+                    <div class="balance">現金: <span id="cash-balance">1,000,000</span> 元</div>
+                    <div class="balance">總資產: <span id="total-assets">1,000,000</span> 元</div>
+                </div>
+                
+                <div class="input-group">
+                    <label for="stock-code-input">新增股票代號:</label>
+                    <input type="text" id="stock-code-input" placeholder="輸入股票代號">
+                    <button id="add-stock-btn" style="margin-top: 5px;">新增</button>
+                </div>
+                
+                <div class="seed-input">
+                    <h3>情緒種子</h3>
+                    <div class="input-group">
+                        <label for="mood-input">心情:</label>
+                        <input type="text" id="mood-input" placeholder="輸入您的心情">
+                    </div>
+                    <div class="input-group">
+                        <label for="food-input">最想吃的食物:</label>
+                        <input type="text" id="food-input" placeholder="輸入最想吃的食物">
+                    </div>
+                    <div class="input-group">
+                        <label for="sight-input">眼睛看到的第一樣物品:</label>
+                        <input type="text" id="sight-input" placeholder="輸入看到的物品">
+                    </div>
+                    <button id="apply-seed-btn">應用種子</button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="holdings-panel">
+            <h3>我的持股</h3>
+            <div id="holdings-list">
+                <!-- 持股列表將由JavaScript生成 -->
+            </div>
+        </div>
+    </div>
+    
+    <div class="order-modal" id="order-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modal-stock-name">下單</h3>
+                <button class="close-modal">&times;</button>
+            </div>
+            <div class="input-group">
+                <label for="order-quantity">數量 (股):</label>
+                <input type="number" id="order-quantity" min="1" value="1000">
+            </div>
+            <div class="five-level">
+                <h4>五檔報價</h4>
+                <div id="five-level-data">
+                    <!-- 五檔報價將由JavaScript生成 -->
+                </div>
+            </div>
+            <div class="order-buttons">
+                <button class="buy-btn" id="modal-buy-btn">買進</button>
+                <button class="sell-btn" id="modal-sell-btn">賣出</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 模擬數據和狀態
+        const state = {
+            isRunning: false,
+            speed: 1,
+            currentTime: new Date('2023-11-21 09:00:00'),
+            cashBalance: 1000000,
+            holdings: {},
+            selectedStock: null,
+            seed: Math.random(),
+            chartData: {
+                'taiex': [],
+                '2330': [],
+                '2317': [],
+                '2454': [],
+                '3008': [],
+                '2412': []
+            },
+            stockPrices: {
+                'taiex': 17500.3,
+                '2330': 580.5,   // 台積電
+                '2317': 102.5, // 鴻海
+                '2454': 425.0,   // 聯發科
+                '3008': 175.5, // 大立光
+                '2412': 123.0    // 中華電
+            },
+            stockNames: {
+                'taiex': '加權指數',
+                '2330': '台積電',
+                '2317': '鴻海',
+                '2454': '聯發科',
+                '3008': '大立光',
+                '2412': '中華電'
+            },
+            priceHistory: {},
+            fiveLevelData: {},
+            chartTimeIndex: 0
+        };
+
+        // 初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeStockList();
+            initializeChart();
+            updateTimeDisplay();
+            updateBalanceDisplay();
+            updateHoldingsList();
+            
+            // 事件監聽器
+            document.getElementById('start-btn').addEventListener('click', startTrading);
+            document.getElementById('pause-btn').addEventListener('click', pauseTrading);
+            document.getElementById('speed-slider').addEventListener('input', updateSpeed);
+            document.getElementById('add-stock-btn').addEventListener('click', addStock);
+            document.getElementById('apply-seed-btn').addEventListener('click', applySeed);
+            document.querySelector('.close-modal').addEventListener('click', closeModal);
+            document.getElementById('modal-buy-btn').addEventListener('click', placeOrder.bind(null, 'buy'));
+            document.getElementById('modal-sell-btn').addEventListener('click', placeOrder.bind(null, 'sell'));
+            
+            // 初始化五檔數據
+            initializeFiveLevelData();
+            
+            // 初始化價格歷史
+            initializePriceHistory();
+            
+            // 初始化K線數據
+            initializeKLineData();
+        });
+
+        // 初始化股票列表
+        function initializeStockList() {
+            const stockItemsContainer = document.getElementById('stock-items');
+            stockItemsContainer.innerHTML = '';
+            
+            // 預設股票
+            const defaultStocks = ['2330', '2317', '2454', '3008', '2412'];
+            
+            defaultStocks.forEach(stockCode => {
+                const stockItem = document.createElement('div');
+                stockItem.className = 'stock-item';
+                stockItem.dataset.code = stockCode;
+                
+                const price = state.stockPrices[stockCode];
+                const change = calculateChange(stockCode);
+                const changeClass = change >= 0 ? 'up' : 'down';
+                const changeSymbol = change >= 0 ? '+' : '';
+                
+                stockItem.innerHTML = `
+                    <span class="stock-code">${stockCode} ${state.stockNames[stockCode]}</span>
+                    <span class="stock-price ${changeClass}">${price.toFixed(1)} ${changeSymbol}${change.toFixed(1)}%</span>
+                `;
+                
+                stockItem.addEventListener('click', function() {
+                    selectStock(stockCode);
+                });
+                
+                stockItemsContainer.appendChild(stockItem);
+            });
+        }
+
+        // 計算漲跌幅
+        function calculateChange(stockCode) {
+            // 簡化計算，實際應用中應使用歷史數據
+            return (Math.random() - 0.5) * 10;
+        }
+
+        // 初始化K線數據
+        function initializeKLineData() {
+            Object.keys(state.stockPrices).forEach(stockCode => {
+                state.chartData[stockCode] = [];
+                
+                // 創建初始K線數據
+                for (let i = 0; i < 30; i++) {
+                    const basePrice = stockCode === 'taiex' ? 17500 : state.stockPrices[stockCode];
+                    const volatility = stockCode === 'taiex' ? 200 : basePrice * 0.02;
+                    
+                    let open, close, high, low;
+                    
+                    if (i === 0) {
+                        open = basePrice;
+                        close = basePrice + (Math.random() - 0.5) * volatility;
+                        high = Math.max(open, close) + Math.random() * volatility * 0.3;
+                        low = Math.min(open, close) - Math.random() * volatility * 0.3;
+                    } else {
+                        const prevClose = state.chartData[stockCode][i-1].close;
+                        open = prevClose;
+                        close = prevClose + (Math.random() - 0.5) * volatility;
+                        high = Math.max(open, close) + Math.random() * volatility * 0.3;
+                        low = Math.min(open, close) - Math.random() * volatility * 0.3;
+                    }
+                    
+                    state.chartData[stockCode].push({
+                        time: i,
+                        open: open,
+                        high: high,
+                        low: low,
+                        close: close
+                    });
+                }
+            });
+            
+            // 初始繪製圖表
+            drawChart('taiex');
+        }
+
+        // 初始化圖表
+        function initializeChart() {
+            // 創建簡單的SVG圖表
+            const chart = document.getElementById('stock-chart');
+            chart.innerHTML = '<svg width="100%" height="100%" id="chart-svg"></svg>';
+        }
+
+        // 繪製圖表
+        function drawChart(stockCode) {
+            const svg = document.getElementById('chart-svg');
+            svg.innerHTML = '';
+            
+            const width = svg.clientWidth;
+            const height = svg.clientHeight;
+            
+            // 簡單的K線圖繪製邏輯
+            const data = state.chartData[stockCode] || [];
+            
+            if (data.length === 0) return;
+            
+            // 計算價格範圍
+            let minPrice = Number.MAX_VALUE;
+            let maxPrice = Number.MIN_VALUE;
+            
+            data.forEach(item => {
+                minPrice = Math.min(minPrice, item.low);
+                maxPrice = Math.max(maxPrice, item.high);
+            });
+            
+            const priceRange = maxPrice - minPrice;
+            const padding = priceRange * 0.1;
+            minPrice -= padding;
+            maxPrice += padding;
+            
+            // 繪製K線
+            const barWidth = width / data.length * 0.8;
+            const xScale = width / data.length;
+            const yScale = height / (maxPrice - minPrice);
+            
+            data.forEach((item, index) => {
+                const x = index * xScale + xScale * 0.1;
+                const yOpen = height - (item.open - minPrice) * yScale;
+                const yClose = height - (item.close - minPrice) * yScale;
+                const yHigh = height - (item.high - minPrice) * yScale;
+                const yLow = height - (item.low - minPrice) * yScale;
+                
+                // 高低線
+                const highLowLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                highLowLine.setAttribute('x1', x + barWidth / 2);
+                highLowLine.setAttribute('y1', yHigh);
+                highLowLine.setAttribute('x2', x + barWidth / 2);
+                highLowLine.setAttribute('y2', yLow);
+                highLowLine.setAttribute('stroke', '#e0e0e0');
+                highLowLine.setAttribute('stroke-width', '1');
+                svg.appendChild(highLowLine);
+                
+                // K線實體
+                const kLine = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                kLine.setAttribute('x', x);
+                kLine.setAttribute('y', Math.min(yOpen, yClose));
+                kLine.setAttribute('width', barWidth);
+                kLine.setAttribute('height', Math.abs(yOpen - yClose));
+                kLine.setAttribute('fill', item.close >= item.open ? '#ff5252' : '#4caf50');
+                svg.appendChild(kLine);
+            });
+        }
+
+        // 更新K線數據
+        function updateKLineData(stockCode) {
+            if (!state.chartData[stockCode] || state.chartData[stockCode].length === 0) return;
+            
+            const data = state.chartData[stockCode];
+            const lastCandle = data[data.length - 1];
+            const volatility = stockCode === 'taiex' ? 200 : lastCandle.close * 0.02;
+            
+            // 創建新的K線
+            const newClose = lastCandle.close + (Math.random() - 0.5) * volatility;
+            const newOpen = lastCandle.close;
+            const newHigh = Math.max(newOpen, newClose) + Math.random() * volatility * 0.3;
+            const newLow = Math.min(newOpen, newClose) - Math.random() * volatility * 0.3;
+            
+            // 添加新的K線數據
+            data.push({
+                time: data.length,
+                open: newOpen,
+                high: newHigh,
+                low: newLow,
+                close: newClose
+            });
+            
+            // 如果數據太多，移除最舊的數據
+            if (data.length > 50) {
+                data.shift();
+            }
+        }
+
+        // 選擇股票
+        function selectStock(stockCode) {
+            state.selectedStock = stockCode;
+            document.getElementById('chart-title').textContent = `${state.stockNames[stockCode]} (${stockCode}) K線圖`;
+            drawChart(stockCode);
+            
+            // 更新五檔數據
+            updateFiveLevelData(stockCode);
+            
+            // 顯示下單模態框
+            showOrderModal(stockCode);
+        }
+
+        // 顯示下單模態框
+        function showOrderModal(stockCode) {
+            const modal = document.getElementById('order-modal');
+            const stockName = state.stockNames[stockCode];
+            document.getElementById('modal-stock-name').textContent = `${stockCode} ${stockName} 下單`;
+            
+            // 更新五檔顯示
+            updateFiveLevelDisplay(stockCode);
+            
+            modal.style.display = 'flex';
+        }
+
+        // 關閉模態框
+        function closeModal() {
+            document.getElementById('order-modal').style.display = 'none';
+        }
+
+        // 初始化五檔數據
+        function initializeFiveLevelData() {
+            Object.keys(state.stockPrices).forEach(stockCode => {
+                if (stockCode === 'taiex') return;
+                
+                const currentPrice = state.stockPrices[stockCode];
+                state.fiveLevelData[stockCode] = {
+                    bid: [],
+                    ask: []
+                };
+                
+                // 生成買方五檔
+                for (let i = 5; i >= 1; i--) {
+                    const price = currentPrice - i * 0.5;
+                    const volume = Math.floor(Math.random() * 100) + 10;
+                    state.fiveLevelData[stockCode].bid.push({
+                        price: price,
+                        volume: volume
+                    });
+                }
+                
+                // 生成賣方五檔
+                for (let i = 1; i <= 5; i++) {
+                    const price = currentPrice + i * 0.5;
+                    const volume = Math.floor(Math.random() * 100) + 10;
+                    state.fiveLevelData[stockCode].ask.push({
+                        price: price,
+                        volume: volume
+                    });
+                }
+            });
+        }
+
+        // 更新五檔數據
+        function updateFiveLevelData(stockCode) {
+            if (stockCode === 'taiex') return;
+            
+            const currentPrice = state.stockPrices[stockCode];
+            
+            // 更新買方五檔
+            state.fiveLevelData[stockCode].bid.forEach((level, index) => {
+                const basePrice = currentPrice - (5 - index) * 0.5;
+                level.price = basePrice + (Math.random() - 0.5) * 0.2;
+                level.volume = Math.max(10, level.volume + Math.floor(Math.random() * 20 - 10));
+            });
+            
+            // 更新賣方五檔
+            state.fiveLevelData[stockCode].ask.forEach((level, index) => {
+                const basePrice = currentPrice + (index + 1) * 0.5;
+                level.price = basePrice + (Math.random() - 0.5) * 0.2;
+                level.volume = Math.max(10, level.volume + Math.floor(Math.random() * 20 - 10));
+            });
+        }
+
+        // 更新五檔顯示
+        function updateFiveLevelDisplay(stockCode) {
+            const fiveLevelContainer = document.getElementById('five-level-data');
+            fiveLevelContainer.innerHTML = '';
+            
+            if (stockCode === 'taiex') {
+                fiveLevelContainer.innerHTML = '<p>大盤無五檔報價</p>';
+                return;
+            }
+            
+            const fiveLevel = state.fiveLevelData[stockCode];
+            
+            // 賣方五檔 (從高到低)
+            for (let i = 4; i >= 0; i--) {
+                const level = fiveLevel.ask[i];
+                const row = document.createElement('div');
+                row.className = 'level-row ask';
+                row.innerHTML = `
+                    <span>賣${5-i}</span>
+                    <span>${level.price.toFixed(1)}</span>
+                    <span>${level.volume}</span>
+                `;
+                fiveLevelContainer.appendChild(row);
+            }
+            
+            // 當前價格
+            const currentRow = document.createElement('div');
+            currentRow.className = 'level-row';
+            currentRow.innerHTML = `
+                <span>當前</span>
+                <span>${state.stockPrices[stockCode].toFixed(1)}</span>
+                <span>-</span>
+            `;
+            fiveLevelContainer.appendChild(currentRow);
+            
+            // 買方五檔 (從高到低)
+            for (let i = 0; i < 5; i++) {
+                const level = fiveLevel.bid[i];
+                const row = document.createElement('div');
+                row.className = 'level-row bid';
+                row.innerHTML = `
+                    <span>買${5-i}</span>
+                    <span>${level.price.toFixed(1)}</span>
+                    <span>${level.volume}</span>
+                `;
+                fiveLevelContainer.appendChild(row);
+            }
+        }
+
+        // 開始交易
+        function startTrading() {
+            state.isRunning = true;
+            document.getElementById('start-btn').disabled = true;
+            document.getElementById('pause-btn').disabled = false;
+            
+            // 開始模擬交易
+            simulateTrading();
+        }
+
+        // 暫停交易
+        function pauseTrading() {
+            state.isRunning = false;
+            document.getElementById('start-btn').disabled = false;
+            document.getElementById('pause-btn').disabled = true;
+        }
+
+        // 更新速度
+        function updateSpeed() {
+            const slider = document.getElementById('speed-slider');
+            state.speed = parseInt(slider.value);
+            document.getElementById('speed-value').textContent = state.speed + 'x';
+        }
+
+        // 模擬交易
+        function simulateTrading() {
+            if (!state.isRunning) return;
+            
+            // 更新時間
+            state.currentTime = new Date(state.currentTime.getTime() + 60000); // 增加1分鐘
+            updateTimeDisplay();
+            
+            // 更新股票價格
+            updateStockPrices();
+            
+            // 更新K線數據
+            updateKLineData(state.selectedStock || 'taiex');
+            
+            // 更新圖表
+            drawChart(state.selectedStock || 'taiex');
+            
+            // 更新股票列表顯示
+            updateStockListDisplay();
+            
+            // 更新持股列表
+            updateHoldingsList();
+            
+            // 根據速度設置下一次更新
+            setTimeout(simulateTrading, 1000 / state.speed);
+        }
+
+        // 更新股票價格
+        function updateStockPrices() {
+            // 更新大盤
+            const taiexChange = (Math.random() - 0.5) * 100;
+            state.stockPrices.taiex += taiexChange;
+            
+            // 更新大盤顯示
+            document.getElementById('taiex-value').textContent = state.stockPrices.taiex.toFixed(1);
+            const taiexChangeElement = document.getElementById('taiex-change');
+            taiexChangeElement.textContent = `${taiexChange >= 0 ? '+' : ''}${taiexChange.toFixed(1)} (${(taiexChange/state.stockPrices.taiex*100).toFixed(1)}%)`;
+            taiexChangeElement.className = taiexChange >= 0 ? 'up' : 'down';
+            
+            // 更新個股價格
+            Object.keys(state.stockPrices).forEach(stockCode => {
+                if (stockCode === 'taiex') return;
+                
+                // 使用種子影響價格變動
+                const baseChange = (Math.random() - 0.5) * 10;
+                const seedInfluence = (state.seed - 0.5) * 2; // -1 到 1
+                const finalChange = baseChange + seedInfluence;
+                
+                // 應用漲跌停限制
+                const currentPrice = state.stockPrices[stockCode];
+                const changePercent = finalChange / currentPrice;
+                const maxChange = 0.1; // 10% 漲跌停
+                
+                let actualChange = finalChange;
+                if (Math.abs(changePercent) > maxChange) {
+                    actualChange = maxChange * currentPrice * (changePercent > 0 ? 1 : -1);
+                }
+                
+                state.stockPrices[stockCode] += actualChange;
+                
+                // 更新五檔數據
+                updateFiveLevelData(stockCode);
+            });
+            
+            // 如果有選中的股票，更新五檔顯示
+            if (state.selectedStock && state.selectedStock !== 'taiex') {
+                updateFiveLevelDisplay(state.selectedStock);
+            }
+        }
+
+        // 更新股票列表顯示
+        function updateStockListDisplay() {
+            const stockItems = document.querySelectorAll('.stock-item');
+            
+            stockItems.forEach(item => {
+                const stockCode = item.dataset.code;
+                const price = state.stockPrices[stockCode];
+                const change = calculateChange(stockCode);
+                const changeClass = change >= 0 ? 'up' : 'down';
+                const changeSymbol = change >= 0 ? '+' : '';
+                
+                item.querySelector('.stock-price').textContent = `${price.toFixed(1)} ${changeSymbol}${change.toFixed(1)}%`;
+                item.querySelector('.stock-price').className = `stock-price ${changeClass}`;
+            });
+        }
+
+        // 更新時間顯示
+        function updateTimeDisplay() {
+            document.getElementById('current-time').textContent = state.currentTime.toLocaleString('zh-TW');
+        }
+
+        // 更新餘額顯示
+        function updateBalanceDisplay() {
+            document.getElementById('cash-balance').textContent = Math.floor(state.cashBalance).toLocaleString();
+            
+            // 計算總資產
+            let totalAssets = state.cashBalance;
+            Object.keys(state.holdings).forEach(stockCode => {
+                totalAssets += state.holdings[stockCode] * state.stockPrices[stockCode];
+            });
+            
+            document.getElementById('total-assets').textContent = Math.floor(totalAssets).toLocaleString();
+        }
+
+        // 更新持股列表
+        function updateHoldingsList() {
+            const holdingsList = document.getElementById('holdings-list');
+            holdingsList.innerHTML = '';
+            
+            if (Object.keys(state.holdings).length === 0) {
+                holdingsList.innerHTML = '<div class="holding-item">目前沒有持股</div>';
+                return;
+            }
+            
+            Object.keys(state.holdings).forEach(stockCode => {
+                const quantity = state.holdings[stockCode];
+                if (quantity <= 0) return;
+                
+                const holdingItem = document.createElement('div');
+                holdingItem.className = 'holding-item';
+                
+                const currentValue = quantity * state.stockPrices[stockCode];
+                
+                holdingItem.innerHTML = `
+                    <div>
+                        <div>${stockCode} ${state.stockNames[stockCode]}</div>
+                        <div>${quantity} 股 × ${state.stockPrices[stockCode].toFixed(1)} = ${Math.floor(currentValue).toLocaleString()} 元</div>
+                    </div>
+                    <div class="holding-actions">
+                        <button class="holding-btn buy-btn" data-code="${stockCode}">買</button>
+                        <button class="holding-btn sell-btn" data-code="${stockCode}">賣</button>
+                    </div>
+                `;
+                
+                holdingsList.appendChild(holdingItem);
+            });
+            
+            // 添加持股按鈕事件監聽器
+            document.querySelectorAll('.holding-actions .buy-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const stockCode = this.dataset.code;
+                    selectStock(stockCode);
+                });
+            });
+            
+            document.querySelectorAll('.holding-actions .sell-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const stockCode = this.dataset.code;
+                    selectStock(stockCode);
+                });
+            });
+        }
+
+        // 添加股票
+        function addStock() {
+            const input = document.getElementById('stock-code-input');
+            const stockCode = input.value.trim();
+            
+            if (!stockCode) {
+                alert('請輸入股票代號');
+                return;
+            }
+            
+            if (state.stockPrices[stockCode]) {
+                alert('該股票已在列表中');
+                return;
+            }
+            
+            // 添加新股票
+            state.stockPrices[stockCode] = 100.0; // 預設價格
+            state.stockNames[stockCode] = `股票${stockCode}`;
+            state.chartData[stockCode] = [];
+            initializeFiveLevelDataForStock(stockCode);
+            
+            // 添加到列表
+            const stockItemsContainer = document.getElementById('stock-items');
+            const stockItem = document.createElement('div');
+            stockItem.className = 'stock-item';
+            stockItem.dataset.code = stockCode;
+            
+            const price = state.stockPrices[stockCode];
+            const change = 0;
+            const changeClass = 'up';
+            
+            stockItem.innerHTML = `
+                <span class="stock-code">${stockCode} ${state.stockNames[stockCode]}</span>
+                <span class="stock-price ${changeClass}">${price.toFixed(1)} +${change.toFixed(1)}%</span>
+            `;
+            
+            stockItem.addEventListener('click', function() {
+                selectStock(stockCode);
+            });
+            
+            stockItemsContainer.appendChild(stockItem);
+            
+            // 清空輸入框
+            input.value = '';
+        }
+
+        // 為新股票初始化五檔數據
+        function initializeFiveLevelDataForStock(stockCode) {
+            const currentPrice = state.stockPrices[stockCode];
+            state.fiveLevelData[stockCode] = {
+                bid: [],
+                ask: []
+            };
+            
+            // 生成買方五檔
+            for (let i = 5; i >= 1; i--) {
+                const price = currentPrice - i * 0.5;
+                const volume = Math.floor(Math.random() * 100) + 10;
+                state.fiveLevelData[stockCode].bid.push({
+                    price: price,
+                    volume: volume
+                });
+            }
+            
+            // 生成賣方五檔
+            for (let i = 1; i <= 5; i++) {
+                const price = currentPrice + i * 0.5;
+                const volume = Math.floor(Math.random() * 100) + 10;
+                state.fiveLevelData[stockCode].ask.push({
+                    price: price,
+                    volume: volume
+                });
+            }
+        }
+
+        // 應用種子
+        function applySeed() {
+            const mood = document.getElementById('mood-input').value;
+            const food = document.getElementById('food-input').value;
+            const sight = document.getElementById('sight-input').value;
+            
+            if (!mood || !food || !sight) {
+                alert('請填寫所有情緒種子欄位');
+                return;
+            }
+            
+            // 基於輸入生成種子
+            let seedString = mood + food + sight;
+            let hash = 0;
+            for (let i = 0; i < seedString.length; i++) {
+                hash = ((hash << 5) - hash) + seedString.charCodeAt(i);
+                hash |= 0; // 轉換為32位整數
+            }
+            
+            // 將hash轉換為0-1之間的浮點數
+            state.seed = Math.abs(hash) / Math.pow(2, 31);
+            
+            alert('情緒種子已應用！');
+        }
+
+        // 下單
+        function placeOrder(type) {
+            if (!state.selectedStock) {
+                alert('請先選擇股票');
+                return;
+            }
+            
+            const quantityInput = document.getElementById('order-quantity');
+            const quantity = parseInt(quantityInput.value);
+            
+            if (isNaN(quantity) || quantity <= 0) {
+                alert('請輸入有效的數量');
+                return;
+            }
+            
+            const stockCode = state.selectedStock;
+            const price = state.stockPrices[stockCode];
+            const totalCost = Math.floor(price * quantity);
+            
+            if (type === 'buy') {
+                if (totalCost > state.cashBalance) {
+                    alert('現金不足');
+                    return;
+                }
+                
+                // 模擬成交
+                const isFilled = Math.random() < 0.8; // 80%成交率
+                
+                if (isFilled) {
+                    state.cashBalance -= totalCost;
+                    
+                    if (!state.holdings[stockCode]) {
+                        state.holdings[stockCode] = 0;
+                    }
+                    state.holdings[stockCode] += quantity;
+                    
+                    alert(`成功買進 ${quantity} 股 ${state.stockNames[stockCode]}`);
+                } else {
+                    alert('委託未成交');
+                }
+            } else if (type === 'sell') {
+                if (!state.holdings[stockCode] || state.holdings[stockCode] < quantity) {
+                    alert('持股不足');
+                    return;
+                }
+                
+                // 模擬成交
+                const isFilled = Math.random() < 0.8; // 80%成交率
+                
+                if (isFilled) {
+                    state.holdings[stockCode] -= quantity;
+                    state.cashBalance += totalCost;
+                    
+                    alert(`成功賣出 ${quantity} 股 ${state.stockNames[stockCode]}`);
+                } else {
+                    alert('委託未成交');
+                }
+            }
+            
+            // 更新餘額顯示
+            updateBalanceDisplay();
+            
+            // 更新持股列表
+            updateHoldingsList();
+            
+            // 關閉模態框
+            closeModal();
+        }
+
+        // 初始化價格歷史
+        function initializePriceHistory() {
+            Object.keys(state.stockPrices).forEach(stockCode => {
+                state.priceHistory[stockCode] = [state.stockPrices[stockCode]];
+            });
+        }
+    </script>
+</body>
+</html>

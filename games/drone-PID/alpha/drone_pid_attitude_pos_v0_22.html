@@ -1,0 +1,1206 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Drone 姿態＋位置 PID 模擬 v0.22</title>
+<style>
+    :root {
+        color-scheme: dark;
+        --bg: #050712;
+        --bg-panel: rgba(12, 16, 32, 0.94);
+        --accent: #45e0ff;
+        --accent-soft: rgba(69, 224, 255, 0.2);
+        --accent-strong: #00ffc6;
+        --text-main: #f5f7ff;
+        --text-sub: #a8b3d1;
+        --danger: #ff5b7a;
+        --good: #73ff9b;
+        --warn: #ffe26b;
+    }
+    *,
+    *::before,
+    *::after {
+        box-sizing: border-box;
+    }
+    html,
+    body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+            Roboto, "Helvetica Neue", Arial, "Noto Sans TC", "PingFang TC",
+            "Microsoft JhengHei", sans-serif;
+        background: radial-gradient(circle at top, #20284a 0, #050712 55%);
+        color: var(--text-main);
+    }
+    #app {
+        position: relative;
+        width: 100%;
+        height: 100%;
+    }
+    #view {
+        position: absolute;
+        inset: 0;
+        display: block;
+        width: 100%;
+        height: 100%;
+        touch-action: none;
+    }
+    .ui-panel {
+        position: absolute;
+        top: 12px;
+        left: 12px;
+        max-width: 360px;
+        padding: 12px 14px 14px;
+        border-radius: 14px;
+        background: var(--bg-panel);
+        box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.03),
+            0 18px 45px rgba(0, 0, 0, 0.7);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        z-index: 10;
+    }
+    .ui-panel h1 {
+        margin: 0 0 2px;
+        font-size: 16px;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: var(--accent-strong);
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+    .ui-panel h1 span.badge {
+        font-size: 10px;
+        padding: 2px 6px;
+        border-radius: 999px;
+        background: rgba(0, 0, 0, 0.45);
+        color: var(--text-sub);
+    }
+    .ui-panel .subtitle {
+        font-size: 12px;
+        color: var(--text-sub);
+        margin-bottom: 10px;
+    }
+    .slider-group {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        margin-bottom: 10px;
+    }
+    .slider-row {
+        display: grid;
+        grid-template-columns: 40px 1fr 52px;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+        color: var(--text-sub);
+    }
+    .slider-row label {
+        font-weight: 600;
+        letter-spacing: 0.05em;
+    }
+    .slider-row input[type="range"] {
+        width: 100%;
+        -webkit-appearance: none;
+        appearance: none;
+        height: 4px;
+        border-radius: 999px;
+        background: linear-gradient(90deg, var(--accent-soft), #222840);
+        outline: none;
+    }
+    .slider-row input[type="range"]::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        background: var(--accent);
+        box-shadow: 0 0 0 4px rgba(69, 224, 255, 0.25);
+        border: none;
+        cursor: pointer;
+    }
+    .slider-row input[type="range"]::-moz-range-thumb {
+        width: 14px;
+        height: 14px;
+        border-radius: 50%;
+        background: var(--accent);
+        border: none;
+        cursor: pointer;
+    }
+    .slider-row span.value {
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+        color: var(--accent-strong);
+    }
+
+    .buttons-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-bottom: 4px;
+    }
+    button {
+        border-radius: 999px;
+        border: none;
+        padding: 6px 10px;
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+        background: radial-gradient(circle at top left, #45e0ff 0, #0057ff 40%, #001447 100%);
+        color: #f5f7ff;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.6);
+        transition: transform 0.08s ease, box-shadow 0.08s ease,
+            filter 0.08s ease;
+        white-space: nowrap;
+    }
+    button.secondary {
+        background: rgba(15, 21, 40, 0.9);
+        color: var(--text-sub);
+        box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.06);
+    }
+    button.danger {
+        background: radial-gradient(circle at top left, #ff7b9c 0, #ff1648 45%, #5a001b 100%);
+        color: #fff;
+    }
+    button:active {
+        transform: translateY(1px) scale(0.98);
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+        filter: brightness(0.98);
+    }
+
+    .status-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        font-size: 11px;
+        margin-top: 4px;
+        color: var(--text-sub);
+        gap: 6px;
+        flex-wrap: wrap;
+    }
+    .status-row .tag {
+        padding: 2px 6px;
+        border-radius: 999px;
+        background: rgba(0, 0, 0, 0.4);
+    }
+    .status-row .tag span {
+        font-variant-numeric: tabular-nums;
+    }
+    .status-row .tag span.roll {
+        color: var(--warn);
+    }
+    .status-row .tag span.pitch {
+        color: var(--accent-strong);
+    }
+    .status-row .tag span.pos {
+        color: var(--good);
+    }
+    .status-row .hint {
+        text-align: right;
+        flex: 1 1 auto;
+    }
+    .status-row .hint strong {
+        color: var(--accent);
+        font-weight: 500;
+    }
+
+    .badge-fps {
+        position: absolute;
+        left: 12px;
+        bottom: 12px;
+        font-size: 10px;
+        padding: 3px 8px;
+        border-radius: 999px;
+        background: rgba(0, 0, 0, 0.6);
+        color: var(--text-sub);
+        font-variant-numeric: tabular-nums;
+        z-index: 10;
+    }
+    .badge-fps span {
+        color: var(--accent-strong);
+    }
+
+    .att-bar-wrap {
+        position: absolute;
+        left: 50%;
+        transform: translateX(-50%);
+        bottom: 16px;
+        width: min(320px, 90vw);
+        height: 30px;
+        border-radius: 999px;
+        padding: 6px 10px;
+        background: rgba(2, 6, 18, 0.9);
+        box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.04),
+            0 12px 24px rgba(0, 0, 0, 0.6);
+        font-size: 11px;
+        color: var(--text-sub);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        z-index: 10;
+    }
+    .att-bar-label {
+        flex: 0 0 auto;
+        font-variant-numeric: tabular-nums;
+    }
+    .att-bar {
+        flex: 1;
+        position: relative;
+        height: 4px;
+        border-radius: 999px;
+        background: linear-gradient(90deg, #15192a, #262b40);
+        overflow: hidden;
+    }
+    .att-bar .fill {
+        position: absolute;
+        top: 0;
+        left: 50%;
+        width: 0%;
+        height: 100%;
+        transform-origin: center left;
+        border-radius: inherit;
+        background: linear-gradient(90deg, #ff7b9c, #ffe26b, #73ff9b);
+        transition: width 0.08s linear;
+    }
+    .att-bar .zero-mark {
+        position: absolute;
+        left: 50%;
+        top: -3px;
+        bottom: -3px;
+        width: 2px;
+        background: var(--accent);
+        opacity: 0.8;
+    }
+
+    .overlay-tip {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        padding: 8px 12px;
+        border-radius: 999px;
+        background: rgba(0, 0, 0, 0.7);
+        color: var(--text-sub);
+        font-size: 11px;
+        pointer-events: none;
+        z-index: 9;
+        opacity: 0;
+        transition: opacity 0.4s ease;
+    }
+    .overlay-tip.visible {
+        opacity: 1;
+    }
+
+    .bottom-right-buttons {
+        position: absolute;
+        right: 12px;
+        bottom: 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        z-index: 10;
+    }
+
+    @media (max-width: 768px) {
+        .ui-panel {
+            max-width: 94vw;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+        .badge-fps {
+            left: 50%;
+            transform: translateX(-50%);
+            bottom: 54px;
+        }
+        .att-bar-wrap {
+            bottom: 54px;
+        }
+    }
+</style>
+</head>
+<body>
+<div id="app">
+    <canvas id="view"></canvas>
+
+    <div class="ui-panel">
+        <h1>
+            Drone Attitude + Position PID
+            <span class="badge">v0.22</span>
+        </h1>
+        <div class="subtitle">
+            四個馬達一起工作：<strong>內圈 PID</strong> 調水平 (Roll / Pitch)，
+            <strong>外圈位置控制</strong> 讓 drone 飛到隨機目標。
+        </div>
+
+        <div class="slider-group">
+            <div class="slider-row">
+                <label for="kpRange">Kp</label>
+                <input id="kpRange" type="range" min="0" max="12" step="0.1" value="4.0" />
+                <span class="value" id="kpValue">4.0</span>
+            </div>
+            <div class="slider-row">
+                <label for="kiRange">Ki</label>
+                <input id="kiRange" type="range" min="0" max="3" step="0.02" value="0.40" />
+                <span class="value" id="kiValue">0.40</span>
+            </div>
+            <div class="slider-row">
+                <label for="kdRange">Kd</label>
+                <input id="kdRange" type="range" min="0" max="10" step="0.1" value="3.0" />
+                <span class="value" id="kdValue">3.0</span>
+            </div>
+        </div>
+
+        <div class="buttons-row">
+            <button id="presetSoft">平穩但慢</button>
+            <button id="presetBalanced">均衡</button>
+            <button id="presetAggressive" class="danger">超兇易震</button>
+        </div>
+        <div class="buttons-row">
+            <button id="btnKickSmall" class="secondary">小風</button>
+            <button id="btnKickBig" class="secondary">大推一把</button>
+            <button id="btnRandomTilt" class="secondary">亂滾一圈</button>
+        </div>
+        <div class="buttons-row">
+            <button id="btnRandomTarget" class="secondary">🎯 隨機位置</button>
+            <button id="btnResetPos" class="secondary">回原點</button>
+        </div>
+        <div class="buttons-row">
+            <button id="btnReset" class="secondary">重置姿態</button>
+            <button id="btnRecenter" class="secondary">🔍 找回 drone + 45°</button>
+        </div>
+
+        <div class="status-row">
+            <div class="tag">
+                Roll ≈ <span class="roll" id="rollLabel">0.0</span>° |
+                Pitch ≈ <span class="pitch" id="pitchLabel">0.0</span>°
+            </div>
+            <div class="tag">
+                位置誤差 ≈ <span class="pos" id="posErrLabel">0.0</span> m
+            </div>
+            <div class="hint">
+                <strong>Kp</strong> 太大：姿態震盪，位置也晃來晃去；
+                <strong>Kd</strong> 太大：動作變「卡」；
+                <strong>Ki</strong> 太大：會慢慢飄偏。
+            </div>
+        </div>
+    </div>
+
+    <div class="badge-fps">
+        dt ≈ <span id="dtLabel">0.016</span> s ・ FPS ≈ <span id="fpsLabel">60</span>
+    </div>
+
+    <div class="att-bar-wrap">
+        <div class="att-bar-label">
+            姿態誤差 ≈ <span id="attErrLabel">0.0</span>°
+        </div>
+        <div class="att-bar">
+            <div class="zero-mark"></div>
+            <div class="fill" id="attErrFill"></div>
+        </div>
+    </div>
+
+    <div class="bottom-right-buttons">
+        <button id="btnAutoDrift" class="secondary" type="button">
+            ↻ 模擬持續小擾動
+        </button>
+    </div>
+
+    <div class="overlay-tip" id="tipCenter">
+        這是第三人稱 45° 視角，Drone 放大到幾乎半個畫面。
+        調 Kp / Ki / Kd，看它能不能又穩又準地飛到黃圈目標。
+    </div>
+</div>
+
+<script>
+(function () {
+    "use strict";
+
+    const canvas = document.getElementById("view");
+    const ctx = canvas.getContext("2d");
+
+    const kpRange = document.getElementById("kpRange");
+    const kiRange = document.getElementById("kiRange");
+    const kdRange = document.getElementById("kdRange");
+    const kpValue = document.getElementById("kpValue");
+    const kiValue = document.getElementById("kiValue");
+    const kdValue = document.getElementById("kdValue");
+
+    const rollLabel = document.getElementById("rollLabel");
+    const pitchLabel = document.getElementById("pitchLabel");
+    const attErrLabel = document.getElementById("attErrLabel");
+    const attErrFill = document.getElementById("attErrFill");
+    const posErrLabel = document.getElementById("posErrLabel");
+    const dtLabel = document.getElementById("dtLabel");
+    const fpsLabel = document.getElementById("fpsLabel");
+
+    const btnReset = document.getElementById("btnReset");
+    const btnRecenter = document.getElementById("btnRecenter");
+    const btnKickSmall = document.getElementById("btnKickSmall");
+    const btnKickBig = document.getElementById("btnKickBig");
+    const btnRandomTilt = document.getElementById("btnRandomTilt");
+    const btnPresetSoft = document.getElementById("presetSoft");
+    const btnPresetBalanced = document.getElementById("presetBalanced");
+    const btnPresetAggressive = document.getElementById("presetAggressive");
+    const btnAutoDrift = document.getElementById("btnAutoDrift");
+    const btnRandomTarget = document.getElementById("btnRandomTarget");
+    const btnResetPos = document.getElementById("btnResetPos");
+    const tipCenter = document.getElementById("tipCenter");
+
+    function syncPidLabels() {
+        kpValue.textContent = Number(kpRange.value).toFixed(1);
+        kiValue.textContent = Number(kiRange.value).toFixed(2);
+        kdValue.textContent = Number(kdRange.value).toFixed(1);
+    }
+    kpRange.addEventListener("input", syncPidLabels);
+    kiRange.addEventListener("input", syncPidLabels);
+    kdRange.addEventListener("input", syncPidLabels);
+    syncPidLabels();
+
+    let width = 0;
+    let height = 0;
+    function resize() {
+        const rect = canvas.getBoundingClientRect();
+        width = rect.width * window.devicePixelRatio;
+        height = rect.height * window.devicePixelRatio;
+        canvas.width = width;
+        canvas.height = height;
+    }
+    window.addEventListener("resize", resize);
+    resize();
+
+    const sim = {
+        roll: 8 * Math.PI / 180,
+        pitch: -5 * Math.PI / 180,
+        rollRate: 0,
+        pitchRate: 0,
+        integralRoll: 0,
+        integralPitch: 0,
+        prevRollErr: 0,
+        prevPitchErr: 0,
+        Iroll: 0.08,
+        Ipitch: 0.08,
+        disturbRoll: 0,
+        disturbPitch: 0,
+        autoDrift: false,
+        // 位置狀態 (水平面)
+        posX: 0,
+        posZ: 0,
+        velX: 0,
+        velZ: 0,
+        targetX: 6,
+        targetZ: -4,
+        // 內部：位置轉目標姿態
+        desiredRoll: 0,
+        desiredPitch: 0,
+        // 馬達狀態
+        motorOutputs: [0.5, 0.5, 0.5, 0.5],
+        rotorAngles: [0, 0, 0, 0]
+    };
+
+    const camera = {
+        yaw: Math.PI * 0.25,
+        pitch: Math.PI * 0.30,
+        distance: 14, // 初始更近一點
+        offsetX: 0,
+        offsetZ: 0
+    };
+
+    function resetAttitude() {
+        sim.roll = 0;
+        sim.pitch = 0;
+        sim.rollRate = 0;
+        sim.pitchRate = 0;
+        sim.integralRoll = 0;
+        sim.integralPitch = 0;
+        sim.prevRollErr = 0;
+        sim.prevPitchErr = 0;
+        sim.disturbRoll = 0;
+        sim.disturbPitch = 0;
+    }
+
+    function resetPosition() {
+        sim.posX = 0;
+        sim.posZ = 0;
+        sim.velX = 0;
+        sim.velZ = 0;
+        sim.targetX = 0;
+        sim.targetZ = 0;
+    }
+
+    function randomTarget() {
+        const r = 14;
+        sim.targetX = (Math.random() * 2 - 1) * r;
+        sim.targetZ = (Math.random() * 2 - 1) * r;
+    }
+
+    function recenterCamera() {
+        camera.yaw = Math.PI * 0.25;
+        camera.pitch = Math.PI * 0.30;
+        camera.distance = 10; // 再近一點，方便放大到半個畫面
+        camera.offsetX = sim.posX;
+        camera.offsetZ = sim.posZ;
+        tipCenter.classList.add("visible");
+        setTimeout(() => tipCenter.classList.remove("visible"), 2500);
+    }
+
+    btnReset.addEventListener("click", resetAttitude);
+    btnRecenter.addEventListener("click", recenterCamera);
+
+    btnKickSmall.addEventListener("click", () => {
+        const s = 8 * Math.PI / 180;
+        sim.roll += (Math.random() - 0.5) * s;
+        sim.pitch += (Math.random() - 0.5) * s;
+    });
+    btnKickBig.addEventListener("click", () => {
+        const s = 35 * Math.PI / 180;
+        sim.roll += (Math.random() - 0.5) * s;
+        sim.pitch += (Math.random() - 0.5) * s;
+    });
+    btnRandomTilt.addEventListener("click", () => {
+        const max = 50 * Math.PI / 180;
+        sim.roll = (Math.random() * 2 - 1) * max;
+        sim.pitch = (Math.random() * 2 - 1) * max;
+        sim.rollRate = sim.pitchRate = 0;
+        sim.integralRoll = sim.integralPitch = 0;
+    });
+
+    btnPresetSoft.addEventListener("click", () => {
+        kpRange.value = 2.4;
+        kiRange.value = 0.18;
+        kdRange.value = 2.0;
+        syncPidLabels();
+    });
+    btnPresetBalanced.addEventListener("click", () => {
+        kpRange.value = 4.0;
+        kiRange.value = 0.40;
+        kdRange.value = 3.0;
+        syncPidLabels();
+    });
+    btnPresetAggressive.addEventListener("click", () => {
+        kpRange.value = 8.0;
+        kiRange.value = 1.0;
+        kdRange.value = 5.5;
+        syncPidLabels();
+    });
+
+    btnAutoDrift.addEventListener("click", () => {
+        sim.autoDrift = !sim.autoDrift;
+        btnAutoDrift.textContent = sim.autoDrift ? "✓ 持續小擾動中" : "↻ 模擬持續小擾動";
+        btnAutoDrift.style.color = sim.autoDrift ? "var(--accent-strong)" : "var(--text-sub)";
+    });
+
+    btnRandomTarget.addEventListener("click", () => {
+        randomTarget();
+    });
+    btnResetPos.addEventListener("click", () => {
+        resetPosition();
+    });
+
+    function updateSimulation(dt) {
+        // 外圈：位置 -> 目標 Roll / Pitch
+        const posKp = 0.18;
+        const posKd = 0.30;
+        const maxTilt = 25 * Math.PI / 180;
+
+        const errX = sim.targetX - sim.posX;
+        const errZ = sim.targetZ - sim.posZ;
+
+        const desPitch = (posKp * errX - posKd * sim.velX);
+        const desRoll = (-posKp * errZ - posKd * sim.velZ);
+
+        sim.desiredPitch = Math.max(-maxTilt, Math.min(maxTilt, desPitch));
+        sim.desiredRoll = Math.max(-maxTilt, Math.min(maxTilt, desRoll));
+
+        // 內圈：姿態 PID
+        const kp = Number(kpRange.value);
+        const ki = Number(kiRange.value);
+        const kd = Number(kdRange.value);
+
+        let targetRoll = sim.desiredRoll;
+        let targetPitch = sim.desiredPitch;
+
+        if (sim.autoDrift) {
+            sim.disturbRoll += (Math.random() - 0.5) * 0.02;
+            sim.disturbPitch += (Math.random() - 0.5) * 0.02;
+        }
+        sim.disturbRoll *= Math.exp(-dt * 0.4);
+        sim.disturbPitch *= Math.exp(-dt * 0.4);
+
+        const rollErr = targetRoll - sim.roll;
+        const pitchErr = targetPitch - sim.pitch;
+
+        sim.integralRoll += rollErr * dt;
+        sim.integralPitch += pitchErr * dt;
+        const leak = Math.exp(-dt * 0.35);
+        sim.integralRoll *= leak;
+        sim.integralPitch *= leak;
+
+        const maxI = 2.5;
+        sim.integralRoll = Math.max(-maxI, Math.min(maxI, sim.integralRoll));
+        sim.integralPitch = Math.max(-maxI, Math.min(maxI, sim.integralPitch));
+
+        const dRoll = (rollErr - sim.prevRollErr) / Math.max(dt, 1e-4);
+        const dPitch = (pitchErr - sim.prevPitchErr) / Math.max(dt, 1e-4);
+        sim.prevRollErr = rollErr;
+        sim.prevPitchErr = pitchErr;
+
+        const torqueRoll = kp * rollErr + ki * sim.integralRoll + kd * dRoll + sim.disturbRoll;
+        const torquePitch = kp * pitchErr + ki * sim.integralPitch + kd * dPitch + sim.disturbPitch;
+
+        const angDamp = 2.2;
+        const rollAcc = (torqueRoll - angDamp * sim.rollRate) / sim.Iroll;
+        const pitchAcc = (torquePitch - angDamp * sim.pitchRate) / sim.Ipitch;
+
+        sim.rollRate += rollAcc * dt;
+        sim.pitchRate += pitchAcc * dt;
+
+        sim.roll += sim.rollRate * dt;
+        sim.pitch += sim.pitchRate * dt;
+
+        const maxAngle = 80 * Math.PI / 180;
+        if (Math.abs(sim.roll) > maxAngle) {
+            sim.roll = maxAngle * Math.sign(sim.roll);
+            sim.rollRate *= -0.3;
+        }
+        if (Math.abs(sim.pitch) > maxAngle) {
+            sim.pitch = maxAngle * Math.sign(sim.pitch);
+            sim.pitchRate *= -0.3;
+        }
+
+        // 平移粗略模型：傾斜 -> 水平加速度
+        const accelScale = 5.0; // 調大會比較靈敏
+        const drag = 1.2;
+
+        const ax = Math.sin(-sim.pitch) * accelScale - drag * sim.velX;
+        const az = Math.sin(sim.roll) * accelScale - drag * sim.velZ;
+
+        sim.velX += ax * dt;
+        sim.velZ += az * dt;
+
+        sim.posX += sim.velX * dt;
+        sim.posZ += sim.velZ * dt;
+
+        // 姿態 / 位置誤差顯示
+        const rollDeg = sim.roll * 180 / Math.PI;
+        const pitchDeg = sim.pitch * 180 / Math.PI;
+        rollLabel.textContent = rollDeg.toFixed(1);
+        pitchLabel.textContent = pitchDeg.toFixed(1);
+
+        const attErr = Math.sqrt(rollDeg * rollDeg + pitchDeg * pitchDeg);
+        attErrLabel.textContent = attErr.toFixed(1);
+        const ratio = Math.min(attErr / 50, 1);
+        attErrFill.style.width = (ratio * 50).toFixed(1) + "%";
+
+        const posErr = Math.sqrt(errX * errX + errZ * errZ);
+        posErrLabel.textContent = posErr.toFixed(1);
+
+        // 馬達輸出 + 轉速
+        const baseThrust = 0.6;
+        const rollCmd = sim.roll * 1.5 + sim.rollRate * 0.2;
+        const pitchCmd = sim.pitch * 1.5 + sim.pitchRate * 0.2;
+
+        const m = [
+            baseThrust - rollCmd + pitchCmd, // FL
+            baseThrust + rollCmd + pitchCmd, // FR
+            baseThrust + rollCmd - pitchCmd, // RR
+            baseThrust - rollCmd - pitchCmd  // RL
+        ];
+
+        let maxOut = 0;
+        for (let i = 0; i < 4; i++) {
+            if (Math.abs(m[i]) > maxOut) maxOut = Math.abs(m[i]);
+        }
+        const norm = maxOut > 0 ? maxOut : 1;
+        for (let i = 0; i < 4; i++) {
+            sim.motorOutputs[i] = m[i] / norm;
+        }
+
+        // 轉速動畫
+        const baseOmega = 8; // rad/s
+        const extraOmega = 25;
+        const spinDir = [1, -1, 1, -1];
+        for (let i = 0; i < 4; i++) {
+            const speedFactor = 0.2 + Math.abs(sim.motorOutputs[i]) * 0.8;
+            const omega = (baseOmega + extraOmega * speedFactor) * spinDir[i];
+            sim.rotorAngles[i] += omega * dt;
+        }
+    }
+
+    function projectPoint(x, y, z) {
+        x -= camera.offsetX;
+        z -= camera.offsetZ;
+
+        const yaw = camera.yaw;
+        const pitch = camera.pitch;
+        const cosy = Math.cos(yaw);
+        const siny = Math.sin(yaw);
+        const x1 = x * cosy - z * siny;
+        const z1 = x * siny + z * cosy;
+
+        const cosp = Math.cos(pitch);
+        const sinp = Math.sin(pitch);
+        const y2 = y * cosp - z1 * sinp;
+        const z2 = y * sinp + z1 * cosp;
+
+        const scale = (height / 700) * (40 / camera.distance);
+        const sx = width * 0.5 + x1 * scale;
+        const sy = height * 0.5 - y2 * scale;
+
+        return { x: sx, y: sy, depth: z2 };
+    }
+
+    function drawLine3D(x1, y1, z1, x2, y2, z2, color, widthPx, alpha) {
+        const p1 = projectPoint(x1, y1, z1);
+        const p2 = projectPoint(x2, y2, z2);
+        ctx.strokeStyle = color;
+        ctx.globalAlpha = alpha == null ? 1 : alpha;
+        ctx.lineWidth = widthPx;
+        ctx.beginPath();
+        ctx.moveTo(p1.x, p1.y);
+        ctx.lineTo(p2.x, p2.y);
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+    }
+
+    function drawCircle3D(x, y, z, radiusWorld, colorFill, alphaFill, colorStroke) {
+        const p = projectPoint(x, y, z);
+        const pR = projectPoint(x + radiusWorld, y, z);
+        const rPx = Math.max(1, Math.abs(pR.x - p.x));
+        ctx.globalAlpha = alphaFill;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, rPx, 0, Math.PI * 2);
+        if (colorFill) {
+            ctx.fillStyle = colorFill;
+            ctx.fill();
+        }
+        if (colorStroke) {
+            ctx.lineWidth = 1;
+            ctx.strokeStyle = colorStroke;
+            ctx.stroke();
+        }
+        ctx.globalAlpha = 1;
+    }
+
+    function drawGauge(cx, cy, r, value, label) {
+        ctx.save();
+        ctx.translate(cx, cy);
+
+        // 背景圓
+        ctx.beginPath();
+        ctx.arc(0, 0, r, 0, Math.PI * 2);
+        ctx.strokeStyle = "rgba(120,130,170,0.4)";
+        ctx.lineWidth = 1.2;
+        ctx.stroke();
+
+        // 12點鐘刻線
+        ctx.beginPath();
+        ctx.moveTo(0, -r);
+        ctx.lineTo(0, -r + 6);
+        ctx.strokeStyle = "rgba(180,190,230,0.7)";
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        // 扇形
+        const v = Math.max(-1, Math.min(1, value));
+        const span = Math.abs(v) * Math.PI * 1.7; // 最大約 300 度
+        const startAngle = -Math.PI / 2;
+        const endAngle = startAngle + (v >= 0 ? span : -span);
+
+        if (Math.abs(v) > 0.02) {
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.arc(0, 0, r - 3, startAngle, endAngle, v < 0);
+            ctx.closePath();
+            const col = v >= 0 ? "rgba(0,255,198,0.6)" : "rgba(255,91,122,0.65)";
+            ctx.fillStyle = col;
+            ctx.fill();
+        }
+
+        // 文字
+        ctx.fillStyle = "rgba(220,230,255,0.9)";
+        ctx.font = "10px system-ui, -apple-system, sans-serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "top";
+        ctx.fillText(label, 0, r + 4);
+
+        ctx.font = "9px system-ui, -apple-system, sans-serif";
+        ctx.fillStyle = "rgba(168,179,209,0.9)";
+        ctx.fillText((value * 100).toFixed(0) + "%", 0, r - 16);
+
+        ctx.restore();
+    }
+
+    function draw() {
+        const grad = ctx.createRadialGradient(
+            width * 0.5,
+            height * 0.15,
+            0,
+            width * 0.5,
+            height * 0.7,
+            height * 0.9
+        );
+        grad.addColorStop(0, "rgba(76,106,190,0.45)");
+        grad.addColorStop(1, "rgba(2,5,16,1)");
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, width, height);
+
+        // 地板格線
+        const gridSize = 40;
+        const step = 2;
+        for (let x = -gridSize; x <= gridSize; x += step) {
+            const isAxis = Math.abs(x) < 1e-6;
+            drawLine3D(
+                x, 0, -gridSize,
+                x, 0, gridSize,
+                isAxis ? "#4fd1ff" : "rgba(40,46,80,0.8)",
+                isAxis ? 1.4 : 1,
+                isAxis ? 0.9 : 0.6
+            );
+        }
+        for (let z = -gridSize; z <= gridSize; z += step) {
+            const isAxis = Math.abs(z) < 1e-6;
+            drawLine3D(
+                -gridSize, 0, z,
+                gridSize, 0, z,
+                isAxis ? "#ff7b9c" : "rgba(32,38,72,0.8)",
+                isAxis ? 1.4 : 1,
+                isAxis ? 0.9 : 0.6
+            );
+        }
+
+        // 世界原點十字
+        drawLine3D(-1.2, 0.01, 0, 1.2, 0.01, 0, "#858caa", 1.3, 0.9);
+        drawLine3D(0, 0.01, -1.2, 0, 0.01, 1.2, "#858caa", 1.3, 0.9);
+
+        const px = sim.posX;
+        const pz = sim.posZ;
+        const py = 2.6;
+
+        // 目標位置 (地板黃圈 + 立柱)
+        drawCircle3D(sim.targetX, 0.02, sim.targetZ, 1.3, "rgba(255,226,107,0.4)", 1, "rgba(255,226,107,0.9)");
+        drawLine3D(sim.targetX, 0, sim.targetZ, sim.targetX, py - 0.4, sim.targetZ, "rgba(255,226,107,0.7)", 1.2, 0.9);
+
+        // drone 投影到地面的小圈
+        drawCircle3D(px, 0.02, pz, 1.6, null, 1, "rgba(69,224,255,0.45)");
+        drawLine3D(px, 0, pz, px, py - 0.2, pz, "rgba(69,224,255,0.85)", 1.2, 0.9);
+
+        const bodyHalf = 2.6;
+        const bodyHeight = 0.6;
+
+        function rotateBodyLocal(x, y, z) {
+            const roll = sim.roll;
+            const pitch = sim.pitch;
+            const cr = Math.cos(roll), sr = Math.sin(roll);
+            const cp = Math.cos(pitch), sp = Math.sin(pitch);
+
+            let y1 = y * cr - z * sr;
+            let z1 = y * sr + z * cr;
+
+            let x2 = x * cp + z1 * sp;
+            let z2 = -x * sp + z1 * cp;
+
+            return { x: x2 + px, y: y1 + py, z: z2 + pz };
+        }
+
+        // 機身上板
+        const topCornersLocal = [
+            [-bodyHalf, bodyHeight, -bodyHalf],
+            [ bodyHalf, bodyHeight, -bodyHalf],
+            [ bodyHalf, bodyHeight,  bodyHalf],
+            [-bodyHalf, bodyHeight,  bodyHalf]
+        ];
+        ctx.fillStyle = "rgba(249,255,130,0.98)";
+        ctx.strokeStyle = "#202020";
+        ctx.lineWidth = 1.6;
+        ctx.beginPath();
+        let p0 = projectPoint(...Object.values(rotateBodyLocal(...topCornersLocal[0])));
+        ctx.moveTo(p0.x, p0.y);
+        for (let i = 1; i < topCornersLocal.length; i++) {
+            const pi = projectPoint(...Object.values(rotateBodyLocal(...topCornersLocal[i])));
+            ctx.lineTo(pi.x, pi.y);
+        }
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+
+        // 兩條十字臂
+        const armLen = 6.0;
+        const armWidth = 0.32;
+        const armHalfL = armLen * 0.5;
+        const armHalfW = armWidth * 0.5;
+
+        const arm1Local = [
+            [-armHalfL, bodyHeight * 0.4, -armHalfW],
+            [ armHalfL, bodyHeight * 0.4, -armHalfW],
+            [ armHalfL, bodyHeight * 0.4,  armHalfW],
+            [-armHalfL, bodyHeight * 0.4,  armHalfW]
+        ];
+        const arm2Local = arm1Local.map(([x,y,z]) => [-z, y, x]);
+
+        function fillQuad(localPoints) {
+            ctx.fillStyle = "rgba(10,15,32,0.98)";
+            ctx.beginPath();
+            let p0 = projectPoint(...Object.values(rotateBodyLocal(...localPoints[0])));
+            ctx.moveTo(p0.x, p0.y);
+            for (let i = 1; i < localPoints.length; i++) {
+                const pi = projectPoint(...Object.values(rotateBodyLocal(...localPoints[i])));
+                ctx.lineTo(pi.x, pi.y);
+            }
+            ctx.closePath();
+            ctx.fill();
+        }
+        fillQuad(arm1Local);
+        fillQuad(arm2Local);
+
+        // 馬達與槳
+        const rotorR = 0.9;
+        const rotorH = bodyHeight * 1.4;
+        const armHalfDiag = armLen * 0.5;
+        const rotorPosLocal = [
+            [ armHalfDiag, rotorH,  armHalfDiag], // FL
+            [-armHalfDiag, rotorH,  armHalfDiag], // FR
+            [-armHalfDiag, rotorH, -armHalfDiag], // RR
+            [ armHalfDiag, rotorH, -armHalfDiag]  // RL
+        ];
+
+        for (let i = 0; i < 4; i++) {
+            const world = rotateBodyLocal(...rotorPosLocal[i]);
+            const p = projectPoint(world.x, world.y, world.z);
+            const pR = projectPoint(world.x + rotorR, world.y, world.z);
+            const rPx = Math.max(4, Math.abs(pR.x - p.x));
+
+            const val = Math.max(-1, Math.min(1, sim.motorOutputs[i]));
+            const alpha = 0.5 + Math.abs(val) * 0.5;
+            const color = i % 2 === 0
+                ? "rgba(0,255,198," + alpha.toFixed(2) + ")"
+                : "rgba(255,91,122," + alpha.toFixed(2) + ")";
+
+            // 槳盤
+            ctx.globalAlpha = 1;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, rPx, 0, Math.PI * 2);
+            ctx.fillStyle = color;
+            ctx.fill();
+
+            // 轉動模糊線
+            ctx.save();
+            ctx.translate(p.x, p.y);
+            ctx.rotate(sim.rotorAngles[i]);
+            const bladeLen = rPx * (1.0 + Math.abs(val) * 0.5);
+            ctx.strokeStyle = "rgba(5,10,20,0.85)";
+            ctx.lineWidth = 2.2;
+            ctx.beginPath();
+            ctx.moveTo(-bladeLen * 0.2, 0);
+            ctx.lineTo(bladeLen, 0);
+            ctx.stroke();
+            ctx.restore();
+
+            // 外框
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, rPx, 0, Math.PI * 2);
+            ctx.strokeStyle = "rgba(5,10,20,0.95)";
+            ctx.lineWidth = 1.4;
+            ctx.stroke();
+        }
+
+        // 左側馬達轉速「圓形儀表」
+        const gaugeR = 26 * window.devicePixelRatio;
+        const baseX = 78 * window.devicePixelRatio;
+        const baseY = height * 0.55;
+        const gapY = 60 * window.devicePixelRatio;
+        const labels = ["FL", "FR", "RR", "RL"];
+        for (let i = 0; i < 4; i++) {
+            const gx = baseX;
+            const gy = baseY + (i - 1.5) * gapY;
+            drawGauge(gx, gy, gaugeR, sim.motorOutputs[i], labels[i]);
+        }
+    }
+
+    let lastTime = performance.now();
+    let fpsCounter = 0;
+    let fpsAccumTime = 0;
+    let dtSmoothed = 0.016;
+
+    function loop() {
+        requestAnimationFrame(loop);
+        const now = performance.now();
+        let dt = (now - lastTime) / 1000;
+        if (!isFinite(dt) || dt <= 0) dt = 0.016;
+        dt = Math.min(dt, 0.05);
+        lastTime = now;
+
+        dtSmoothed = dtSmoothed * 0.9 + dt * 0.1;
+        fpsCounter++;
+        fpsAccumTime += dt;
+        if (fpsAccumTime >= 0.4) {
+            const fps = fpsCounter / fpsAccumTime;
+            fpsLabel.textContent = fps.toFixed(0);
+            dtLabel.textContent = dtSmoothed.toFixed(3);
+            fpsCounter = 0;
+            fpsAccumTime = 0;
+        }
+
+        updateSimulation(dt);
+        ctx.clearRect(0, 0, width, height);
+        draw();
+    }
+
+    // 3D 互動：滑鼠 + 觸控
+    let isRotating = false;
+    let isPanning = false;
+    let lastX = 0;
+    let lastY = 0;
+
+    canvas.addEventListener("contextmenu", (e) => e.preventDefault());
+
+    canvas.addEventListener("mousedown", (e) => {
+        e.preventDefault();
+        if (e.button === 0) {
+            isRotating = true;
+        } else if (e.button === 2) {
+            isPanning = true;
+        }
+        lastX = e.clientX;
+        lastY = e.clientY;
+    });
+
+    window.addEventListener("mouseup", () => {
+        isRotating = false;
+        isPanning = false;
+    });
+
+    window.addEventListener("mousemove", (e) => {
+        if (!isRotating && !isPanning) return;
+        const dx = e.clientX - lastX;
+        const dy = e.clientY - lastY;
+        lastX = e.clientX;
+        lastY = e.clientY;
+        const rotSpeed = 0.01;
+        const panSpeed = camera.distance * 0.002;
+
+        if (isRotating) {
+            camera.yaw += dx * rotSpeed;
+            camera.pitch += dy * rotSpeed;
+            const minPitch = 0.1;
+            const maxPitch = Math.PI * 0.5;
+            if (camera.pitch < minPitch) camera.pitch = minPitch;
+            if (camera.pitch > maxPitch) camera.pitch = maxPitch;
+        } else if (isPanning) {
+            const cosy = Math.cos(camera.yaw);
+            const siny = Math.sin(camera.yaw);
+            camera.offsetX += (-dx * cosy + dy * siny) * panSpeed * 0.05;
+            camera.offsetZ += (-dx * siny - dy * cosy) * panSpeed * 0.05;
+        }
+    });
+
+    canvas.addEventListener("wheel", (e) => {
+        e.preventDefault();
+        const delta = e.deltaY;
+        const zoomFactor = 1 + Math.sign(delta) * 0.1;
+        camera.distance *= zoomFactor;
+        if (camera.distance < 6) camera.distance = 6;     // 最小距離更近：可以放到畫面一半
+        if (camera.distance > 40) camera.distance = 40;
+    }, { passive: false });
+
+    // 觸控
+    let touchMode = null;
+    let lastTouchDist = 0;
+    let lastTouchCenter = { x: 0, y: 0 };
+    let baseOffsetX = 0;
+    let baseOffsetZ = 0;
+    let baseCamDistance = 0;
+
+    function getTouchCenter(touches) {
+        let x = 0, y = 0;
+        for (let i = 0; i < touches.length; i++) {
+            x += touches[i].clientX;
+            y += touches[i].clientY;
+        }
+        return { x: x / touches.length, y: y / touches.length };
+    }
+    function getTouchDist(touches) {
+        if (touches.length < 2) return 0;
+        const dx = touches[0].clientX - touches[1].clientX;
+        const dy = touches[0].clientY - touches[1].clientY;
+        return Math.sqrt(dx * dx + dy * dy);
+    }
+
+    canvas.addEventListener("touchstart", (e) => {
+        e.preventDefault();
+        const touches = e.touches;
+        if (touches.length === 1) {
+            touchMode = "rotate";
+            lastX = touches[0].clientX;
+            lastY = touches[0].clientY;
+        } else if (touches.length >= 2) {
+            touchMode = "zoompan";
+            lastTouchDist = getTouchDist(touches);
+            lastTouchCenter = getTouchCenter(touches);
+            baseOffsetX = camera.offsetX;
+            baseOffsetZ = camera.offsetZ;
+            baseCamDistance = camera.distance;
+        }
+    }, { passive: false });
+
+    canvas.addEventListener("touchmove", (e) => {
+        e.preventDefault();
+        const touches = e.touches;
+        if (touchMode === "rotate" && touches.length === 1) {
+            const t = touches[0];
+            const dx = t.clientX - lastX;
+            const dy = t.clientY - lastY;
+            lastX = t.clientX;
+            lastY = t.clientY;
+            const rotSpeed = 0.01;
+            camera.yaw += dx * rotSpeed;
+            camera.pitch += dy * rotSpeed;
+            const minPitch = 0.1;
+            const maxPitch = Math.PI * 0.5;
+            if (camera.pitch < minPitch) camera.pitch = minPitch;
+            if (camera.pitch > maxPitch) camera.pitch = maxPitch;
+        } else if (touchMode === "zoompan" && touches.length >= 2) {
+            const dist = getTouchDist(touches);
+            const center = getTouchCenter(touches);
+            if (lastTouchDist > 0) {
+                const zoomRatio = dist / lastTouchDist;
+                camera.distance = baseCamDistance / zoomRatio;
+                if (camera.distance < 6) camera.distance = 6;
+                if (camera.distance > 40) camera.distance = 40;
+            }
+            const dx = center.x - lastTouchCenter.x;
+            const dy = center.y - lastTouchCenter.y;
+            const cosy = Math.cos(camera.yaw);
+            const siny = Math.sin(camera.yaw);
+            const panSpeed = camera.distance * 0.002;
+            camera.offsetX = baseOffsetX + (-dx * cosy + dy * siny) * panSpeed * 0.05;
+            camera.offsetZ = baseOffsetZ + (-dx * siny - dy * cosy) * panSpeed * 0.05;
+        }
+    }, { passive: false });
+
+    canvas.addEventListener("touchend", (e) => {
+        if (e.touches.length === 0) {
+            touchMode = null;
+        }
+    });
+
+    resetAttitude();
+    resetPosition();
+    randomTarget();
+    recenterCamera();
+    loop();
+})();
+</script>
+</body>
+</html>
