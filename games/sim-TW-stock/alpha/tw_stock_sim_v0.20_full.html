@@ -1,9 +1,9 @@
 
 <!DOCTYPE html>
 <html lang="zh-Hant">
-<head><script src="/eduGame/ga4.js"></script>
+<head>
   <meta charset="UTF-8">
-  <title>台股五檔新聞驅動模擬 v0.21</title>
+  <title>台股五檔新聞驅動模擬 v0.20</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <style>
     :root {
@@ -168,6 +168,7 @@
     input[type="range"] {
       accent-color: var(--accent);
     }
+    /* 隱藏預設 number spin button，改用自製上下鍵 */
     input[type=number]::-webkit-outer-spin-button,
     input[type=number]::-webkit-inner-spin-button {
       -webkit-appearance: none;
@@ -544,6 +545,7 @@
     .holding-row:nth-child(odd) {
       background: rgba(10,15,34,0.9);
     }
+    /* 新聞 ticker */
     .news-ticker {
       position: relative;
       border-radius: 999px;
@@ -641,6 +643,7 @@
     .hint-mobile {
       display: none;
     }
+    /* 價格欄位 + 自製上下鍵 */
     .order-price-wrapper {
       display: inline-flex;
       align-items: center;
@@ -687,7 +690,7 @@
       <div class="logo-dot"></div>
       <div>
         <h1>台股五檔新聞驅動模擬</h1>
-        <div class="version-tag">v0.21 · 五檔跟價重建 + RSS CORS 修正</div>
+        <div class="version-tag">v0.20 · Google 新聞 RSS × 五檔補量</div>
       </div>
     </div>
     <div class="control-row">
@@ -773,13 +776,14 @@
     <section class="column-right">
       <div class="panel trading-panel">
         <div class="panel-inner">
+          <!-- 五檔 + 下單 -->
           <section class="order-section">
             <div class="panel-header">
               <div>
                 <h2>五檔 & 下單（新聞驅動）</h2>
                 <small id="orderSymbolLabel">請在左側選擇股票</small>
               </div>
-              <div class="tag">五檔價格隨最新成交價重建，最高不超過漲停。</div>
+              <div class="tag">熱門股高流動：成交後自動補量，維持活絡盤口</div>
             </div>
             <div class="order-grid">
               <div class="book">
@@ -820,7 +824,7 @@
                   <button class="btn-sell" id="btnSell">賣出</button>
                 </div>
                 <div class="sub-row" style="margin-top:4px;">
-                  <span>成交價會帶動五檔往上/往下重排，買價會緊貼賣價。</span>
+                  <span>多空方向由五檔掛單＋新聞情緒決定，成交量允許部分成交並即時扣減。</span>
                   <span id="lastOrderStatus">尚未下單</span>
                 </div>
               </div>
@@ -829,6 +833,7 @@
 
           <div class="section-divider"></div>
 
+          <!-- 資金帳戶 -->
           <section class="account-section">
             <div class="panel-header">
               <div>
@@ -856,11 +861,12 @@
 
           <div class="section-divider"></div>
 
+          <!-- 新聞驅動 seed 區 -->
           <section class="news-seed-section">
             <div class="panel-header">
               <div>
                 <h2>Google 新聞經濟頭條 × 模擬五檔</h2>
-                <small>透過 CORS 代理讀取 RSS，無法連線時改用範例頭條。</small>
+                <small>使用 RSS 解析標題文字，估算多空情緒，驅動熱門股五檔撮合。</small>
               </div>
             </div>
             <div class="news-ticker">
@@ -965,15 +971,13 @@
 
   const GOOGLE_NEWS_RSS_URL =
     "https://news.google.com/rss/headlines/section/topic/BUSINESS?hl=zh-TW&gl=TW&ceid=TW:zh-Hant";
-  const GOOGLE_NEWS_PROXY_URL =
-    "https://api.allorigins.win/raw?url=" + encodeURIComponent(GOOGLE_NEWS_RSS_URL);
 
   const defaultStocks = [
     { code:"2330", name:"台積電", close:830 },
     { code:"2317", name:"鴻海", close:160 },
     { code:"2603", name:"長榮", close:180 },
-    { code:"0050", name:"元大台灣50", close:150 },
-    { code:"2412", name:"中華電信", close:120 }
+    { code:"0050", name:"台灣50", close:150 },
+    { code:"2412", name:"中華電", close:120 }
   ];
 
   const TICKS_PER_DAY = 240;
@@ -1154,18 +1158,9 @@
 
   async function fetchNewsHeadlines() {
     try {
-      // 先嘗試直接抓 RSS
-      let text = "";
-      try {
-        const res = await fetch(GOOGLE_NEWS_RSS_URL);
-        if (!res.ok) throw new Error("HTTP " + res.status);
-        text = await res.text();
-      } catch (e1) {
-        // 若被 CORS 擋，改走 allorigins 代理
-        const res2 = await fetch(GOOGLE_NEWS_PROXY_URL);
-        if (!res2.ok) throw new Error("HTTP proxy " + res2.status);
-        text = await res2.text();
-      }
+      const res = await fetch(GOOGLE_NEWS_RSS_URL);
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      const text = await res.text();
       const parser = new DOMParser();
       const xml = parser.parseFromString(text, "application/xml");
       const items = Array.from(xml.querySelectorAll("item"));
@@ -1175,35 +1170,27 @@
         const sentiment = analyzeHeadlineSentiment(title);
         return { title, sentiment };
       }).filter(h => h.title);
-      if (!headlines.length) throw new Error("no headlines parsed");
       state.newsHeadlines = headlines;
       computeNewsBias();
       updateNewsSeedFromHeadlines();
-      renderNewsUI(false);
+      renderNewsUI();
     } catch (e) {
-      console.warn("fetchNewsHeadlines failed (RSS + proxy)", e);
-      // 改用內建範例頭條，避免畫面空白
-      state.newsHeadlines = [
-        { title:"台股電子權值股領軍反彈，外資轉買超", sentiment: analyzeHeadlineSentiment("台股電子權值股領軍反彈，外資轉買超") },
-        { title:"央行釋出利率按兵不動訊號，市場情緒偏多", sentiment: analyzeHeadlineSentiment("央行釋出利率按兵不動訊號，市場情緒偏多") },
-        { title:"全球景氣雜音未止，傳產與金融股震盪整理", sentiment: analyzeHeadlineSentiment("全球景氣雜音未止，傳產與金融股震盪整理") },
-        { title:"AI 伺服器需求續強，半導體供應鏈接單滿載", sentiment: analyzeHeadlineSentiment("AI 伺服器需求續強，半導體供應鏈接單滿載") },
-        { title:"美元走弱帶動新興市場資金回流，台股受惠", sentiment: analyzeHeadlineSentiment("美元走弱帶動新興市場資金回流，台股受惠") }
-      ];
+      console.warn("fetchNewsHeadlines failed", e);
+      elNewsTickerTrack().textContent = "無法載入 Google 新聞 RSS（可能被瀏覽器或網路環境阻擋）。將改用隨機 seed 模擬。";
+      state.newsHeadlines = [];
       computeNewsBias();
       updateNewsSeedFromHeadlines();
-      renderNewsUI(true);
     }
   }
 
-  function renderNewsUI(isFallback) {
+  function renderNewsUI() {
     const track = elNewsTickerTrack();
     const list = elNewsList();
     track.innerHTML = "";
     list.innerHTML = "";
     if (!state.newsHeadlines.length) {
       track.textContent = "目前沒有可用頭條，使用預設隨機行情。";
-      list.textContent = "提示：若你在本機或學校網路環境中，RSS 可能被封鎖。";
+      list.textContent = "提示：若你在本機或學校網路環境中，Google 新聞 RSS 可能被封鎖。";
       return;
     }
     state.newsHeadlines.forEach((h, idx) => {
@@ -1231,9 +1218,7 @@
     });
     const meta = document.createElement("div");
     meta.className = "news-meta";
-    meta.innerHTML = '<span>' +
-      (isFallback ? "RSS 連線異常，使用內建範例頭條（不連網）。" : "來源：Google 新聞 · BUSINESS（繁體 / TW）") +
-      '</span>' +
+    meta.innerHTML = '<span>來源：Google 新聞 · BUSINESS（繁體 / TW）</span>' +
       '<span>全體偏向多空指標：' +
       (state.newsBiasGlobal > 0.05 ? '<span style="color:var(--up);">偏多</span>' :
         state.newsBiasGlobal < -0.05 ? '<span style="color:var(--down);">偏空</span>' :
@@ -1339,48 +1324,24 @@
     if (!s) return null;
     const mid = s.last || s.prevClose || 50;
     const tick = priceTickSize(mid);
-    const limitUp = s.prevClose * 1.1;
-    const limitDown = s.prevClose * 0.9;
+    const maxStep = 5;
     const bids = [];
     const asks = [];
-    // 讓買一 / 賣一緊貼最新價：買一 = last - 1 tick, 賣一 = last + 1 tick
-    for (let i = 0; i < 5; i++) {
-      const pBid = mid - (i + 1) * tick;
-      if (pBid < limitDown) break;
-      const qty = Math.round((20 - i * 3) * 100 * (0.7 + state.rng()));
-      bids.push({ level: i + 1, price: pBid, qty });
+    for (let i = 1; i <= maxStep; i++) {
+      const price = mid - i * tick;
+      const qty = Math.round((12 + (maxStep - i) * 4) * 100 * (0.6 + state.rng()));
+      bids.push({ level: i, price, qty });
     }
-    for (let i = 0; i < 5; i++) {
-      const pAsk = mid + (i + 1) * tick;
-      if (pAsk > limitUp) break;
-      const qty = Math.round((20 - i * 3) * 100 * (0.7 + state.rng()));
-      asks.push({ level: i + 1, price: pAsk, qty });
+    for (let i = 1; i <= maxStep; i++) {
+      const price = mid + i * tick;
+      const qty = Math.round((12 + (maxStep - i) * 4) * 100 * (0.6 + state.rng()));
+      asks.push({ level: i, price, qty });
     }
     bids.sort((a, b) => b.price - a.price);
     asks.sort((a, b) => a.price - b.price);
     const book = { bids, asks };
     state.books[code] = book;
     return book;
-  }
-
-  function recenterOrderBookAroundLast(code) {
-    const s = state.stocks.find(x => x.code === code);
-    if (!s) return;
-    const oldBook = state.books[code];
-    const book = generateOrderBook(code);
-    if (!book) return;
-    // 若原本有明顯買盤/賣盤壓力，稍微放大某一側的量
-    if (oldBook) {
-      let oldBid = 0, oldAsk = 0;
-      oldBook.bids.forEach(b => oldBid += b.qty);
-      oldBook.asks.forEach(a => oldAsk += a.qty);
-      if (oldBid > oldAsk * 1.3) {
-        book.bids.forEach(b => b.qty = Math.round(b.qty * 1.2));
-      } else if (oldAsk > oldBid * 1.3) {
-        book.asks.forEach(a => a.qty = Math.round(a.qty * 1.2));
-      }
-    }
-    state.books[code] = book;
   }
 
   function getOrderBook(code) {
@@ -1390,15 +1351,32 @@
 
   function maintainLiquidity(book, stock) {
     if (!book || !stock) return;
+    const mid = stock.last || stock.prevClose || 50;
+    const tick = priceTickSize(mid);
     const minVol = 300;
+    const desiredLevels = 5;
+    book.bids = book.bids.filter(b => b.qty > 0);
+    book.asks = book.asks.filter(a => a.qty > 0);
     book.bids.forEach(b => {
       if (b.qty < minVol) b.qty += Math.round((minVol - b.qty) * (0.8 + state.rng()));
     });
     book.asks.forEach(a => {
       if (a.qty < minVol) a.qty += Math.round((minVol - a.qty) * (0.8 + state.rng()));
     });
-    book.bids = book.bids.filter(b => b.qty > 0);
-    book.asks = book.asks.filter(a => a.qty > 0);
+    while (book.bids.length < desiredLevels) {
+      const idx = book.bids.length + 1;
+      const price = mid - idx * tick;
+      const qty = Math.round((14 + (desiredLevels - idx) * 5) * 100 * (0.5 + state.rng()));
+      book.bids.push({ level: idx, price, qty });
+    }
+    while (book.asks.length < desiredLevels) {
+      const idx = book.asks.length + 1;
+      const price = mid + idx * tick;
+      const qty = Math.round((14 + (desiredLevels - idx) * 5) * 100 * (0.5 + state.rng()));
+      book.asks.push({ level: idx, price, qty });
+    }
+    book.bids.sort((a, b) => b.price - a.price);
+    book.asks.sort((a, b) => a.price - b.price);
   }
 
   function updateOrderBookUI() {
@@ -1469,14 +1447,12 @@
 
   function simulateStockTick(s) {
     const code = s.code;
-    let book = getOrderBook(code);
+    const book = getOrderBook(code);
     if (!book) return;
     let totalBid = 0, totalAsk = 0;
     book.bids.forEach(b => totalBid += b.qty);
     book.asks.forEach(a => totalAsk += a.qty);
     if (totalBid <= 0 || totalAsk <= 0) {
-      recenterOrderBookAroundLast(code);
-      book = getOrderBook(code);
       maintainLiquidity(book, s);
       return;
     }
@@ -1550,9 +1526,6 @@
     s.changePct = s.prevClose ? s.change / s.prevClose * 100 : 0;
     s.vol += executedQty;
 
-    // 成交後，五檔價格跟著最新價重建
-    recenterOrderBookAroundLast(code);
-    book = getOrderBook(code);
     maintainLiquidity(book, s);
     pushBar(code, s.last);
   }
@@ -1635,7 +1608,7 @@
       elLastOrderStatus().textContent = "超出漲跌停範圍";
       return;
     }
-    let book = getOrderBook(code);
+    const book = getOrderBook(code);
     if (!book) {
       elLastOrderStatus().textContent = "目前無掛單資訊，稍後再試";
       return;
@@ -1708,24 +1681,6 @@
       if (h.qty === 0) delete state.holdings[code];
     }
     state.todayTurnover += cost;
-
-    // 將這一筆委託視為最新成交，推動價格與 K 線、五檔
-    const newLast = clamp(avgPrice, limitDown, limitUp);
-    s.last = newLast;
-    s.change = s.last - s.prevClose;
-    s.changePct = s.prevClose ? s.change / s.prevClose * 100 : 0;
-    s.vol += maxFill;
-
-    recenterOrderBookAroundLast(code);
-    book = getOrderBook(code);
-    maintainLiquidity(book, s);
-    pushBar(code, s.last);
-
-    // 同步更新大盤指數（簡化：用所有股票均價）
-    const avgAll = state.stocks.reduce((sum, st) => sum + st.last, 0) / (state.stocks.length || 1);
-    state.indexValue = avgAll * 10;
-    pushBar("INDEX", state.indexValue);
-
     const statusText =
       (maxFill === qty
         ? "完全成交 "
@@ -1734,12 +1689,9 @@
       maxFill + " 股，成交均價 " + formatNumber(avgPrice, 2);
     state.lastOrderText = statusText;
     elLastOrderStatus().textContent = statusText;
-
+    maintainLiquidity(book, s);
     updateOrderBookUI();
     updateAccountUI();
-    updateStockListUI();
-    updateIndexUI();
-    drawChart();
   }
 
   let chartCtx = null;
@@ -1931,13 +1883,10 @@
           s.prevClose = close;
           s.last = close;
           if (nameFetched && nameFetched !== def.code) s.name = nameFetched;
-          recenterOrderBookAroundLast(def.code);
         }
       } catch (e) { /* ignore */ }
     }
     updateStockListUI();
-    updateOrderBookUI();
-    drawChart();
   }
 
   async function addCustomSymbol() {
@@ -1970,7 +1919,6 @@
       };
       state.stocks.push(stock);
       state.kSeries[code] = [];
-      recenterOrderBookAroundLast(code);
       updateStockListUI();
       selectSymbol(code);
       updatePriceStepForSymbol(code);
@@ -2066,8 +2014,10 @@
     elAddSymbolInput().addEventListener("keydown", ev => {
       if (ev.key === "Enter") { ev.preventDefault(); addCustomSymbol(); }
     });
+    // 價格上下按鈕：依照五檔價位跳動（A 規則：單純往高/往低價一檔）
     elBtnPriceUp().addEventListener("click", () => adjustPriceByBook(1));
     elBtnPriceDown().addEventListener("click", () => adjustPriceByBook(-1));
+    // 鍵盤 ↑ / ↓ 也支援同樣邏輯
     elOrderPrice().addEventListener("keydown", ev => {
       if (ev.key === "ArrowUp") { ev.preventDefault(); adjustPriceByBook(1); }
       else if (ev.key === "ArrowDown") { ev.preventDefault(); adjustPriceByBook(-1); }
