@@ -1,0 +1,351 @@
+<!doctype html>
+<html lang="zh-Hant">
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>SVG 向量卡片圖示產生器</title>
+<style>
+  :root{
+    --bg:#0b1020; --panel:#0f172a; --line:#1f2b45; --text:#e5e7eb; --muted:#94a3b8; --accent:#22d3ee;
+  }
+  *{box-sizing:border-box} html,body{height:100%} body{margin:0;background:var(--bg);color:var(--text);
+    font-family:ui-sans-serif,system-ui,-apple-system,"Noto Sans TC",Roboto}
+  header{display:flex;gap:12px;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--line)}
+  header h1{margin:0;font-size:16px}
+  .muted{color:var(--muted)}
+  .wrap{display:grid;grid-template-columns: 320px 1fr;gap:14px;max-width:1200px;margin:14px auto;padding:0 14px}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px}
+  .toolbar{display:grid;gap:10px}
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  button, select, input[type="number"], input[type="range"]{
+    background:#0a1224;color:var(--text);border:1px solid var(--line);border-radius:10px;padding:8px 10px;cursor:pointer
+  }
+  button.toggled{outline:2px solid var(--accent)}
+  input[type="range"]{accent-color:var(--accent)}
+  .btn-danger{background:#1a0d12;border-color:#3a1622}
+  .canvas-wrap{position:relative;display:grid;place-items:center;padding:10px}
+  svg#stage{width:min(92vw,760px);height:auto;max-height:70vh;background:
+    linear-gradient(transparent 31px, var(--line) 32px, transparent 33px),
+    linear-gradient(90deg, transparent 31px, var(--line) 32px, transparent 33px);
+    background-size:32px 32px,32px 32px;border-radius:12px;border:1px solid var(--line);color: #ffffff; }
+  .handles circle{fill:var(--accent)}
+  textarea#out{width:100%;min-height:160px;background:#0a1224;color:var(--text);
+    border:1px solid var(--line);border-radius:10px;padding:10px}
+  .hint{font-size:12px;color:var(--muted)}
+</style>
+<body>
+<header>
+  <h1>SVG 向量卡片圖示產生器</h1>
+  <div class="muted">預設 viewBox= <code>0 0 64 64</code>，色彩採 <code>currentColor</code></div>
+</header>
+
+<div class="wrap">
+  <!-- 左側工具列 -->
+  <div class="panel">
+    <div class="toolbar">
+      <div class="row">
+        <button id="tool-select" class="toggled">選取/移動</button>
+        <button id="tool-pen">筆刷</button>
+        <button id="tool-rect">矩形</button>
+        <button id="tool-circle">圓形</button>
+        <button id="tool-eraser">橡皮擦</button>
+      </div>
+
+      <div class="row">
+        <label>筆畫粗細</label>
+        <input id="stroke" type="range" min="1" max="8" value="3" />
+        <input id="strokeNum" type="number" min="1" max="8" value="3" style="width:70px" />
+      </div>
+
+      <div class="row">
+        <label>檢視大小</label>
+        <input id="zoom" type="range" min="1" max="12" value="6" />
+        <span class="muted" id="zoomv">x 6</span>
+      </div>
+
+      <div class="row">
+        <button id="clear" class="btn-danger">一鍵清空</button>
+        <button id="export">匯出 SVG</button>
+        <button id="copy">複製</button>
+      </div>
+      <div class="hint">提示：按住元素拖曳可移動；選取後邊角把手可縮放。橡皮擦點一下欲刪除的圖形。</div>
+    </div>
+  </div>
+
+  <!-- 右側畫布 + 匯出 -->
+  <div class="panel">
+    <div class="canvas-wrap">
+      <!-- 工作畫布（64x64 視口） -->
+      <svg id="stage" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+        <g id="art" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"></g>
+        <!-- 選取框與把手 -->
+        <g id="box" class="handles" display="none">
+          <rect id="bbox" x="0" y="0" width="0" height="0" stroke="var(--accent)" fill="none" stroke-dasharray="4 3"/>
+          <circle id="h-nw" r="1.2"/><circle id="h-ne" r="1.2"/><circle id="h-sw" r="1.2"/><circle id="h-se" r="1.2"/>
+        </g>
+      </svg>
+    </div>
+
+    <div style="margin-top:10px">
+      <label class="muted">輸出（可直接複製貼用）</label>
+      <textarea id="out" spellcheck="false"></textarea>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ====== 狀態 ====== */
+const stage = document.getElementById('stage');
+const art   = document.getElementById('art');
+const box   = document.getElementById('box');
+const bboxR = document.getElementById('bbox');
+const handles = {
+  nw: document.getElementById('h-nw'),
+  ne: document.getElementById('h-ne'),
+  sw: document.getElementById('h-sw'),
+  se: document.getElementById('h-se'),
+};
+let tool = 'select';            // select | pen | rect | circle | eraser
+let strokeWidth = 3;
+let drawing = null;             // 目前正在畫的 element
+let poly = null;                // 筆刷暫存 path 資料
+let selected = null;            // 被選取的 element
+let dragState = null;           // 拖曳狀態
+/* ====== 工具列 ====== */
+const $ = sel => document.querySelector(sel);
+function toggle(btnId){
+  ['tool-select','tool-pen','tool-rect','tool-circle','tool-eraser']
+    .forEach(id => document.getElementById(id).classList.remove('toggled'));
+  document.getElementById(btnId).classList.add('toggled');
+}
+document.getElementById('tool-select').onclick=()=>{ tool='select'; toggle('tool-select'); };
+document.getElementById('tool-pen').onclick   =()=>{ tool='pen'; toggle('tool-pen'); deselect(); };
+document.getElementById('tool-rect').onclick  =()=>{ tool='rect'; toggle('tool-rect'); deselect(); };
+document.getElementById('tool-circle').onclick=()=>{ tool='circle'; toggle('tool-circle'); deselect(); };
+document.getElementById('tool-eraser').onclick=()=>{ tool='eraser'; toggle('tool-eraser'); deselect(); };
+
+const stroke = document.getElementById('stroke');
+const strokeNum = document.getElementById('strokeNum');
+function setStroke(v){
+  strokeWidth = Math.max(1, Math.min(8, +v||3));
+  stroke.value = strokeWidth; strokeNum.value = strokeWidth;
+  art.setAttribute('stroke-width', strokeWidth); // 群組層級控制
+}
+stroke.oninput = e => setStroke(e.target.value);
+strokeNum.oninput = e => setStroke(e.target.value);
+setStroke(3);
+
+const zoom = document.getElementById('zoom'), zoomv = document.getElementById('zoomv');
+function applyZoom(v){
+  const z = +v;
+  stage.style.width = (z*64)+'px';
+  stage.style.height= 'auto';
+  zoomv.textContent = 'x '+z;
+}
+zoom.oninput = e => applyZoom(e.target.value);
+applyZoom(zoom.value);
+
+/* ====== 工具行為（Pointer Events） ====== */
+stage.addEventListener('pointerdown', onDown);
+stage.addEventListener('pointermove', onMove);
+stage.addEventListener('pointerup',   onUp);
+stage.addEventListener('pointercancel', onUp);
+stage.addEventListener('contextmenu', e=>e.preventDefault());
+stage.style.touchAction='none';
+
+function svgPoint(evt){
+  const pt = stage.createSVGPoint();
+  pt.x = evt.clientX;          // 用視窗座標
+  pt.y = evt.clientY;
+  // 轉成 SVG 的座標系（考慮到縮放/CSS 寬度）
+  return pt.matrixTransform(stage.getScreenCTM().inverse());
+}
+
+
+function onDown(e){
+  stage.setPointerCapture?.(e.pointerId);
+  const p = svgPoint(e);
+  if(tool==='eraser'){
+    const target = pickTopElement(p);
+    if(target) { target.remove(); deselect(); }
+    return;
+  }
+  if(tool==='select'){
+    const pick = pickTopElement(p);
+    if(pick){ select(pick); dragState={mode:'move', start:p, init:getPos(pick)}; }
+    else deselect();
+    return;
+  }
+  if(tool==='pen'){
+    drawing = document.createElementNS('http://www.w3.org/2000/svg','path');
+    drawing.setAttribute('fill','none');
+    drawing.setAttribute('stroke','currentColor');
+    poly = `M ${p.x.toFixed(2)} ${p.y.toFixed(2)}`;
+    drawing.setAttribute('d', poly);
+    art.appendChild(drawing);
+    dragState = {mode:'pen'};
+    return;
+  }
+  if(tool==='rect'){
+    drawing = document.createElementNS('http://www.w3.org/2000/svg','rect');
+    drawing.setAttribute('x', p.x); drawing.setAttribute('y', p.y);
+    drawing.setAttribute('width', 0); drawing.setAttribute('height', 0);
+    drawing.setAttribute('fill','none'); drawing.setAttribute('stroke','currentColor');
+    art.appendChild(drawing);
+    dragState = {mode:'rect', x0:p.x, y0:p.y};
+    return;
+  }
+  if(tool==='circle'){
+    drawing = document.createElementNS('http://www.w3.org/2000/svg','circle');
+    drawing.setAttribute('cx', p.x); drawing.setAttribute('cy', p.y);
+    drawing.setAttribute('r', 0);
+    drawing.setAttribute('fill','none'); drawing.setAttribute('stroke','currentColor');
+    art.appendChild(drawing);
+    dragState = {mode:'circle', x0:p.x, y0:p.y};
+    return;
+  }
+}
+
+function onMove(e){
+  if(!dragState) return;
+  const p = svgPoint(e);
+  if(dragState.mode==='pen' && drawing){
+    poly += ` L ${p.x.toFixed(2)} ${p.y.toFixed(2)}`;
+    drawing.setAttribute('d', poly);
+  }
+  if(dragState.mode==='rect' && drawing){
+    const x = Math.min(dragState.x0, p.x);
+    const y = Math.min(dragState.y0, p.y);
+    const w = Math.abs(p.x - dragState.x0);
+    const h = Math.abs(p.y - dragState.y0);
+    drawing.setAttribute('x', x); drawing.setAttribute('y', y);
+    drawing.setAttribute('width', w); drawing.setAttribute('height', h);
+  }
+  if(dragState.mode==='circle' && drawing){
+    const r = Math.hypot(p.x - dragState.x0, p.y - dragState.y0);
+    drawing.setAttribute('r', r);
+  }
+  if(dragState.mode==='move' && selected){
+    const dx = p.x - dragState.start.x;
+    const dy = p.y - dragState.start.y;
+    transformTo(selected, dragState.init.tx+dx, dragState.init.ty+dy, dragState.init.sx, dragState.init.sy);
+    updateBox();
+  }
+  if(dragState.mode?.startsWith('scale:') && selected){
+    const which = dragState.mode.split(':')[1];
+    scaleFromHandle(selected, which, p);
+    updateBox();
+  }
+}
+
+function onUp(){
+  stage.releasePointerCapture?.(e.pointerId);
+  drawing = null; poly = null; dragState = null;
+}
+
+/* ====== 選取/框線/把手 ====== */
+function pickTopElement(p){
+  // 依序檢查 art 子節點（從尾到頭，視覺頂層優先）
+  const nodes = Array.from(art.children);
+  for(let i=nodes.length-1;i>=0;i--){
+    const el = nodes[i];
+    if(hit(el, p)) return el;
+  }
+  return null;
+}
+function hit(el, p){
+  try{
+    const bb = el.getBBox();
+    const pad = Math.max(1.5, strokeWidth); // 擴大命中
+    return p.x >= bb.x-pad && p.x <= bb.x+bb.width+pad && p.y >= bb.y-pad && p.y <= bb.y+bb.height+pad;
+  }catch(e){ return false; }
+}
+function select(el){
+  selected = el;
+  const bb = el.getBBox();
+  bboxR.setAttribute('x', bb.x); bboxR.setAttribute('y', bb.y);
+  bboxR.setAttribute('width', bb.width); bboxR.setAttribute('height', bb.height);
+  positionHandles(bb);
+  box.setAttribute('display','inline');
+  // 綁定把手拖曳
+  for(const [k,c] of Object.entries(handles)){
+    c.onpointerdown = ev => {
+      ev.stopPropagation();
+      const p = svgPoint(ev);
+      dragState = {mode:'scale:'+k, start:p, initBB: el.getBBox(), init: getPos(el)};
+    };
+  }
+}
+function deselect(){
+  selected = null;
+  box.setAttribute('display','none');
+  for(const c of Object.values(handles)) c.onpointerdown=null;
+}
+function positionHandles(bb){
+  handles.nw.setAttribute('cx',bb.x);               handles.nw.setAttribute('cy',bb.y);
+  handles.ne.setAttribute('cx',bb.x+bb.width);      handles.ne.setAttribute('cy',bb.y);
+  handles.sw.setAttribute('cx',bb.x);               handles.sw.setAttribute('cy',bb.y+bb.height);
+  handles.se.setAttribute('cx',bb.x+bb.width);      handles.se.setAttribute('cy',bb.y+bb.height);
+}
+function updateBox(){
+  if(!selected) return;
+  const bb = selected.getBBox();
+  bboxR.setAttribute('x', bb.x); bboxR.setAttribute('y', bb.y);
+  bboxR.setAttribute('width', bb.width); bboxR.setAttribute('height', bb.height);
+  positionHandles(bb);
+}
+
+/* 變形：以簡單平移+縮放（維持中心 or 依把手） */
+function getPos(el){
+  const t = el.transform.baseVal.consolidate();
+  const m = t ? t.matrix : stage.createSVGMatrix();
+  return { tx:m.e, ty:m.f, sx:1, sy:1 };
+}
+function transformTo(el, tx, ty, sx=1, sy=1){
+  const t = stage.createSVGTransform();
+  t.setMatrix(stage.createSVGMatrix().translate(tx,ty).scaleNonUniform(sx,sy));
+  el.transform.baseVal.initialize(t);
+}
+function scaleFromHandle(el, which, p){
+  const bb0 = dragState.initBB;
+  // 以對向角作錨點，做非等比縮放
+  const anchors = { nw:[bb0.x+bb0.width, bb0.y+bb0.height],
+                    ne:[bb0.x,           bb0.y+bb0.height],
+                    sw:[bb0.x+bb0.width, bb0.y],
+                    se:[bb0.x,           bb0.y] };
+  const [ax, ay] = anchors[which];
+  const sx = (p.x - ax) / (bb0.x - ax || 1);
+  const sy = (p.y - ay) / (bb0.y - ay || 1);
+  // 移動到錨點，縮放，再移回
+  const cx = ax, cy = ay;
+  const tr = stage.createSVGTransform();
+  const m = stage.createSVGMatrix()
+            .translate(cx,cy)
+            .scaleNonUniform(sx, sy)
+            .translate(-cx,-cy);
+  tr.setMatrix(m);
+  el.transform.baseVal.initialize(tr);
+}
+
+/* ====== 清空 / 匯出 / 複製 ====== */
+document.getElementById('clear').onclick = ()=>{ [...art.children].forEach(n=>n.remove()); deselect(); };
+
+document.getElementById('export').onclick = exportSVG;
+document.getElementById('copy').onclick   = ()=>{
+  exportSVG();
+  const ta = document.getElementById('out');
+  ta.select(); ta.setSelectionRange(0, ta.value.length);
+  document.execCommand('copy');
+};
+
+function exportSVG(){
+  // 匯出時：把目前群組 stroke-width 同步到控制器
+  art.setAttribute('stroke-width', strokeWidth);
+  // 複製一份乾淨的內容
+  const clone = art.cloneNode(true);
+  // 移除 transform 的矩形框（僅有圖形節點在 art 中，不含 box）
+  const svg = `<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">\n  ${clone.outerHTML}\n</svg>`;
+  document.getElementById('out').value = svg;
+}
+</script>
+</body>
+</html>
