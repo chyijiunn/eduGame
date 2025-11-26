@@ -1,0 +1,541 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head><script src="/eduGame/ga4.js"></script>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
+<title>caseMaker v0.33 — 內徑=外伸齒｜外徑=內吃齒</title>
+<style>
+  :root{ --bg:#0b0f14; --panel:#121821; --card:#0f1520; --text:#e6edf3; --muted:#9fb3c8; --border:#1e2633; --accent:#8cc2ff; --warn:#ff8080; }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans TC","Helvetica Neue",Arial}
+  .wrap{display:grid;grid-template-columns:minmax(300px,1fr) 360px;gap:12px;height:100vh;padding:12px}
+  #view{position:relative;background:#0c141d;border:1px solid var(--border);border-radius:12px;overflow:hidden;min-height:320px}
+  #canvas{width:100%;height:100%;display:block;touch-action:none;cursor:grab}
+  #hud{position:absolute;left:10px;bottom:10px;font-size:12px;color:var(--muted);background:rgba(10,15,22,.65);border:1px solid var(--border);border-radius:8px;padding:6px 8px;backdrop-filter:blur(4px)}
+  #miniBox{position:absolute;right:10px;bottom:10px;width:260px;height:170px;background:rgba(12,18,26,.55);border:1px solid var(--border);border-radius:10px;padding:6px}
+  #mini{width:100%;height:100%;display:block}
+  #overlayMsg{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#9fb3c8;font-size:14px;pointer-events:none}
+  .panel{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:12px;overflow:auto}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center}
+  label{font-size:13px;color:var(--muted)}
+  input[type="number"],select{width:100%;background:var(--card);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:8px 10px;font-size:14px;outline:none}
+  input[type="range"]{width:100%}
+  .title{font-weight:700;margin:4px 0 6px 0}
+  .badge{display:inline-block;font-size:11px;padding:2px 6px;border:1px solid var(--border);border-radius:999px;color:var(--muted);margin-left:6px}
+  .section{margin:12px 0;padding-top:8px;border-top:1px dashed var(--border)}
+  .btn{background:#1a2432;color:#fff;border:1px solid var(--border);border-radius:10px;padding:10px 12px;font-weight:600;cursor:pointer}
+  .btn:active{transform:translateY(1px)}
+  .btnRow{display:flex;gap:8px;flex-wrap:wrap}
+  .hint{font-size:12px;color:var(--muted)}
+  .mono{font-variant-numeric:tabular-nums;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+  a.link{color:#9bd}
+  .error{color:#ff9898}
+  .ok{color:#8cffc3}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div id="view">
+    <canvas id="canvas"></canvas>
+    <div id="overlayMsg">初始化畫布…</div>
+    <div id="hud">
+      <div><span class="badge">v0.33</span><span class="badge">內徑外伸</span><span class="badge">外徑內吃</span></div>
+      <div class="mono" id="dimInfo">—</div>
+      <div class="mono" id="extraInfo">—</div>
+    </div>
+    <div id="miniBox"><canvas id="mini"></canvas></div>
+  </div>
+
+  <div class="panel">
+    <div class="title">盒子參數</div>
+    <div class="hint">新規則：<b>內徑</b> → 所有齒形「只往外長出」；<b>外徑</b> → 所有齒形「只往內吃進」。相鄰邊依相位錯開（公/母）互補，保持指定的內/外徑不被齒形改變。</div>
+
+    <div class="section">
+      <div class="row">
+        <label>尺寸基準</label>
+        <label>有蓋</label>
+        <select id="dimMode">
+          <option value="outer">外徑</option>
+          <option value="inner" selected>內徑</option>
+        </select>
+        <div><input id="hasLid" type="checkbox"><span class="hint"> 勾＝六面（含蓋）</span></div>
+      </div>
+      <div class="row">
+        <label>長 L (mm)</label><label>寬 W (mm)</label>
+        <input id="len" type="number" step="0.1" min="1" value="120">
+        <input id="wid" type="number" step="0.1" min="1" value="80">
+      </div>
+      <div class="row">
+        <label>高 H (mm)</label><label>板厚 t (mm)</label>
+        <input id="hei" type="number" step="0.1" min="1" value="60">
+        <input id="thk" type="number" step="0.05" min="0.1" value="3.0">
+      </div>
+      <div class="row">
+        <label>每邊齒數 <span class="mono" id="fingersVal">6</span></label>
+        <label>Kerf 外擴 (mm)</label>
+        <input id="fingers" type="range" min="1" max="20" step="1" value="6">
+        <input id="kerf" type="number" step="0.01" min="0" value="0.05">
+      </div>
+      <div class="row">
+        <label>齒深模式</label>
+        <label>顯示板厚（3D）</label>
+        <select id="depthMode">
+          <option value="equal" selected>等深：深度=t</option>
+          <option value="auto">自動：深度=t+kerf</option>
+        </select>
+        <div><input id="showThickness3D" type="checkbox" checked></div>
+      </div>
+      <div class="row">
+        <label>顯示齒形（3D）</label>
+        <label>顯示誤切線（展開）</label>
+        <div><input id="showTeeth3D" type="checkbox" checked></div>
+        <div><input id="showBad" type="checkbox"></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="title">匯出</div>
+      <div class="btnRow">
+        <button id="btnSVG" class="btn">輸出 SVG 展開圖</button>
+        <button id="btnReset" class="btn">重設視角</button>
+      </div>
+      <div id="info" class="hint" style="margin-top:8px"></div>
+      <div id="links" class="hint" style="margin-top:6px"></div>
+      <textarea id="svgText" style="width:100%;height:120px;display:none;background:#0b0f14;border:1px solid var(--border);color:#b5d0ff;border-radius:8px;margin-top:8px"></textarea>
+      <div id="badList" class="hint" style="margin-top:6px"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+let CW=0, CH=0, scalePx=1;
+const mainCanvas = $('canvas'); const ctx = mainCanvas.getContext('2d');
+const mini = $('mini'); const mctx = mini.getContext('2d',{alpha:true});
+const overlay = $('overlayMsg');
+let cam = { yaw: Math.PI/6, pitch: -Math.PI/7, zoom: 1.1, dragging:false, lastX:0,lastY:0 };
+function resizeNow(){
+  const v = document.getElementById('view').getBoundingClientRect();
+  const dpr = (window.devicePixelRatio||1);
+  CW = mainCanvas.width  = Math.max(320, Math.floor((v.width||600)*dpr));
+  CH = mainCanvas.height = Math.max(320, Math.floor((v.height||420)*dpr));
+  const mb = document.getElementById('miniBox').getBoundingClientRect();
+  mini.width  = Math.max(220, Math.floor((mb.width||260)*dpr));
+  mini.height = Math.max(120, Math.floor((mb.height||170)*dpr));
+  overlay.style.display='none';
+  draw();
+}
+window.addEventListener('resize', resizeNow);
+mainCanvas.addEventListener('pointerdown', e=>{ mainCanvas.setPointerCapture(e.pointerId); cam.dragging=true; cam.lastX=e.clientX; cam.lastY=e.clientY; mainCanvas.style.cursor='grabbing'; });
+mainCanvas.addEventListener('pointerup',   e=>{ try{mainCanvas.releasePointerCapture(e.pointerId);}catch(_){ } cam.dragging=false; mainCanvas.style.cursor='grab'; });
+mainCanvas.addEventListener('pointermove', e=>{ if(!cam.dragging) return; const dx=e.clientX-cam.lastX, dy=e.clientY-cam.lastY; cam.lastX=e.clientX; cam.lastY=e.clientY; cam.yaw+=dx*0.005; cam.pitch=Math.max(-1.4, Math.min(1.4, cam.pitch+dy*0.005)); draw(); });
+mainCanvas.addEventListener('wheel', e=>{ e.preventDefault(); cam.zoom = Math.max(0.3, Math.min(4.0, cam.zoom * Math.pow(1.001,-e.deltaY))); draw(); }, {passive:false});
+
+function rotY(p,a){ const s=Math.sin(a), c=Math.cos(a); return [ c*p[0]+s*p[2], p[1], -s*p[0]+c*p[2] ]; }
+function rotX(p,a){ const s=Math.sin(a), c=Math.cos(a); return [ p[0], c*p[1]-s*p[2], s*p[1]+c*p[2] ]; }
+function project(p){ return [ p[0]*scalePx*cam.zoom + CW/2, -p[1]*scalePx*cam.zoom + CH/2 ]; }
+
+function computeDims(L,W,H,t,hasLid,mode){
+  // 外形(組裝後)尺寸 ext；內空(組裝後)尺寸 int
+  let extL=L, extW=W, extH=H, intL=L, intW=W, intH=H;
+  if(mode==='inner'){ extL=L+2*t; extW=W+2*t; extH=H + (hasLid?2*t:1*t); }
+  else { intL=L-2*t; intW=W-2*t; intH=H - (hasLid?2*t:1*t); }
+  return {extL,extW,extH,intL,intW,intH};
+}
+
+// === 畫面與幾何 ===
+function faceRectBase(face, dims, mode){
+  // 回傳「基準矩形」尺寸（決定齒形攤繪所在的基準邊）
+  // 內徑模式：基準=內徑 → 齒向外伸；外徑模式：基準=外徑 → 齒向內吃。
+  const Lb = (mode==='inner')? dims.intL : dims.extL;
+  const Wb = (mode==='inner')? dims.intW : dims.extW;
+  const Hb = (mode==='inner')? dims.intH : dims.extH;
+  if(face==='front'||face==='back') return {u:Lb, v:Hb};
+  if(face==='left'||face==='right') return {u:Wb, v:Hb};
+  if(face==='bottom'||face==='top') return {u:Lb, v:Wb};
+  return {u:0,v:0};
+}
+function faceRectOuter(face, dims){
+  // 外形盒體（用於 3D 面位置）
+  const L = dims.extL, W = dims.extW, H = dims.extH;
+  if(face==='front'||face==='back') return {u:L, v:H};
+  if(face==='left'||face==='right') return {u:W, v:H};
+  if(face==='bottom'||face==='top') return {u:L, v:W};
+  return {u:0,v:0};
+}
+function uvTo3D(face, u, v, dims, delta){
+  // delta=0 外表面；delta=t 內表面
+  const L=dims.extL, W=dims.extW, H=dims.extH;
+  switch(face){
+    case 'front':  return [u, v,  W/2 - delta];
+    case 'back':   return [-u, v, -W/2 + delta];
+    case 'left':   return [-L/2 + delta, v, u];
+    case 'right':  return [ L/2 - delta, v, -u];
+    case 'bottom': return [u, -H/2 + delta, -v];
+    case 'top':    return [u,  H/2 - delta,  v];
+  }
+  return [u,v,0];
+}
+
+// 共享骨架：找出相鄰邊組
+function computeAdjPairs(dims, hasLid){
+  const faces = hasLid? ['bottom','front','back','left','right','top'] : ['bottom','front','back','left','right'];
+  const faceOuter = f=>faceRectOuter(f,dims);
+  const corners = (o)=>[[-o.u/2,o.v/2],[o.u/2,o.v/2],[o.u/2,-o.v/2],[-o.u/2,-o.v/2]];
+  const sideSeg = (f,side)=>{
+    const o=faceOuter(f); const c=corners(o);
+    if(side==='top') return [uvTo3D(f,c[0][0],c[0][1],dims,0), uvTo3D(f,c[1][0],c[1][1],dims,0)];
+    if(side==='right') return [uvTo3D(f,c[1][0],c[1][1],dims,0), uvTo3D(f,c[2][0],c[2][1],dims,0)];
+    if(side==='bottom') return [uvTo3D(f,c[2][0],c[2][1],dims,0), uvTo3D(f,c[3][0],c[3][1],dims,0)];
+    if(side==='left') return [uvTo3D(f,c[3][0],c[3][1],dims,0), uvTo3D(f,c[0][0],c[0][1],dims,0)];
+  };
+  const keyPt = p=>p.map(v=>v.toFixed(3)).join(',');
+  const keySeg=(a,b)=>{const ka=keyPt(a), kb=keyPt(b); return (ka<kb)? ka+'|'+kb : kb+'|'+ka;};
+  const segMap=new Map();
+  for(const f of faces){
+    for(const side of ['top','right','bottom','left']){
+      const [A,B]=sideSeg(f,side);
+      const k=keySeg(A,B);
+      if(!segMap.has(k)) segMap.set(k,[]);
+      segMap.get(k).push({f,side});
+    }
+  }
+  const pairs=[];
+  for(const [k,arr] of segMap){ if(arr.length===2) pairs.push({A:arr[0],B:arr[1]}); }
+  return pairs;
+}
+function buildRoles(pairs, hasLid){
+  // 以詞序決定 A=male, B=female 的相位（只是「起頭相位不同」；兩者皆沿相同方向外伸/內吃）
+  const role = {
+    bottom:{top:'straight',right:'straight',bottom:'straight',left:'straight'},
+    front:{top:'straight',right:'straight',bottom:'straight',left:'straight'},
+    back:{top:'straight',right:'straight',bottom:'straight',left:'straight'},
+    left:{top:'straight',right:'straight',bottom:'straight',left:'straight'},
+    right:{top:'straight',right:'straight',bottom:'straight',left:'straight'},
+    top:{top:'straight',right:'straight',bottom:'straight',left:'straight'},
+  };
+  const key = x=> `${x.f}:${x.side}`;
+  for(const p of pairs){
+    const m = (key(p.A) < key(p.B)) ? p.A : p.B;
+    const f = (m===p.A)? p.B : p.A;
+    role[m.f][m.side]='male';
+    role[f.f][f.side]='female';
+  }
+  if(!hasLid){ for(const f of ['front','back','left','right']) role[f].top='straight'; }
+  return role;
+}
+
+// 邊向量（基準矩形座標系）
+function edgeVec(side){
+  if(side==='top')    return {t:[ 1, 0], n:[ 0,-1]}; // +n 往外（上邊由上往外）
+  if(side==='right')  return {t:[ 0, 1], n:[ 1, 0]};
+  if(side==='bottom') return {t:[-1, 0], n:[ 0, 1]};
+  if(side==='left')   return {t:[ 0,-1], n:[-1, 0]};
+  return {t:[1,0], n:[0,-1]};
+}
+
+// 依新規則生成邊折線：
+// mode='inner' → dir=+1（外伸）；mode='outer' → dir=-1（內吃）
+// male/female 僅控制相位（male 先伸、female 後伸），兩者都不再「往相反方向」。
+function edgePolyline(x,y,w,h, side, role, depth, N, mode){
+  const v=edgeVec(side); let cx,cy;
+  if(side==='top'){cx=x;      cy=y;}
+  if(side==='right'){cx=x+w;  cy=y;}
+  if(side==='bottom'){cx=x+w; cy=y+h;}
+  if(side==='left'){cx=x;     cy=y+h;}
+  const tx=v.t[0],ty=v.t[1], nx=v.n[0],ny=v.n[1];
+  const len = (side==='top'||side==='bottom')? w : h;
+  const step = len/(2*N+1);
+  const pts=[[cx,cy]];
+  const fw=(dx,dy,L)=>{ cx+=dx*L; cy+=dy*L; pts.push([cx,cy]); };
+  if(role==='straight'||N<=0){ // 保持直線
+    if(side==='top'){ fw(1,0,w); }
+    if(side==='right'){ fw(0,1,h); }
+    if(side==='bottom'){ fw(-1,0,w); }
+    if(side==='left'){ fw(0,-1,h); }
+    return pts;
+  }
+  const dir = (mode==='inner')? +1 : -1;
+  // 開頭先走半間距
+  fw(tx,ty, step);
+  for(let i=0;i<N;i++){
+    const doExtrude = (role==='male') ? (i%2===0) : (i%2===1);
+    if(doExtrude){ fw(nx,ny, dir*depth); }
+    fw(tx,ty, step);
+    if(doExtrude){ fw(-nx,-ny, dir*depth); }
+    fw(tx,ty, step);
+  }
+  return pts;
+}
+
+// 以「基準矩形」封閉路徑 + 齒形（單一路徑）
+function rectPath(face, dims, mode, t, kerf, fingers, role){
+  const base = faceRectBase(face, dims, mode);
+  const x=-base.u/2, y=-base.v/2, w=base.u, h=base.v;
+  const depth = (document.getElementById('depthMode').value==='equal'? t : (t+kerf));
+  const order=['top','right','bottom','left'];
+  let ptsAll=[];
+  function join(poly){
+    if(ptsAll.length){
+      const a=ptsAll[ptsAll.length-1], b=poly[0];
+      if(Math.hypot(a[0]-b[0], a[1]-b[1])<1e-6) poly=poly.slice(1);
+    }
+    ptsAll = ptsAll.concat(poly);
+  }
+  for(const side of order){
+    const poly = edgePolyline(x,y,w,h, side, role[face][side], depth, fingers, mode);
+    join(poly);
+  }
+  const fmt=n=>Number(n.toFixed(4));
+  const d = 'M '+fmt(ptsAll[0][0])+' '+fmt(ptsAll[0][1])+' '+ptsAll.slice(1).map(p=>'L '+fmt(p[0])+' '+fmt(p[1])).join(' ')+' Z';
+  return d;
+}
+
+// 小圖排版（無蓋：五片分離；有蓋：十字NET）
+function layoutRects(dims, mode, hasLid, fingers, t, kerf){
+  const depth = (document.getElementById('depthMode').value==='equal'? t : (t+kerf));
+  const faces = hasLid? ['bottom','front','right','back','left','top'] : ['bottom','front','back','left','right'];
+  const baseSize = f=>faceRectBase(f,dims,mode);
+  const needOutExtra = (mode==='inner'); // 內徑→齒向外：排版需預留外伸
+  const role = buildRoles(computeAdjPairs(dims, hasLid), hasLid);
+
+  function extras(f){
+    const r=role[f];
+    const edgeHasTooth = s => (r[s]!=='straight');
+    if(!needOutExtra) return {top:0,right:0,bottom:0,left:0};
+    return {
+      top:    edgeHasTooth('top')? depth:0,
+      right:  edgeHasTooth('right')? depth:0,
+      bottom: edgeHasTooth('bottom')? depth:0,
+      left:   edgeHasTooth('left')? depth:0,
+    };
+  }
+  if(hasLid){
+    // 十字 NET：以外形位置當參考，視覺較直覺
+    const L=dims.extL, W=dims.extW, H=dims.extH;
+    const M=10;
+    const xB=M+W, yB=M+H;
+    const rects={
+      bottom:{x:xB, y:yB, w:L, h:W, face:'bottom'},
+      front: {x:xB, y:yB-H, w:L, h:H, face:'front'},
+      back:  {x:xB, y:yB+W, w:L, h:H, face:'back'},
+      left:  {x:xB-W, y:yB, w:W, h:H, face:'left'},
+      right: {x:xB+L, y:yB, w:W, h:H, face:'right'},
+      top:   {x:xB, y:yB+W+H, w:L, h:W, face:'top'},
+    };
+    return {rects,role};
+  }else{
+    // 五片分離排版（外伸需加寬）
+    const tiles={};
+    for(const f of faces){
+      const b=baseSize(f); const e=extras(f);
+      const tw=b.u + (e.left + e.right);
+      const th=b.v + (e.top + e.bottom);
+      tiles[f]={w:tw,h:th,base:b,ex:e};
+    }
+    const gap=10, M=10;
+    const row1H=Math.max(tiles.bottom.h, tiles.front.h, tiles.back.h);
+    const row1W=tiles.bottom.w + gap + tiles.front.w + gap + tiles.back.w;
+    const row2H=Math.max(tiles.left.h, tiles.right.h);
+    const row2W=tiles.left.w + gap + tiles.right.w;
+    const x0=M, y0=M;
+    let x=x0, y=y0 + (row1H-tiles.bottom.h)/2;
+    const rects={};
+    rects.bottom={x:x, y:y, w:tiles.bottom.w, h:tiles.bottom.h, face:'bottom', base:tiles.bottom.base, ex:tiles.bottom.ex}; x+=tiles.bottom.w+gap;
+    y=y0 + (row1H-tiles.front.h)/2;
+    rects.front ={x:x, y:y, w:tiles.front.w, h:tiles.front.h, face:'front', base:tiles.front.base, ex:tiles.front.ex}; x+=tiles.front.w+gap;
+    y=y0 + (row1H-tiles.back.h)/2;
+    rects.back  ={x:x, y:y, w:tiles.back.w,  h:tiles.back.h,  face:'back',  base:tiles.back.base,  ex:tiles.back.ex};
+    x=x0; y=y0 + row1H + gap + (row2H-tiles.left.h)/2;
+    rects.left  ={x:x, y:y, w:tiles.left.w,  h:tiles.left.h,  face:'left',  base:tiles.left.base,  ex:tiles.left.ex}; x+=tiles.left.w+gap;
+    y=y0 + row1H + gap + (row2H-tiles.right.h)/2;
+    rects.right ={x:x, y:y, w:tiles.right.w, h:tiles.right.h, face:'right', base:tiles.right.base, ex:tiles.right.ex};
+    return {rects,role};
+  }
+}
+
+// === 3D / 迷你展開圖 ===
+function draw(){
+  const mode=$('dimMode').value, hasLid=$('hasLid').checked;
+  const L=+$('len').value, W=+$('wid').value, H=+$('hei').value, t=+$('thk').value;
+  const kerf=+$('kerf').value, fingers=(+$('fingers').value)|0;
+  const dims=computeDims(L,W,H,t,hasLid,mode);
+  $('dimInfo').textContent = `外形：${dims.extL.toFixed(1)}×${dims.extW.toFixed(1)}×${dims.extH.toFixed(1)} mm  ·  內空：${(Math.max(0,dims.intL)).toFixed(1)}×${(Math.max(0,dims.intW)).toFixed(1)}×${(Math.max(0,dims.intH)).toFixed(1)} mm`;
+  $('fingersVal').textContent = fingers;
+  $('extraInfo').textContent = `mode=${mode} · t=${t.toFixed(2)} · depth=${(document.getElementById('depthMode').value==='equal'?'t':('t+kerf'))}`;
+
+  // 畫 3D
+  const dpr=(window.devicePixelRatio||1);
+  const maxDim=Math.max(dims.extL,dims.extW,dims.extH);
+  scalePx = (Math.min(CW,CH)*0.40)/maxDim;
+  ctx.setTransform(1,0,0,1,0,0); ctx.clearRect(0,0,CW,CH);
+  // 背景格
+  ctx.save(); ctx.globalAlpha=0.12; ctx.strokeStyle='#9fb3c8'; const st=40*dpr; for(let x=(CW/2)%st; x<CW; x+=st){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,CH); ctx.stroke(); } for(let y=(CH/2)%st; y<CH; y+=st){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(CW,y); ctx.stroke(); } ctx.restore();
+
+  const faces = hasLid? ['back','front','bottom','top','right','left'] : ['back','front','bottom','right','left'];
+  const depth = (document.getElementById('depthMode').value==='equal'? t : (t+kerf));
+  const role = buildRoles(computeAdjPairs(dims, hasLid), hasLid);
+  const deltaSurf = (mode==='inner')? 0 : t; // 內徑：齒在外表面；外徑：齒在內表面
+
+  // 按遠近排序
+  const order=[];
+  for(const f of faces){
+    const P = uvTo3D(f,0,0,dims,0);
+    const R = rotX(rotY(P,cam.yaw),cam.pitch);
+    order.push({f,z:R[2]});
+  }
+  order.sort((a,b)=>a.z-b.z);
+
+  const showThk = document.getElementById('showThickness3D').checked;
+  const showTeeth = document.getElementById('showTeeth3D').checked;
+
+  for(const {f} of order){
+    const out = faceRectOuter(f,dims);
+    const base = faceRectBase(f,dims,mode);
+    // 外/內面四角
+    const oC=[[-out.u/2,out.v/2],[out.u/2,out.v/2],[out.u/2,-out.v/2],[-out.u/2,-out.v/2]].map(([u,v])=>project(rotX(rotY(uvTo3D(f,u,v,dims,0),cam.yaw),cam.pitch)));
+    const iC=[[-out.u/2,out.v/2],[out.u/2,out.v/2],[out.u/2,-out.v/2],[-out.u/2,-out.v/2]].map(([u,v])=>project(rotX(rotY(uvTo3D(f,u,v,dims,t),cam.yaw),cam.pitch)));
+    // 面
+    if(showThk){
+      ctx.beginPath(); ctx.moveTo(oC[0][0],oC[0][1]); for(let i=1;i<4;i++) ctx.lineTo(oC[i][0],oC[i][1]); ctx.closePath();
+      ctx.fillStyle='rgba(70,140,220,0.55)'; ctx.fill(); ctx.lineWidth=2; ctx.strokeStyle='rgba(230,245,255,0.95)'; ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(iC[0][0],iC[0][1]); for(let i=1;i<4;i++) ctx.lineTo(iC[i][0],iC[i][1]); ctx.closePath();
+      ctx.fillStyle='rgba(40,90,160,0.45)'; ctx.fill(); ctx.lineWidth=1.5; ctx.strokeStyle='rgba(200,225,255,0.7)'; ctx.stroke();
+      ctx.save(); ctx.lineWidth=2; ctx.strokeStyle='rgba(190,210,240,0.8)';
+      for(let i=0;i<4;i++){ ctx.beginPath(); ctx.moveTo(oC[i][0],oC[i][1]); ctx.lineTo(iC[i][0],iC[i][1]); ctx.stroke(); }
+      ctx.restore();
+    }else{
+      ctx.beginPath(); ctx.moveTo(oC[0][0],oC[0][1]); for(let i=1;i<4;i++) ctx.lineTo(oC[i][0],oC[i][1]); ctx.closePath();
+      ctx.fillStyle='rgba(60,130,210,0.55)'; ctx.fill(); ctx.lineWidth=2; ctx.strokeStyle='rgba(220,235,255,0.95)'; ctx.stroke();
+    }
+
+    if(showTeeth){
+      // 在「基準矩形」上描齒，並映到外/內表面
+      const x=-base.u/2, y=-base.v/2, w=base.u, h=base.v;
+      function drawEdge(side,color){
+        const poly = edgePolyline(x,y,w,h, side, role[f][side], depth, fingers, mode);
+        ctx.save(); ctx.beginPath();
+        let [u0,v0]=poly[0];
+        let P0 = project(rotX(rotY(uvTo3D(f,u0,v0,dims,deltaSurf),cam.yaw),cam.pitch));
+        ctx.moveTo(P0[0],P0[1]);
+        for(let i=1;i<poly.length;i++){
+          let [u,v]=poly[i];
+          let P = project(rotX(rotY(uvTo3D(f,u,v,dims,deltaSurf),cam.yaw),cam.pitch));
+          ctx.lineTo(P[0],P[1]);
+        }
+        ctx.strokeStyle=color; ctx.lineWidth=2; ctx.stroke(); ctx.restore();
+      }
+      const colMale='rgba(170,220,255,0.98)', colFem='rgba(255,220,170,0.98)';
+      if(role[f].top    !=='straight') drawEdge('top',    role[f].top   ==='male'?colMale:colFem);
+      if(role[f].right  !=='straight') drawEdge('right',  role[f].right ==='male'?colMale:colFem);
+      if(role[f].bottom !=='straight') drawEdge('bottom', role[f].bottom==='male'?colMale:colFem);
+      if(role[f].left   !=='straight') drawEdge('left',   role[f].left  ==='male'?colMale:colFem);
+    }
+  }
+
+  // 迷你展開圖
+  drawMini(dims, mode, hasLid, fingers, t, kerf);
+}
+
+function drawMini(dims, mode, hasLid, fingers, t, kerf){
+  const layout = layoutRects(dims, mode, hasLid, fingers, t, kerf);
+  const rects = layout.rects, role = layout.role;
+  const showBad = document.getElementById('showBad').checked;
+  const w=mini.width, h=mini.height; mctx.setTransform(1,0,0,1,0,0); mctx.clearRect(0,0,w,h);
+  const totalW = Math.max(...Object.values(rects).map(r=>r.x+r.w)) - Math.min(...Object.values(rects).map(r=>r.x));
+  const totalH = Math.max(...Object.values(rects).map(r=>r.y+r.h)) - Math.min(...Object.values(rects).map(r=>r.y));
+  const minX   = Math.min(...Object.values(rects).map(r=>r.x));
+  const minY   = Math.min(...Object.values(rects).map(r=>r.y));
+  const s=Math.min((w-6)/totalW, (h-6)/totalH); const ox=3, oy=3;
+  mctx.save(); mctx.translate(ox-minX*s, oy-minY*s); mctx.scale(s,s);
+  mctx.lineWidth = Math.max(1.0, 1.0/(window.devicePixelRatio||1));
+  mctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--accent') || '#8cc2ff';
+  const order = hasLid? ['bottom','front','right','back','left','top'] : ['bottom','front','back','left','right'];
+  for(const name of order){
+    const r = rects[name]; if(!r) continue;
+    const d = rectPath(name, dims, mode, t, kerf, fingers, role);
+    const p = new Path2D(d);
+    mctx.save(); mctx.translate(r.x + (r.ex?r.ex.left||0:0), r.y + (r.ex?r.ex.top||0:0)); mctx.stroke(p); mctx.restore();
+  }
+  // 簡單誤切線標示（只有內徑模式需要，因為有外伸）
+  if(showBad && mode==='inner' && !hasLid){
+    mctx.save(); mctx.setLineDash([6,4]); mctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--warn') || '#ff8080';
+    for(const name of order){
+      const r = rects[name]; if(!r) continue;
+      const ex = r.ex||{top:0,right:0,bottom:0,left:0};
+      // 四邊外框（代表可能的裁切基線位置）
+      mctx.strokeRect(r.x, r.y, r.w, r.h);
+    }
+    mctx.restore();
+  }
+  mctx.restore();
+}
+
+// === 匯出 ===
+function makeSVG(){
+  try{
+    const mode=$('dimMode').value, hasLid=$('hasLid').checked;
+    const L=+$('len').value, W=+$('wid').value, H=+$('hei').value, t=+$('thk').value;
+    const kerf=+$('kerf').value, fingers=(+$('fingers').value)|0;
+    const dims=computeDims(L,W,H,t,hasLid,mode);
+    const layout = layoutRects(dims, mode, hasLid, fingers, t, kerf);
+    const role = layout.role, rects = layout.rects;
+    const totalW = Math.max(...Object.values(rects).map(r=>r.x+r.w)) - Math.min(...Object.values(rects).map(r=>r.x));
+    const totalH = Math.max(...Object.values(rects).map(r=>r.y+r.h)) - Math.min(...Object.values(rects).map(r=>r.y));
+    const minX   = Math.min(...Object.values(rects).map(r=>r.x));
+    const minY   = Math.min(...Object.values(rects).map(r=>r.y));
+    const parts=[]; const labels=[];
+    const order = hasLid? ['bottom','front','right','back','left','top'] : ['bottom','front','back','left','right'];
+    for(const name of order){
+      const r=rects[name]; if(!r) continue;
+      const d = rectPath(name, dims, mode, t, kerf, fingers, role);
+      const tx = (r.x + (r.ex?r.ex.left||0:0)) - minX;
+      const ty = (r.y + (r.ex?r.ex.top||0:0))  - minY;
+      parts.push(`<path d="${d}" transform="translate(${tx.toFixed(3)},${ty.toFixed(3)})" data-closed="true"/>`);
+      labels.push(`<text x="${(tx + r.w/2).toFixed(3)}" y="${(ty + r.h/2).toFixed(3)}" dominant-baseline="middle" text-anchor="middle">${name}</text>`);
+    }
+    const svg = [
+      `<?xml version="1.0" encoding="UTF-8" standalone="no"?>`,
+      `<svg xmlns="http://www.w3.org/2000/svg" width="${(totalW).toFixed(3)}mm" height="${(totalH).toFixed(3)}mm" viewBox="0 0 ${(totalW).toFixed(3)} ${(totalH).toFixed(3)}">`,
+      `<g fill="none" stroke="#000" stroke-width="0.10" stroke-linejoin="miter" shape-rendering="geometricPrecision">`,
+      parts.join('\n'),
+      `</g>`,
+      `<g fill="#666" font-size="4" font-family="monospace">`,
+      labels.join('\n'),
+      `<text x="10" y="${(totalH-5).toFixed(3)}" font-size="3.2" fill="#333">caseMaker v0.33 · mode=${mode} · ext=${dims.extL.toFixed(1)}×${dims.extW.toFixed(1)}×${dims.extH.toFixed(1)}mm · t=${t.toFixed(2)} · fingers=${fingers}</text>`,
+      `</g>`,
+      `</svg>`
+    ].join('\n');
+
+    const fname = `caseMaker_v0.33_${mode}.svg`;
+    document.getElementById('svgText').style.display='block'; document.getElementById('svgText').value=svg;
+    let ok=false;
+    try{
+      const blob = new Blob([svg], {type:'image/svg+xml;charset=utf-8'});
+      const url = (window.URL||window.webkitURL).createObjectURL(blob);
+      const a = document.createElement('a'); a.href=url; a.download=fname; document.body.appendChild(a); a.click(); a.remove(); ok=true;
+      document.getElementById('info').innerHTML = `已下載：<span class="mono">${fname}</span>`;
+    }catch(e){}
+    if(!ok){
+      const dataUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+      const w = window.open(dataUrl,'_blank'); if(w){ document.getElementById('info').innerHTML='已在新分頁開啟 SVG，請另存。'; }
+    }
+    const dataUrlInline = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+    document.getElementById('links').innerHTML = `<a class="link" href="${dataUrlInline}" target="_blank" rel="noopener">在新分頁開啟</a> · <a class="link" href="${dataUrlInline}" download="${fname}" rel="noopener">直接下載</a>`;
+  }catch(e){
+    document.getElementById('info').innerHTML = `<span class="error">匯出失敗：${e?.message||e}</span>`;
+    console.error(e);
+  }
+}
+
+function drawOnceSized(){ resizeNow(); }
+['dimMode','len','wid','hei','thk','hasLid','fingers','kerf','depthMode','showBad','showTeeth3D','showThickness3D'].forEach(id=>{
+  $(id).addEventListener('input', draw);
+});
+$('btnReset').addEventListener('click', ()=>{ cam.yaw=Math.PI/6; cam.pitch=-Math.PI/7; cam.zoom=1.1; draw(); });
+$('btnSVG').addEventListener('click', makeSVG);
+if(document.readyState==='loading'){ document.addEventListener('DOMContentLoaded', drawOnceSized); } else { drawOnceSized(); }
+</script>
+</body>
+</html>
