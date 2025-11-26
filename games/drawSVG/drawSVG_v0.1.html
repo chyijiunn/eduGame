@@ -23,23 +23,16 @@
   input[type="range"]{accent-color:var(--accent)}
   .btn-danger{background:#1a0d12;border-color:#3a1622}
   .canvas-wrap{position:relative;display:grid;place-items:center;padding:10px}
-  svg#stage{
-    width:min(92vw,760px);
-    height:auto;
-    max-height:70vh;
-    background:
-      linear-gradient(transparent 31px, var(--line) 32px, transparent 33px),
-      linear-gradient(90deg, transparent 31px, var(--line) 32px, transparent 33px);
-    background-size:32px 32px,32px 32px;
-    border-radius:12px;border:1px solid var(--line);
-    color:#fff; /* 讓 currentColor = 白色（只影響預覽） */
-  }
+  svg#stage{width:min(92vw,760px);height:auto;max-height:70vh;background:
+    linear-gradient(transparent 31px, var(--line) 32px, transparent 33px),
+    linear-gradient(90deg, transparent 31px, var(--line) 32px, transparent 33px);
+    background-size:32px 32px,32px 32px;border-radius:12px;border:1px solid var(--line);color: #ffffff; }
   .handles circle{fill:var(--accent)}
   textarea#out{width:100%;min-height:160px;background:#0a1224;color:var(--text);
     border:1px solid var(--line);border-radius:10px;padding:10px}
   .hint{font-size:12px;color:var(--muted)}
 </style>
-<body><script src="/eduGame/ga4.js"></script>
+<body>
 <header>
   <h1>SVG 向量卡片圖示產生器</h1>
   <div class="muted">預設 viewBox= <code>0 0 64 64</code>，色彩採 <code>currentColor</code></div>
@@ -74,7 +67,7 @@
         <button id="export">匯出 SVG</button>
         <button id="copy">複製</button>
       </div>
-      <div class="hint">提示：滑鼠「按住左鍵拖曳」才會畫；放開停止。觸控可直接拖曳。橡皮擦點一下圖形即可刪除。</div>
+      <div class="hint">提示：按住元素拖曳可移動；選取後邊角把手可縮放。橡皮擦點一下欲刪除的圖形。</div>
     </div>
   </div>
 
@@ -117,9 +110,8 @@ let drawing = null;             // 目前正在畫的 element
 let poly = null;                // 筆刷暫存 path 資料
 let selected = null;            // 被選取的 element
 let dragState = null;           // 拖曳狀態
-let isPointerDown = false;      // 只有「按住」才畫
-
 /* ====== 工具列 ====== */
+const $ = sel => document.querySelector(sel);
 function toggle(btnId){
   ['tool-select','tool-pen','tool-rect','tool-circle','tool-eraser']
     .forEach(id => document.getElementById(id).classList.remove('toggled'));
@@ -152,15 +144,7 @@ function applyZoom(v){
 zoom.oninput = e => applyZoom(e.target.value);
 applyZoom(zoom.value);
 
-/* ====== 輔助：SVG 座標 ====== */
-function svgPoint(evt){
-  const pt = stage.createSVGPoint();
-  // 使用 viewport 座標，轉回 SVG 座標系
-  pt.x = evt.clientX; pt.y = evt.clientY;
-  return pt.matrixTransform(stage.getScreenCTM().inverse());
-}
-
-/* ====== 事件綁定（Pointer Events） ====== */
+/* ====== 工具行為（Pointer Events） ====== */
 stage.addEventListener('pointerdown', onDown);
 stage.addEventListener('pointermove', onMove);
 stage.addEventListener('pointerup',   onUp);
@@ -168,16 +152,18 @@ stage.addEventListener('pointercancel', onUp);
 stage.addEventListener('contextmenu', e=>e.preventDefault());
 stage.style.touchAction='none';
 
+function svgPoint(evt){
+  const pt = stage.createSVGPoint();
+  pt.x = evt.clientX;          // 用視窗座標
+  pt.y = evt.clientY;
+  // 轉成 SVG 的座標系（考慮到縮放/CSS 寬度）
+  return pt.matrixTransform(stage.getScreenCTM().inverse());
+}
+
+
 function onDown(e){
-  // 只接受主要指標；滑鼠需是左鍵
-  if (!e.isPrimary) return;
-  if (e.pointerType === 'mouse' && e.button !== 0) return;
-
-  isPointerDown = true;
   stage.setPointerCapture?.(e.pointerId);
-
   const p = svgPoint(e);
-
   if(tool==='eraser'){
     const target = pickTopElement(p);
     if(target) { target.remove(); deselect(); }
@@ -220,17 +206,13 @@ function onDown(e){
 }
 
 function onMove(e){
-  // 滑鼠：未按左鍵時不畫（防 hover 畫線）
-  if (e.pointerType==='mouse' && !(e.buttons & 1)) return;
-  if(!isPointerDown && (!dragState || dragState.mode!=='move')) return;
-
+  if(!dragState) return;
   const p = svgPoint(e);
-
-  if(dragState?.mode==='pen' && drawing){
+  if(dragState.mode==='pen' && drawing){
     poly += ` L ${p.x.toFixed(2)} ${p.y.toFixed(2)}`;
     drawing.setAttribute('d', poly);
   }
-  if(dragState?.mode==='rect' && drawing){
+  if(dragState.mode==='rect' && drawing){
     const x = Math.min(dragState.x0, p.x);
     const y = Math.min(dragState.y0, p.y);
     const w = Math.abs(p.x - dragState.x0);
@@ -238,31 +220,31 @@ function onMove(e){
     drawing.setAttribute('x', x); drawing.setAttribute('y', y);
     drawing.setAttribute('width', w); drawing.setAttribute('height', h);
   }
-  if(dragState?.mode==='circle' && drawing){
+  if(dragState.mode==='circle' && drawing){
     const r = Math.hypot(p.x - dragState.x0, p.y - dragState.y0);
     drawing.setAttribute('r', r);
   }
-  if(dragState?.mode==='move' && selected){
+  if(dragState.mode==='move' && selected){
     const dx = p.x - dragState.start.x;
     const dy = p.y - dragState.start.y;
     transformTo(selected, dragState.init.tx+dx, dragState.init.ty+dy, dragState.init.sx, dragState.init.sy);
     updateBox();
   }
-  if(dragState?.mode?.startsWith('scale:') && selected){
+  if(dragState.mode?.startsWith('scale:') && selected){
     const which = dragState.mode.split(':')[1];
     scaleFromHandle(selected, which, p);
     updateBox();
   }
 }
 
-function onUp(e){
-  isPointerDown = false;
+function onUp(){
   stage.releasePointerCapture?.(e.pointerId);
   drawing = null; poly = null; dragState = null;
 }
 
 /* ====== 選取/框線/把手 ====== */
 function pickTopElement(p){
+  // 依序檢查 art 子節點（從尾到頭，視覺頂層優先）
   const nodes = Array.from(art.children);
   for(let i=nodes.length-1;i>=0;i--){
     const el = nodes[i];
@@ -273,7 +255,7 @@ function pickTopElement(p){
 function hit(el, p){
   try{
     const bb = el.getBBox();
-    const pad = Math.max(1.5, strokeWidth);
+    const pad = Math.max(1.5, strokeWidth); // 擴大命中
     return p.x >= bb.x-pad && p.x <= bb.x+bb.width+pad && p.y >= bb.y-pad && p.y <= bb.y+bb.height+pad;
   }catch(e){ return false; }
 }
@@ -284,11 +266,10 @@ function select(el){
   bboxR.setAttribute('width', bb.width); bboxR.setAttribute('height', bb.height);
   positionHandles(bb);
   box.setAttribute('display','inline');
+  // 綁定把手拖曳
   for(const [k,c] of Object.entries(handles)){
     c.onpointerdown = ev => {
       ev.stopPropagation();
-      if (ev.pointerType === 'mouse' && ev.button !== 0) return;
-      isPointerDown = true;
       const p = svgPoint(ev);
       dragState = {mode:'scale:'+k, start:p, initBB: el.getBBox(), init: getPos(el)};
     };
@@ -326,6 +307,7 @@ function transformTo(el, tx, ty, sx=1, sy=1){
 }
 function scaleFromHandle(el, which, p){
   const bb0 = dragState.initBB;
+  // 以對向角作錨點，做非等比縮放
   const anchors = { nw:[bb0.x+bb0.width, bb0.y+bb0.height],
                     ne:[bb0.x,           bb0.y+bb0.height],
                     sw:[bb0.x+bb0.width, bb0.y],
@@ -333,11 +315,14 @@ function scaleFromHandle(el, which, p){
   const [ax, ay] = anchors[which];
   const sx = (p.x - ax) / (bb0.x - ax || 1);
   const sy = (p.y - ay) / (bb0.y - ay || 1);
+  // 移動到錨點，縮放，再移回
+  const cx = ax, cy = ay;
+  const tr = stage.createSVGTransform();
   const m = stage.createSVGMatrix()
-            .translate(ax,ay)
+            .translate(cx,cy)
             .scaleNonUniform(sx, sy)
-            .translate(-ax,-ay);
-  const tr = stage.createSVGTransform(); tr.setMatrix(m);
+            .translate(-cx,-cy);
+  tr.setMatrix(m);
   el.transform.baseVal.initialize(tr);
 }
 
@@ -353,8 +338,11 @@ document.getElementById('copy').onclick   = ()=>{
 };
 
 function exportSVG(){
+  // 匯出時：把目前群組 stroke-width 同步到控制器
   art.setAttribute('stroke-width', strokeWidth);
+  // 複製一份乾淨的內容
   const clone = art.cloneNode(true);
+  // 移除 transform 的矩形框（僅有圖形節點在 art 中，不含 box）
   const svg = `<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">\n  ${clone.outerHTML}\n</svg>`;
   document.getElementById('out').value = svg;
 }
