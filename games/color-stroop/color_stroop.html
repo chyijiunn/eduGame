@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <title>顏色干擾記憶小遊戲</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: #1e293b;
+      color: #e5e7eb;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans TC", sans-serif;
+    }
+    .game-container {
+      background: #0f172a;
+      border-radius: 16px;
+      padding: 24px 20px;
+      width: min(420px, 92vw);
+      box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+    }
+    h1 {
+      font-size: 22px;
+      margin: 0 0 12px;
+      text-align: center;
+    }
+    .status-bar {
+      display: flex;
+      justify-content: space-between;
+      font-size: 14px;
+      margin-bottom: 12px;
+      opacity: 0.85;
+    }
+    .question-box {
+      margin: 16px 0 20px;
+      padding: 20px;
+      border-radius: 12px;
+      background: #020617;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 90px;
+    }
+    .question-text {
+      font-size: 32px;
+      font-weight: 700;
+      letter-spacing: 4px;
+    }
+    .options {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    .option-btn, .main-btn {
+      border: none;
+      border-radius: 999px;
+      padding: 10px 14px;
+      font-size: 16px;
+      cursor: pointer;
+      background: #1f2937;
+      color: #e5e7eb;
+      transition: transform 0.1s ease, box-shadow 0.1s ease, background 0.15s ease, opacity 0.15s ease;
+    }
+    .option-btn:active, .main-btn:active {
+      transform: scale(0.96);
+      box-shadow: 0 0 0 rgba(0,0,0,0);
+    }
+    .option-btn:hover, .main-btn:hover {
+      background: #374151;
+    }
+    .option-btn.disabled {
+      opacity: 0.4;
+      pointer-events: none;
+    }
+    .main-btn {
+      width: 100%;
+      margin-top: 4px;
+      background: #16a34a;
+    }
+    .main-btn:hover {
+      background: #22c55e;
+    }
+    .message {
+      min-height: 22px;
+      text-align: center;
+      font-size: 15px;
+      margin-top: 4px;
+    }
+    .correct {
+      color: #4ade80;
+    }
+    .wrong {
+      color: #f97373;
+    }
+    .hint-text {
+      font-size: 13px;
+      text-align: center;
+      opacity: 0.7;
+      margin-top: 4px;
+    }
+  </style>
+</head>
+<body>
+  <div class="game-container">
+    <h1>顏色干擾小測驗</h1>
+    <div class="status-bar">
+      <div>題目：<span id="round">0</span> / 10</div>
+      <div>分數：<span id="score">0</span></div>
+    </div>
+
+    <div class="question-box">
+      <span id="question" class="question-text">按下開始</span>
+    </div>
+
+    <div class="options">
+      <button class="option-btn" data-index="0"></button>
+      <button class="option-btn" data-index="1"></button>
+      <button class="option-btn" data-index="2"></button>
+      <button class="option-btn" data-index="3"></button>
+    </div>
+
+    <button id="startBtn" class="main-btn">開始遊戲</button>
+    <div class="message" id="message"></div>
+    <div class="hint-text">玩法：看上面文字「顏色」，選出正確的顏色名稱，而不是看文字寫什麼。</div>
+  </div>
+
+  <script>
+    const COLORS = [
+      { name: '紅色', css: 'red' },
+      { name: '藍色', css: 'blue' },
+      { name: '綠色', css: 'limegreen' },
+      { name: '黃色', css: 'gold' },
+      { name: '黑色', css: 'black' }
+    ];
+
+    const TOTAL_ROUNDS = 10;
+
+    const roundSpan = document.getElementById('round');
+    const scoreSpan = document.getElementById('score');
+    const questionSpan = document.getElementById('question');
+    const messageDiv = document.getElementById('message');
+    const startBtn = document.getElementById('startBtn');
+    const optionButtons = Array.from(document.querySelectorAll('.option-btn'));
+
+    let currentRound = 0;
+    let score = 0;
+    let answerColorIndex = null;
+    let isAccepting = false;
+    let startTime = null;
+
+    function shuffle(array) {
+      for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+      }
+      return array;
+    }
+
+    function startGame() {
+      currentRound = 0;
+      score = 0;
+      scoreSpan.textContent = score;
+      messageDiv.textContent = '';
+      startBtn.textContent = '作答中…';
+      startBtn.disabled = true;
+      startBtn.style.opacity = '0.6';
+      startTime = Date.now();
+      nextQuestion();
+    }
+
+    function nextQuestion() {
+      currentRound++;
+      if (currentRound > TOTAL_ROUNDS) {
+        endGame();
+        return;
+      }
+
+      roundSpan.textContent = currentRound;
+      messageDiv.textContent = '';
+
+      // 隨機選字的實際顏色 & 顯示文字（兩者不同）
+      const actualIndex = Math.floor(Math.random() * COLORS.length);
+      let wordIndex;
+      do {
+        wordIndex = Math.floor(Math.random() * COLORS.length);
+      } while (wordIndex === actualIndex);
+
+      answerColorIndex = actualIndex;
+
+      // 題目顯示
+      questionSpan.textContent = COLORS[wordIndex].name;
+      questionSpan.style.color = COLORS[actualIndex].css;
+
+      // 選項：包含正確顏色 + 其他隨機顏色，總共4個
+      let optionIndices = [actualIndex];
+      while (optionIndices.length < 4 && optionIndices.length < COLORS.length) {
+        const idx = Math.floor(Math.random() * COLORS.length);
+        if (!optionIndices.includes(idx)) optionIndices.push(idx);
+      }
+      optionIndices = shuffle(optionIndices);
+
+      optionButtons.forEach((btn, i) => {
+        if (i < optionIndices.length) {
+          const idx = optionIndices[i];
+          btn.textContent = COLORS[idx].name;
+          btn.dataset.colorIndex = idx;
+          btn.classList.remove('disabled');
+          btn.style.visibility = 'visible';
+        } else {
+          btn.textContent = '';
+          btn.dataset.colorIndex = '';
+          btn.classList.add('disabled');
+          btn.style.visibility = 'hidden';
+        }
+      });
+
+      isAccepting = true;
+    }
+
+    function handleOptionClick(e) {
+      if (!isAccepting) return;
+      const btn = e.currentTarget;
+      const chosenIndex = parseInt(btn.dataset.colorIndex, 10);
+      if (Number.isNaN(chosenIndex)) return;
+
+      isAccepting = false;
+
+      if (chosenIndex === answerColorIndex) {
+        score++;
+        scoreSpan.textContent = score;
+        messageDiv.textContent = '✔ 正確！';
+        messageDiv.className = 'message correct';
+      } else {
+        const correctName = COLORS[answerColorIndex].name;
+        messageDiv.textContent = '✘ 錯誤，正確答案是「' + correctName + '」。';
+        messageDiv.className = 'message wrong';
+      }
+
+      optionButtons.forEach(b => b.classList.add('disabled'));
+
+      setTimeout(() => {
+        nextQuestion();
+      }, 700);
+    }
+
+    function endGame() {
+      const totalSec = ((Date.now() - startTime) / 1000).toFixed(2);
+      questionSpan.textContent = '完成！';
+      questionSpan.style.color = '#e5e7eb';
+      messageDiv.className = 'message';
+      messageDiv.textContent = `你在 ${TOTAL_ROUNDS} 題中答對 ${score} 題，總共花了 ${totalSec} 秒。`;
+      startBtn.textContent = '再玩一次';
+      startBtn.disabled = false;
+      startBtn.style.opacity = '1';
+      isAccepting = false;
+    }
+
+    startBtn.addEventListener('click', startGame);
+    optionButtons.forEach(btn => btn.addEventListener('click', handleOptionClick));
+  </script>
+</body>
+</html>
