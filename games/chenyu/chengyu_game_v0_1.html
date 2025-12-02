@@ -1,0 +1,774 @@
+
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <title>成語尋找小遊戲 v0.1</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "PingFang TC",
+        "Noto Sans CJK TC", "Microsoft JhengHei", sans-serif;
+      background: #f5f1e6;
+      color: #222;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+    }
+    .app {
+      width: 100%;
+      max-width: 960px;
+      padding: 16px;
+    }
+    .card {
+      background: #faf7f0;
+      border-radius: 16px;
+      box-shadow: 0 18px 45px rgba(0,0,0,0.12);
+      padding: 18px 18px 20px;
+      border: 1px solid rgba(0,0,0,0.05);
+      position: relative;
+      overflow: hidden;
+    }
+    .card::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background-image:
+        radial-gradient(circle at 10% 20%, rgba(0,0,0,0.05) 0, transparent 50%),
+        radial-gradient(circle at 80% 80%, rgba(0,0,0,0.06) 0, transparent 55%);
+      mix-blend-mode: multiply;
+      opacity: 0.9;
+      pointer-events: none;
+    }
+    .card-inner {
+      position: relative;
+      z-index: 1;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+      gap: 10px;
+    }
+    .title-group {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .title {
+      font-size: 1.3rem;
+      letter-spacing: 0.12em;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .ink-stamp {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2px 8px 4px;
+      border: 2px solid #b21f2d;
+      color: #b21f2d;
+      font-size: 0.9rem;
+      letter-spacing: 0.3em;
+      border-radius: 4px;
+      transform: rotate(-4deg);
+      font-weight: 600;
+    }
+    .subtitle {
+      font-size: 0.88rem;
+      color: #555;
+    }
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: flex-end;
+    }
+    button {
+      border: none;
+      border-radius: 999px;
+      padding: 6px 14px;
+      font-size: 0.9rem;
+      cursor: pointer;
+      background: #222;
+      color: #f8f7f4;
+      letter-spacing: 0.04em;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: transform 0.12s ease, box-shadow 0.12s ease, background 0.12s;
+      box-shadow: 0 8px 18px rgba(0,0,0,0.18);
+      position: relative;
+      overflow: hidden;
+    }
+    button::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at 0 0, rgba(255,255,255,0.35) 0, transparent 55%);
+      mix-blend-mode: screen;
+      opacity: 0.4;
+      pointer-events: none;
+    }
+    button.secondary {
+      background: transparent;
+      color: #333;
+      box-shadow: none;
+      border: 1px solid rgba(0,0,0,0.18);
+    }
+    button:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 10px 26px rgba(0,0,0,0.26);
+    }
+    button:active {
+      transform: translateY(0);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    }
+    main {
+      display: grid;
+      grid-template-columns: minmax(0, 2fr) minmax(0, 1.4fr);
+      gap: 18px;
+    }
+    @media (max-width: 720px) {
+      main {
+        grid-template-columns: 1fr;
+      }
+    }
+    .board-wrapper {
+      background: rgba(255,255,255,0.55);
+      border-radius: 14px;
+      padding: 10px;
+      border: 1px solid rgba(0,0,0,0.06);
+      position: relative;
+      overflow: hidden;
+    }
+    .board-wrapper::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(120deg, rgba(0,0,0,0.04) 1px, transparent 1px),
+        linear-gradient(210deg, rgba(0,0,0,0.03) 1px, transparent 1px);
+      background-size: 10px 10px;
+      mix-blend-mode: multiply;
+      opacity: 0.5;
+      pointer-events: none;
+    }
+    .board {
+      position: relative;
+      z-index: 1;
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 4px;
+      aspect-ratio: 1 / 1;
+    }
+    .cell {
+      background: #fdfaf4;
+      border-radius: 8px;
+      border: 1px solid rgba(0,0,0,0.08);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: clamp(1.1rem, 2.1vw, 1.6rem);
+      cursor: pointer;
+      user-select: none;
+      position: relative;
+      overflow: hidden;
+      transition: background 0.12s ease, transform 0.08s ease,
+        box-shadow 0.12s ease, border-color 0.12s ease;
+    }
+    .cell::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at 30% 20%, rgba(0,0,0,0.04) 0, transparent 56%);
+      opacity: 0.9;
+      pointer-events: none;
+    }
+    .cell span {
+      position: relative;
+      z-index: 1;
+      transform: translateY(-1px);
+    }
+    .cell:hover {
+      background: #f4efe4;
+      box-shadow: 0 3px 9px rgba(0,0,0,0.12);
+      transform: translateY(-1px);
+    }
+    .cell.selected {
+      background: #f3e4c4;
+      border-color: #c98b3f;
+      box-shadow: 0 0 0 2px rgba(201,139,63,0.4);
+    }
+    .cell.found {
+      background: #e3f0db;
+      border-color: #5d8c53;
+      box-shadow: 0 0 0 2px rgba(93,140,83,0.5);
+    }
+    .cell.found span {
+      text-shadow: 0 0 1px rgba(0,0,0,0.4);
+    }
+    .side-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .section-title {
+      font-size: 0.92rem;
+      letter-spacing: 0.18em;
+      color: #555;
+      border-left: 4px solid #b21f2d;
+      padding-left: 8px;
+    }
+    .status {
+      font-size: 0.9rem;
+      color: #444;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .status-line {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .status-pill {
+      padding: 3px 9px;
+      border-radius: 999px;
+      background: rgba(0,0,0,0.03);
+      font-size: 0.8rem;
+      color: #555;
+    }
+    .target-list {
+      background: rgba(255,255,255,0.7);
+      border-radius: 12px;
+      padding: 8px;
+      border: 1px solid rgba(0,0,0,0.06);
+      font-size: 0.9rem;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+    .target-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+    }
+    .target-idiom {
+      font-weight: 500;
+      letter-spacing: 0.18em;
+    }
+    .target-status {
+      font-size: 0.8rem;
+      padding: 2px 8px;
+      border-radius: 999px;
+      border: 1px solid transparent;
+    }
+    .target-status.found {
+      border-color: rgba(93,140,83,0.7);
+      color: #3d6d34;
+      background: #e6f3e0;
+    }
+    .target-status.not-found {
+      border-color: rgba(0,0,0,0.14);
+      color: #666;
+      background: rgba(255,255,255,0.6);
+    }
+    .log {
+      font-size: 0.86rem;
+      background: rgba(255,255,255,0.8);
+      border-radius: 10px;
+      padding: 8px 10px;
+      border: 1px solid rgba(0,0,0,0.05);
+      max-height: 140px;
+      overflow-y: auto;
+    }
+    .log-entry {
+      margin-bottom: 4px;
+      line-height: 1.5;
+    }
+    .log-entry:last-child {
+      margin-bottom: 0;
+    }
+    .log-entry small {
+      color: #888;
+      font-size: 0.74rem;
+      margin-right: 4px;
+    }
+    .hint {
+      font-size: 0.78rem;
+      color: #777;
+      line-height: 1.5;
+    }
+    .hint kbd {
+      background: rgba(0,0,0,0.05);
+      border-radius: 4px;
+      padding: 1px 4px;
+      font-size: 0.78rem;
+      border: 1px solid rgba(0,0,0,0.08);
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="card">
+      <div class="card-inner">
+        <header class="header">
+          <div class="title-group">
+            <div class="title">
+              <span>成語尋墨</span>
+              <span class="ink-stamp">小遊戲</span>
+            </div>
+            <div class="subtitle">在七乘七的墨色棋盤裡，找出系統藏好的三個四字成語。</div>
+          </div>
+          <div class="controls">
+            <button id="btn-new"><span>重新洗牌</span> <span>↻</span></button>
+            <button id="btn-check"><span>檢查答案</span> <span>✔</span></button>
+            <button id="btn-clear" class="secondary"><span>清除選取</span></button>
+          </div>
+        </header>
+        <main>
+          <section class="board-wrapper">
+            <div id="board" class="board" aria-label="成語棋盤"></div>
+          </section>
+          <aside class="side-panel">
+            <div>
+              <div class="section-title">本局目標</div>
+              <div class="status">
+                <div class="status-line">
+                  <div class="status-pill">
+                    🎯 目標：請在棋盤中找出 <strong>3 個四字成語</strong>。
+                  </div>
+                  <div class="status-pill" id="status-found-count">
+                    已找到 0 / 3
+                  </div>
+                </div>
+              </div>
+              <div id="targetList" class="target-list"></div>
+            </div>
+            <div>
+              <div class="section-title">操作說明</div>
+              <p class="hint">
+                點擊字格即可選取。請沿著<strong>同一條直線</strong>依序選取
+                <strong>四個連續的字</strong>（可水平、垂直、斜向）。<br>
+                每湊成一組四字，系統就會自動判斷是否為成語。
+              </p>
+            </div>
+            <div>
+              <div class="section-title">紀錄 & 訊息</div>
+              <div id="log" class="log" aria-live="polite"></div>
+            </div>
+          </aside>
+        </main>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ======== 成語庫（常見四字成語，約 300 則） ========
+    const IDIOM_POOL = [
+      "一心一意","一見鍾情","一鳴驚人","一落千丈","一帆風順","一成不變","一暴十寒","一舉兩得",
+      "一清二楚","一絲不苟","一無所有","一無是處","一望無際","一箭雙鵰","一塵不染","一呼百應",
+      "一意孤行","一拍即合","一波三折","一本正經","一日千里","一舉成名","一勞永逸","一夫當關",
+      "一馬當先","一鼓作氣","一貫到底","一網打盡","一本萬利","一清如水","一觸即發","一見如故",
+      "一言九鼎","一言難盡","一言不發","一籌莫展","一落千金","一如既往","一刻千金","一念之差",
+      "自相矛盾","自作自受","自暴自棄","自食其果","自給自足","自得其樂","自以為是","自強不息",
+      "自命不凡","自出機杼","自投羅網","自作聰明","自顧不暇","自知之明","自圓其說","自成一格",
+      "刻苦耐勞","刻不容緩","刻骨銘心","刻舟求劍","刻畫入微","刻意經營","刻骨銘刻","刻舟求鑑",
+      "狐假虎威","虎視眈眈","虎頭蛇尾","狼狽為奸","狼吞虎嚥","鶴立雞群","畫蛇添足","畫龍點睛",
+      "守株待兔","杯弓蛇影","指鹿為馬","葉公好龍","班門弄斧","盲人摸象","亡羊補牢","掩耳盜鈴",
+      "東施效顰","南轅北轍","刻舟求劍","緣木求魚","守口如瓶","守望相助","守身如玉","守正不阿",
+      "守株待兔","坐井觀天","杞人憂天","閉門造車","紙上談兵","畫地為牢","井底之蛙","臨渴掘井",
+      "愚公移山","精衛填海","望梅止渴","指桑罵槐","對牛彈琴","如魚得水","如虎添翼","如日中天",
+      "如火如荼","如夢初醒","如膠似漆","如雷貫耳","如影隨形","如願以償","如飲甘霖","如坐針氈",
+      "守株待兔","守口如瓶","守望相助","守正不阿","安然無恙","安居樂業","安貧樂道","安之若素",
+      "安然無恙","安分守己","安土重遷","安然自若","刻骨銘心","銘記在心","牢記在心","念念不忘",
+      "念茲在茲","歷歷在目","浮光掠影","走馬看花","走投無路","走馬上任","走火入魔","走南闖北",
+      "身不由己","身臨其境","身體力行","身心俱疲","身敗名裂","名列前茅","名不虛傳","名副其實",
+      "名正言順","名揚四海","名垂千古","名落孫山","名利雙收","名實相符","名聞遐邇","名重一時",
+      "百發百中","百聞不如一見","百依百順","百思不解","百折不撓","百戰百勝","百花齊放","百家爭鳴",
+      "百無聊賴","百感交集","千辛萬苦","千方百計","千軍萬馬","千奇百怪","千變萬化","千載難逢",
+      "千言萬語","千頭萬緒","千篇一律","千呼萬喚","千絲萬縷","千山萬水","千差萬別","千錘百鍊",
+      "天羅地網","天南地北","天馬行空","天下無雙","天下太平","天下大亂","天下無敵","天經地義",
+      "天翻地覆","天衣無縫","天長地久","天涯海角","天災人禍","天作之合","天倫之樂","天壤之別",
+      "心花怒放","心滿意足","心安理得","心猿意馬","心神不寧","心力交瘁","心靈手巧","心照不宣",
+      "心馳神往","心領神會","心直口快","心口不一","心狠手辣","心平氣和","心事重重","心不在焉",
+      "手舞足蹈","手忙腳亂","手足無措","手不釋卷","手眼通天","手到擒來","手無寸鐵","手下留情",
+      "日新月異","日以繼夜","日積月累","日久生情","日暮途窮","日薄西山","日理萬機","日月如梭",
+      "月黑風高","月圓花好","月白風清","月下老人","月明星稀","月滿則虧","月異星移","月朗星稀",
+      "春風化雨","春暖花開","春意盎然","春華秋實","春色滿園","春風滿面","春秋筆法","春寒料峭",
+      "夏日炎炎","夏蟲語冰","秋高氣爽","秋風落葉","秋水共長天一色","秋毫不犯","秋雨綿綿","秋收冬藏",
+      "冬去春來","冬暖夏涼","寒來暑往","風和日麗","風雨交加","風雨飄搖","風起雲湧","風平浪靜",
+      "風生水起","風花雪月","風調雨順","風聲鶴唳","風馬牛不相及","風雨同舟","風姿綽約","風度翩翩",
+      "高山流水","高瞻遠矚","高談闊論","高不可攀","高枕無憂","高朋滿座","高低起伏","高風亮節",
+      "成千上萬","成人之美","成王敗寇","成竹在胸","成敗得失","成功在望","成家立業","成群結隊",
+      "家喻戶曉","家徒四壁","家常便飯","家學淵源","家破人亡","家給人足","家道中落","家財萬貫",
+      "無中生有","無獨有偶","無所不在","無所適從","無所事事","無可奈何","無可救藥","無懈可擊",
+      "無微不至","無邊無際","無聲無息","無疾而終","無時無刻","無法無天","無憂無慮","無動於衷",
+      "樂此不疲","樂善好施","樂在其中","樂不思蜀","樂極生悲","樂觀其成","樂而忘憂","樂觀進取",
+      "苦口婆心","苦不堪言","苦盡甘來","苦中作樂","苦心孤詣","苦思冥想","苦大仇深","苦海無邊",
+      "甜言蜜語","痛改前非","痛哭流涕","痛心疾首","痛徹心扉","痛定思痛","痛快淋漓","痛入骨髓",
+      "冷若冰霜","冷嘲熱諷","冷眼旁觀","冷靜思考","冷暖自知","冷水澆頭","冷語冰人","冷若冰雪",
+      "熱淚盈眶","熱心助人","熱火朝天","熱血沸騰","熱情洋溢","熱鍋上螞蟻","熱淚縱橫","熱氣騰騰",
+      "喜出望外","喜上眉梢","喜怒無常","喜怒哀樂","喜氣洋洋","喜聞樂見","喜新厭舊","喜不自勝",
+      "悲天憫人","悲歡離合","悲痛欲絕","悲喜交集","愁眉苦臉","愁雲慘霧","愁腸百結","愁思綿綿"
+    ];
+
+    const BOARD_SIZE = 7;
+    const IDIOMS_PER_ROUND = 3;
+    const IDIOM_LENGTH = 4;
+
+    let grid = [];
+    let targetIdioms = [];
+    let targetIdiomsCells = []; // array of arrays of {r,c}
+    let selectedCells = [];     // array of {r,c}
+    let foundIdioms = [];       // strings
+    let foundIdiomsCells = [];  // array of arrays of {r,c}
+
+    const boardEl = document.getElementById('board');
+    const targetListEl = document.getElementById('targetList');
+    const logEl = document.getElementById('log');
+    const statusFoundCountEl = document.getElementById('status-found-count');
+
+    function log(message) {
+      const time = new Date();
+      const hh = time.getHours().toString().padStart(2,'0');
+      const mm = time.getMinutes().toString().padStart(2,'0');
+      const entry = document.createElement('div');
+      entry.className = 'log-entry';
+      entry.innerHTML = `<small>${hh}:${mm}</small>${message}`;
+      logEl.appendChild(entry);
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    function randInt(max) {
+      return Math.floor(Math.random() * max);
+    }
+
+    function shuffleArray(arr) {
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+      return arr;
+    }
+
+    function pickRandomIdioms(n) {
+      const copy = [...IDIOM_POOL];
+      shuffleArray(copy);
+      const picked = [];
+      const seen = new Set();
+      for (const idiom of copy) {
+        if (idiom.length === IDIOM_LENGTH && !seen.has(idiom)) {
+          picked.push(idiom);
+          seen.add(idiom);
+          if (picked.length >= n) break;
+        }
+      }
+      return picked;
+    }
+
+    function initEmptyGrid() {
+      grid = [];
+      for (let r = 0; r < BOARD_SIZE; r++) {
+        const row = [];
+        for (let c = 0; c < BOARD_SIZE; c++) {
+          row.push({ char: "", isTarget: false });
+        }
+        grid.push(row);
+      }
+    }
+
+    function placeIdioms() {
+      targetIdiomsCells = [];
+      const directions = [
+        { dr: 0, dc: 1 },
+        { dr: 0, dc: -1 },
+        { dr: 1, dc: 0 },
+        { dr: -1, dc: 0 },
+        { dr: 1, dc: 1 },
+        { dr: 1, dc: -1 },
+        { dr: -1, dc: 1 },
+        { dr: -1, dc: -1 }
+      ];
+      for (const idiom of targetIdioms) {
+        let placed = false;
+        let attempts = 0;
+        while (!placed && attempts < 200) {
+          attempts++;
+          const dir = directions[randInt(directions.length)];
+          const dr = dir.dr;
+          const dc = dir.dc;
+          const maxRowStart = BOARD_SIZE - 1 - dr * (IDIOM_LENGTH - 1);
+          const minRowStart = 0 - Math.min(0, dr * (IDIOM_LENGTH - 1));
+          const maxColStart = BOARD_SIZE - 1 - dc * (IDIOM_LENGTH - 1);
+          const minColStart = 0 - Math.min(0, dc * (IDIOM_LENGTH - 1));
+          const rowStart = randInt(maxRowStart - minRowStart + 1) + minRowStart;
+          const colStart = randInt(maxColStart - minColStart + 1) + minColStart;
+
+          const cells = [];
+          let ok = true;
+          for (let i = 0; i < IDIOM_LENGTH; i++) {
+            const r = rowStart + dr * i;
+            const c = colStart + dc * i;
+            if (r < 0 || r >= BOARD_SIZE || c < 0 || c >= BOARD_SIZE) {
+              ok = false;
+              break;
+            }
+            const ch = idiom[i];
+            const existing = grid[r][c].char;
+            if (existing && existing !== ch) {
+              ok = false;
+              break;
+            }
+            cells.push({ r, c, ch });
+          }
+          if (!ok) continue;
+          for (const cell of cells) {
+            grid[cell.r][cell.c].char = cell.ch;
+            grid[cell.r][cell.c].isTarget = true;
+          }
+          targetIdiomsCells.push(cells.map(({ r, c }) => ({ r, c })));
+          placed = true;
+        }
+        if (!placed) {
+          log(`⚠ 無法成功擺入成語「${idiom}」，本局可能只會有部分成語。`);
+        }
+      }
+    }
+
+    function collectAllCharsFromIdioms() {
+      const chars = new Set();
+      for (const idiom of IDIOM_POOL) {
+        for (const ch of idiom) {
+          chars.add(ch);
+        }
+      }
+      return Array.from(chars);
+    }
+
+    const FILLER_CHARS = collectAllCharsFromIdioms();
+
+    function fillRemainingCells() {
+      for (let r = 0; r < BOARD_SIZE; r++) {
+        for (let c = 0; c < BOARD_SIZE; c++) {
+          if (!grid[r][c].char) {
+            const ch = FILLER_CHARS[randInt(FILLER_CHARS.length)];
+            grid[r][c].char = ch;
+          }
+        }
+      }
+    }
+
+    function renderBoard() {
+      boardEl.innerHTML = "";
+      for (let r = 0; r < BOARD_SIZE; r++) {
+        for (let c = 0; c < BOARD_SIZE; c++) {
+          const cellEl = document.createElement('div');
+          cellEl.className = 'cell';
+          cellEl.dataset.row = String(r);
+          cellEl.dataset.col = String(c);
+          const span = document.createElement('span');
+          span.textContent = grid[r][c].char || "□";
+          cellEl.appendChild(span);
+
+          cellEl.addEventListener('click', () => handleCellClick(r, c));
+
+          boardEl.appendChild(cellEl);
+        }
+      }
+      updateFoundHighlights();
+    }
+
+    function sameCell(a, b) {
+      return a.r === b.r && a.c === b.c;
+    }
+
+    function handleCellClick(r, c) {
+      const idx = selectedCells.findIndex(cell => cell.r === r && cell.c === c);
+      if (idx >= 0) {
+        selectedCells.splice(idx, 1);
+      } else {
+        if (selectedCells.length >= IDIOM_LENGTH) {
+          selectedCells = [];
+        }
+        selectedCells.push({ r, c });
+      }
+      updateSelectionHighlights();
+      if (selectedCells.length === IDIOM_LENGTH) {
+        trySubmitSelection();
+      }
+    }
+
+    function updateSelectionHighlights() {
+      const cellEls = boardEl.querySelectorAll('.cell');
+      cellEls.forEach(el => {
+        el.classList.remove('selected');
+      });
+      for (const sel of selectedCells) {
+        const selector = `.cell[data-row="${sel.r}"][data-col="${sel.c}"]`;
+        const el = boardEl.querySelector(selector);
+        if (el) el.classList.add('selected');
+      }
+    }
+
+    function updateFoundHighlights() {
+      const cellEls = boardEl.querySelectorAll('.cell');
+      cellEls.forEach(el => {
+        el.classList.remove('found');
+      });
+      for (const group of foundIdiomsCells) {
+        for (const cell of group) {
+          const selector = `.cell[data-row="${cell.r}"][data-col="${cell.c}"]`;
+          const el = boardEl.querySelector(selector);
+          if (el) el.classList.add('found');
+        }
+      }
+    }
+
+    function cellsToSortedLine(cells) {
+      if (cells.length !== IDIOM_LENGTH) return null;
+      const sorted = [...cells].sort((a, b) => {
+        if (a.r === b.r) return a.c - b.c;
+        return a.r - b.r;
+      });
+      const drTotal = sorted[IDIOM_LENGTH - 1].r - sorted[0].r;
+      const dcTotal = sorted[IDIOM_LENGTH - 1].c - sorted[0].c;
+      const stepR = drTotal / (IDIOM_LENGTH - 1);
+      const stepC = dcTotal / (IDIOM_LENGTH - 1);
+      if (!Number.isInteger(stepR) || !Number.isInteger(stepC)) return null;
+      if (stepR === 0 && stepC === 0) return null;
+      if (Math.abs(stepR) > 1 || Math.abs(stepC) > 1) return null;
+      for (let i = 0; i < IDIOM_LENGTH; i++) {
+        const expectedR = sorted[0].r + stepR * i;
+        const expectedC = sorted[0].c + stepC * i;
+        if (sorted[i].r !== expectedR || sorted[i].c !== expectedC) {
+          return null;
+        }
+      }
+      return sorted;
+    }
+
+    function trySubmitSelection() {
+      const line = cellsToSortedLine(selectedCells);
+      if (!line) {
+        log("⚠ 請沿著同一條直線，選擇四個連續的字。");
+        selectedCells = [];
+        updateSelectionHighlights();
+        return;
+      }
+      let text = "";
+      for (const cell of line) {
+        text += grid[cell.r][cell.c].char;
+      }
+      const isTarget = targetIdioms.includes(text);
+      const isAnyIdiom = IDIOM_POOL.includes(text);
+      if (isTarget) {
+        if (!foundIdioms.includes(text)) {
+          foundIdioms.push(text);
+          foundIdiomsCells.push(line.map(({ r, c }) => ({ r, c })));
+          log(`✅ 找到目標成語：「${text}」`);
+        } else {
+          log(`ℹ 你已經找過「${text}」了。`);
+        }
+      } else if (isAnyIdiom) {
+        log(`☑ 「${text}」是成語，但不是本局預設的目標。`);
+      } else {
+        log(`✘ 「${text}」不是成語庫中的成語。`);
+      }
+      selectedCells = [];
+      updateSelectionHighlights();
+      updateFoundHighlights();
+      updateStatus();
+      updateTargetList();
+    }
+
+    function updateStatus() {
+      statusFoundCountEl.innerHTML = `已找到 ${foundIdioms.length} / ${targetIdioms.length}`;
+    }
+
+    function updateTargetList() {
+      targetListEl.innerHTML = "";
+      for (const idiom of targetIdioms) {
+        const row = document.createElement('div');
+        row.className = 'target-item';
+        const name = document.createElement('div');
+        name.className = 'target-idiom';
+        name.textContent = idiom;
+        const status = document.createElement('div');
+        status.className = 'target-status';
+        if (foundIdioms.includes(idiom)) {
+          status.classList.add('found');
+          status.textContent = "已找到";
+        } else {
+          status.classList.add('not-found');
+          status.textContent = "尚未找到";
+        }
+        row.appendChild(name);
+        row.appendChild(status);
+        targetListEl.appendChild(row);
+      }
+    }
+
+    function clearSelection() {
+      selectedCells = [];
+      updateSelectionHighlights();
+      log("🧽 已清除目前選取。");
+    }
+
+    function checkAnswers() {
+      const total = targetIdioms.length;
+      const found = foundIdioms.length;
+      if (found === total) {
+        log("🎉 恭喜！你已經找出本局全部三個成語！");
+      } else if (found === 0) {
+        log("🔍 還沒有找到任何目標成語，再仔細看看吧～");
+      } else {
+        log(`📌 目前找到 ${found} / ${total} 個成語，加油！`);
+      }
+    }
+
+    function newGame() {
+      initEmptyGrid();
+      selectedCells = [];
+      foundIdioms = [];
+      foundIdiomsCells = [];
+      boardEl.innerHTML = "";
+      logEl.innerHTML = "";
+      targetIdioms = pickRandomIdioms(IDIOMS_PER_ROUND);
+      log(`🀄 本局已隨機選定 ${IDIOMS_PER_ROUND} 個成語，試著在棋盤中把它們找出來吧。`);
+      placeIdioms();
+      fillRemainingCells();
+      renderBoard();
+      updateStatus();
+      updateTargetList();
+    }
+
+    document.getElementById('btn-new').addEventListener('click', () => {
+      newGame();
+    });
+
+    document.getElementById('btn-clear').addEventListener('click', () => {
+      clearSelection();
+    });
+
+    document.getElementById('btn-check').addEventListener('click', () => {
+      checkAnswers();
+    });
+
+    newGame();
+  </script>
+</body>
+</html>

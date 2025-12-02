@@ -1,0 +1,1320 @@
+
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <title>英文 Word Search 單字尋寶（國小三～國中九＋自訂 CSV）</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    :root {
+      --bg: #020617;
+      --accent: #22c55e;
+      --accent-soft: rgba(34, 197, 94, 0.16);
+      --accent-strong: #16a34a;
+      --text-main: #e5e7eb;
+      --text-sub: #9ca3af;
+      --grid-border: #4b5563;
+      --mark: rgba(56, 189, 248, 0.5);
+      --solution: rgba(34, 197, 94, 0.5);
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0; padding: 0;
+      width: 100%; height: 100%;
+      font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,"Noto Sans","PingFang TC","Microsoft JhengHei",sans-serif;
+      background: radial-gradient(circle at top, #020617 0, #000 55%, #000 100%);
+      color: var(--text-main);
+    }
+    body {
+      display: flex;
+      align-items: stretch;
+      justify-content: center;
+      padding: 12px;
+    }
+    .app {
+      width: 100%; max-width: 1120px;
+      margin: auto;
+      background: linear-gradient(145deg, rgba(15,23,42,0.98), rgba(15,23,42,0.98));
+      border-radius: 20px;
+      border: 1px solid rgba(148,163,184,0.4);
+      box-shadow: 0 20px 45px rgba(0,0,0,0.7), 0 0 0 1px rgba(15,23,42,0.9);
+      padding: 18px 16px 16px;
+      display: flex; flex-direction: column; gap: 12px;
+      position: relative;
+    }
+    @media (min-width: 900px) {
+      .app { padding: 20px 22px 20px; }
+    }
+    .app-header {
+      display: flex; flex-wrap: wrap;
+      align-items: center; justify-content: space-between;
+      gap: 10px;
+    }
+    .title-block { display: flex; flex-direction: column; gap: 4px; }
+    .title-row { display: flex; align-items: center; gap: 10px; }
+    .title-badge {
+      width: 32px; height: 32px; border-radius: 9px;
+      background: radial-gradient(circle at 30% 20%, #bbf7d0 0, #22c55e 28%, #166534 90%);
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 0 0 1px rgba(22,163,74,0.7), 0 12px 24px rgba(0,0,0,0.6);
+      font-weight: 800; color: #022c22; font-size: 18px;
+    }
+    h1 {
+      font-size: 20px; margin: 0;
+      letter-spacing: 0.03em;
+      display: flex; align-items: baseline; gap: 6px;
+    }
+    h1 span.grade-label {
+      font-size: 13px; color: var(--accent);
+      border-radius: 999px; padding: 2px 10px;
+      background: rgba(34,197,94,0.12);
+      border: 1px solid rgba(34,197,94,0.4);
+    }
+    .subtitle { margin: 0; font-size: 13px; color: var(--text-sub); }
+    .controls {
+      display: flex; flex-wrap: wrap;
+      gap: 8px; align-items: center; justify-content: flex-end;
+    }
+    .select-wrap {
+      position: relative;
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: 13px; color: var(--text-sub);
+    }
+    .select-wrap label { white-space: nowrap; }
+    select {
+      appearance: none; -webkit-appearance: none; -moz-appearance: none;
+      background: rgba(15,23,42,0.95);
+      color: var(--text-main);
+      border-radius: 999px;
+      border: 1px solid rgba(148,163,184,0.7);
+      padding: 7px 28px 7px 12px;
+      font-size: 13px; outline: none; cursor: pointer;
+    }
+    .select-wrap::after {
+      content: "▾";
+      position: absolute; right: 10px;
+      font-size: 11px; color: var(--text-sub);
+      pointer-events: none;
+    }
+    .file-wrap {
+      display: inline-flex; align-items: center; gap: 8px;
+      font-size: 11px; color: var(--text-sub);
+      padding: 4px 8px;
+      border-radius: 999px;
+      border: 1px dashed rgba(75,85,99,0.9);
+      background: rgba(15,23,42,0.9);
+    }
+    .file-wrap label {
+      display: inline-flex; align-items: center; gap: 4px;
+      cursor: pointer; color: #bfdbfe; font-size: 12px;
+    }
+    .file-wrap input { display: none; }
+    .file-hint { display: none; }
+    .file-hint.show { display: inline; color: #a5b4fc; }
+    button {
+      border-radius: 999px; border: none;
+      padding: 8px 14px; font-size: 13px; cursor: pointer;
+      display: inline-flex; align-items: center; gap: 6px;
+      font-weight: 500; letter-spacing: 0.01em;
+      transition: transform 0.08s ease, box-shadow 0.08s ease, background 0.1s ease;
+    }
+    button:active { transform: scale(0.97); }
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+      color: #022c22;
+      box-shadow: 0 10px 18px rgba(34,197,94,0.36);
+    }
+    .btn-secondary {
+      background: rgba(15,23,42,0.9);
+      color: var(--text-main);
+      border: 1px solid rgba(148,163,184,0.7);
+    }
+    .btn-ghost {
+      background: transparent;
+      color: var(--text-sub);
+      border: 1px dashed rgba(75,85,99,0.9);
+    }
+    .btn-primary span.icon { font-size: 14px; }
+    .main {
+      display: grid;
+      grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+      gap: 14px; align-items: flex-start;
+    }
+    @media (max-width: 840px) {
+      .main { grid-template-columns: minmax(0, 1fr); }
+    }
+    .card {
+      background: radial-gradient(circle at top left, rgba(15,23,42,0.98), rgba(15,23,42,1));
+      border-radius: 16px;
+      border: 1px solid rgba(55,65,81,0.9);
+      padding: 14px 14px 12px;
+      position: relative; overflow: hidden;
+    }
+    .card::before {
+      content: ""; position: absolute; inset: 0;
+      background: radial-gradient(circle at top right, rgba(34,197,94,0.18), transparent 60%);
+      opacity: 0.7; pointer-events: none;
+    }
+    .card-inner { position: relative; z-index: 1; }
+    .card-header {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 8px; margin-bottom: 8px;
+    }
+    .card-title {
+      font-size: 14px; font-weight: 600;
+      letter-spacing: 0.06em; text-transform: uppercase;
+      color: #e5e7eb;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .card-title-pill {
+      font-size: 10px; text-transform: uppercase;
+      letter-spacing: 0.09em;
+      padding: 2px 8px;
+      border-radius: 999px;
+      border: 1px solid rgba(148,163,184,0.7);
+      color: var(--text-sub);
+    }
+    .card-subtitle { font-size: 12px; color: var(--text-sub); margin: 0; }
+    .timer-pill {
+      padding: 4px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(148,163,184,0.8);
+      background: rgba(15,23,42,0.95);
+      font-size: 12px;
+      color: #e5e7eb;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    .grid-wrapper { overflow-x: auto; padding-bottom: 6px; }
+    table.word-grid { border-collapse: collapse; margin-top: 6px; }
+    .word-grid td {
+      width: 30px; height: 30px;
+      border: 1px solid var(--grid-border);
+      padding: 0; text-align: center; vertical-align: middle;
+      background: radial-gradient(circle at top left, #020617, #020617);
+      cursor: pointer; position: relative;
+      transition: background 0.07s ease, box-shadow 0.07s ease;
+    }
+    .word-grid td .letter {
+      display: inline-block; width: 100%; height: 100%;
+      font-size: 18px; font-weight: 600; letter-spacing: 0.04em;
+      color: var(--text-main); user-select: none;
+    }
+    .word-grid td.cell-mark {
+      background: radial-gradient(circle at center, rgba(56,189,248,0.27), #020617);
+      box-shadow: inset 0 0 0 2px rgba(56,189,248,0.7);
+    }
+    .word-grid td.cell-solution {
+      background: radial-gradient(circle at center, var(--solution), #020617);
+      box-shadow: inset 0 0 0 2px rgba(34,197,94,0.9);
+    }
+    .word-grid td.cell-mark.cell-solution {
+      background: radial-gradient(circle at center, rgba(251,191,36,0.6), #020617);
+      box-shadow: inset 0 0 0 2px rgba(234,179,8,0.9);
+    }
+    .grid-footer {
+      margin-top: 10px;
+      display: flex; flex-wrap: wrap;
+      gap: 8px; justify-content: space-between; align-items: center;
+    }
+    .status-text { font-size: 12px; color: var(--text-sub); }
+    .status-text strong { color: var(--accent); font-weight: 600; }
+    .btn-group { display: flex; flex-wrap: wrap; gap: 6px; }
+    .helper-row {
+      display: flex; flex-wrap: wrap;
+      justify-content: space-between;
+      gap: 8px; align-items: center;
+      margin-top: 6px;
+      font-size: 11px; color: var(--text-sub);
+    }
+    .badge-soft {
+      padding: 3px 8px;
+      border-radius: 999px;
+      border: 1px solid rgba(55,65,81,0.9);
+      background: rgba(15,23,42,0.9);
+    }
+    .legend {
+      display: inline-flex; align-items: center;
+      gap: 8px; flex-wrap: wrap;
+    }
+    .legend-item { display: inline-flex; align-items: center; gap: 4px; }
+    .legend-swatch {
+      width: 10px; height: 10px; border-radius: 3px;
+    }
+    .legend-swatch.mark { background: #38bdf8; }
+    .legend-swatch.solution { background: #22c55e; }
+    .clue-groups {
+      display: flex; flex-direction: column; gap: 10px;
+      max-height: 320px; overflow-y: auto; padding-right: 4px;
+    }
+    .clue-group-title {
+      font-size: 12px; text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--text-sub);
+      margin-bottom: 4px;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .clue-group-title::before {
+      content: "";
+      width: 12px; height: 1px;
+      background: linear-gradient(90deg, rgba(148,163,184,0.9), transparent);
+    }
+    ul.clue-list {
+      list-style: none; padding: 0; margin: 0;
+      display: flex; flex-direction: column; gap: 4px;
+      font-size: 13px;
+    }
+    ul.clue-list li {
+      padding: 4px 8px;
+      border-radius: 9px;
+      background: rgba(15,23,42,0.9);
+      border: 1px solid rgba(55,65,81,0.9);
+      line-height: 1.3;
+    }
+    ul.clue-list li.word-solved {
+      border-color: rgba(34,197,94,0.9);
+      box-shadow: 0 0 0 1px rgba(34,197,94,0.7);
+      background: radial-gradient(circle at left, rgba(34,197,94,0.3), rgba(15,23,42,0.9));
+    }
+    .clue-meta { font-size: 11px; color: var(--text-sub); }
+    .clue-english { font-size: 12px; color: var(--accent); font-weight: 500; }
+    .clue-word-mask {
+      font-family: "SF Mono","JetBrains Mono","Menlo",monospace;
+      letter-spacing: 0.18em; padding-left: 4px;
+    }
+    .footer-note {
+      margin-top: 6px; font-size: 10px;
+      color: var(--text-sub); text-align: right;
+    }
+    /* 覆蓋層通用樣式 */
+    .overlay {
+      position: fixed;
+      inset: 0;
+      background: radial-gradient(circle at top, rgba(15,23,42,0.98), rgba(0,0,0,0.98));
+      display: flex;
+      align-items: center; justify-content: center;
+      z-index: 999;
+    }
+    .overlay.hidden { display: none; }
+    .overlay-inner {
+      background: rgba(15,23,42,0.98);
+      border-radius: 20px;
+      border: 1px solid rgba(148,163,184,0.8);
+      padding: 28px 26px 20px;
+      max-width: 360px;
+      width: 90%;
+      text-align: center;
+      box-shadow: 0 25px 50px rgba(0,0,0,0.85), 0 0 0 1px rgba(15,23,42,1);
+    }
+    .overlay-title {
+      font-size: 22px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: #facc15;
+      margin-bottom: 8px;
+    }
+    .overlay-time-label { font-size: 13px; color: var(--text-sub); margin-bottom: 6px; }
+    .overlay-time {
+      font-size: 40px; font-weight: 800;
+      letter-spacing: 0.16em;
+      margin-bottom: 14px;
+      color: #bbf7d0;
+    }
+    .overlay-inner .btn-primary {
+      width: 100%; justify-content: center;
+    }
+    /* 說明文件覆蓋層 */
+    .overlay-doc .overlay-inner {
+      max-width: 640px;
+      text-align: left;
+      padding: 20px 20px 16px;
+    }
+    .overlay-doc-header {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 8px; margin-bottom: 10px;
+    }
+    .overlay-doc-title {
+      font-size: 15px; font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: #e5e7eb;
+    }
+    .overlay-doc-body {
+      max-height: 60vh;
+      overflow-y: auto;
+      padding-right: 4px;
+      font-size: 13px;
+      color: var(--text-main);
+    }
+    .overlay-doc-body h1,
+    .overlay-doc-body h2,
+    .overlay-doc-body h3,
+    .overlay-doc-body h4 {
+      margin-top: 14px;
+      margin-bottom: 6px;
+      font-weight: 600;
+    }
+    .overlay-doc-body h1 { font-size: 18px; }
+    .overlay-doc-body h2 { font-size: 16px; }
+    .overlay-doc-body h3 { font-size: 14px; }
+    .overlay-doc-body p { margin: 4px 0; }
+    .overlay-doc-body ul,
+    .overlay-doc-body ol {
+      padding-left: 1.2em;
+      margin: 4px 0 6px;
+    }
+    .overlay-doc-body code {
+      font-family: "SF Mono","JetBrains Mono","Menlo",monospace;
+      font-size: 12px;
+      background: rgba(15,23,42,0.9);
+      padding: 1px 4px;
+      border-radius: 4px;
+    }
+    .overlay-doc-body pre code {
+      display: block;
+      padding: 8px;
+      overflow-x: auto;
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="app-header">
+      <div class="title-block">
+        <div class="title-row">
+          <div class="title-badge">WS</div>
+          <h1>
+            英文 Word Search 單字尋寶
+            <span class="grade-label" id="currentGradeLabel">國小三年級～國中九年級＋自訂 CSV</span>
+          </h1>
+        </div>
+        <p class="subtitle">
+          選年級或載入自己的 <span style="color:#a5b4fc;">CSV 字庫</span>，產生單字尋寶盤。學生用眼睛找出所有英文單字，再用滑鼠／手指標記。
+        </p>
+      </div>
+      <div class="controls">
+        <button class="btn-ghost" id="btnHelp">說明</button>
+        <div class="select-wrap">
+          <label for="gradeSelect">字庫來源</label>
+          <select id="gradeSelect">
+            <option value="3">國小三年級</option>
+            <option value="4">國小四年級</option>
+            <option value="5">國小五年級</option>
+            <option value="6">國小六年級</option>
+            <option value="7">國中七年級</option>
+            <option value="8">國中八年級</option>
+            <option value="9">國中九年級</option>
+            <option value="custom" disabled>自訂 CSV 字庫（尚未載入）</option>
+          </select>
+        </div>
+        <div class="file-wrap">
+          <label for="csvInput">📂 載入 CSV 字庫</label>
+          <input type="file" id="csvInput" accept=".csv,text/csv">
+          <span class="file-hint" id="fileHint">已載入自訂字庫</span>
+        </div>
+        <button class="btn-primary" id="btnNew">
+          <span class="icon">✦</span>
+          產生新題目
+        </button>
+      </div>
+    </header>
+
+    <main class="main">
+      <section class="card">
+        <div class="card-inner">
+          <div class="card-header">
+            <div>
+              <div class="card-title">
+                Word Search Grid
+                <span class="card-title-pill">滑鼠／手指標記</span>
+              </div>
+              <p class="card-subtitle">在字母盤中尋找右側列出的英文單字，找到後點一下那些字母格子做記號。</p>
+            </div>
+            <div class="timer-pill" id="timerDisplay">時間：00:00</div>
+          </div>
+
+          <div class="grid-wrapper">
+            <table class="word-grid" id="grid"></table>
+          </div>
+
+          <div class="grid-footer">
+            <div class="status-text" id="statusText">
+              先從上方選年級或載入 CSV，再按「產生新題目」。
+            </div>
+            <div class="btn-group">
+              <button class="btn-secondary" id="btnHint">提示（+5秒）</button>
+              <button class="btn-secondary" id="btnShowAll">顯示所有單字位置（+100分鐘）</button>
+              <button class="btn-ghost" id="btnHideAll">隱藏答案</button>
+              <button class="btn-ghost" id="btnClearMarks">清除標記</button>
+            </div>
+          </div>
+
+          <div class="helper-row">
+            <div class="badge-soft">
+              提示規則：
+              <span style="color:#a5b4fc;">
+                先開每個單字的首尾字母 → 再依序補子音 → 最後才補母音（A E I O U）。
+              </span>
+            </div>
+            <div class="legend">
+              <span class="legend-item">
+                <span class="legend-swatch mark"></span> 自己標記
+              </span>
+              <span class="legend-item">
+                <span class="legend-swatch solution"></span> 顯示答案
+              </span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-inner">
+          <div class="card-header">
+            <div>
+              <div class="card-title">
+                Word List &amp; Clues
+                <span class="card-title-pill">英文單字 / 中文提示</span>
+              </div>
+              <p class="card-subtitle">右側列出本題所有單字，英文一開始以「＊」隱藏，利用提示慢慢解鎖。</p>
+            </div>
+          </div>
+
+          <div class="clue-groups" id="clueGroups">
+            <!-- 動態生成 -->
+          </div>
+
+          <div class="helper-row">
+            <div class="badge-soft">
+              CSV 格式示例：
+              <span style="color:#a5b4fc;">hello,你好<br>forest,森林</span>
+            </div>
+            <div>不一定要有標題列，每行一個單字即可。</div>
+          </div>
+
+          <div class="footer-note">
+            版本 0.4 • Word Search（台灣國小 / 國中＋自訂 CSV＋計時＋提示＋說明文件）
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- 完成遊戲覆蓋層 -->
+  <div id="finishOverlay" class="overlay hidden">
+    <div class="overlay-inner">
+      <div class="overlay-title">完成任務！</div>
+      <div class="overlay-time-label">你的最後用時</div>
+      <div class="overlay-time" id="finalTimeText">00:00</div>
+      <button class="btn-primary" id="btnOverlayClose">關閉</button>
+    </div>
+  </div>
+
+  <!-- 說明文件覆蓋層 -->
+  <div id="helpOverlay" class="overlay overlay-doc hidden">
+    <div class="overlay-inner">
+      <div class="overlay-doc-header">
+        <div class="overlay-doc-title">遊戲說明（readme.md）</div>
+        <button class="btn-ghost" id="btnHelpClose">關閉</button>
+      </div>
+      <div class="overlay-doc-body" id="helpContent">
+        讀取說明文件中...
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ========= 內建年級字庫（可自行修改） =========
+    const WORD_BANK = {
+      "3": [
+        { answer: "cat", zh: "貓" },
+        { answer: "dog", zh: "狗" },
+        { answer: "bag", zh: "書包；袋子" },
+        { answer: "pen", zh: "原子筆" },
+        { answer: "book", zh: "書本" },
+        { answer: "apple", zh: "蘋果" },
+        { answer: "red", zh: "紅色" },
+        { answer: "blue", zh: "藍色" },
+        { answer: "desk", zh: "書桌" },
+        { answer: "chair", zh: "椅子" }
+      ],
+      "4": [
+        { answer: "father", zh: "爸爸" },
+        { answer: "mother", zh: "媽媽" },
+        { answer: "teacher", zh: "老師" },
+        { answer: "student", zh: "學生" },
+        { answer: "happy", zh: "快樂的" },
+        { answer: "water", zh: "水" },
+        { answer: "juice", zh: "果汁" },
+        { answer: "angry", zh: "生氣的" },
+        { answer: "pencil", zh: "鉛筆" },
+        { answer: "friend", zh: "朋友" }
+      ],
+      "5": [
+        { answer: "science", zh: "自然科學" },
+        { answer: "social", zh: "社會（科）" },
+        { answer: "english", zh: "英文" },
+        { answer: "math", zh: "數學" },
+        { answer: "music", zh: "音樂" },
+        { answer: "people", zh: "人們" },
+        { answer: "animal", zh: "動物" },
+        { answer: "country", zh: "國家；鄉下" },
+        { answer: "season", zh: "季節" },
+        { answer: "village", zh: "村莊" }
+      ],
+      "6": [
+        { answer: "holiday", zh: "假日；假期" },
+        { answer: "future", zh: "未來" },
+        { answer: "travel", zh: "旅行" },
+        { answer: "problem", zh: "問題；困難" },
+        { answer: "answer", zh: "答案；回答" },
+        { answer: "reason", zh: "理由" },
+        { answer: "forest", zh: "森林" },
+        { answer: "recycle", zh: "回收" },
+        { answer: "garbage", zh: "垃圾" },
+        { answer: "library", zh: "圖書館" }
+      ],
+      "7": [
+        { answer: "hobby", zh: "嗜好" },
+        { answer: "mobile", zh: "行動的；手機" },
+        { answer: "internet", zh: "網際網路" },
+        { answer: "improve", zh: "改善；進步" },
+        { answer: "energy", zh: "能量；精力" },
+        { answer: "camera", zh: "照相機" },
+        { answer: "culture", zh: "文化" },
+        { answer: "nature", zh: "自然" },
+        { answer: "pollute", zh: "污染（動詞）" },
+        { answer: "protect", zh: "保護" }
+      ],
+      "8": [
+        { answer: "history", zh: "歷史" },
+        { answer: "physics", zh: "物理（學）" },
+        { answer: "biology", zh: "生物學" },
+        { answer: "climate", zh: "氣候" },
+        { answer: "plastic", zh: "塑膠" },
+        { answer: "robot", zh: "機器人" },
+        { answer: "concert", zh: "音樂會" },
+        { answer: "project", zh: "專題；計畫" },
+        { answer: "disaster", zh: "災難" },
+        { answer: "volunteer", zh: "志工；志願者" }
+      ],
+      "9": [
+        { answer: "pressure", zh: "壓力" },
+        { answer: "nervous", zh: "緊張的；神經質的" },
+        { answer: "challenge", zh: "挑戰" },
+        { answer: "career", zh: "職涯；事業" },
+        { answer: "decision", zh: "決定" },
+        { answer: "support", zh: "支持" },
+        { answer: "freedom", zh: "自由" },
+        { answer: "prepare", zh: "準備" },
+        { answer: "travel", zh: "旅行" },
+        { answer: "success", zh: "成功" }
+      ]
+    };
+
+    const gradeLabelMap = {
+      "3": "國小三年級",
+      "4": "國小四年級",
+      "5": "國小五年級",
+      "6": "國小六年級",
+      "7": "國中七年級",
+      "8": "國中八年級",
+      "9": "國中九年級",
+      "custom": "自訂 CSV 字庫"
+    };
+
+    const gridEl = document.getElementById("grid");
+    const clueGroupsEl = document.getElementById("clueGroups");
+    const statusTextEl = document.getElementById("statusText");
+    const gradeSelectEl = document.getElementById("gradeSelect");
+    const gradeLabelEl = document.getElementById("currentGradeLabel");
+    const csvInputEl = document.getElementById("csvInput");
+    const fileHintEl = document.getElementById("fileHint");
+    const btnNew = document.getElementById("btnNew");
+    const btnShowAll = document.getElementById("btnShowAll");
+    const btnHideAll = document.getElementById("btnHideAll");
+    const btnClearMarks = document.getElementById("btnClearMarks");
+    const btnHint = document.getElementById("btnHint");
+    const timerDisplayEl = document.getElementById("timerDisplay");
+    const overlayEl = document.getElementById("finishOverlay");
+    const finalTimeTextEl = document.getElementById("finalTimeText");
+    const btnOverlayClose = document.getElementById("btnOverlayClose");
+    const btnHelp = document.getElementById("btnHelp");
+    const helpOverlayEl = document.getElementById("helpOverlay");
+    const helpContentEl = document.getElementById("helpContent");
+    const btnHelpClose = document.getElementById("btnHelpClose");
+
+    let currentPuzzle = null;
+    let customWordList = null;
+
+    // 計時相關
+    let timerSeconds = 0;
+    let timerIntervalId = null;
+    let gameFinished = false;
+
+    // 提示狀態：hintMask[wordIndex][charIndex] = true/false
+    let hintMask = [];
+
+    function shuffleArray(arr) {
+      const a = arr.slice();
+      for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+      }
+      return a;
+    }
+
+    function determineGridSize(words) {
+      let maxLen = 0;
+      words.forEach(w => {
+        const len = w.answer.length;
+        if (len > maxLen) maxLen = len;
+      });
+      const approx = Math.ceil(Math.sqrt(words.length * Math.max(maxLen, 4) * 1.2));
+      return Math.max(10, Math.min(18, Math.max(maxLen + 2, approx)));
+    }
+
+    const DIRECTIONS = [
+      { dx: 1, dy: 0 },   // 下
+      { dx: -1, dy: 0 },  // 上
+      { dx: 0, dy: 1 },   // 右
+      { dx: 0, dy: -1 },  // 左
+      { dx: 1, dy: 1 },   // 右下
+      { dx: -1, dy: -1 }, // 左上
+      { dx: 1, dy: -1 },  // 左下
+      { dx: -1, dy: 1 }   // 右上
+    ];
+
+    function createWordSearch(words) {
+      if (!words || words.length === 0) return null;
+
+      const normalized = words
+        .map(w => {
+          const clean = (w.answer || "")
+            .toUpperCase()
+            .replace(/[^A-Z]/g, "");
+          return {
+            answer: w.answer || "",
+            clean,
+            zh: w.zh || ""
+          };
+        })
+        .filter(w => w.clean.length >= 2 && w.clean.length <= 16);
+
+      if (normalized.length === 0) return null;
+
+      const shuffled = shuffleArray(normalized);
+      const selected = shuffled.slice(0, Math.min(14, shuffled.length));
+      selected.sort((a, b) => b.clean.length - a.clean.length);
+
+      const size = determineGridSize(selected);
+      const rows = size;
+      const cols = size;
+
+      const grid = [];
+      for (let r = 0; r < rows; r++) {
+        const row = new Array(cols).fill(null);
+        grid.push(row);
+      }
+
+      const placedWords = [];
+
+      for (const wordObj of selected) {
+        const word = wordObj.clean;
+        const len = word.length;
+        let placed = false;
+        let attempts = 0;
+
+        while (!placed && attempts < 100) {
+          attempts++;
+          const dir = DIRECTIONS[Math.floor(Math.random() * DIRECTIONS.length)];
+          const dx = dir.dx;
+          const dy = dir.dy;
+
+          const maxStartRow = dx === 1 ? rows - len : dx === -1 ? rows - 1 : rows - 1;
+          const minStartRow = dx === -1 ? len - 1 : 0;
+          const maxStartCol = dy === 1 ? cols - len : dy === -1 ? cols - 1 : cols - 1;
+          const minStartCol = dy === -1 ? len - 1 : 0;
+
+          const startRow = Math.floor(Math.random() * (maxStartRow - minStartRow + 1)) + minStartRow;
+          const startCol = Math.floor(Math.random() * (maxStartCol - minStartCol + 1)) + minStartCol;
+
+          let ok = true;
+          for (let i = 0; i < len; i++) {
+            const r = startRow + dx * i;
+            const c = startCol + dy * i;
+            if (r < 0 || r >= rows || c < 0 || c >= cols) {
+              ok = false;
+              break;
+            }
+            const existing = grid[r][c];
+            if (existing !== null && existing !== word[i]) {
+              ok = false;
+              break;
+            }
+          }
+
+          if (!ok) continue;
+
+          const positions = [];
+          for (let i = 0; i < len; i++) {
+            const r = startRow + dx * i;
+            const c = startCol + dy * i;
+            grid[r][c] = word[i];
+            positions.push({ r, c });
+          }
+
+          placedWords.push({
+            answer: wordObj.answer,
+            clean: word,
+            zh: wordObj.zh,
+            positions
+          });
+          placed = true;
+        }
+      }
+
+      const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          if (grid[r][c] === null) {
+            const ch = letters[Math.floor(Math.random() * letters.length)];
+            grid[r][c] = ch;
+          }
+        }
+      }
+
+      return {
+        rows,
+        cols,
+        letters: grid,
+        placedWords
+      };
+    }
+
+    function renderGrid(puzzle) {
+      gridEl.innerHTML = "";
+      if (!puzzle) return;
+
+      for (let r = 0; r < puzzle.rows; r++) {
+        const tr = document.createElement("tr");
+        for (let c = 0; c < puzzle.cols; c++) {
+          const td = document.createElement("td");
+          td.dataset.row = r;
+          td.dataset.col = c;
+
+          const span = document.createElement("span");
+          span.className = "letter";
+          span.textContent = puzzle.letters[r][c];
+          td.appendChild(span);
+
+          td.addEventListener("click", () => {
+            if (!currentPuzzle || gameFinished) return;
+            td.classList.toggle("cell-mark");
+            updateSolvedStatus();
+          });
+
+          tr.appendChild(td);
+        }
+        gridEl.appendChild(tr);
+      }
+    }
+
+    function renderClues(puzzle) {
+      clueGroupsEl.innerHTML = "";
+      if (!puzzle || !puzzle.placedWords || puzzle.placedWords.length === 0) return;
+
+      const group = document.createElement("div");
+      const title = document.createElement("div");
+      title.className = "clue-group-title";
+      title.textContent = "Word List 單字與中文提示";
+      group.appendChild(title);
+
+      const ul = document.createElement("ul");
+      ul.className = "clue-list";
+
+      puzzle.placedWords.forEach((w, idx) => {
+        const li = document.createElement("li");
+        li.dataset.wordIndex = idx;
+
+        const main = document.createElement("div");
+        main.innerHTML = `<strong>${idx + 1}.</strong> ${w.zh || ""}`;
+
+        const meta = document.createElement("div");
+        meta.className = "clue-meta";
+        meta.innerHTML = `字母數：<strong>${w.clean.length}</strong>，方向：水平 / 垂直 / 斜線（可能反向）`;
+
+        const eng = document.createElement("div");
+        eng.className = "clue-english";
+        eng.textContent = "英文：";
+
+        const maskSpan = document.createElement("span");
+        maskSpan.className = "clue-word-mask";
+        maskSpan.dataset.wordIndex = idx;
+        maskSpan.textContent = "*".repeat(w.clean.length);
+
+        eng.appendChild(maskSpan);
+
+        li.appendChild(main);
+        li.appendChild(meta);
+        li.appendChild(eng);
+        ul.appendChild(li);
+      });
+
+      group.appendChild(ul);
+      clueGroupsEl.appendChild(group);
+
+      updateHintDisplay();
+    }
+
+    function updateStatus(message) {
+      statusTextEl.innerHTML = message || "";
+    }
+
+    // === 計時相關 ===
+    function formatTime(sec) {
+      const m = Math.floor(sec / 60);
+      const s = sec % 60;
+      const mm = m < 10 ? "0" + m : "" + m;
+      const ss = s < 10 ? "0" + s : "" + s;
+      return mm + ":" + ss;
+    }
+
+    function updateTimerDisplay() {
+      if (timerDisplayEl) {
+        timerDisplayEl.textContent = "時間：" + formatTime(timerSeconds);
+      }
+    }
+
+    function startTimer() {
+      if (timerIntervalId !== null) {
+        clearInterval(timerIntervalId);
+      }
+      timerSeconds = 0;
+      gameFinished = false;
+      updateTimerDisplay();
+      timerIntervalId = setInterval(() => {
+        timerSeconds++;
+        updateTimerDisplay();
+      }, 1000);
+    }
+
+    function stopTimer() {
+      if (timerIntervalId !== null) {
+        clearInterval(timerIntervalId);
+        timerIntervalId = null;
+      }
+    }
+
+    function showFinishOverlay() {
+      if (gameFinished) return;
+      gameFinished = true;
+      stopTimer();
+      if (finalTimeTextEl) {
+        finalTimeTextEl.textContent = formatTime(timerSeconds);
+      }
+      if (overlayEl) {
+        overlayEl.classList.remove("hidden");
+      }
+    }
+
+    // === 完成狀態檢查 ===
+    function updateSolvedStatus() {
+      if (!currentPuzzle) return;
+      const puzzle = currentPuzzle;
+      if (!puzzle.placedWords || puzzle.placedWords.length === 0) return;
+
+      let allWordsSolved = true;
+
+      puzzle.placedWords.forEach((w, idx) => {
+        let solved = true;
+        for (const pos of w.positions) {
+          const td = gridEl.querySelector('td[data-row="' + pos.r + '"][data-col="' + pos.c + '"]');
+          if (!td || (!td.classList.contains("cell-mark") && !td.classList.contains("cell-solution"))) {
+            solved = false;
+            break;
+          }
+        }
+        const li = clueGroupsEl.querySelector('li[data-word-index="' + idx + '"]');
+        if (li) {
+          if (solved) li.classList.add("word-solved");
+          else li.classList.remove("word-solved");
+        }
+        if (!solved) allWordsSolved = false;
+      });
+
+      if (allWordsSolved && !gameFinished) {
+        updateStatus(`太棒了！你已找出所有單字，用時 <strong>${formatTime(timerSeconds)}</strong>。`);
+        showFinishOverlay();
+      }
+    }
+
+    function showAllSolutions() {
+      if (!currentPuzzle) return;
+      const puzzle = currentPuzzle;
+
+      // 額外懲罰：+100 分鐘 = 6000 秒
+      timerSeconds += 6000;
+      updateTimerDisplay();
+
+      puzzle.placedWords.forEach((w, idx) => {
+        w.positions.forEach(pos => {
+          const td = gridEl.querySelector('td[data-row="' + pos.r + '"][data-col="' + pos.c + '"]');
+          if (td) {
+            td.classList.add("cell-solution");
+          }
+        });
+      });
+
+      updateStatus(`加油，下次會更好！你選擇顯示所有單字位置，此次多加 <strong>100 分鐘</strong> 作為練習懲罰。`);
+      updateSolvedStatus();
+    }
+
+    function hideAllSolutions() {
+      const cells = gridEl.querySelectorAll("td.cell-solution");
+      cells.forEach(td => td.classList.remove("cell-solution"));
+
+      updateStatus("已隱藏答案，只保留你自己標記的格子。");
+      updateSolvedStatus();
+    }
+
+    function clearMarks() {
+      const cells = gridEl.querySelectorAll("td.cell-mark");
+      cells.forEach(td => td.classList.remove("cell-mark"));
+      updateStatus("已清除所有標記，可以重新開始尋寶。");
+      updateSolvedStatus();
+    }
+
+    function getWordListForGrade(grade) {
+      if (grade === "custom") {
+        return customWordList && customWordList.length ? customWordList : null;
+      }
+      return WORD_BANK[grade] || null;
+    }
+
+    function resetHintMask(puzzle) {
+      if (!puzzle || !puzzle.placedWords) {
+        hintMask = [];
+        return;
+      }
+      hintMask = puzzle.placedWords.map(w => new Array(w.clean.length).fill(false));
+      updateHintDisplay();
+    }
+
+    function updateHintDisplay() {
+      if (!currentPuzzle || !currentPuzzle.placedWords) return;
+      if (!hintMask || hintMask.length !== currentPuzzle.placedWords.length) {
+        resetHintMask(currentPuzzle);
+        return;
+      }
+      currentPuzzle.placedWords.forEach((w, idx) => {
+        const maskArr = hintMask[idx] || [];
+        const clean = w.clean;
+        let str = "";
+        for (let i = 0; i < clean.length; i++) {
+          if (maskArr[i]) str += clean[i];
+          else str += "*";
+        }
+        const span = clueGroupsEl.querySelector('.clue-word-mask[data-word-index="' + idx + '"]');
+        if (span) span.textContent = str;
+      });
+    }
+
+    function applyHint() {
+      if (!currentPuzzle || !currentPuzzle.placedWords || currentPuzzle.placedWords.length === 0) return;
+      if (gameFinished) return;
+
+      // 每次提示 +5 秒
+      timerSeconds += 5;
+      updateTimerDisplay();
+
+      if (!hintMask || hintMask.length !== currentPuzzle.placedWords.length) {
+        resetHintMask(currentPuzzle);
+      }
+
+      const vowels = new Set(["A","E","I","O","U"]);
+
+      // Stage 1: 首尾字母
+      let allFirstLastRevealed = true;
+      for (let i = 0; i < currentPuzzle.placedWords.length; i++) {
+        const len = currentPuzzle.placedWords[i].clean.length;
+        if (len === 0) continue;
+        if (!hintMask[i][0] || !hintMask[i][len - 1]) {
+          allFirstLastRevealed = false;
+          break;
+        }
+      }
+
+      if (!allFirstLastRevealed) {
+        for (let i = 0; i < currentPuzzle.placedWords.length; i++) {
+          const len = currentPuzzle.placedWords[i].clean.length;
+          if (len === 0) continue;
+          if (!hintMask[i][0] || !hintMask[i][len - 1]) {
+            hintMask[i][0] = true;
+            hintMask[i][len - 1] = true;
+            updateHintDisplay();
+            updateStatus("已為其中一個單字顯示首尾字母，時間 +5 秒。");
+            return;
+          }
+        }
+      }
+
+      // Stage 2: 子音
+      const consonantPositions = [];
+      for (let i = 0; i < currentPuzzle.placedWords.length; i++) {
+        const clean = currentPuzzle.placedWords[i].clean;
+        for (let j = 0; j < clean.length; j++) {
+          const ch = clean[j];
+          if (!vowels.has(ch) && !hintMask[i][j]) {
+            consonantPositions.push({ i, j });
+          }
+        }
+      }
+
+      if (consonantPositions.length > 0) {
+        const pos = consonantPositions[0];
+        hintMask[pos.i][pos.j] = true;
+        updateHintDisplay();
+        updateStatus("已額外顯示一個子音，時間 +5 秒。");
+        return;
+      }
+
+      // Stage 3: 母音
+      const vowelPositions = [];
+      for (let i = 0; i < currentPuzzle.placedWords.length; i++) {
+        const clean = currentPuzzle.placedWords[i].clean;
+        for (let j = 0; j < clean.length; j++) {
+          const ch = clean[j];
+          if (vowels.has(ch) && !hintMask[i][j]) {
+            vowelPositions.push({ i, j });
+          }
+        }
+      }
+
+      if (vowelPositions.length > 0) {
+        const pos = vowelPositions[0];
+        hintMask[pos.i][pos.j] = true;
+        updateHintDisplay();
+        updateStatus("已額外顯示一個母音，時間 +5 秒。");
+      } else {
+        updateStatus("所有字母都已顯示，再按提示也只會加時間了喔！");
+      }
+    }
+
+    function newPuzzle() {
+      const grade = gradeSelectEl.value;
+      const words = getWordListForGrade(grade);
+
+      if (!words || !words.length) {
+        if (grade === "custom") {
+          updateStatus("尚未載入 CSV 字庫，請先按「載入 CSV 字庫」，選擇檔案後再產生題目。");
+        } else {
+          updateStatus("這個年級暫無字庫，請先在程式碼中添加單字。");
+        }
+        return;
+      }
+
+      const puzzle = createWordSearch(words);
+      if (!puzzle) {
+        updateStatus("目前字庫內容無法產生題目（可能都是太短的字或非英文字母），請檢查字庫。");
+        return;
+      }
+
+      currentPuzzle = puzzle;
+      renderGrid(puzzle);
+      renderClues(puzzle);
+      resetHintMask(puzzle);
+
+      const label = gradeLabelMap[grade] || "";
+      gradeLabelEl.textContent = label ? label : "國小三年級～國中九年級＋自訂 CSV";
+
+      if (overlayEl) {
+        overlayEl.classList.add("hidden");
+      }
+
+      updateStatus(`已為 <strong>${label}</strong> 產生新題目，共有 <strong>${puzzle.placedWords.length}</strong> 個英文單字，藏在 ${puzzle.rows}×${puzzle.cols} 的字母盤中。`);
+
+      startTimer();
+    }
+
+    function enableCustomOption() {
+      const opt = gradeSelectEl.querySelector('option[value="custom"]');
+      if (opt) opt.disabled = false;
+    }
+
+    function handleCsvLoaded(text) {
+      const lines = text.split(/\r?\n/);
+      const list = [];
+
+      for (let line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+        const parts = trimmed.split(",");
+        const engRaw = (parts[0] || "").trim();
+        if (!engRaw) continue;
+        const cleanEng = engRaw.toUpperCase().replace(/[^A-Z]/g, "");
+        if (cleanEng.length < 2) continue;
+        const zh = parts.slice(1).join(",").trim();
+        list.push({
+          answer: engRaw,
+          zh: zh || ""
+        });
+      }
+
+      if (!list.length) {
+        updateStatus("CSV 檔解析後沒有有效的英文單字，請確認格式：每行至少要有一個英文字。");
+        return;
+      }
+
+      customWordList = list;
+      enableCustomOption();
+      gradeSelectEl.value = "custom";
+      fileHintEl.classList.add("show");
+
+      updateStatus(`已從 CSV 載入 <strong>${list.length}</strong> 個單字。請按「產生新題目」建立自訂 Word Search。`);
+    }
+
+    // === 簡易 Markdown → HTML 轉換器 ===
+    function markdownToHtml(md) {
+      // 先處理特殊字元
+      let html = md.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+      // 區塊：程式碼區塊 ```
+      html = html.replace(/```([\s\S]*?)```/g, function(_, code) {
+        return "<pre><code>" + code.replace(/\n$/, "") + "</code></pre>";
+      });
+
+      const lines = html.split(/\r?\n/);
+      let out = [];
+      let inList = false;
+      let inOrdered = false;
+
+      function closeLists() {
+        if (inList) { out.push("</ul>"); inList = false; }
+        if (inOrdered) { out.push("</ol>"); inOrdered = false; }
+      }
+
+      for (let line of lines) {
+        const trimmed = line.trim();
+
+        if (!trimmed) {
+          closeLists();
+          out.push("");
+          continue;
+        }
+
+        // 標題
+        const headingMatch = trimmed.match(/^(#{1,4})\s+(.*)$/);
+        if (headingMatch) {
+          closeLists();
+          const level = headingMatch[1].length;
+          const text = headingMatch[2];
+          out.push(`<h${level}>${text}</h${level}>`);
+          continue;
+        }
+
+        // 有序清單
+        const orderedMatch = trimmed.match(/^(\d+)\.\s+(.*)$/);
+        if (orderedMatch) {
+          if (!inOrdered) {
+            closeLists();
+            inOrdered = true;
+            out.push("<ol>");
+          }
+          out.push("<li>" + orderedMatch[2] + "</li>");
+          continue;
+        }
+
+        // 無序清單
+        const bulletMatch = trimmed.match(/^[-*+]\s+(.*)$/);
+        if (bulletMatch) {
+          if (!inList) {
+            closeLists();
+            inList = true;
+            out.push("<ul>");
+          }
+          out.push("<li>" + bulletMatch[1] + "</li>");
+          continue;
+        }
+
+        // 一般段落
+        closeLists();
+        out.push("<p>" + trimmed + "</p>");
+      }
+      closeLists();
+
+      let joined = out.join("\n");
+
+      // 行內粗體 **text**
+      joined = joined.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+      // 行內斜體 *text*
+      joined = joined.replace(/\*(.+?)\*/g, "<em>$1</em>");
+      // 行內程式 `code`
+      joined = joined.replace(/`([^`]+)`/g, "<code>$1</code>");
+
+      return joined;
+    }
+
+    function loadReadme() {
+      if (!helpContentEl) return;
+      helpContentEl.innerHTML = "讀取說明文件中...";
+
+      fetch("readme.md")
+        .then(resp => {
+          if (!resp.ok) throw new Error("HTTP " + resp.status);
+          return resp.text();
+        })
+        .then(text => {
+          const html = markdownToHtml(text);
+          helpContentEl.innerHTML = html;
+        })
+        .catch(err => {
+          helpContentEl.innerHTML = "<p>無法讀取 <code>readme.md</code>。請確認檔案是否與本 HTML 位於同一資料夾，或透過 HTTP 伺服器提供。</p><p>錯誤訊息：" + err.message + "</p>";
+        });
+    }
+
+    // ========= 事件綁定 =========
+    btnNew.addEventListener("click", newPuzzle);
+    btnShowAll.addEventListener("click", showAllSolutions);
+    btnHideAll.addEventListener("click", hideAllSolutions);
+    btnClearMarks.addEventListener("click", clearMarks);
+    btnHint.addEventListener("click", applyHint);
+
+    csvInputEl.addEventListener("change", (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        handleCsvLoaded(evt.target.result || "");
+      };
+      reader.onerror = () => {
+        updateStatus("讀取 CSV 檔案時發生錯誤，請再試一次。");
+      };
+      reader.readAsText(file, "utf-8");
+    });
+
+    if (btnOverlayClose && overlayEl) {
+      btnOverlayClose.addEventListener("click", () => {
+        overlayEl.classList.add("hidden");
+      });
+    }
+
+    if (btnHelp && helpOverlayEl) {
+      btnHelp.addEventListener("click", () => {
+        helpOverlayEl.classList.remove("hidden");
+        loadReadme();
+      });
+    }
+    if (btnHelpClose && helpOverlayEl) {
+      btnHelpClose.addEventListener("click", () => {
+        helpOverlayEl.classList.add("hidden");
+      });
+    }
+
+    // 預設載入國小三年級範例題
+    window.addEventListener("load", () => {
+      newPuzzle();
+    });
+  </script>
+</body>
+</html>
