@@ -1,0 +1,766 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <title>Ayumu 記憶挑戰</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    :root {
+      --bg: #05060a;
+      --panel: #141822;
+      --accent: #3cc3ff;
+      --accent-soft: rgba(60,195,255,0.25);
+      --danger: #ff4d6a;
+      --success: #3bd671;
+      --text-main: #f5f7ff;
+      --text-sub: #a6b0d8;
+      --cell-bg: #1f2533;
+      --cell-border: #333a4f;
+    }
+
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: radial-gradient(circle at top, #182338 0, #05060a 55%);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+        Roboto, "Helvetica Neue", Arial, "Noto Sans TC", sans-serif;
+      color: var(--text-main);
+    }
+
+    .app {
+      width: min(900px, 100vw);
+      padding: 16px;
+    }
+
+    .card {
+      background: rgba(10, 12, 20, 0.9);
+      border-radius: 18px;
+      border: 1px solid rgba(255,255,255,0.06);
+      box-shadow: 0 20px 45px rgba(0,0,0,0.7);
+      padding: 18px 18px 20px;
+      backdrop-filter: blur(20px);
+    }
+
+    @media (min-width: 768px) {
+      .card {
+        padding: 22px 24px 24px;
+      }
+    }
+
+    .header {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 14px;
+    }
+
+    .title-group {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .title {
+      font-size: 1.1rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--accent);
+    }
+
+    .subtitle {
+      font-size: 0.92rem;
+      color: var(--text-sub);
+    }
+
+    .badge {
+      font-size: 0.75rem;
+      padding: 4px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--accent-soft);
+      color: var(--accent);
+      background: rgba(12,18,30,0.95);
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .badge-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 999px;
+      background: var(--accent);
+      box-shadow: 0 0 10px var(--accent);
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 1.3fr 1fr;
+      gap: 16px;
+    }
+
+    @media (max-width: 720px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* 控制區 */
+
+    .controls {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding: 10px 12px;
+      border-radius: 14px;
+      background: linear-gradient(
+        135deg,
+        rgba(26,33,53,0.95),
+        rgba(15,18,30,0.98)
+      );
+      border: 1px solid rgba(255,255,255,0.05);
+    }
+
+    .controls-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      flex: 1;
+      min-width: 140px;
+    }
+
+    .field label {
+      font-size: 0.8rem;
+      color: var(--text-sub);
+    }
+
+    select {
+      padding: 5px 8px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.1);
+      background: rgba(6,8,14,0.9);
+      color: var(--text-main);
+      font-size: 0.85rem;
+      outline: none;
+    }
+
+    select:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 1px var(--accent-soft);
+    }
+
+    button.btn {
+      border: none;
+      border-radius: 999px;
+      padding: 7px 16px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: transform 0.1s ease, box-shadow 0.1s ease, background 0.1s;
+    }
+
+    button.btn-main {
+      background: linear-gradient(135deg, #3cc3ff, #6af0ff);
+      color: #041018;
+      box-shadow: 0 8px 18px rgba(60,195,255,0.35);
+      flex-shrink: 0;
+    }
+
+    button.btn-main:active {
+      transform: translateY(1px) scale(0.98);
+      box-shadow: 0 4px 10px rgba(60,195,255,0.25);
+    }
+
+    button.btn-ghost {
+      background: transparent;
+      color: var(--text-sub);
+      border: 1px solid rgba(255,255,255,0.16);
+      padding-inline: 12px;
+    }
+
+    button.btn[disabled] {
+      opacity: 0.6;
+      cursor: default;
+      box-shadow: none;
+    }
+
+    .hint {
+      font-size: 0.78rem;
+      color: var(--text-sub);
+      line-height: 1.5;
+    }
+
+    /* 狀態列 */
+
+    .status-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 6px;
+    }
+
+    .pill {
+      font-size: 0.78rem;
+      padding: 4px 9px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.06);
+      background: rgba(6,8,14,0.85);
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--text-sub);
+    }
+
+    .pill strong {
+      color: var(--text-main);
+      font-weight: 600;
+    }
+
+    .pill-icon {
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: var(--accent-soft);
+    }
+
+    /* 遊戲區 */
+
+    .board-wrapper {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .board {
+      width: min(70vmin, 380px);
+      aspect-ratio: 1 / 1;
+      background: radial-gradient(circle at top, #252c3f 0, #121625 55%);
+      border-radius: 18px;
+      border: 1px solid rgba(255,255,255,0.08);
+      box-shadow: inset 0 0 0 1px rgba(0,0,0,0.6);
+      padding: 10px;
+      display: grid;
+      grid-template-rows: auto 1fr;
+      gap: 8px;
+    }
+
+    .board-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.8rem;
+      color: var(--text-sub);
+    }
+
+    .board-header span strong {
+      color: var(--accent);
+    }
+
+    .grid {
+      flex: 1;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      grid-template-rows: repeat(3, 1fr);
+      gap: 6px;
+    }
+
+    .cell {
+      border-radius: 12px;
+      border: 1px solid var(--cell-border);
+      background: var(--cell-bg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: clamp(1.6rem, 5vw, 2.4rem);
+      font-weight: 700;
+      color: var(--text-main);
+      cursor: pointer;
+      position: relative;
+      transition: transform 0.08s ease, box-shadow 0.08s ease,
+        border-color 0.08s ease, background 0.08s ease;
+      user-select: none;
+    }
+
+    .cell:active {
+      transform: translateY(1px) scale(0.98);
+      box-shadow: none;
+    }
+
+    .cell.disabled {
+      cursor: default;
+      opacity: 0.45;
+    }
+
+    .cell.showing {
+      background: radial-gradient(circle at top, #3b4c78 0, #171c2b 60%);
+      border-color: var(--accent-soft);
+      box-shadow: 0 0 12px rgba(60,195,255,0.45);
+    }
+
+    .cell.masked {
+      background: radial-gradient(circle at center, #161b29 0, #0c0f19 80%);
+      color: transparent;
+    }
+
+    .cell.masked::after {
+      content: "";
+      width: 18%;
+      height: 18%;
+      border-radius: 999px;
+      border: 2px solid rgba(255,255,255,0.22);
+      opacity: 0.7;
+    }
+
+    .cell.correct {
+      background: radial-gradient(circle at top, #2c5b3e 0, #122018 60%);
+      border-color: rgba(59,214,113,0.8);
+      color: var(--success);
+      box-shadow: 0 0 15px rgba(59,214,113,0.5);
+    }
+
+    .cell.wrong {
+      background: radial-gradient(circle at top, #5b2732 0, #230d13 60%);
+      border-color: rgba(255,77,106,0.8);
+      color: var(--danger);
+      box-shadow: 0 0 15px rgba(255,77,106,0.5);
+      animation: shake 0.28s ease;
+    }
+
+    @keyframes shake {
+      0% { transform: translateX(0); }
+      25% { transform: translateX(-4px); }
+      50% { transform: translateX(4px); }
+      75% { transform: translateX(-3px); }
+      100% { transform: translateX(0); }
+    }
+
+    .message {
+      margin-top: 10px;
+      font-size: 0.85rem;
+      color: var(--text-sub);
+      min-height: 1.4em;
+    }
+
+    .message strong {
+      color: var(--accent);
+    }
+
+    .message.success {
+      color: var(--success);
+    }
+
+    .message.fail {
+      color: var(--danger);
+    }
+
+    .small {
+      font-size: 0.78rem;
+      color: var(--text-sub);
+      margin-top: 4px;
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="card">
+      <div class="header">
+        <div class="title-group">
+          <div class="title">Ayumu 記憶挑戰</div>
+          <div class="subtitle">數字閃現後立刻消失，你能在 0.2 秒內記住位置、按順序點完嗎？</div>
+        </div>
+        <div class="badge">
+          <span class="badge-dot"></span>
+          靈長類短期記憶小實驗
+        </div>
+      </div>
+
+      <div class="layout">
+        <!-- 遊戲區 -->
+        <div class="board-wrapper">
+          <div class="board">
+            <div class="board-header">
+              <span>狀態：<strong id="stateLabel">待開始</strong></span>
+              <span>用時：<strong id="timeLabel">—</strong></span>
+            </div>
+            <div class="grid" id="grid"></div>
+          </div>
+        </div>
+
+        <!-- 控制與說明 -->
+        <div class="controls">
+          <div class="controls-row">
+            <div class="field">
+              <label for="countSelect">數字個數（1～9）</label>
+              <select id="countSelect">
+                <option value="5">5（暖身）</option>
+                <option value="6">6</option>
+                <option value="7" selected>7</option>
+                <option value="8">8</option>
+                <option value="9">9（完整模式）</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="durationSelect">數字顯示時間</label>
+              <select id="durationSelect">
+                <option value="800">0.8 秒（入門）</option>
+                <option value="500">0.5 秒（一般）</option>
+                <option value="350" selected>0.35 秒（進階）</option>
+                <option value="210">0.21 秒（Ayumu 等級）</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="controls-row">
+            <button id="startBtn" class="btn btn-main">
+              開始新一局
+            </button>
+            <button id="revealBtn" class="btn btn-ghost" type="button">
+              顯示答案
+            </button>
+          </div>
+
+          <div class="hint">
+            <strong>玩法說明</strong><br>
+            1️⃣ 按下「開始新一局」，螢幕會瞬間顯示隨機分布的數字。<br>
+            2️⃣ 數字會在設定的時間內全部被遮住。<br>
+            3️⃣ 請依照 <strong>1 → 2 → 3 → …</strong> 的順序點擊原本的格子。<br>
+            ⏱️ 遊戲會計算你在遮住之後完成的時間。
+          </div>
+
+          <div class="status-bar">
+            <div class="pill">
+              <span class="pill-icon"></span>
+              下一個目標：<strong id="nextLabel">—</strong>
+            </div>
+            <div class="pill">
+              目前最佳紀錄：<strong id="bestLabel">—</strong>
+            </div>
+          </div>
+
+          <div id="message" class="message"></div>
+          <div class="small">
+            註：這個小遊戲模擬的是京都大學「Ayumu」黑猩猩的數字瞬間記憶實驗，人類通常在
+            0.2 秒條件下表現會明顯下降，看看你能不能練到接近黑猩猩水準。🧠
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      const gridEl = document.getElementById("grid");
+      const stateLabel = document.getElementById("stateLabel");
+      const timeLabel = document.getElementById("timeLabel");
+      const nextLabel = document.getElementById("nextLabel");
+      const bestLabel = document.getElementById("bestLabel");
+      const startBtn = document.getElementById("startBtn");
+      const revealBtn = document.getElementById("revealBtn");
+      const countSelect = document.getElementById("countSelect");
+      const durationSelect = document.getElementById("durationSelect");
+      const messageEl = document.getElementById("message");
+
+      const STATE_IDLE = "idle";
+      const STATE_SHOWING = "showing";
+      const STATE_RECALL = "recall";
+      const STATE_FINISHED = "finished";
+
+      let gameState = STATE_IDLE;
+      let totalNumbers = 7;
+      let displayMs = 350;
+      let sequence = [];     // [{cellIndex, number}, ...]
+      let cellToNumber = []; // index -> number | null
+      let nextExpected = 1;
+      let revealTimer = null;
+      let startTime = 0;
+      let bestTimeMs = null;
+
+      const cells = [];
+
+      function initGrid() {
+        for (let i = 0; i < 9; i++) {
+          const cell = document.createElement("button");
+          cell.type = "button";
+          cell.className = "cell";
+          cell.dataset.index = String(i);
+          cell.textContent = "";
+          cell.addEventListener("click", onCellClick);
+          gridEl.appendChild(cell);
+          cells.push(cell);
+        }
+        updateLabels();
+      }
+
+      function updateLabels() {
+        nextLabel.textContent =
+          gameState === STATE_RECALL ? String(nextExpected) : "—";
+        stateLabel.textContent = {
+          [STATE_IDLE]: "待開始",
+          [STATE_SHOWING]: "記住數字位置！",
+          [STATE_RECALL]: "按順序點格子",
+          [STATE_FINISHED]: "本局結束"
+        }[gameState] || "";
+        if (bestTimeMs == null) {
+          bestLabel.textContent = "—";
+        } else {
+          bestLabel.textContent = (bestTimeMs / 1000).toFixed(3) + " 秒";
+        }
+      }
+
+      function shuffle(arr) {
+        for (let i = arr.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [arr[i], arr[j]] = [arr[j], arr[i]];
+        }
+        return arr;
+      }
+
+      function clearBoardVisual() {
+        cells.forEach((cell) => {
+          cell.textContent = "";
+          cell.classList.remove("showing", "masked", "correct", "wrong", "disabled");
+        });
+      }
+
+      function startGame() {
+        if (revealTimer) {
+          clearTimeout(revealTimer);
+          revealTimer = null;
+        }
+
+        messageEl.textContent = "";
+        messageEl.className = "message";
+
+        totalNumbers = parseInt(countSelect.value, 10) || 7;
+        displayMs = parseInt(durationSelect.value, 10) || 350;
+
+        sequence = [];
+        cellToNumber = new Array(9).fill(null);
+        nextExpected = 1;
+        timeLabel.textContent = "—";
+
+        clearBoardVisual();
+
+        // 選出要用的格子 index
+        const indices = shuffle(Array.from({ length: 9 }, (_, i) => i)).slice(
+          0,
+          totalNumbers
+        );
+
+        // 將 1～totalNumbers 隨機分配到這些格子
+        const nums = shuffle(
+          Array.from({ length: totalNumbers }, (_, i) => i + 1)
+        );
+        for (let i = 0; i < totalNumbers; i++) {
+          const cellIndex = indices[i];
+          const number = nums[i];
+          sequence.push({ cellIndex, number });
+          cellToNumber[cellIndex] = number;
+        }
+
+        // 顯示數字
+        sequence.forEach(({ cellIndex, number }) => {
+          const cell = cells[cellIndex];
+          cell.textContent = String(number);
+          cell.classList.add("showing");
+          cell.classList.remove("masked", "disabled", "correct", "wrong");
+        });
+
+        gameState = STATE_SHOWING;
+        updateLabels();
+
+        // 設定一段時間後把數字遮住
+        revealTimer = setTimeout(() => {
+          revealTimer = null;
+          enterRecallPhase();
+        }, displayMs);
+
+        startBtn.disabled = true;
+      }
+
+      function enterRecallPhase() {
+        // 統一排序 sequence，方便之後參考
+        sequence.sort((a, b) => a.number - b.number);
+
+        // 遮住數字
+        sequence.forEach(({ cellIndex }) => {
+          const cell = cells[cellIndex];
+          cell.classList.remove("showing");
+          cell.classList.add("masked");
+          cell.textContent = ""; // 真實數字隱藏，只用 cellToNumber 做判斷
+        });
+
+        gameState = STATE_RECALL;
+        nextExpected = 1;
+        startTime = performance.now();
+        timeLabel.textContent = "計時中…";
+        updateLabels();
+      }
+
+      function finishGame(success) {
+        gameState = STATE_FINISHED;
+        startBtn.disabled = false;
+
+        // 顯示所有數字
+        for (let i = 0; i < 9; i++) {
+          const num = cellToNumber[i];
+          const cell = cells[i];
+          cell.classList.remove("masked", "showing");
+          if (num != null) {
+            if (!cell.classList.contains("correct") && !cell.classList.contains("wrong")) {
+              cell.textContent = String(num);
+            }
+            cell.classList.add("disabled");
+          } else {
+            cell.textContent = "";
+            cell.classList.add("disabled");
+          }
+        }
+
+        if (success) {
+          const endTime = performance.now();
+          const usedMs = endTime - startTime;
+          timeLabel.textContent = (usedMs / 1000).toFixed(3) + " 秒";
+          messageEl.textContent = "太強了！你在遮住之後成功按完全部數字。";
+          messageEl.className = "message success";
+
+          // 更新最佳紀錄（以目前設定為單位，可以簡單用一個 key）
+          const key = "ayumu_best_" + totalNumbers + "_" + displayMs;
+          const prev = localStorage.getItem(key);
+          if (!prev || Number(prev) > usedMs) {
+            localStorage.setItem(key, String(usedMs));
+            bestTimeMs = usedMs;
+          } else {
+            bestTimeMs = Number(prev);
+          }
+        } else {
+          messageEl.className = "message fail";
+        }
+
+        updateLabels();
+      }
+
+      function onCellClick(e) {
+        const cell = e.currentTarget;
+        const idx = Number(cell.dataset.index);
+
+        if (gameState !== STATE_RECALL) {
+          return;
+        }
+
+        const num = cellToNumber[idx];
+        if (num == null) {
+          // 點到空格
+          cell.classList.add("wrong");
+          messageEl.textContent = "這個格子原本沒有數字，算錯一次！";
+          messageEl.className = "message fail";
+          finishGame(false);
+          return;
+        }
+
+        if (num === nextExpected) {
+          // 正確
+          cell.classList.remove("masked", "wrong");
+          cell.classList.add("correct");
+          cell.textContent = String(num);
+          cell.classList.add("disabled");
+          nextExpected++;
+          if (nextExpected > totalNumbers) {
+            // 全部完成
+            finishGame(true);
+          } else {
+            nextLabel.textContent = String(nextExpected);
+          }
+        } else {
+          // 點錯
+          cell.classList.add("wrong");
+          cell.textContent = String(num);
+          messageEl.textContent =
+            "順序錯了！你點到 " +
+            num +
+            "，但下一個應該是 " +
+            nextExpected +
+            "。";
+          messageEl.className = "message fail";
+          finishGame(false);
+        }
+      }
+
+      function revealAnswerOnly() {
+        if (cellToNumber.every((n) => n == null)) {
+          messageEl.textContent = "還沒有開始遊戲喔，先按一次「開始新一局」。";
+          messageEl.className = "message";
+          return;
+        }
+        // 不影響 state，只是顯示目前這局的答案
+        for (let i = 0; i < 9; i++) {
+          const num = cellToNumber[i];
+          const cell = cells[i];
+          if (num != null) {
+            cell.textContent = String(num);
+            cell.classList.remove("masked");
+          } else {
+            cell.textContent = "";
+          }
+        }
+      }
+
+      function loadBestFromStorage() {
+        totalNumbers = parseInt(countSelect.value, 10) || 7;
+        displayMs = parseInt(durationSelect.value, 10) || 350;
+        const key = "ayumu_best_" + totalNumbers + "_" + displayMs;
+        const v = localStorage.getItem(key);
+        bestTimeMs = v ? Number(v) : null;
+      }
+
+      // 事件綁定
+      startBtn.addEventListener("click", () => {
+        loadBestFromStorage();
+        updateLabels();
+        startGame();
+      });
+
+      revealBtn.addEventListener("click", () => {
+        revealAnswerOnly();
+      });
+
+      countSelect.addEventListener("change", () => {
+        loadBestFromStorage();
+        updateLabels();
+      });
+
+      durationSelect.addEventListener("change", () => {
+        loadBestFromStorage();
+        updateLabels();
+      });
+
+      // 初始化
+      initGrid();
+      loadBestFromStorage();
+      updateLabels();
+    })();
+  </script>
+</body>
+</html>
