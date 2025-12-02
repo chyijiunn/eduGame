@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head><script src="/eduGame/ga4.js"></script>
+  <meta charset="UTF-8">
+  <title>顏色干擾小測驗 v0.2</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: #020617;
+      color: #e5e7eb;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans TC", sans-serif;
+    }
+    .game-container {
+      background: #0f172a;
+      border-radius: 18px;
+      padding: 18px 16px 10px;
+      width: min(640px, 96vw);
+      box-shadow: 0 20px 40px rgba(0,0,0,0.6);
+    }
+    .top-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 4px;
+    }
+    h1 {
+      font-size: 20px;
+      margin: 0;
+      white-space: nowrap;
+    }
+    .help-btn {
+      border: none;
+      border-radius: 999px;
+      padding: 6px 12px;
+      font-size: 14px;
+      cursor: pointer;
+      background: #334155;
+      color: #e5e7eb;
+      flex-shrink: 0;
+      transition: background 0.15s ease, transform 0.1s ease;
+    }
+    .help-btn:hover { background: #475569; }
+    .help-btn:active { transform: scale(0.96); }
+
+    .status-bar {
+      display: flex;
+      justify-content: space-between;
+      font-size: 14px;
+      margin: 4px 0 8px;
+      opacity: 0.9;
+    }
+    .status-bar span.label {
+      opacity: 0.7;
+    }
+
+    .question-box {
+      margin: 10px 0 16px;
+      padding: 16px 10px;
+      border-radius: 14px;
+      background: #020617; /* 之後會被 JS 覆蓋 */
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 110px;
+    }
+    .question-text {
+      font-size: clamp(48px, 16vw, 96px);
+      font-weight: 800;
+      letter-spacing: 0.3em;
+      text-align: center;
+      width: 100%;
+      text-shadow: 0 0 8px rgba(0,0,0,0.5);
+      word-wrap: break-word;
+    }
+
+    .options {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+    .option-btn, .main-btn {
+      border: none;
+      border-radius: 999px;
+      padding: 10px 12px;
+      font-size: 18px;
+      cursor: pointer;
+      background: #111827;
+      color: #e5e7eb;
+      transition: transform 0.1s ease, box-shadow 0.1s ease, background 0.15s ease, opacity 0.15s ease;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+      text-shadow: 0 0 6px rgba(0,0,0,0.4);
+    }
+    .option-btn:active, .main-btn:active {
+      transform: scale(0.96);
+      box-shadow: none;
+    }
+    .option-btn:hover, .main-btn:hover {
+      background: #1f2937;
+    }
+    .option-btn.disabled {
+      opacity: 0.4;
+      pointer-events: none;
+    }
+    .main-btn {
+      width: 100%;
+      margin-top: 4px;
+      background: #16a34a;
+      font-size: 17px;
+    }
+    .main-btn:hover {
+      background: #22c55e;
+    }
+
+    .message {
+      min-height: 24px;
+      text-align: center;
+      font-size: 15px;
+      margin-top: 4px;
+    }
+    .correct { color: #4ade80; }
+    .wrong   { color: #f97373; }
+
+    .hint-text {
+      font-size: 13px;
+      text-align: center;
+      opacity: 0.7;
+      margin-top: 3px;
+    }
+
+    .version {
+      font-size: 11px;
+      opacity: 0.45;
+      text-align: right;
+      margin-top: 3px;
+    }
+
+    /* 說明 overlay */
+    .overlay {
+      position: fixed;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 50;
+    }
+    .overlay.show {
+      display: flex;
+    }
+    .overlay-backdrop {
+      position: absolute;
+      inset: 0;
+      background: rgba(15,23,42,0.85);
+      backdrop-filter: blur(4px);
+    }
+    .overlay-content {
+      position: relative;
+      background: #020617;
+      border-radius: 14px;
+      padding: 14px 14px 10px;
+      width: min(720px, 96vw);
+      max-height: 80vh;
+      overflow: auto;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.7);
+      z-index: 1;
+    }
+    .overlay-title-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+      gap: 8px;
+    }
+    .overlay-title-row h2 {
+      font-size: 18px;
+      margin: 0;
+    }
+    .close-btn {
+      border: none;
+      border-radius: 999px;
+      padding: 5px 10px;
+      font-size: 13px;
+      cursor: pointer;
+      background: #334155;
+      color: #e5e7eb;
+      flex-shrink: 0;
+    }
+    .close-btn:hover { background: #475569; }
+
+    .help-body {
+      font-size: 14px;
+      line-height: 1.6;
+    }
+    .help-body h1,
+    .help-body h2,
+    .help-body h3 {
+      margin-top: 0.8em;
+      margin-bottom: 0.3em;
+    }
+    .help-body ul {
+      padding-left: 1.4em;
+      margin: 0.2em 0 0.4em;
+    }
+    .help-body li {
+      margin-bottom: 0.2em;
+    }
+    .help-body p {
+      margin: 0.2em 0 0.4em;
+    }
+  </style>
+</head>
+<body>
+  <div class="game-container">
+    <div class="top-row">
+      <h1>顏色干擾小測驗</h1>
+      <button id="helpBtn" class="help-btn">說明</button>
+    </div>
+
+    <div class="status-bar">
+      <div>
+        <span class="label">題目：</span><span id="round">0</span> / <span id="totalRounds">10</span>
+      </div>
+      <div>
+        <span class="label">分數：</span><span id="score">0</span>
+      </div>
+    </div>
+
+    <div class="question-box" id="questionBox">
+      <span id="question" class="question-text">按下開始</span>
+    </div>
+
+    <div class="options">
+      <button class="option-btn" data-index="0"></button>
+      <button class="option-btn" data-index="1"></button>
+      <button class="option-btn" data-index="2"></button>
+      <button class="option-btn" data-index="3"></button>
+    </div>
+
+    <button id="startBtn" class="main-btn">開始遊戲</button>
+    <div class="message" id="message"></div>
+    <div class="hint-text">
+      規則：看上方「字的顏色」，選出對應的顏色名稱。<br>
+      詳細遊戲說明請按右上角「說明」。
+    </div>
+    <div class="version">v0.2</div>
+  </div>
+
+  <!-- 說明 overlay -->
+  <div id="helpOverlay" class="overlay">
+    <div class="overlay-backdrop"></div>
+    <div class="overlay-content">
+      <div class="overlay-title-row">
+        <h2>遊戲說明（readme.md）</h2>
+        <button id="closeHelpBtn" class="close-btn">關閉</button>
+      </div>
+      <div id="helpBody" class="help-body">
+        讀取說明中…
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ---- 顏色設定 ----
+    const COLORS = [
+      { name: '黑色', css: '#000000' },
+      { name: '白色', css: '#ffffff' },
+      { name: '紅色', css: '#ef4444' },
+      { name: '綠色', css: '#22c55e' },
+      { name: '藍色', css: '#3b82f6' },
+      { name: '黃色', css: '#eab308' },
+      { name: '灰色', css: '#6b7280' },
+      { name: '橘色', css: '#f97316' }
+    ];
+
+    const TOTAL_ROUNDS = 10;
+    const PENALTY_PER_MISTAKE_MS = 2000; // 每題答錯 +2 秒
+
+    // ---- DOM ----
+    const roundSpan = document.getElementById('round');
+    const totalRoundsSpan = document.getElementById('totalRounds');
+    const scoreSpan = document.getElementById('score');
+    const questionSpan = document.getElementById('question');
+    const questionBox = document.getElementById('questionBox');
+    const messageDiv = document.getElementById('message');
+    const startBtn = document.getElementById('startBtn');
+    const optionButtons = Array.from(document.querySelectorAll('.option-btn'));
+
+    const helpBtn = document.getElementById('helpBtn');
+    const helpOverlay = document.getElementById('helpOverlay');
+    const closeHelpBtn = document.getElementById('closeHelpBtn');
+    const helpBody = document.getElementById('helpBody');
+
+    totalRoundsSpan.textContent = TOTAL_ROUNDS;
+
+    // ---- 狀態 ----
+    let currentRound = 0;
+    let score = 0;
+    let answerColorIndex = null;
+    let isAccepting = false;
+
+    let gameStartTime = null;
+    let questionStartTime = null;
+    let reactionTimes = [];
+    let totalPenaltyMs = 0;
+    let mistakes = 0;
+
+    function shuffle(array) {
+      for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+      }
+      return array;
+    }
+
+    function randIndexExcluding(excluded) {
+      // excluded: 單一 index 或陣列
+      const excludeSet = new Set(
+        Array.isArray(excluded) ? excluded : [excluded]
+      );
+      const candidates = [];
+      for (let i = 0; i < COLORS.length; i++) {
+        if (!excludeSet.has(i)) candidates.push(i);
+      }
+      if (candidates.length === 0) return 0;
+      const r = Math.floor(Math.random() * candidates.length);
+      return candidates[r];
+    }
+
+    function startGame() {
+      currentRound = 0;
+      score = 0;
+      mistakes = 0;
+      reactionTimes = [];
+      totalPenaltyMs = 0;
+
+      scoreSpan.textContent = score;
+      roundSpan.textContent = 0;
+      messageDiv.textContent = '';
+      messageDiv.className = 'message';
+
+      startBtn.textContent = '作答中…';
+      startBtn.disabled = true;
+      startBtn.style.opacity = '0.6';
+
+      gameStartTime = Date.now();
+      nextQuestion();
+    }
+
+    function nextQuestion() {
+      currentRound++;
+      if (currentRound > TOTAL_ROUNDS) {
+        endGame();
+        return;
+      }
+
+      roundSpan.textContent = currentRound;
+      messageDiv.textContent = '';
+      messageDiv.className = 'message';
+
+      // 題目字真正顏色（答案） & 顯示文字（語意）必須不同
+      const actualIndex = Math.floor(Math.random() * COLORS.length);
+      let wordIndex;
+      do {
+        wordIndex = Math.floor(Math.random() * COLORS.length);
+      } while (wordIndex === actualIndex);
+
+      // 題目底色：同時不能等於字色 & 語意顏色（更加干擾）
+      const bgIndex = randIndexExcluding([actualIndex, wordIndex]);
+
+      answerColorIndex = actualIndex;
+
+      // 題目顯示
+      questionSpan.textContent = COLORS[wordIndex].name;
+      questionSpan.style.color = COLORS[actualIndex].css;
+      questionBox.style.backgroundColor = COLORS[bgIndex].css;
+
+      // 選項：包含正確顏色 + 其他隨機顏色，總共 4 個
+      let optionIndices = [actualIndex];
+      while (optionIndices.length < 4 && optionIndices.length < COLORS.length) {
+        const idx = Math.floor(Math.random() * COLORS.length);
+        if (!optionIndices.includes(idx)) optionIndices.push(idx);
+      }
+      optionIndices = shuffle(optionIndices);
+
+      optionButtons.forEach((btn, i) => {
+        if (i < optionIndices.length) {
+          const meaningIndex = optionIndices[i]; // 點這個就代表選了這個顏色「語意」
+
+          // 設定按鈕顯示文字（語意）
+          btn.textContent = COLORS[meaningIndex].name;
+          btn.dataset.colorIndex = meaningIndex;
+
+          // 選項字色：不能等於語意顏色
+          const textColorIndex = randIndexExcluding(meaningIndex);
+          // 底色：不能等於字色 & 語意顏色
+          const btnBgIndex = randIndexExcluding([meaningIndex, textColorIndex]);
+
+          btn.style.color = COLORS[textColorIndex].css;
+          btn.style.backgroundColor = COLORS[btnBgIndex].css;
+
+          btn.classList.remove('disabled');
+          btn.style.visibility = 'visible';
+        } else {
+          btn.textContent = '';
+          btn.dataset.colorIndex = '';
+          btn.classList.add('disabled');
+          btn.style.visibility = 'hidden';
+        }
+      });
+
+      isAccepting = true;
+      questionStartTime = Date.now();
+    }
+
+    function handleOptionClick(e) {
+      if (!isAccepting) return;
+      const btn = e.currentTarget;
+      const chosenIndex = parseInt(btn.dataset.colorIndex, 10);
+      if (Number.isNaN(chosenIndex)) return;
+
+      isAccepting = false;
+
+      // 這一題反應時間
+      const rtMs = Date.now() - questionStartTime;
+      reactionTimes.push(rtMs);
+
+      if (chosenIndex === answerColorIndex) {
+        score++;
+        scoreSpan.textContent = score;
+        messageDiv.textContent = '✔ 正確！';
+        messageDiv.className = 'message correct';
+      } else {
+        mistakes++;
+        totalPenaltyMs += PENALTY_PER_MISTAKE_MS;
+        const correctName = COLORS[answerColorIndex].name;
+        messageDiv.textContent = `✘ 錯誤，正確答案是「${correctName}」，本題加時 +${(PENALTY_PER_MISTAKE_MS/1000)} 秒。`;
+        messageDiv.className = 'message wrong';
+      }
+
+      optionButtons.forEach(b => b.classList.add('disabled'));
+
+      setTimeout(() => {
+        nextQuestion();
+      }, 800);
+    }
+
+    function endGame() {
+      const endTime = Date.now();
+      const rawMs = endTime - gameStartTime;
+      const rawSec = rawMs / 1000;
+      const penaltySec = totalPenaltyMs / 1000;
+      const finalSec = rawSec + penaltySec;
+
+      const avgRtSec = reactionTimes.length
+        ? (reactionTimes.reduce((a, b) => a + b, 0) / reactionTimes.length / 1000)
+        : 0;
+
+      questionSpan.textContent = '完成！';
+      questionSpan.style.color = '#e5e7eb';
+      questionBox.style.backgroundColor = '#020617';
+
+      messageDiv.className = 'message';
+      messageDiv.innerHTML =
+        `你在 ${TOTAL_ROUNDS} 題中答對 <strong>${score}</strong> 題。<br>` +
+        `實際作答時間：<strong>${rawSec.toFixed(2)}</strong> 秒<br>` +
+        `失誤次數：<strong>${mistakes}</strong>，加時：<strong>+${penaltySec.toFixed(2)}</strong> 秒<br>` +
+        `最終記錄時間：<strong>${finalSec.toFixed(2)}</strong> 秒<br>` +
+        `平均反應時間：<strong>${avgRtSec.toFixed(2)}</strong> 秒／題`;
+
+      startBtn.textContent = '再玩一次';
+      startBtn.disabled = false;
+      startBtn.style.opacity = '1';
+      isAccepting = false;
+    }
+
+    startBtn.addEventListener('click', startGame);
+    optionButtons.forEach(btn => btn.addEventListener('click', handleOptionClick));
+
+    // ---- readme.md 載入 & 簡易 Markdown 解析 ----
+    let readmeLoaded = false;
+
+    function escapeHtml(str) {
+      return str
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+    }
+
+    function markdownToHtml(md) {
+      const lines = md.split(/\r?\n/);
+      let html = '';
+      let inList = false;
+
+      function closeList() {
+        if (inList) {
+          html += '</ul>';
+          inList = false;
+        }
+      }
+
+      for (let line of lines) {
+        const trimmed = line.trim();
+
+        // 標題
+        const headingMatch = /^(#{1,6})\s+(.*)$/.exec(trimmed);
+        if (headingMatch) {
+          closeList();
+          const level = headingMatch[1].length;
+          const text = headingMatch[2];
+          html += `<h${level}>${escapeHtml(text)}</h${level}>`;
+          continue;
+        }
+
+        // 無序清單
+        if (/^[-*+]\s+/.test(trimmed)) {
+          if (!inList) {
+            html += '<ul>';
+            inList = true;
+          }
+          const item = trimmed.replace(/^[-*+]\s+/, '');
+          html += `<li>${escapeHtml(item)}</li>`;
+          continue;
+        }
+
+        // 空行
+        if (trimmed === '') {
+          closeList();
+          html += '<br>';
+          continue;
+        }
+
+        // 一般段落
+        closeList();
+        html += `<p>${escapeHtml(line)}</p>`;
+      }
+      closeList();
+
+      // 粗體 **text**
+      html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+
+      return html;
+    }
+
+    async function loadReadme() {
+      try {
+        const res = await fetch('readme.md');
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const text = await res.text();
+        helpBody.innerHTML = markdownToHtml(text);
+      } catch (err) {
+        helpBody.innerHTML =
+          '<p>無法讀取 <code>readme.md</code>。請確認檔案是否與本遊戲 HTML 在同一資料夾，或部署在支援的伺服器上。</p>' +
+          `<p>錯誤資訊：${escapeHtml(String(err))}</p>`;
+      }
+    }
+
+    helpBtn.addEventListener('click', () => {
+      helpOverlay.classList.add('show');
+      if (!readmeLoaded) {
+        readmeLoaded = true;
+        helpBody.textContent = '讀取說明中…';
+        loadReadme();
+      }
+    });
+
+    function closeHelp() {
+      helpOverlay.classList.remove('show');
+    }
+
+    closeHelpBtn.addEventListener('click', closeHelp);
+    helpOverlay.addEventListener('click', (e) => {
+      if (e.target === helpOverlay || e.target.classList.contains('overlay-backdrop')) {
+        closeHelp();
+      }
+    });
+  </script>
+</body>
+</html>
