@@ -1,0 +1,859 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <title>Ayumu 記憶挑戰 short_memory_0.2</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    :root {
+      --bg: #05060a;
+      --panel: #141822;
+      --accent: #3cc3ff;
+      --accent-soft: rgba(60,195,255,0.25);
+      --danger: #ff4d6a;
+      --success: #3bd671;
+      --text-main: #f5f7ff;
+      --text-sub: #a6b0d8;
+      --cell-bg: #1f2533;
+      --cell-border: #333a4f;
+    }
+
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: radial-gradient(circle at top, #182338 0, #05060a 55%);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+        Roboto, "Helvetica Neue", Arial, "Noto Sans TC", sans-serif;
+      color: var(--text-main);
+    }
+
+    .app {
+      width: min(900px, 100vw);
+      padding: 16px;
+    }
+
+    .card {
+      background: rgba(10, 12, 20, 0.9);
+      border-radius: 18px;
+      border: 1px solid rgba(255,255,255,0.06);
+      box-shadow: 0 20px 45px rgba(0,0,0,0.7);
+      padding: 18px 18px 20px;
+      backdrop-filter: blur(20px);
+    }
+
+    @media (min-width: 768px) {
+      .card {
+        padding: 22px 24px 24px;
+      }
+    }
+
+    .header {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 14px;
+    }
+
+    .title-group {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .title {
+      font-size: 1.1rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--accent);
+    }
+
+    .subtitle {
+      font-size: 0.92rem;
+      color: var(--text-sub);
+    }
+
+    .badge {
+      font-size: 0.75rem;
+      padding: 4px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--accent-soft);
+      color: var(--accent);
+      background: rgba(12,18,30,0.95);
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .badge-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 999px;
+      background: var(--accent);
+      box-shadow: 0 0 10px var(--accent);
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 1.3fr 1fr;
+      gap: 16px;
+    }
+
+    @media (max-width: 720px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* 控制區 */
+
+    .controls {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding: 10px 12px;
+      border-radius: 14px;
+      background: linear-gradient(
+        135deg,
+        rgba(26,33,53,0.95),
+        rgba(15,18,30,0.98)
+      );
+      border: 1px solid rgba(255,255,255,0.05);
+    }
+
+    .controls-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      flex: 1;
+      min-width: 140px;
+    }
+
+    .field label {
+      font-size: 0.8rem;
+      color: var(--text-sub);
+    }
+
+    select {
+      padding: 5px 8px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.1);
+      background: rgba(6,8,14,0.9);
+      color: var(--text-main);
+      font-size: 0.85rem;
+      outline: none;
+    }
+
+    select:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 1px var(--accent-soft);
+    }
+
+    button.btn {
+      border: none;
+      border-radius: 999px;
+      padding: 7px 16px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: transform 0.1s ease, box-shadow 0.1s ease, background 0.1s;
+    }
+
+    button.btn-main {
+      background: linear-gradient(135deg, #3cc3ff, #6af0ff);
+      color: #041018;
+      box-shadow: 0 8px 18px rgba(60,195,255,0.35);
+      flex-shrink: 0;
+    }
+
+    button.btn-main:active {
+      transform: translateY(1px) scale(0.98);
+      box-shadow: 0 4px 10px rgba(60,195,255,0.25);
+    }
+
+    button.btn-ghost {
+      background: transparent;
+      color: var(--text-sub);
+      border: 1px solid rgba(255,255,255,0.16);
+      padding-inline: 12px;
+    }
+
+    button.btn[disabled] {
+      opacity: 0.6;
+      cursor: default;
+      box-shadow: none;
+    }
+
+    .hint {
+      font-size: 0.78rem;
+      color: var(--text-sub);
+      line-height: 1.5;
+    }
+
+    /* 狀態列 */
+
+    .status-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 6px;
+    }
+
+    .pill {
+      font-size: 0.78rem;
+      padding: 4px 9px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.06);
+      background: rgba(6,8,14,0.85);
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--text-sub);
+    }
+
+    .pill strong {
+      color: var(--text-main);
+      font-weight: 600;
+    }
+
+    .pill-icon {
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: var(--accent-soft);
+    }
+
+    /* 遊戲區 */
+
+    .board-wrapper {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .board {
+      width: min(70vmin, 380px);
+      aspect-ratio: 1 / 1;
+      background: radial-gradient(circle at top, #252c3f 0, #121625 55%);
+      border-radius: 18px;
+      border: 1px solid rgba(255,255,255,0.08);
+      box-shadow: inset 0 0 0 1px rgba(0,0,0,0.6);
+      padding: 10px;
+      display: grid;
+      grid-template-rows: auto 1fr;
+      gap: 8px;
+    }
+
+    .board-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.8rem;
+      color: var(--text-sub);
+    }
+
+    .board-header span strong {
+      color: var(--accent);
+    }
+
+    .board-area {
+      position: relative;
+      border-radius: 14px;
+      background: radial-gradient(circle at 20% 0%, #303b54 0, #151928 60%);
+      box-shadow: inset 0 0 0 1px rgba(0,0,0,0.65);
+      overflow: hidden;
+    }
+
+    .board-area::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at top, rgba(255,255,255,0.06), transparent 55%);
+      mix-blend-mode: soft-light;
+      pointer-events: none;
+    }
+
+    .spot {
+      position: absolute;
+      width: 18%;
+      aspect-ratio: 1 / 1;
+      border-radius: 999px;
+      border: 1px solid var(--cell-border);
+      background: radial-gradient(circle at top, #3b4c78 0, #171c2b 60%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: clamp(1.4rem, 4.8vw, 2.2rem);
+      font-weight: 700;
+      color: var(--text-main);
+      cursor: pointer;
+      user-select: none;
+      transform: translate(-50%, -50%);
+      transition: transform 0.08s ease, box-shadow 0.08s ease,
+        border-color 0.08s ease, background 0.08s ease, opacity 0.08s ease;
+      z-index: 1;
+    }
+
+    .spot:active {
+      transform: translate(-50%, -49%) scale(0.97);
+      box-shadow: none;
+    }
+
+    .spot.masked {
+      background: radial-gradient(circle at center, #161b29 0, #0c0f19 80%);
+      color: transparent;
+      border-color: rgba(255,255,255,0.16);
+    }
+
+    .spot.masked::after {
+      content: "";
+      width: 32%;
+      height: 32%;
+      border-radius: 999px;
+      border: 2px solid rgba(255,255,255,0.25);
+      opacity: 0.9;
+    }
+
+    .spot.correct {
+      background: radial-gradient(circle at top, #2c5b3e 0, #122018 60%);
+      border-color: rgba(59,214,113,0.8);
+      color: var(--success);
+      box-shadow: 0 0 15px rgba(59,214,113,0.5);
+    }
+
+    .spot.wrong {
+      background: radial-gradient(circle at top, #5b2732 0, #230d13 60%);
+      border-color: rgba(255,77,106,0.8);
+      color: var(--danger);
+      box-shadow: 0 0 15px rgba(255,77,106,0.5);
+      animation: shake 0.28s ease;
+    }
+
+    .spot.disabled {
+      cursor: default;
+      opacity: 0.65;
+    }
+
+    @keyframes shake {
+      0% { transform: translate(-50%, -50%); }
+      25% { transform: translate(calc(-50% - 4px), -50%); }
+      50% { transform: translate(calc(-50% + 4px), -50%); }
+      75% { transform: translate(calc(-50% - 3px), -50%); }
+      100% { transform: translate(-50%, -50%); }
+    }
+
+    .message {
+      margin-top: 10px;
+      font-size: 0.85rem;
+      color: var(--text-sub);
+      min-height: 1.4em;
+    }
+
+    .message strong {
+      color: var(--accent);
+    }
+
+    .message.success {
+      color: var(--success);
+    }
+
+    .message.fail {
+      color: var(--danger);
+    }
+
+    .small {
+      font-size: 0.78rem;
+      color: var(--text-sub);
+      margin-top: 4px;
+    }
+
+    .muted {
+      opacity: 0.6;
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="card">
+      <div class="header">
+        <div class="title-group">
+          <div class="title">Ayumu 記憶挑戰 · short_memory_0.2</div>
+          <div class="subtitle">自由座標版：數字在畫面任意位置閃現，你能記住所有數字的位置與順序嗎？</div>
+        </div>
+        <div class="badge">
+          <span class="badge-dot"></span>
+          練習模式會自動縮短顯示時間
+        </div>
+      </div>
+
+      <div class="layout">
+        <!-- 遊戲區 -->
+        <div class="board-wrapper">
+          <div class="board">
+            <div class="board-header">
+              <span>狀態：<strong id="stateLabel">待開始</strong></span>
+              <span>用時：<strong id="timeLabel">—</strong></span>
+            </div>
+            <div class="board-area" id="boardArea"></div>
+          </div>
+        </div>
+
+        <!-- 控制與說明 -->
+        <div class="controls">
+          <div class="controls-row">
+            <div class="field">
+              <label for="modeSelect">模式</label>
+              <select id="modeSelect">
+                <option value="normal" selected>一般模式</option>
+                <option value="practice">練習模式（自動變難）</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="countSelect">數字個數（1～9）</label>
+              <select id="countSelect">
+                <option value="5">5（暖身）</option>
+                <option value="6">6</option>
+                <option value="7" selected>7</option>
+                <option value="8">8</option>
+                <option value="9">9（完整模式）</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="controls-row">
+            <div class="field">
+              <label for="durationSelect">數字顯示時間（一般模式）</label>
+              <select id="durationSelect">
+                <option value="800">0.8 秒（入門）</option>
+                <option value="500">0.5 秒（一般）</option>
+                <option value="350" selected>0.35 秒（進階）</option>
+                <option value="210">0.21 秒（Ayumu 等級）</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>練習模式目前顯示時間</label>
+              <div id="practiceTimeLabel" class="pill muted">—</div>
+            </div>
+          </div>
+
+          <div class="controls-row">
+            <button id="startBtn" class="btn btn-main">
+              開始新一局
+            </button>
+            <button id="revealBtn" class="btn btn-ghost" type="button">
+              顯示答案
+            </button>
+          </div>
+
+          <div class="hint">
+            <strong>玩法說明</strong><br>
+            1️⃣ 按「開始新一局」，畫面上會在隨機位置閃現 1～N 的圓點。<br>
+            2️⃣ 數字在限定時間後全部被遮住，只剩圓圈。<br>
+            3️⃣ 請依照 <strong>1 → 2 → 3 → …</strong> 的順序，點擊原本的圓點位置。<br>
+            🔁 <strong>練習模式</strong>：從顯示很久開始，每成功一局就自動縮短顯示時間，直到 Ayumu 等級。
+          </div>
+
+          <div class="status-bar">
+            <div class="pill">
+              <span class="pill-icon"></span>
+              下一個目標：<strong id="nextLabel">—</strong>
+            </div>
+            <div class="pill">
+              目前最佳紀錄：<strong id="bestLabel">—</strong>
+            </div>
+          </div>
+
+          <div id="message" class="message"></div>
+          <div class="small">
+            註：黑猩猩 Ayumu 在 0.21 秒等級就能穩定記住所有數字的位置與順序。<br>
+            一般模式可以自由調整顯示時間；練習模式則會自動把你往「瞬間記憶」推進。
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      const boardArea = document.getElementById("boardArea");
+      const stateLabel = document.getElementById("stateLabel");
+      const timeLabel = document.getElementById("timeLabel");
+      const nextLabel = document.getElementById("nextLabel");
+      const bestLabel = document.getElementById("bestLabel");
+      const startBtn = document.getElementById("startBtn");
+      const revealBtn = document.getElementById("revealBtn");
+      const countSelect = document.getElementById("countSelect");
+      const durationSelect = document.getElementById("durationSelect");
+      const modeSelect = document.getElementById("modeSelect");
+      const practiceTimeLabel = document.getElementById("practiceTimeLabel");
+      const messageEl = document.getElementById("message");
+
+      const STATE_IDLE = "idle";
+      const STATE_SHOWING = "showing";
+      const STATE_RECALL = "recall";
+      const STATE_FINISHED = "finished";
+
+      const MODE_NORMAL = "normal";
+      const MODE_PRACTICE = "practice";
+
+      let gameState = STATE_IDLE;
+      let mode = MODE_NORMAL;
+
+      let totalNumbers = 7;
+      let currentDisplayMs = 350;    // 目前這局的顯示時間
+      let practiceMs = 1000;         // 練習模式起始顯示時間
+      const PRACTICE_MIN_MS = 210;
+      const PRACTICE_STEP_MS = 100;
+
+      let spots = [];      // [{number, x, y, el}, ...]
+      let nextExpected = 1;
+      let revealTimer = null;
+      let startTime = 0;
+      let bestTimeMs = null;
+
+      function updateLabels() {
+        nextLabel.textContent =
+          gameState === STATE_RECALL ? String(nextExpected) : "—";
+
+        stateLabel.textContent = {
+          [STATE_IDLE]: "待開始",
+          [STATE_SHOWING]: "記住數字位置！",
+          [STATE_RECALL]: "按順序點圓點",
+          [STATE_FINISHED]: "本局結束"
+        }[gameState] || "";
+
+        if (bestTimeMs == null) {
+          bestLabel.textContent = "—";
+        } else {
+          bestLabel.textContent = (bestTimeMs / 1000).toFixed(3) + " 秒";
+        }
+
+        if (mode === MODE_PRACTICE) {
+          practiceTimeLabel.textContent = (practiceMs / 1000).toFixed(2) + " 秒";
+        } else {
+          practiceTimeLabel.textContent = "—";
+        }
+
+        // 一般 / 練習模式下，調整顯示
+        if (mode === MODE_NORMAL) {
+          durationSelect.disabled = false;
+          practiceTimeLabel.classList.add("muted");
+        } else {
+          durationSelect.disabled = true;
+          practiceTimeLabel.classList.remove("muted");
+        }
+      }
+
+      function shuffle(arr) {
+        for (let i = arr.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [arr[i], arr[j]] = [arr[j], arr[i]];
+        }
+        return arr;
+      }
+
+      function clearBoardVisual() {
+        spots = [];
+        boardArea.innerHTML = "";
+      }
+
+      function generatePositions(count) {
+        const result = [];
+        const minDist = 18; // 百分比距離避免重疊
+
+        function dist(a, b) {
+          const dx = a.x - b.x;
+          const dy = a.y - b.y;
+          return Math.sqrt(dx * dx + dy * dy);
+        }
+
+        for (let i = 0; i < count; i++) {
+          let tries = 0;
+          let candidate;
+          while (true) {
+            // 範圍稍微內縮一點避免太靠邊
+            const x = 15 + Math.random() * 70;
+            const y = 15 + Math.random() * 70;
+            candidate = { x, y };
+            if (result.every((p) => dist(p, candidate) > minDist) || tries > 60) {
+              break;
+            }
+            tries++;
+          }
+          result.push(candidate);
+        }
+        return result;
+      }
+
+      function syncConfigFromUI() {
+        totalNumbers = parseInt(countSelect.value, 10) || 7;
+        if (mode === MODE_NORMAL) {
+          currentDisplayMs = parseInt(durationSelect.value, 10) || 350;
+        } else {
+          // 練習模式用 practiceMs 控制
+          currentDisplayMs = practiceMs;
+        }
+      }
+
+      function loadBestFromStorage() {
+        const keyMs =
+          mode === MODE_NORMAL ? currentDisplayMs : practiceMs;
+        const key = "ayumu_free_best_" + totalNumbers + "_" + keyMs;
+        const v = localStorage.getItem(key);
+        bestTimeMs = v ? Number(v) : null;
+      }
+
+      function saveBestToStorage(usedMs) {
+        const keyMs =
+          mode === MODE_NORMAL ? currentDisplayMs : practiceMs;
+        const key = "ayumu_free_best_" + totalNumbers + "_" + keyMs;
+        const prev = localStorage.getItem(key);
+        if (!prev || Number(prev) > usedMs) {
+          localStorage.setItem(key, String(usedMs));
+          bestTimeMs = usedMs;
+        } else if (prev) {
+          bestTimeMs = Number(prev);
+        }
+      }
+
+      function createSpot(number, x, y) {
+        const el = document.createElement("button");
+        el.type = "button";
+        el.className = "spot";
+        el.textContent = String(number);
+        el.style.left = x + "%";
+        el.style.top = y + "%";
+        el.dataset.number = String(number);
+        el.addEventListener("click", onSpotClick);
+        boardArea.appendChild(el);
+
+        const spot = { number, x, y, el };
+        spots.push(spot);
+      }
+
+      function startGame() {
+        if (revealTimer) {
+          clearTimeout(revealTimer);
+          revealTimer = null;
+        }
+
+        syncConfigFromUI();
+        loadBestFromStorage();
+        updateLabels();
+
+        messageEl.textContent = "";
+        messageEl.className = "message";
+        timeLabel.textContent = "—";
+
+        nextExpected = 1;
+        clearBoardVisual();
+
+        // 生成位置與數字
+        const positions = generatePositions(totalNumbers);
+        const numbers = shuffle(
+          Array.from({ length: totalNumbers }, (_, i) => i + 1)
+        );
+
+        for (let i = 0; i < totalNumbers; i++) {
+          const pos = positions[i];
+          const num = numbers[i];
+          createSpot(num, pos.x, pos.y);
+        }
+
+        // 顯示數字
+        spots.forEach((spot) => {
+          const el = spot.el;
+          el.classList.remove("masked", "correct", "wrong", "disabled");
+          el.textContent = String(spot.number);
+        });
+
+        gameState = STATE_SHOWING;
+        updateLabels();
+
+        startBtn.disabled = true;
+
+        // 設定遮蔽計時器
+        revealTimer = setTimeout(() => {
+          revealTimer = null;
+          enterRecallPhase();
+        }, currentDisplayMs);
+      }
+
+      function enterRecallPhase() {
+        // 遮起來
+        spots.forEach((spot) => {
+          const el = spot.el;
+          el.classList.add("masked");
+          el.textContent = "";
+        });
+
+        gameState = STATE_RECALL;
+        nextExpected = 1;
+        startTime = performance.now();
+        timeLabel.textContent = "計時中…";
+        updateLabels();
+      }
+
+      function finishGame(success) {
+        gameState = STATE_FINISHED;
+        startBtn.disabled = false;
+
+        spots.forEach((spot) => {
+          const el = spot.el;
+          el.classList.remove("masked");
+          if (!el.textContent) {
+            el.textContent = String(spot.number);
+          }
+          el.classList.add("disabled");
+        });
+
+        if (success) {
+          const endTime = performance.now();
+          const usedMs = endTime - startTime;
+          timeLabel.textContent = (usedMs / 1000).toFixed(3) + " 秒";
+          messageEl.textContent = "太強了！你在遮住之後成功按完全部數字。";
+          messageEl.className = "message success";
+
+          saveBestToStorage(usedMs);
+        } else {
+          messageEl.className = "message fail";
+        }
+
+        updateLabels();
+
+        // 練習模式：成功後自動縮短顯示時間並再來一局
+        if (mode === MODE_PRACTICE && success) {
+          if (practiceMs > PRACTICE_MIN_MS) {
+            practiceMs = Math.max(PRACTICE_MIN_MS, practiceMs - PRACTICE_STEP_MS);
+            messageEl.textContent +=
+              " 顯示時間縮短為 " +
+              (practiceMs / 1000).toFixed(2) +
+              " 秒，準備下一級！";
+          } else {
+            messageEl.textContent += " 你已經來到 Ayumu 等級的顯示時間！";
+          }
+          // 等一下，讓玩家看一下版面再自動下一局
+          setTimeout(() => {
+            if (mode === MODE_PRACTICE) {
+              startGame();
+            }
+          }, 900);
+        }
+      }
+
+      function onSpotClick(e) {
+        const el = e.currentTarget;
+        if (gameState !== STATE_RECALL) return;
+
+        const num = Number(el.dataset.number);
+
+        if (num === nextExpected) {
+          // 正確
+          el.classList.remove("masked", "wrong");
+          el.classList.add("correct");
+          el.textContent = String(num);
+          el.classList.add("disabled");
+
+          nextExpected++;
+          if (nextExpected > totalNumbers) {
+            finishGame(true);
+          } else {
+            nextLabel.textContent = String(nextExpected);
+          }
+        } else {
+          // 點錯
+          el.classList.remove("masked");
+          el.classList.add("wrong");
+          el.textContent = String(num);
+          messageEl.textContent =
+            "順序錯了！你點到 " +
+            num +
+            "，但下一個應該是 " +
+            nextExpected +
+            "。";
+          finishGame(false);
+        }
+      }
+
+      function revealAnswerOnly() {
+        if (!spots.length) {
+          messageEl.textContent = "還沒有開始遊戲喔，先按一次「開始新一局」。";
+          messageEl.className = "message";
+          return;
+        }
+        spots.forEach((spot) => {
+          const el = spot.el;
+          el.classList.remove("masked");
+          el.textContent = String(spot.number);
+        });
+      }
+
+      // 事件綁定
+      startBtn.addEventListener("click", () => {
+        startGame();
+      });
+
+      revealBtn.addEventListener("click", () => {
+        revealAnswerOnly();
+      });
+
+      countSelect.addEventListener("change", () => {
+        syncConfigFromUI();
+        loadBestFromStorage();
+        updateLabels();
+      });
+
+      durationSelect.addEventListener("change", () => {
+        if (mode === MODE_NORMAL) {
+          syncConfigFromUI();
+          loadBestFromStorage();
+          updateLabels();
+        }
+      });
+
+      modeSelect.addEventListener("change", () => {
+        mode = modeSelect.value === MODE_PRACTICE ? MODE_PRACTICE : MODE_NORMAL;
+        syncConfigFromUI();
+        loadBestFromStorage();
+        updateLabels();
+
+        if (mode === MODE_PRACTICE) {
+          messageEl.textContent =
+            "練習模式：從顯示時間較長開始，每成功一局就會自動縮短顯示時間。";
+          messageEl.className = "message";
+        } else {
+          messageEl.textContent = "";
+          messageEl.className = "message";
+        }
+      });
+
+      // 初始化
+      syncConfigFromUI();
+      loadBestFromStorage();
+      updateLabels();
+    })();
+  </script>
+</body>
+</html>
