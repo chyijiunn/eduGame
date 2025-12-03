@@ -19,10 +19,26 @@ AiGameMaker
 	4. 真實情境的降維模擬
 	5. 加速學習 : 圖解化書摘，舉[意義地圖](https://chyijiunn.github.io/eduGame/games/drawSVG/meaningMap2.svg?fbclid=IwY2xjawObyyNleHRuA2FlbQIxMABicmlkETFUb1hjVGQwakQ2SnIyQkp3c3J0YwZhcHBfaWQQMjIyMDM5MTc4ODIwMDg5MgABHuuNxm-xkkaPyFxyD6jQG-siPIMR-xhWhKi5tgh28PyYYQsvGjJKtQltW389_aem_qv_vjfi6eAaDiSKDs1yUoQ)為例
 3. 自己寫網頁於教學上意義
-	1. 製作工具，利用工具，工具重複利用，透過歷程累積、修正概念
-	2. 從資料學習，設立階段性任務供學生逐步完成
-	3. 模擬數據以及情境
-	4. 如何評鑑課程？
+	1. 製作工具，利用工具，工具重複利用，透過歷程累積、修正概念、
+		1. 數學[質因數分解](https://chyijiunn.github.io/eduGame/games/prime-city/)
+		2. 化學[化學式平衡](https://chyijiunn.github.io/eduGame/games/chem-balance/)
+		3. 國語[成語](https://chyijiunn.github.io/eduGame/games/chenyu/)
+		4. 英語[字彙](https://chyijiunn.github.io/eduGame/games/word-search/)
+		5. 科技
+			1. [caseMaker](https://chyijiunn.github.io/eduGame/games/case-maker/)製作
+			2. [光學研磨師](https://chyijiunn.github.io/eduGame/games/len-design/)模擬
+			3. 小[向量圖](https://chyijiunn.github.io/eduGame/games/drawSVG/)製作
+	2. 傳達概念
+		1. [黑猩猩](https://chyijiunn.github.io/eduGame/games/ayumu-memory/)
+		2. [認知衝突](https://chyijiunn.github.io/eduGame/games/color-stroop/)
+	3. 從資料學習，設立階段性任務供學生逐步完成
+		1. [CRISPR](https://chyijiunn.github.io/eduGame/games/crispr/)
+		2. [糖尿病救星](https://chyijiunn.github.io/eduGame/games/cure-beta-cell/)
+	4. 模擬數據以及情境
+		1. [內分泌失調事件簿](https://chyijiunn.github.io/eduGame/games/endocrine-sys/)
+		2. [無人機PID](https://chyijiunn.github.io/eduGame/games/drone-PID/)模擬
+		3. [大富翁](https://chyijiunn.github.io/eduGame/games/sim-TW-stock/)
+	5. 如何評鑑課程？
 4. [Quarto](https://chyijiunn.github.io/eduGame/games/quarto-element/)
 	1. 四連戰QUARTO 遊戲規則 內容物就是16個木頭 有以下幾8種特徵 高or矮、顏色深or淺、實心or空心、方形or圓形 遊戲規則是輪到你時 挑選一個任意木頭給對方 對方要把它放到4x4的格子內，若有某條線(直橫斜都可)皆具有同一特徵 例如：某一直線都是圓形，這樣就贏了！
 	2. 利用這個桌遊的規則做一個化學元素符號的版本，需要有16種元素， 這些元素需符合 quarto 的棋子特性， 需要利用四個特性，每個特性可將16個分為兩組各八個， 盡可能讓16個元素特性排列出每個元素都有獨一無二的狀態，不要有彼此重複的特性如同原本遊戲的木頭設計， 分類的特徵儘量為中學生學到的範圍，找出這16個元素，並且將四個特徵列表厚載細分兩類也分出
@@ -167,3 +183,10 @@ AiGameMaker
 4. 生成一個網頁
 5. github desktop
 6. GA
+# Git pages
+1. 上傳
+1. 拖拉 index
+1. 按齒輪
+1. 進入 General
+1. 的 pages
+1. branch
