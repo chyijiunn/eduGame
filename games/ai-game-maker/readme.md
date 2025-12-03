@@ -187,13 +187,13 @@ AiGameMaker
 1. 上傳
 ![](media/01.png)
 1. 拖拉 index
-![](media/02.png=50%x)
+![](media/02.png)
 1. 按齒輪
-![](media/03.png =50%x)
+![](media/03.png)
 1. 進入 General
-![](media/04.png =50%x)
+![](media/04.png)
 1. 的 pages
-![](media/05.png =50%x)
+![](media/05.png)
 1. branch
-![](media/06.png =50%x)
+![](media/06.png)
 1. 或者看[影片](https://youtube.com/shorts/IALMPxmr_O8)
