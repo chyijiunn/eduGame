@@ -73,7 +73,7 @@ AiGameMaker
 		1. 生態系[能量](https://chyijiunn.github.io/eduGame/games/sketch_forest/)流動|能量路徑不直觀|「食物鏈能量流」：點選生物，顯示能量遞減條形動畫
 		2. 物質循環（碳循環、水循環）|多層次跨界現象|「碳循環互動地圖」：模擬CO₂在人類活動、植物、海洋間流動
 		3. 永續能源與社會影響|技術—環境連結抽象|「能源選擇模擬」：比較太陽能、核能、化石燃料在成本、排放、產能的圖表互動介面
-6. ex. AntEmpire
+6. [AntEmpire](https://chyijiunn.github.io/eduGame/games/ant-empire/)
 	1. 構思大
 		1. 從論文開始
 			1. 請整理費洛蒙相關功能並列表呈現
