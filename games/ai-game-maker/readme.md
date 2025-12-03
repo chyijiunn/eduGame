@@ -185,9 +185,9 @@ AiGameMaker
 6. GA
 # Git pages
 1. 上傳
-![](media/01.png =50%x)
+![](media/01.png)
 1. 拖拉 index
-![](media/02.png =50%x)
+![](media/02.png=50%x)
 1. 按齒輪
 ![](media/03.png =50%x)
 1. 進入 General
