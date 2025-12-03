@@ -185,15 +185,15 @@ AiGameMaker
 6. GA
 # Git pages
 1. 上傳
-![](media/01 上傳.png)
+![](media/01.png)
 1. 拖拉 index
-![](media/02 拖拉 index.png)
+![](media/02.png)
 1. 按齒輪
-![](media/03 按齒輪.png)
+![](media/03.png)
 1. 進入 General
 ![](media/04.png)
 1. 的 pages
-![](media/05 pages.png)
+![](media/05.png)
 1. branch
-![](media/06 Branch.png)
+![](media/06.png)
 1. 或者看[影片](https://youtube.com/shorts/IALMPxmr_O8)
