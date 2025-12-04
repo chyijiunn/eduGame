@@ -181,7 +181,7 @@ AiGameMaker
 		1. 基本圖形
 		2. 圖層概念
 		3. 群組概念
-3. 寫 md 說明以及要求
+3. 寫 [md](file:///Users/trunking/Documents/GitHub/eduGame/games/markdown/) 說明以及要求
 4. 生成一個網頁
 5. github desktop
 6. GA
