@@ -1,0 +1,1035 @@
+
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <title>作業繳交追蹤 v0.1</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #111217;
+      --bg-elevated: #181a20;
+      --border: #2b2f3a;
+      --accent: #4caf50;
+      --accent-soft: rgba(76, 175, 80, 0.1);
+      --accent-warn: #ffb300;
+      --accent-bad: #ef5350;
+      --text-main: #f5f5f5;
+      --text-muted: #9ea3b5;
+      --grid-line: #333848;
+      --shadow-soft: 0 8px 20px rgba(0,0,0,0.4);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+      background: radial-gradient(circle at top, #202331 0, #080910 55%);
+      color: var(--text-main);
+    }
+
+    body {
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      padding: 8px 16px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px 16px;
+      background: linear-gradient(90deg, rgba(46,125,50,0.35), rgba(33,33,33,0.6));
+      backdrop-filter: blur(10px);
+      position: relative;
+      z-index: 5;
+    }
+
+    header .title-block {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 0;
+    }
+
+    header h1 {
+      font-size: 16px;
+      margin: 0;
+      letter-spacing: 0.04em;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    header h1 span.version-badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 1px 6px;
+      border-radius: 999px;
+      font-size: 11px;
+      border: 1px solid rgba(255,255,255,0.1);
+      background: rgba(0,0,0,0.35);
+      color: var(--text-muted);
+    }
+
+    header .subtitle {
+      font-size: 12px;
+      color: var(--text-muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    header .right-block {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .legend {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 4px 8px;
+      border-radius: 999px;
+      background: rgba(0,0,0,0.4);
+      border: 1px solid rgba(255,255,255,0.04);
+      font-size: 11px;
+    }
+
+    .legend-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .legend-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 4px;
+      box-shadow: 0 0 0 1px rgba(0,0,0,0.6);
+    }
+
+    .legend-dot.green { background: var(--accent); }
+    .legend-dot.red { background: var(--accent-bad); }
+    .legend-dot.yellow { background: var(--accent-warn); }
+
+    .backend-indicator {
+      font-size: 11px;
+      padding: 4px 8px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.08);
+      background: rgba(0,0,0,0.35);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      color: var(--text-muted);
+    }
+
+    .backend-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: var(--accent);
+      box-shadow: 0 0 6px rgba(76,175,80,0.9);
+    }
+
+    .backend-dot.local {
+      background: #90caf9;
+      box-shadow: 0 0 6px rgba(144,202,249,0.9);
+    }
+
+    .backend-dot.error {
+      background: var(--accent-bad);
+      box-shadow: 0 0 6px rgba(239,83,80,0.9);
+    }
+
+    .save-status {
+      font-size: 11px;
+      color: var(--text-muted);
+      min-width: 5em;
+      text-align: right;
+    }
+
+    main {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      padding: 6px 8px 8px;
+    }
+
+    #viewport {
+      flex: 1;
+      min-height: 0;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: radial-gradient(circle at top, #252939 0, #101119 60%);
+      overflow: hidden;
+      position: relative;
+      box-shadow: var(--shadow-soft);
+      touch-action: none;
+    }
+
+    #viewport::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(to bottom, rgba(255,255,255,0.03), transparent);
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    #content {
+      position: absolute;
+      left: 0;
+      top: 0;
+      transform-origin: 0 0;
+      z-index: 0;
+    }
+
+    #grid {
+      border-collapse: collapse;
+      margin: 16px;
+      background: rgba(5,5,10,0.95);
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 0 0 1px rgba(255,255,255,0.02);
+    }
+
+    #grid th,
+    #grid td {
+      border: 1px solid var(--grid-line);
+      padding: 4px 6px;
+      font-size: 12px;
+      min-width: 64px;
+      text-align: center;
+      position: relative;
+      white-space: nowrap;
+    }
+
+    #grid thead th {
+      background: linear-gradient(to bottom, #252a3a, #191d27);
+      font-weight: 500;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: #d0d4e1;
+    }
+
+    #grid .corner-cell {
+      background: linear-gradient(to bottom right, #263238, #11141c);
+      font-size: 11px;
+      color: var(--text-muted);
+      min-width: 70px;
+    }
+
+    #grid .seat-header {
+      background: #151822;
+      color: var(--text-muted);
+      font-weight: 500;
+      min-width: 48px;
+    }
+
+    #grid .assignment-label {
+      background: #151822;
+      font-size: 11px;
+      color: var(--text-muted);
+      text-align: right;
+      padding-right: 8px;
+    }
+
+    .assignment-cell {
+      background: rgba(21,24,34,0.95);
+      text-align: left;
+      color: #e0e3f1;
+      max-width: 180px;
+      min-width: 120px;
+      cursor: text;
+    }
+
+    .assignment-cell[contenteditable="true"]:focus {
+      outline: 1px solid var(--accent);
+      box-shadow: 0 0 0 1px var(--accent-soft);
+    }
+
+    .assignment-cell.placeholder {
+      color: var(--text-muted);
+    }
+
+    .status-cell {
+      cursor: pointer;
+      width: 32px;
+      height: 28px;
+      padding: 0;
+      background: radial-gradient(circle at 30% 20%, rgba(255,255,255,0.08), rgba(9,9,12,0.95));
+    }
+
+    .status-inner {
+      width: 17px;
+      height: 17px;
+      border-radius: 6px;
+      margin: auto;
+      box-shadow: inset 0 0 0 1px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.03);
+      background: radial-gradient(circle at 30% 20%, rgba(255,255,255,0.18), rgba(10,10,13,0.9));
+      transition: background 0.15s ease-out, box-shadow 0.15s ease-out, transform 0.07s ease-out;
+    }
+
+    .status-cell:hover .status-inner {
+      transform: scale(1.08);
+      box-shadow: inset 0 0 0 1px rgba(0,0,0,0.9), 0 0 0 1px rgba(255,255,255,0.05), 0 0 8px rgba(255,255,255,0.12);
+    }
+
+    .status-cell.st-green .status-inner {
+      background: radial-gradient(circle at 30% 20%, #e8f5e9, #2e7d32);
+      box-shadow: 0 0 8px rgba(76,175,80,0.9), inset 0 0 0 1px rgba(0,0,0,0.7);
+    }
+
+    .status-cell.st-red .status-inner {
+      background: radial-gradient(circle at 30% 20%, #ffebee, #c62828);
+      box-shadow: 0 0 8px rgba(239,83,80,0.9), inset 0 0 0 1px rgba(0,0,0,0.7);
+    }
+
+    .status-cell.st-yellow .status-inner {
+      background: radial-gradient(circle at 30% 20%, #fff8e1, #f9a825);
+      box-shadow: 0 0 8px rgba(255,193,7,0.9), inset 0 0 0 1px rgba(0,0,0,0.7);
+    }
+
+    #summary {
+      margin-top: 4px;
+      padding: 6px 10px 8px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: radial-gradient(circle at top left, rgba(76,175,80,0.18), rgba(9,10,15,0.98));
+      box-shadow: var(--shadow-soft);
+      max-height: 200px;
+      overflow-y: auto;
+    }
+
+    #summary h2 {
+      font-size: 13px;
+      margin: 0 0 4px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: #c5e1a5;
+    }
+
+    #summary-list {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 6px;
+      font-size: 12px;
+    }
+
+    .summary-item {
+      padding: 6px 8px;
+      border-radius: 8px;
+      background: rgba(4,5,10,0.9);
+      border: 1px solid rgba(255,255,255,0.06);
+    }
+
+    .summary-item h3 {
+      margin: 0 0 3px;
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+      color: #e8f5e9;
+    }
+
+    .summary-item .badge {
+      font-size: 10px;
+      padding: 1px 6px;
+      border-radius: 999px;
+      background: rgba(76,175,80,0.1);
+      border: 1px solid rgba(76,175,80,0.4);
+      color: #c5e1a5;
+    }
+
+    .summary-item p {
+      margin: 1px 0;
+      color: var(--text-muted);
+    }
+
+    .summary-item p strong {
+      color: #e0e3f1;
+      font-weight: 500;
+    }
+
+    .summary-item .ok {
+      color: #c5e1a5;
+    }
+
+    .summary-item .warn {
+      color: #ffe082;
+    }
+
+    .summary-item .bad {
+      color: #ef9a9a;
+    }
+
+    footer {
+      padding: 2px 10px 6px;
+      font-size: 10px;
+      color: var(--text-muted);
+      text-align: right;
+      border-top: 1px solid rgba(255,255,255,0.05);
+      background: radial-gradient(circle at bottom, rgba(255,255,255,0.03), transparent);
+    }
+
+    @media (max-width: 768px) {
+      header {
+        align-items: flex-start;
+      }
+      header h1 {
+        font-size: 14px;
+      }
+      #grid th,
+      #grid td {
+        font-size: 11px;
+        min-width: 56px;
+      }
+      .assignment-cell {
+        max-width: 140px;
+        min-width: 96px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="title-block">
+      <h1>作業繳交追蹤<span class="version-badge">v0.1</span></h1>
+      <div class="subtitle">橫列科目、直列座號，可縮放拖曳，支援 Firebase（選填）與本機暫存。</div>
+    </div>
+    <div class="right-block">
+      <div class="legend">
+        <span class="legend-item">
+          <span class="legend-dot green"></span><span>已繳交</span>
+        </span>
+        <span class="legend-item">
+          <span class="legend-dot yellow"></span><span>待檢查</span>
+        </span>
+        <span class="legend-item">
+          <span class="legend-dot red"></span><span>尚未繳交</span>
+        </span>
+      </div>
+      <div class="backend-indicator" id="backend-indicator">
+        <span class="backend-dot local" id="backend-dot"></span>
+        <span id="backend-label">儲存：本機瀏覽器</span>
+      </div>
+      <div class="save-status" id="save-status">尚未變更</div>
+    </div>
+  </header>
+
+  <main>
+    <div id="viewport">
+      <div id="content">
+        <table id="grid" aria-label="作業繳交表"></table>
+      </div>
+    </div>
+    <section id="summary">
+      <h2>各科作業摘要</h2>
+      <div id="summary-list"></div>
+    </section>
+  </main>
+
+  <footer>
+    單檔 HTML，可直接放上 GitHub Pages 使用．狀態點一下依序切換：空 → 紅燈 → 黃燈 → 綠燈 → 空。
+  </footer>
+
+  <!-- Firebase SDK（可選）-->
+  <script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.13.1/firebase-firestore-compat.js"></script>
+
+  <script>
+    // -----------------------------
+    // 🔧 基本設定（可依班級需求修改）
+    // -----------------------------
+    const defaultState = {
+      numStudents: 30, // 座號 1 ~ N
+      subjects: [
+        { id: "chinese", name: "國語" },
+        { id: "math",    name: "數學" },
+        { id: "science", name: "自然" },
+        { id: "social",  name: "社會" },
+        { id: "english", name: "英文" }
+      ],
+      assignments: {},     // subjectId -> string
+      statuses: {}         // key: `${subjectId}_${seat}` -> "green" | "yellow" | "red"
+    };
+
+    let state = JSON.parse(JSON.stringify(defaultState));
+
+    // 若要啟用 Firebase，請把下面的 YOUR_ 開頭內容改成自己的設定。
+    // （可在 Firebase 專案設定 > 一般 > Web app 設定中取得）
+    const firebaseConfig = {
+      apiKey: "YOUR_API_KEY",
+      authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+      projectId: "YOUR_PROJECT_ID"
+      // Firestore 只需要上述三個欄位即可。
+    };
+
+    const FIREBASE_ENABLED =
+      typeof firebase !== "undefined" &&
+      firebaseConfig.apiKey &&
+      !String(firebaseConfig.apiKey).startsWith("YOUR_");
+
+    // 儲存 key：本機儲存時用，避免和其他版本衝突
+    const LOCAL_KEY = "homeworkTrackerState_v0_1";
+    // Firebase 中的 collection / doc 路徑（可改成自己的班級代碼）
+    const FIREBASE_COLLECTION = "homeworkTrackers";
+    const FIREBASE_DOC_ID = "classA"; // 例如：六甲 / 501 / 3A
+
+    let backend = null; // { load: () => Promise, save: (state) => Promise }
+    let firebaseDb = null;
+    let firebaseDocRef = null;
+
+    const backendIndicator = document.getElementById("backend-indicator");
+    const backendDot = document.getElementById("backend-dot");
+    const backendLabel = document.getElementById("backend-label");
+    const saveStatus = document.getElementById("save-status");
+
+    function setBackendIndicator(mode, error) {
+      if (!backendDot || !backendLabel) return;
+      if (error) {
+        backendDot.classList.remove("local");
+        backendDot.classList.add("error");
+        backendLabel.textContent = "儲存：錯誤，改用本機";
+        return;
+      }
+      if (mode === "firebase") {
+        backendDot.classList.remove("local", "error");
+        backendLabel.textContent = "儲存：Firebase + 本機";
+      } else {
+        backendDot.classList.add("local");
+        backendDot.classList.remove("error");
+        backendLabel.textContent = "儲存：本機瀏覽器";
+      }
+    }
+
+    function setSaveStatus(text) {
+      if (saveStatus) {
+        saveStatus.textContent = text;
+      }
+    }
+
+    // -----------------------------
+    // 後端（本機 + Firebase）
+    // -----------------------------
+    async function initBackend() {
+      // 預設先用 localStorage
+      backend = {
+        async load() {
+          const raw = window.localStorage.getItem(LOCAL_KEY);
+          if (!raw) return null;
+          try {
+            return JSON.parse(raw);
+          } catch (e) {
+            console.warn("解析本機資料失敗：", e);
+            return null;
+          }
+        },
+        async save(data) {
+          try {
+            window.localStorage.setItem(LOCAL_KEY, JSON.stringify(data));
+          } catch (e) {
+            console.warn("儲存到本機失敗：", e);
+          }
+        }
+      };
+
+      setBackendIndicator("local");
+
+      if (!FIREBASE_ENABLED) {
+        // 未設定 Firebase，直接使用本機儲存
+        return;
+      }
+
+      try {
+        const app = firebase.initializeApp(firebaseConfig);
+        firebaseDb = firebase.firestore();
+        firebaseDocRef = firebaseDb.collection(FIREBASE_COLLECTION).doc(FIREBASE_DOC_ID);
+
+        // 包裝成「本機 + Firebase」的雙儲存模式
+        const originalBackend = backend;
+        backend = {
+          async load() {
+            try {
+              const snap = await firebaseDocRef.get();
+              if (snap.exists) {
+                const data = snap.data();
+                // 也同步更新到本機，方便離線
+                try {
+                  window.localStorage.setItem(LOCAL_KEY, JSON.stringify(data));
+                } catch (e) {}
+                return data;
+              }
+            } catch (e) {
+              console.warn("讀取 Firebase 失敗：", e);
+              setBackendIndicator("local", true);
+            }
+            return originalBackend.load();
+          },
+          async save(data) {
+            // 先寫本機，再寫 Firebase
+            await originalBackend.save(data);
+            if (firebaseDocRef) {
+              try {
+                await firebaseDocRef.set(data);
+              } catch (e) {
+                console.warn("寫入 Firebase 失敗：", e);
+                setBackendIndicator("local", true);
+              }
+            }
+          }
+        };
+
+        setBackendIndicator("firebase");
+      } catch (e) {
+        console.warn("初始化 Firebase 失敗：", e);
+        setBackendIndicator("local", true);
+      }
+    }
+
+    async function loadInitialState() {
+      let loaded = null;
+      try {
+        if (backend && backend.load) {
+          loaded = await backend.load();
+        }
+      } catch (e) {
+        console.warn("讀取狀態失敗：", e);
+      }
+
+      if (loaded && typeof loaded === "object") {
+        // 若之後有新增欄位，可在此作合併，以 defaultState 為基底
+        state = Object.assign({}, defaultState, loaded);
+        // 確保 subjects / statuses 存在
+        state.subjects = state.subjects || defaultState.subjects;
+        state.assignments = state.assignments || {};
+        state.statuses = state.statuses || {};
+      } else {
+        state = JSON.parse(JSON.stringify(defaultState));
+      }
+    }
+
+    let saveTimer = null;
+    function scheduleSave() {
+      if (!backend || !backend.save) return;
+      if (saveTimer) {
+        clearTimeout(saveTimer);
+      }
+      setSaveStatus("儲存中…");
+      saveTimer = window.setTimeout(async () => {
+        try {
+          await backend.save(state);
+          setSaveStatus("已儲存 ✔");
+        } catch (e) {
+          console.warn("儲存失敗：", e);
+          setSaveStatus("儲存失敗");
+        }
+      }, 400);
+    }
+
+    // -----------------------------
+    // 建立表格
+    // -----------------------------
+    const grid = document.getElementById("grid");
+    let summaryList = null;
+
+    function buildGrid() {
+      if (!grid) return;
+      grid.innerHTML = "";
+
+      const thead = document.createElement("thead");
+      const headerRow = document.createElement("tr");
+
+      const corner = document.createElement("th");
+      corner.className = "corner-cell";
+      corner.textContent = "座號 / 科目";
+      headerRow.appendChild(corner);
+
+      state.subjects.forEach((sub) => {
+        const th = document.createElement("th");
+        th.textContent = sub.name;
+        headerRow.appendChild(th);
+      });
+
+      thead.appendChild(headerRow);
+
+      const tbody = document.createElement("tbody");
+
+      // 第二列：作業內容
+      const assignmentRow = document.createElement("tr");
+      const assignmentLabel = document.createElement("td");
+      assignmentLabel.className = "assignment-label";
+      assignmentLabel.textContent = "作業內容";
+      assignmentRow.appendChild(assignmentLabel);
+
+      state.subjects.forEach((sub) => {
+        const td = document.createElement("td");
+        td.className = "assignment-cell";
+        td.contentEditable = "true";
+        td.dataset.subjectId = sub.id;
+        const text = state.assignments[sub.id] || "";
+        if (text) {
+          td.textContent = text;
+        } else {
+          td.textContent = "點此輸入…";
+          td.classList.add("placeholder");
+        }
+        assignmentRow.appendChild(td);
+      });
+      tbody.appendChild(assignmentRow);
+
+      // 之後每列是座號
+      for (let seat = 1; seat <= state.numStudents; seat++) {
+        const tr = document.createElement("tr");
+
+        const seatHeader = document.createElement("th");
+        seatHeader.className = "seat-header";
+        seatHeader.textContent = String(seat);
+        tr.appendChild(seatHeader);
+
+        state.subjects.forEach((sub) => {
+          const td = document.createElement("td");
+          td.className = "status-cell";
+          td.dataset.subjectId = sub.id;
+          td.dataset.seat = String(seat);
+
+          const inner = document.createElement("div");
+          inner.className = "status-inner";
+          td.appendChild(inner);
+
+          const key = sub.id + "_" + seat;
+          const status = state.statuses[key] || "none";
+          applyStatusClass(td, status);
+
+          tr.appendChild(td);
+        });
+
+        tbody.appendChild(tr);
+      }
+
+      grid.appendChild(thead);
+      grid.appendChild(tbody);
+    }
+
+    function applyStatusClass(td, status) {
+      td.classList.remove("st-green", "st-yellow", "st-red");
+      if (status === "green") td.classList.add("st-green");
+      else if (status === "yellow") td.classList.add("st-yellow");
+      else if (status === "red") td.classList.add("st-red");
+      td.dataset.status = status;
+    }
+
+    const STATUS_ORDER = ["none", "red", "yellow", "green"];
+
+    function toggleStatusCell(td) {
+      const subjectId = td.dataset.subjectId;
+      const seat = td.dataset.seat;
+      if (!subjectId || !seat) return;
+
+      const key = subjectId + "_" + seat;
+      const current = td.dataset.status || "none";
+      const idx = STATUS_ORDER.indexOf(current);
+      const next = STATUS_ORDER[(idx + 1) % STATUS_ORDER.length];
+
+      state.statuses[key] = next === "none" ? undefined : next;
+      if (next === "none") {
+        delete state.statuses[key];
+      }
+
+      applyStatusClass(td, next);
+      updateSummary();
+      scheduleSave();
+    }
+
+    function handleAssignmentFocus(e) {
+      const el = e.target;
+      if (!el.classList.contains("assignment-cell")) return;
+      if (el.classList.contains("placeholder")) {
+        el.textContent = "";
+        el.classList.remove("placeholder");
+      }
+    }
+
+    function handleAssignmentBlur(e) {
+      const el = e.target;
+      if (!el.classList.contains("assignment-cell")) return;
+      const subjectId = el.dataset.subjectId;
+      if (!subjectId) return;
+      const text = el.textContent.trim();
+      if (text) {
+        state.assignments[subjectId] = text;
+      } else {
+        el.textContent = "點此輸入…";
+        el.classList.add("placeholder");
+        delete state.assignments[subjectId];
+      }
+      updateSummary();
+      scheduleSave();
+    }
+
+    // -----------------------------
+    // 摘要區塊
+    // -----------------------------
+    function updateSummary() {
+      if (!summaryList) {
+        summaryList = document.getElementById("summary-list");
+      }
+      if (!summaryList) return;
+
+      summaryList.innerHTML = "";
+
+      state.subjects.forEach((sub) => {
+        const item = document.createElement("div");
+        item.className = "summary-item";
+
+        const title = document.createElement("h3");
+        const nameSpan = document.createElement("span");
+        nameSpan.textContent = sub.name;
+        const badge = document.createElement("span");
+        badge.className = "badge";
+        badge.textContent = "作業狀態";
+
+        title.appendChild(nameSpan);
+        title.appendChild(badge);
+        item.appendChild(title);
+
+        const assignmentText = state.assignments[sub.id] || "（尚未填寫）";
+        const pAssign = document.createElement("p");
+        pAssign.innerHTML = "<strong>內容：</strong>" + assignmentText;
+        item.appendChild(pAssign);
+
+        let green = 0, yellow = 0, red = 0;
+        const notDone = [];
+
+        for (let seat = 1; seat <= state.numStudents; seat++) {
+          const key = sub.id + "_" + seat;
+          const status = state.statuses[key] || "none";
+          if (status === "green") green++;
+          if (status === "yellow") {
+            yellow++;
+            notDone.push(seat);
+          }
+          if (status === "red") {
+            red++;
+            notDone.push(seat);
+          }
+        }
+
+        const pStats = document.createElement("p");
+        pStats.innerHTML =
+          "<strong>統計：</strong>" +
+          "已繳交 " + green + "　" +
+          "待檢查 " + yellow + "　" +
+          "未繳交 " + red;
+        item.appendChild(pStats);
+
+        const pMissing = document.createElement("p");
+        if (notDone.length === 0) {
+          pMissing.innerHTML = '<span class="ok">全部完成 ✅</span>';
+        } else {
+          pMissing.innerHTML =
+            '<span class="bad">尚未完成座號：</span>' +
+            notDone.join(", ");
+        }
+        item.appendChild(pMissing);
+
+        summaryList.appendChild(item);
+      });
+    }
+
+    // -----------------------------
+    // 盤縮放（滑鼠 & 觸控）
+    // -----------------------------
+    const viewport = document.getElementById("viewport");
+    const content = document.getElementById("content");
+
+    let scale = 1;
+    const MIN_SCALE = 0.6;
+    const MAX_SCALE = 2.5;
+    let offsetX = 0;
+    let offsetY = 0;
+
+    const DRAG_THRESHOLD = 5;
+    let isPointerDown = false;
+    let isDragging = false;
+    let lastPanX = 0;
+    let lastPanY = 0;
+
+    const activePointers = new Map(); // id -> { x, y }
+    let pinchStartDistance = 0;
+    let pinchStartScale = 1;
+    let pinchStartOffsetX = 0;
+    let pinchStartOffsetY = 0;
+
+    function clamp(v, min, max) {
+      return v < min ? min : v > max ? max : v;
+    }
+
+    function distance(a, b) {
+      const dx = a.x - b.x;
+      const dy = a.y - b.y;
+      return Math.sqrt(dx * dx + dy * dy);
+    }
+
+    function updateTransform() {
+      if (!content) return;
+      content.style.transform =
+        "translate(" + offsetX + "px," + offsetY + "px) scale(" + scale + ")";
+    }
+
+    function pointerDown(e) {
+      if (!viewport) return;
+      viewport.setPointerCapture(e.pointerId);
+      activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+      if (activePointers.size === 1) {
+        isPointerDown = true;
+        isDragging = false;
+        lastPanX = e.clientX;
+        lastPanY = e.clientY;
+      } else if (activePointers.size === 2) {
+        const pts = Array.from(activePointers.values());
+        pinchStartDistance = distance(pts[0], pts[1]);
+        pinchStartScale = scale;
+        pinchStartOffsetX = offsetX;
+        pinchStartOffsetY = offsetY;
+      }
+    }
+
+    function pointerMove(e) {
+      if (!activePointers.has(e.pointerId)) return;
+      activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+      if (activePointers.size === 1 && isPointerDown) {
+        const dx = e.clientX - lastPanX;
+        const dy = e.clientY - lastPanY;
+        if (Math.abs(dx) > DRAG_THRESHOLD || Math.abs(dy) > DRAG_THRESHOLD) {
+          isDragging = true;
+        }
+        offsetX += dx;
+        offsetY += dy;
+        lastPanX = e.clientX;
+        lastPanY = e.clientY;
+        updateTransform();
+      } else if (activePointers.size === 2 && pinchStartDistance > 0) {
+        const pts = Array.from(activePointers.values());
+        const newDistance = distance(pts[0], pts[1]);
+        if (newDistance <= 0) return;
+
+        let newScale = pinchStartScale * (newDistance / pinchStartDistance);
+        newScale = clamp(newScale, MIN_SCALE, MAX_SCALE);
+
+        const rect = viewport.getBoundingClientRect();
+        const midX = (pts[0].x + pts[1].x) / 2 - rect.left;
+        const midY = (pts[0].y + pts[1].y) / 2 - rect.top;
+
+        // 讓 pinch 中點盡量維持在同一格位置
+        offsetX = midX - (midX - pinchStartOffsetX) * (newScale / pinchStartScale);
+        offsetY = midY - (midY - pinchStartOffsetY) * (newScale / pinchStartScale);
+
+        scale = newScale;
+        updateTransform();
+      }
+    }
+
+    function pointerUp(e) {
+      if (!activePointers.has(e.pointerId)) return;
+      try {
+        viewport.releasePointerCapture(e.pointerId);
+      } catch (err) {}
+      activePointers.delete(e.pointerId);
+
+      if (activePointers.size === 0) {
+        if (!isDragging) {
+          const target = document.elementFromPoint(e.clientX, e.clientY);
+          if (target) {
+            const td = target.closest(".status-cell");
+            if (td && grid.contains(td)) {
+              toggleStatusCell(td);
+            }
+          }
+        }
+        isPointerDown = false;
+        isDragging = false;
+        pinchStartDistance = 0;
+      } else if (activePointers.size === 1) {
+        const remaining = Array.from(activePointers.values())[0];
+        lastPanX = remaining.x;
+        lastPanY = remaining.y;
+        pinchStartDistance = 0;
+      }
+    }
+
+    function wheelZoom(e) {
+      if (!viewport) return;
+      e.preventDefault();
+      const rect = viewport.getBoundingClientRect();
+      const cx = e.clientX - rect.left;
+      const cy = e.clientY - rect.top;
+
+      const zoomIntensity = -0.0015;
+      let newScale = scale * (1 + e.deltaY * zoomIntensity);
+      newScale = clamp(newScale, MIN_SCALE, MAX_SCALE);
+
+      const scaleRatio = newScale / scale;
+      offsetX = cx - (cx - offsetX) * scaleRatio;
+      offsetY = cy - (cy - offsetY) * scaleRatio;
+
+      scale = newScale;
+      updateTransform();
+    }
+
+    function initPanZoom() {
+      if (!viewport) return;
+
+      // 初始置中一點點
+      offsetX = 0;
+      offsetY = 0;
+      scale = 1;
+      updateTransform();
+
+      viewport.addEventListener("pointerdown", pointerDown);
+      viewport.addEventListener("pointermove", pointerMove);
+      viewport.addEventListener("pointerup", pointerUp);
+      viewport.addEventListener("pointercancel", pointerUp);
+      viewport.addEventListener("pointerleave", pointerUp);
+      viewport.addEventListener("wheel", wheelZoom, { passive: false });
+    }
+
+    // -----------------------------
+    // 啟動
+    // -----------------------------
+    document.addEventListener("DOMContentLoaded", async function () {
+      setSaveStatus("載入中…");
+      await initBackend();
+      await loadInitialState();
+      buildGrid();
+      updateSummary();
+      initPanZoom();
+      setSaveStatus("已載入 ✔");
+
+      // assignment 編輯事件
+      grid.addEventListener("focusin", handleAssignmentFocus);
+      grid.addEventListener("focusout", handleAssignmentBlur);
+    });
+  </script>
+</body>
+</html>
