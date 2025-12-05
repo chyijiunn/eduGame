@@ -168,6 +168,7 @@
 </div>
 </body>
 </html>
+
 <script>
 (function(){
   const input = document.getElementById("mdInput");
@@ -175,17 +176,53 @@
   if(!input || !preview) return;
 
   function escapeHtml(str){
-    return str.replace(/[&<>]/g, s => ({ "&":"&amp;","<":"&lt;",">":"&gt;" }[s]));
+    return str.replace(/[&<>]/g, s => ({
+      '&':'&amp;',
+      '<':'&lt;',
+      '>':'&gt;'
+    }[s]));
   }
 
-  // 行內格式：粗體、斜體、連結、網址
-  function inlineFormat(text){
+  function simpleMarkdown(text){
     let html = escapeHtml(text);
 
-    // 粗體 **text**
+    // 標題
+    html = html.replace(/^###### (.+)$/gm,"<h6>$1</h6>");
+    html = html.replace(/^##### (.+)$/gm,"<h5>$1</h5>");
+    html = html.replace(/^#### (.+)$/gm,"<h4>$1</h4>");
+    html = html.replace(/^### (.+)$/gm,"<h3>$1</h3>");
+    html = html.replace(/^## (.+)$/gm,"<h2>$1</h2>");
+    html = html.replace(/^# (.+)$/gm,"<h1>$1</h1>");
+
+    // 粗體與斜體
     html = html.replace(/\*\*(.+?)\*\*/g,"<strong>$1</strong>");
-    // 斜體 *text*
     html = html.replace(/\*(.+?)\*/g,"<em>$1</em>");
+
+    // 引用
+    html = html.replace(
+      /^> (.+)$/gm,
+      '<blockquote style="margin:0 0 8px 0;border-left:3px solid #a5d68a;padding-left:10px;color:#a0a4ad;">$1</blockquote>'
+    );
+
+    // 有序清單：1. 2. 3. 自動流水號
+    html = html.replace(/^(\d+\. .*(?:\n\d+\. .*)*)/gm, block => {
+      const items = block
+        .split(/\n/)
+        .map(l => l.replace(/^\d+\. /, "").trim())
+        .filter(Boolean);
+      if (!items.length) return block;
+      return "<ol>" + items.map(i => "<li>" + i + "</li>").join("") + "</ol>";
+    });
+
+    // 無序清單：支援 - * +
+    html = html.replace(/^(?:- |\* |\+ )(.*(?:\n(?:- |\* |\+ ).*)*)/gm, block => {
+      const items = block
+        .split(/\n/)
+        .map(l => l.replace(/^(?:- |\* |\+ )/, "").trim())
+        .filter(Boolean);
+      if (!items.length) return block;
+      return "<ul>" + items.map(i => "<li>" + i + "</li>").join("") + "</ul>";
+    });
 
     // Markdown 連結 [文字](https://example.com)
     html = html.replace(
@@ -193,7 +230,7 @@
       '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>'
     );
 
-    // 純網址自動變成超連結（避免影響已經在 href 內的）
+    // 純網址自動轉連結（避免重包已存在的 href）
     html = html.replace(
       /(?<!href=")(https?:\/\/[^\s<)]+)/g,
       '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>'
@@ -203,197 +240,17 @@
       '<a href="https://$1" target="_blank" rel="noopener noreferrer">$1</a>'
     );
 
+    // 行內換行 → 段落
+    html = html.replace(/\n{2,}/g,"</p><p>");
+    html = "<p>" + html + "</p>";
     return html;
-  }
-
-  // 簡易 Markdown parser：
-  // - # 標題
-  // - > 引用
-  // - 有序 / 無序清單（支援縮排階層，Tab=4 空白）
-  // - 段落與換行
-  function simpleMarkdown(text){
-    const lines = text.replace(/\r\n?/g, "\n").split("\n");
-    let out = "";
-    let inParagraph = false;
-    const listStack = []; // [{type:"ul"/"ol", indent:number}]
-
-    function closeParagraph(){
-      if(inParagraph){
-        out += "</p>";
-        inParagraph = false;
-      }
-    }
-
-    function closeAllLists(){
-      while(listStack.length){
-        const top = listStack.pop();
-        out += "</li></" + top.type + ">";
-      }
-    }
-
-    lines.forEach((rawLine) => {
-      // Tab → 4 個空白
-      let line = rawLine.replace(/\t/g, "    ");
-      const trimmed = line.trim();
-
-      // 空行：結束段落（清單繼續保留，方便下一行接著列）
-      if(!trimmed){
-        closeParagraph();
-        return;
-      }
-
-      // ===== 標題 =====
-      const headingMatch = trimmed.match(/^(#{1,6})\s+(.*)$/);
-      if(headingMatch){
-        const level = headingMatch[1].length;
-        closeParagraph();
-        closeAllLists();
-        out += "<h" + level + ">" +
-               inlineFormat(headingMatch[2]) +
-               "</h" + level + ">";
-        return;
-      }
-
-      // ===== 引用 =====
-      const quoteMatch = trimmed.match(/^>\s+(.*)$/);
-      if(quoteMatch){
-        closeParagraph();
-        closeAllLists();
-        out += '<blockquote style="margin:0 0 8px 0;border-left:3px solid #a5d68a;padding-left:10px;color:#a0a4ad;">' +
-               inlineFormat(quoteMatch[1]) +
-               "</blockquote>";
-        return;
-      }
-
-      // ===== 清單（有序 / 無序，含縮排階層）=====
-      const indentMatch = line.match(/^(\s*)/);
-      const indentLen = indentMatch ? indentMatch[1].length : 0;
-
-      let liMatch = trimmed.match(/^([-+*])\s+(.*)$/);
-      let type = "ul";
-      if(!liMatch){
-        liMatch = trimmed.match(/^(\d+)\.\s+(.*)$/);
-        if(liMatch) type = "ol";
-      }
-
-      if(liMatch){
-        const content = liMatch[2];
-
-        // 先結束段落
-        closeParagraph();
-
-        if(!listStack.length || indentLen > listStack[listStack.length - 1].indent){
-          // 比上一層更內縮 → 新階層
-          out += "<" + type + "><li>";
-          listStack.push({ type, indent: indentLen });
-        }else{
-          // 跟前面同層或往外縮
-          while(listStack.length && indentLen < listStack[listStack.length - 1].indent){
-            const top = listStack.pop();
-            out += "</li></" + top.type + ">";
-          }
-
-          const top = listStack[listStack.length - 1];
-
-          if(!top || top.type !== type || top.indent !== indentLen){
-            // 同縮排但不同種類，或 stack 本來就空 → 重開一個清單
-            if(top && top.indent === indentLen){
-              const old = listStack.pop();
-              out += "</li></" + old.type + ">";
-            }
-            out += "<" + type + "><li>";
-            listStack.push({ type, indent: indentLen });
-          }else{
-            // 同一個清單續寫下一項
-            out += "</li><li>";
-          }
-        }
-
-        out += inlineFormat(content);
-        return;
-      }
-
-      // ===== 一般段落文字 =====
-      // 碰到一般文字就離開清單
-      closeAllLists();
-
-      if(!inParagraph){
-        out += "<p>";
-        inParagraph = true;
-      }else{
-        // 同一段內換行
-        out += "<br>";
-      }
-
-      out += inlineFormat(trimmed);
-    });
-
-    // 收尾
-    closeParagraph();
-    closeAllLists();
-
-    return out || "<p></p>";
   }
 
   function update(){
     preview.innerHTML = simpleMarkdown(input.value);
   }
 
-  // Tab / Shift+Tab：在 textarea 裡做縮排，而不是跳出去
-  input.addEventListener("keydown", function(e){
-    if(e.key !== "Tab") return;
-
-    e.preventDefault();
-
-    const start = this.selectionStart;
-    const end   = this.selectionEnd;
-    const value = this.value;
-    const indent = "    "; // 一個階層：4 個空白
-
-    if(start !== end){
-      // 多行選取 → 每行一起縮排 / 反縮排
-      const selected = value.slice(start, end);
-      let result;
-
-      if(e.shiftKey){
-        // 反縮排：吃掉每行前面的 1~4 個空白
-        result = selected.replace(/^ {1,4}/gm, "");
-      }else{
-        // 縮排：每行前面加 4 個空白
-        result = selected.replace(/^/gm, indent);
-      }
-
-      this.value = value.slice(0, start) + result + value.slice(end);
-      this.selectionStart = start;
-      this.selectionEnd   = start + result.length;
-    }else{
-      // 只有游標 → 插入或移除縮排
-      if(e.shiftKey){
-        const lineStart = value.lastIndexOf("\n", start - 1) + 1;
-        const line      = value.slice(lineStart, start);
-        const removed   = line.match(/^ {1,4}/);
-        if(removed){
-          const removeLen = removed[0].length;
-          this.value =
-            value.slice(0, lineStart) +
-            line.slice(removeLen) +
-            value.slice(start);
-          const delta = removeLen;
-          this.selectionStart = this.selectionEnd = start - delta;
-        }
-      }else{
-        this.value =
-          value.slice(0, start) + indent + value.slice(end);
-        this.selectionStart = this.selectionEnd = start + indent.length;
-      }
-    }
-
-    // 更新預覽
-    update();
-  });
-
   input.addEventListener("input", update);
   update();
 })();
 </script>
-
