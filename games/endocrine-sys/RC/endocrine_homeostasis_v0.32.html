@@ -1,0 +1,473 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>人體恆定控制中心 v0.32</title>
+<style>
+  :root{
+    --bg:#0b1020; --panel:#11172a; --panel2:#0f1526;
+    --text:#e6f0ff; --muted:#a8b6d3; --accent:#5be3b6; --accent2:#9cc4ff; --danger:#ff6b6b; --warn:#ffc857;
+    --line:#2a3450;
+  }
+  *{box-sizing:border-box; font-family:ui-sans-serif,system-ui,-apple-system,"PingFang TC","Noto Sans TC",Segoe UI,Roboto,"Helvetica Neue",Arial}
+  body{margin:0;background:linear-gradient(180deg,#0b1020,#0a0e1a);color:var(--text)}
+  .wrap{display:grid;grid-template-columns:340px 1fr 380px;gap:12px; padding:12px; min-height:100vh}
+  .card{background:var(--panel); border:1px solid #223050; border-radius:16px; padding:12px; box-shadow:0 12px 30px rgba(0,0,0,.25)}
+  .card h2{margin:0 0 8px 0;font-size:16px;color:#d7e7ff}
+  .row{display:flex;gap:8px;align-items:center}
+  .btn{background:#19233b;color:#dbe7ff;border:1px solid #2a3858;border-radius:10px;padding:6px 10px;cursor:pointer}
+  .btn:hover{filter:brightness(1.1)}
+  .btn:disabled{opacity:.5;cursor:not-allowed}
+  .btn-small{font-size:12px;padding:4px 8px}
+  .btn-pill{border-radius:999px}
+  .btn-primary{background:#1a2e2a;border-color:#336155;color:#aff3d6}
+  .btn-danger{background:#3a2023;border-color:#6b2a32;color:#ffd7d7}
+  .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+  .kpi{display:flex;gap:10px;flex-wrap:wrap}
+  .pill{border-radius:999px;padding:6px 10px;background:#141a28;border:1px solid #273043;display:inline-flex;align-items:center;gap:8px}
+  /* 性別切換 */
+  .pill-switch{position:relative;width:92px;justify-content:space-between;padding:4px 6px;cursor:pointer;user-select:none}
+  .pill-switch .seg{width:36px;text-align:center;font-size:12px;color:#9fb0cc;opacity:.7}
+  .pill-switch .knob{position:absolute;top:3px;left:4px;width:44px;height:22px;border-radius:999px;background:#21304a;border:1px solid #2e3b57;transition:left .2s,background .2s}
+  .pill-switch.female .knob{left:44px;background:#1e3b33;border-color:#275649}
+  .pill-switch.female .seg.right{opacity:1;color:#dff5ea}
+  .pill-switch:not(.female) .seg.left{opacity:1;color:#e2f1ff}
+  /* 情境按鈕狀態 */
+  .btn-scenario.off{opacity:.6}
+  .btn-scenario.on{box-shadow:0 0 0 2px rgba(91,227,182,.25), 0 0 0 6px rgba(91,227,182,.08)}
+  .btn-scenario.flash{outline:2px solid rgba(255,255,255,.24);}
+  /* human */
+  #human svg{width:100%;height:auto;display:block}
+  .svgbtn rect{fill:#1a2540;stroke:#325083;stroke-width:1}
+  .svgbtn text{fill:#cfe3ff;font-size:10px;letter-spacing:.5px}
+  .gland circle{filter:drop-shadow(0 2px 6px rgba(0,0,0,.5))}
+  .gland .svgbtn:hover rect{filter:brightness(1.15)}
+  .hint{outline:2px solid rgba(255,255,255,.25);box-shadow:0 0 16px rgba(91,227,182,.25) inset}
+  /* metrics */
+  .metrics{display:grid;grid-template-columns:repeat(2, minmax(200px,1fr));gap:8px}
+  .metric{background:var(--panel2);border:1px solid #23304e;border-radius:12px;padding:8px; position:relative}
+  .metric h3{margin:0 0 6px 0;font-size:13px;color:#cfe3ff}
+  .metric .val{font-size:18px;color:#fff}
+  canvas.spark{width:100%;height:64px;display:block;border-radius:8px;background:#0d152a;border:1px solid #1e2a45}
+  .badge{position:absolute;right:8px;top:8px;font-size:11px;padding:2px 6px;border-radius:8px;border:1px solid #274057;background:#162134;color:#9cc4ff}
+  .badge.warn{background:#3a2a12;border-color:#6a4b1a;color:#ffdca0}
+  .badge.danger{background:#3a1616;border-color:#6b2b2b;color:#ffd2d2}
+  .footer{opacity:.7;font-size:12px;margin-top:8px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <!-- 左：人體與腺體 -->
+  <div class="card" id="human">
+    <h2>內分泌腺體</h2>
+    <svg viewBox="0 0 320 520">
+      <defs>
+        <linearGradient id="bodyGrad" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#1a2136"/><stop offset="1" stop-color="#10162a"/></linearGradient>
+      </defs>
+      <g id="humanScale" transform="translate(160,240) scale(1.18) translate(-160,-240)">
+        <!-- 身體 -->
+        <g fill="url(#bodyGrad)" stroke="#2b3550" stroke-width="2">
+          <circle cx="160" cy="140" r="60"/>
+          <rect x="112" y="244" width="96" height="160" rx="36"/>
+          <rect x="82" y="244" width="30" height="120" rx="14"/>
+          <rect x="208" y="244" width="30" height="120" rx="14"/>
+          <rect x="118" y="404" width="30" height="140" rx="14"/>
+          <rect x="172" y="404" width="30" height="140" rx="14"/>
+          <ellipse id="pelvis" cx="160" cy="404" rx="34" ry="18" fill="#1b2133"/>
+        </g>
+        <!-- 腦垂腺（GH） -->
+        <g class="gland" data-id="pituitary" transform="translate(160,160)">
+          <circle r="12" fill="#25324d" stroke="#61e8c2" stroke-width="2"/>
+          <g class="svgbtn" data-action="btnGH" transform="translate(-24,-28)">
+            <rect rx="6" width="48" height="16"/><text x="24" y="11" text-anchor="middle">GH</text>
+          </g>
+        </g>
+        <!-- 甲狀腺（T3/T4） -->
+        <g class="gland" data-id="thyroid" transform="translate(160,210)">
+          <circle r="12" fill="#25324d" stroke="#61e8c2" stroke-width="2"/>
+          <g class="svgbtn" data-action="btnTHY" transform="translate(-26,-28)">
+            <rect rx="6" width="52" height="16"/><text x="26" y="11" text-anchor="middle">T3/T4</text>
+          </g>
+        </g>
+        <!-- 副甲狀腺（PTH） -->
+        <g class="gland" data-id="parathy" transform="translate(200,210)">
+          <circle r="9" fill="#25324d" stroke="#61e8c2" stroke-width="2"/>
+          <g class="svgbtn" data-action="btnPTH" transform="translate(-18,-26)">
+            <rect rx="6" width="36" height="14"/><text x="18" y="10" text-anchor="middle">PTH</text>
+          </g>
+        </g>
+        <!-- 左右腎上腺（腎上腺素） -->
+        <g class="gland" data-id="adrenalL" transform="translate(140,272)">
+          <circle r="12" fill="#25324d" stroke="#61e8c2" stroke-width="2"/>
+          <g class="svgbtn" data-action="btnADR_L" transform="translate(-30,-28)">
+            <rect rx="6" width="60" height="16"/><text x="30" y="11" text-anchor="middle">腎上腺素</text>
+          </g>
+        </g>
+        <g class="gland" data-id="adrenalR" transform="translate(180,272)">
+          <circle r="12" fill="#25324d" stroke="#61e8c2" stroke-width="2"/>
+          <g class="svgbtn" data-action="btnADR_R" transform="translate(-30,-28)">
+            <rect rx="6" width="60" height="16"/><text x="30" y="11" text-anchor="middle">腎上腺素</text>
+          </g>
+        </g>
+        <!-- 胰臟（兩鍵） -->
+        <g class="gland" data-id="pancreas" transform="translate(160,315)">
+          <circle r="12" fill="#25324d" stroke="#61e8c2" stroke-width="2"/>
+          <g class="svgbtn" data-action="btnINS" transform="translate(-26,-28)">
+            <rect rx="6" width="52" height="16"/><text x="26" y="11" text-anchor="middle">胰島素</text>
+          </g>
+          <g class="svgbtn" data-action="btnGLU" transform="translate(-26,-8)">
+            <rect rx="6" width="52" height="16"/><text x="26" y="11" text-anchor="middle">升糖素</text>
+          </g>
+        </g>
+        <!-- 性別腺體：睪丸 / 卵巢（切換顯示） -->
+        <g class="gland sex-male" data-id="testes" transform="translate(160,460)">
+          <circle r="12" fill="#25324d" stroke="#61e8c2" stroke-width="2"/>
+          <g class="svgbtn" data-action="btnTEST" transform="translate(-26,-28)">
+            <rect rx="6" width="52" height="16"/><text x="26" y="11" text-anchor="middle">睪固酮</text>
+          </g>
+        </g>
+        <g class="gland sex-female" data-id="ovaryL" transform="translate(140,428)">
+          <circle r="9" fill="#25324d" stroke="#61e8c2" stroke-width="2"/>
+        </g>
+        <g class="gland sex-female" data-id="ovaryR" transform="translate(180,428)">
+          <circle r="9" fill="#25324d" stroke="#61e8c2" stroke-width="2"/>
+        </g>
+        <g class="sex-female" transform="translate(160,428)">
+          <g class="svgbtn" data-action="btnEST" transform="translate(-60,18)">
+            <rect rx="6" width="52" height="16"/><text x="26" y="11" text-anchor="middle">雌激素</text>
+          </g>
+          <g class="svgbtn sex-female" data-action="btnPROG" transform="translate(8,18)">
+            <rect rx="6" width="52" height="16"/><text x="26" y="11" text-anchor="middle">黃體素</text>
+          </g>
+        </g>
+      </g>
+    </svg>
+  </div>
+
+  <!-- 中：指標與趨勢 -->
+  <div class="card">
+    <h2>狀態監控</h2>
+    <div class="kpi">
+      <span class="pill">速度 ×<span id="speedVal">1</span>
+        <input id="speed" type="range" min="0.25" max="8" step="0.25" value="1" style="width:160px">
+      </span>
+      <span class="pill">性別</span>
+      <span class="pill pill-switch" id="sexSwitch"><span class="seg left">男</span><span class="seg right">女</span><span class="knob"></span></span>
+      <span id="sexVal" class="pill">男</span>
+      <span class="pill">環境溫度 <span id="ambientVal">24°C</span><input id="ambient" type="range" min="0" max="45" step="1" value="24" style="width:160px"></span>
+      <button id="autoBtn" class="btn btn-small btn-pill btn-primary">自動負回饋：開</button>
+    </div>
+
+    <div class="metrics" id="metrics"></div>
+    <div class="footer">提示：滑鼠移到指標卡可顯示「偏高/偏低」並高亮建議的腺體按鈕。曲線含正常範圍虛線。</div>
+  </div>
+
+  <!-- 右：情境與事件 -->
+  <div class="card">
+    <h2>情境事件</h2>
+    <div class="grid-2">
+      <button class="btn btn-small btn-scenario off" id="btnMeal">🍱 進食（脈衝）</button>
+      <button class="btn btn-small btn-scenario off" id="btnFast">⏳ 斷食（脈衝）</button>
+      <button class="btn btn-small btn-scenario off" id="btnSprint">🏃 運動（切換）</button>
+      <button class="btn btn-small btn-scenario off" id="btnCold">❄️ 寒冷（切換）</button>
+      <button class="btn btn-small btn-scenario off" id="btnHeat">🔥 高溫（切換）</button>
+      <button class="btn btn-small btn-scenario off" id="btnCalcium">🍼 補鈣（脈衝）</button>
+      <button class="btn btn-small btn-scenario off" id="btnBoneLoss">🦴 骨質流失（切換）</button>
+      <button class="btn btn-small btn-scenario off" id="btnStunt">🧠 腦垂腺：身高情境</button>
+    </div>
+    <div class="footer">
+      右方新增：<strong>骨密度 %</strong>、<strong>身高 cm</strong>。女性模式下，骨盆視覺加寬；左右腎上腺分開。
+      <div style="margin-top:6px">
+        <a class="btn btn-small" href="readme.md" target="_blank">說明（readme.md）</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ====== 狀態與參數 ======
+const metrics = [
+  { key:'temp', name:'體溫', unit:'°C', digits:2, range:[36.1,37.8], set:37.0 },
+  { key:'hr', name:'心跳', unit:'bpm', digits:0, range:[60,100], set:72 },
+  { key:'bp', name:'血壓', unit:'mmHg', digits:0, range:[[95,140],[60,90]], set:[120,80] },
+  { key:'glucose', name:'血糖', unit:'mg/dL', digits:0, range:[70,110], set:90 },
+  { key:'metabolic', name:'代謝率', unit:'×', digits:2, range:[0.8,1.2], set:1.0 },
+  { key:'ca', name:'血鈣', unit:'mg/dL', digits:2, range:[8.5,10.5], set:9.2 },
+  { key:'po', name:'血磷', unit:'mg/dL', digits:2, range:[2.5,4.5], set:3.5 },
+  { key:'mitosis', name:'細胞分裂速度', unit:'%', digits:0, range:[90,110], set:100 },
+  { key:'height', name:'身高', unit:'cm', digits:1, range:[150,180], set:165 },
+  { key:'bmd', name:'骨密度', unit:'%', digits:0, range:[95,105], set:100 },
+];
+
+const S = { t:0, playing:true, speed:1,
+  temp:37.0, hr:72, sys:120, dia:80, map:93,
+  glucose:90, metabolic:1.0, ca:9.2, po:3.5, mitosis:100,
+  height:165.0, bmd:100
+};
+
+const P = { auto:true, ambient:24, exercise:0.0,
+  insulinPulse:0, glucagonPulse:0,
+  ghPulse:0, thyPulse:0, pthPulse:0, estPulse:0, progPulse:0, testPulse:0,
+  adrPulse:0, calciumPulse:0,
+  boneLoss:0, stunt:0,
+  sex:'male'
+};
+
+const hist = {}; metrics.forEach(m=> hist[m.key]=[]);
+
+function pushHist(key, val){
+  const arr = hist[key]; arr.push(val); if(arr.length>160) arr.shift();
+}
+function clamp(v,lo,hi){return Math.max(lo, Math.min(hi, v));}
+function lerp(a,b,t){return a+(b-a)*t;}
+function approach(obj,k,target,rate,dt){ obj[k] = obj[k] + (target - obj[k]) * (1 - Math.exp(-rate*dt)); }
+
+// ====== 介面 ======
+const el = {
+  metrics: document.getElementById('metrics'),
+  speed: document.getElementById('speed'), speedVal: document.getElementById('speedVal'),
+  ambient: document.getElementById('ambient'), ambientVal: document.getElementById('ambientVal'),
+  autoBtn: document.getElementById('autoBtn'),
+  sexSwitch: document.getElementById('sexSwitch'), sexVal: document.getElementById('sexVal'),
+};
+
+// 建立指標卡
+metrics.forEach(m=>{
+  const d=document.createElement('div'); d.className='metric'; d.id='card_'+m.key;
+  d.innerHTML = `<h3>${m.name}</h3><div class="val" id="val_${m.key}">--</div><canvas class="spark" id="spark_${m.key}" width="400" height="70"></canvas><div class="badge" id="badge_${m.key}">正常</div>`;
+  el.metrics.appendChild(d);
+  d.addEventListener('mouseenter',()=> hintFor(m.key,true));
+  d.addEventListener('mouseleave',()=> hintFor(m.key,false));
+});
+
+function hintFor(key,on){
+  // 建議按鈕高亮
+  const suggest = suggestActions(key);
+  document.querySelectorAll('.svgbtn').forEach(n=> n.classList.remove('hint'));
+  if(on){
+    suggest.forEach(id => {
+      const btn = Array.from(document.querySelectorAll(`.svgbtn[data-action="${id}"]`))[0];
+      if(btn) btn.classList.add('hint');
+    });
+  }
+}
+
+function suggestActions(key){
+  const sex=P.sex;
+  switch(key){
+    case 'temp': {
+      const dir = (S.temp - 37.0);
+      return dir<0 ? ['btnTHY','btnADR_L','btnADR_R'] : ['btnINS'];
+    }
+    case 'hr':
+    case 'bp': {
+      const dir = (key==='hr'? (S.hr-72): (S.sys-120));
+      return dir<0 ? ['btnADR_L','btnADR_R'] : [];
+    }
+    case 'glucose': {
+      const dir = S.glucose-90;
+      return dir>0 ? ['btnINS'] : ['btnGLU'];
+    }
+    case 'ca': {
+      const dir = S.ca-9.2;
+      return dir>0 ? ['btnPTH'] : ['btnTHY']; // 降鈣可以用甲狀腺的降鈣素簡化對應
+    }
+    case 'bmd': return ['btnEST','btnCalcium'].filter(id=> (id!=='btnEST' || sex==='female'));
+    case 'mitosis': {
+      const dir = S.mitosis-100;
+      return dir>0 ? ['btnADR_L','btnADR_R'] : ['btnGH','btnTHY'];
+    }
+    case 'height': return ['btnGH'];
+  }
+  return [];
+}
+
+// 性別切換
+el.sexSwitch.addEventListener('click', ()=>{
+  P.sex = (P.sex==='male')? 'female':'male';
+  setSexUI();
+});
+function setSexUI(){
+  const male = P.sex==='male';
+  el.sexSwitch.classList.toggle('female', !male);
+  el.sexVal.textContent = male? '男':'女';
+  document.querySelectorAll('.sex-male').forEach(n=>n.style.display = male ? '' : 'none');
+  document.querySelectorAll('.sex-female').forEach(n=>n.style.display = male ? 'none' : '');
+  const pel = document.getElementById('pelvis'); if(pel){ pel.setAttribute('rx', male? '34':'44'); }
+}
+setSexUI();
+
+// 速度 / 環境 / 自動
+el.speed.addEventListener('input', ()=>{ S.speed = parseFloat(el.speed.value); el.speedVal.textContent=S.speed; });
+el.ambient.addEventListener('input', ()=>{ P.ambient = parseFloat(el.ambient.value); el.ambientVal.textContent=`${P.ambient}°C`; });
+el.autoBtn.addEventListener('click', ()=>{ P.auto=!P.auto; el.autoBtn.textContent = '自動負回饋：'+(P.auto?'開':'關'); el.autoBtn.classList.toggle('btn-danger', !P.auto); });
+
+// 情境按鈕
+const btnMeal = document.getElementById('btnMeal');
+const btnFast = document.getElementById('btnFast');
+const btnSprint = document.getElementById('btnSprint');
+const btnCold = document.getElementById('btnCold');
+const btnHeat = document.getElementById('btnHeat');
+const btnCalcium = document.getElementById('btnCalcium');
+const btnBoneLoss = document.getElementById('btnBoneLoss');
+const btnStunt = document.getElementById('btnStunt');
+
+function setOn(b,on){ b.classList.toggle('on', !!on); b.classList.toggle('off', !on); }
+function flashOn(b,ms=1000){ b.classList.add('on','flash'); setTimeout(()=>{ b.classList.remove('flash'); setOn(b,false); }, ms); }
+
+let sprintOn=false, coldOn=false, heatOn=false;
+btnMeal.addEventListener('click', ()=>{ P.insulinPulse += 0.8; P.glucagonPulse -= 0.2; S.glucose += 8; flashOn(btnMeal,1200); });
+btnFast.addEventListener('click', ()=>{ P.glucagonPulse += 1.0; flashOn(btnFast,1200); });
+btnSprint.addEventListener('click', ()=>{ sprintOn=!sprintOn; P.exercise = sprintOn? 0.8:0; btnSprint.textContent=sprintOn?'🏃 停止運動':'🏃 運動（切換）'; setOn(btnSprint,sprintOn); });
+btnCold.addEventListener('click', ()=>{ coldOn=!coldOn; if(coldOn){ heatOn=false; P.ambient=10; setOn(btnHeat,false); } else { P.ambient=24; } el.ambient.value=P.ambient; el.ambientVal.textContent=`${P.ambient}°C`; setOn(btnCold,coldOn); });
+btnHeat.addEventListener('click', ()=>{ heatOn=!heatOn; if(heatOn){ coldOn=false; P.ambient=34; setOn(btnCold,false); } else { P.ambient=24; } el.ambient.value=P.ambient; el.ambientVal.textContent=`${P.ambient}°C`; setOn(btnHeat,heatOn); });
+btnCalcium.addEventListener('click', ()=>{ P.calciumPulse += 1.0; flashOn(btnCalcium,1200); });
+btnBoneLoss.addEventListener('click', ()=>{ P.boneLoss = P.boneLoss? 0: 1; btnBoneLoss.textContent = P.boneLoss? '🦴 骨質流失（開）':'🦴 骨質流失（切換）'; setOn(btnBoneLoss, !!P.boneLoss); });
+btnStunt.addEventListener('click', ()=>{ S.height = metrics.find(m=>m.key==='height').set/3; P.stunt=1; flashOn(btnStunt,1500); });
+
+// 腺體按鈕（SVG）
+document.querySelectorAll('#human .svgbtn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    const a = btn.getAttribute('data-action');
+    switch(a){
+      case 'btnGH': P.ghPulse += 1.0; break;
+      case 'btnTHY': P.thyPulse += 1.0; break;
+      case 'btnPTH': P.pthPulse += 1.0; break;
+      case 'btnINS': P.insulinPulse += 1.0; break;
+      case 'btnGLU': P.glucagonPulse += 1.0; break;
+      case 'btnADR_L':
+      case 'btnADR_R': P.adrPulse += 1.0; break;
+      case 'btnTEST': P.testPulse += 1.0; break;
+      case 'btnEST': P.estPulse += 1.0; break;
+      case 'btnPROG': P.progPulse += 1.0; break;
+    }
+    btn.classList.add('hint'); setTimeout(()=>btn.classList.remove('hint'),300);
+  });
+});
+
+// ====== 模型（簡化版） ======
+function tick(dt){
+  // 激素衰減
+  ['insulinPulse','glucagonPulse','ghPulse','thyPulse','pthPulse','estPulse','progPulse','testPulse','adrPulse','calciumPulse']
+    .forEach(k=> P[k] *= Math.exp(-1.2*dt));
+
+  // 代謝率：甲狀腺↑、運動↑、腎上腺↑
+  const metaTarget = clamp(1.0 + 0.18*P.thyPulse + 0.25*P.exercise + 0.10*P.adrPulse, 0.6, 2.0);
+  approach(S,'metabolic', metaTarget, 0.8, dt);
+
+  // 體溫：設定點 37°C，受環境與代謝影響（對流簡化）
+  const heatGain = 0.12*(S.metabolic-1.0);
+  const envLoss = 0.02*(S.temp - P.ambient)*(1 - 0.15*P.adrPulse); // 腎上腺收縮周邊血管→散熱↓
+  const dT = (heatGain - envLoss);
+  S.temp = clamp(S.temp + dT*dt, 33, 42);
+
+  // 心跳 / 血壓：腎上腺↑、甲狀腺↑、運動↑
+  const hrTarget = clamp(72 + 40*P.adrPulse + 10*P.thyPulse + 30*P.exercise, 40, 200);
+  approach(S,'hr', hrTarget, 1.5, dt);
+  const sysTarget = clamp(120 + 25*P.adrPulse + 6*P.exercise, 80, 220);
+  const diaTarget = clamp(80 + 12*P.adrPulse, 40, 140);
+  approach(S,'sys', sysTarget, 1.2, dt); approach(S,'dia', diaTarget, 1.2, dt);
+  S.map = S.dia + (S.sys - S.dia)/3;
+
+  // 血糖：進食/胰島素↓，斷食/升糖素↑；腎上腺↑
+  let dG = 0;
+  dG += 4*P.glucagonPulse - 6*P.insulinPulse + 2*P.adrPulse;
+  if(P.auto){
+    // 自動負回饋（簡化）：>100 觸發胰島素，<80 觸發升糖素
+    if(S.glucose>100) dG -= 2*(S.glucose-100)/50;
+    if(S.glucose<80)  dG += 2*(80-S.glucose)/50;
+  }
+  S.glucose = clamp(S.glucose + dG*dt, 40, 250);
+
+  // 鈣 / 磷 與 骨密度：PTH↑→Ca↑/PO4↓/BMD↓；雌激素↑與補鈣↑→BMD↑
+  let dCa = 0.22*P.pthPulse - 0.10*P.thyPulse + 0.15*P.calciumPulse - 0.05*(S.ca-9.2);
+  let dPo = -0.12*P.pthPulse + 0.06*P.thyPulse - 0.04*(S.po-3.5);
+  if(P.boneLoss){ dCa += 0.06; dPo += 0.03; }
+  S.ca = clamp(S.ca + dCa*dt, 6.5, 12.5);
+  S.po = clamp(S.po + dPo*dt, 1.0, 6.0);
+  const bmdTarget = clamp(100 - 18*P.pthPulse + 8*P.thyPulse + 8*P.estPulse + (P.boneLoss? -25:0) + 6*P.calciumPulse, 50, 110);
+  approach(S,'bmd', bmdTarget, 0.05, dt);
+
+  // 細胞分裂：GH↑、甲狀腺↑、雌激素↑、睪固酮↑；腎上腺大幅↑時短期抑制（簡化）
+  const mitTarget = clamp(100 + 22*P.ghPulse + 12*P.thyPulse + 10*P.estPulse + 6*P.testPulse - 10*Math.max(0,P.adrPulse-0.8), 40, 220);
+  approach(S,'mitosis', mitTarget, 0.25, dt);
+
+  // 身高：若啟動矮小情境且低於基準，GH 可促成回升（只回到基準）
+  const baseH = 165; if(S.height < baseH){
+    const grow = 0.5 * P.ghPulse * (1 - S.height/baseH); // cm/模擬分
+    S.height = clamp(S.height + grow*dt, 30, 240);
+    // 人體比例縮放
+    const scale = 1.18 * clamp(S.height/baseH, 0.3, 1.4);
+    const g=document.getElementById('humanScale'); if(g){ g.setAttribute('transform', `translate(160,240) scale(${scale}) translate(-160,-240)`); }
+  }
+}
+
+// ====== 繪圖 ======
+function fmt(k,v){
+  const m = metrics.find(x=>x.key===k);
+  if(k==='bp') return `${Math.round(S.sys)}/${Math.round(S.dia)} mmHg`;
+  if(k==='metabolic') return `×${S.metabolic.toFixed(m.digits)}`;
+  const d=m.digits||0; return `${(+S[k]).toFixed(d)} ${m.unit}`;
+}
+
+function draw(){
+  metrics.forEach(m=>{
+    const key=m.key;
+    pushHist(key, key==='bp' ? (S.sys) : S[key]);
+    const badge=document.getElementById('badge_'+key);
+    const card=document.getElementById('card_'+key);
+    const val=document.getElementById('val_'+key);
+    val.textContent = (key==='bp')? fmt('bp'): fmt(key);
+
+    // 判定狀態與標籤
+    let status='正常', cls=''; let lo,hi;
+    if(Array.isArray(m.range[0])){ lo=m.range[0][0]; hi=m.range[0][1]; } else { lo=m.range[0]; hi=m.range[1]; }
+    const v = key==='bp'? S.sys : S[key];
+    if(v<lo){ status='偏低'; cls='warn'; }
+    if(v>hi){ status='偏高'; cls='danger'; }
+    badge.textContent=status; badge.className='badge'+(cls?(' '+cls):'');
+
+    // 畫 spark
+    const cvs=document.getElementById('spark_'+key), ctx=cvs.getContext('2d');
+    const W=cvs.width, H=cvs.height; ctx.clearRect(0,0,W,H);
+    ctx.fillStyle='#0b1326'; ctx.fillRect(0,0,W,H);
+    // 正常帶
+    ctx.fillStyle='rgba(90,140,200,.10)'; const yLo=H - (loScale(key,lo)*H), yHi=H - (loScale(key,hi)*H); ctx.fillRect(0, Math.min(yLo,yHi), W, Math.abs(yHi-yLo));
+    // 虛線 setpoint
+    const setp = (key==='bp'? 120 : (Array.isArray(m.set)? m.set[0] : m.set));
+    ctx.setLineDash([4,4]); ctx.strokeStyle='rgba(200,220,255,.18)'; ctx.lineWidth=1; const ySet=H - (loScale(key,setp)*H); ctx.beginPath(); ctx.moveTo(0,ySet); ctx.lineTo(W,ySet); ctx.stroke(); ctx.setLineDash([]);
+    // 線
+    const arr=hist[key]; if(arr.length>1){
+      ctx.beginPath(); for(let i=0;i<arr.length;i++){ const x=i/(arr.length-1)*W; const y=H - (loScale(key, arr[i])*H); if(i==0) ctx.moveTo(x,y); else ctx.lineTo(x,y); }
+      ctx.strokeStyle = (status==='正常')? '#9cc4ff' : (status==='偏高'? '#ff9a9a' : '#ffd27a'); ctx.lineWidth=2; ctx.stroke();
+    }
+  });
+}
+function loScale(key,v){
+  // 線性映射（粗略）：各指標各自範圍向上給點空間
+  const m=metrics.find(x=>x.key===key);
+  let lo,hi; if(Array.isArray(m.range[0])){ lo=m.range[0][0]; hi=m.range[0][1]; } else { lo=m.range[0]; hi=m.range[1]; }
+  const pad=(hi-lo)*0.8; const min=lo-pad*0.5, max=hi+pad*0.5; return (v-min)/(max-min);
+}
+
+// ====== 主循環 ======
+let last=performance.now();
+function loop(t){
+  const dt = Math.min(0.05, (t-last)/1000) * S.speed; last=t;
+  tick(dt); draw();
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+// 初始值填入
+document.getElementById('speedVal').textContent=S.speed;
+document.getElementById('ambientVal').textContent=`${P.ambient}°C`;
+
+// ====== 尺寸自適應：中間欄位高度貼齊視窗 ======
+function fitHeight(){ document.querySelectorAll('.card').forEach(c=> c.style.maxHeight = (window.innerHeight-24)+'px'); }
+fitHeight(); window.addEventListener('resize', fitHeight);
+</script>
+</body>
+</html>
