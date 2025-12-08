@@ -1,0 +1,1162 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <title>毫米波深層地熱設計 v0.11</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #050814;
+      --panel: #101524;
+      --panel-soft: #151b2b;
+      --accent: #ffb347;
+      --accent-soft: rgba(255, 179, 71, 0.2);
+      --danger: #ff5c7a;
+      --safe: #4fd893;
+      --txt-main: #f4f7ff;
+      --txt-sub: #b4bddb;
+    }
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+    }
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Noto Sans TC",
+        "Microsoft JhengHei", system-ui, sans-serif;
+      background: radial-gradient(circle at top, #1a2340 0, #050814 55%, #02030a 100%);
+      color: var(--txt-main);
+    }
+    .app {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 12px 12px 24px;
+    }
+    header {
+      text-align: center;
+      margin-bottom: 12px;
+    }
+    header h1 {
+      font-size: 22px;
+      margin: 4px 0 2px;
+      letter-spacing: 0.06em;
+    }
+    header .subtitle {
+      font-size: 13px;
+      color: var(--txt-sub);
+    }
+    .badge-row {
+      display: inline-flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 6px;
+      justify-content: center;
+    }
+    .badge {
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: rgba(10, 16, 35, 0.8);
+      color: var(--txt-sub);
+      backdrop-filter: blur(8px);
+    }
+
+    .layout {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: stretch;
+    }
+    .left-panel {
+      flex: 0 0 320px;
+      max-width: 360px;
+      min-width: 260px;
+      background: linear-gradient(135deg, #111729, #0c1120);
+      border-radius: 14px;
+      padding: 10px 12px 12px;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
+    }
+    .sim-panel {
+      flex: 1 1 320px;
+      min-width: 0;
+      background: radial-gradient(circle at 15% 0%, #1e2442 0, #050814 55%);
+      border-radius: 14px;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      padding: 10px;
+      position: relative;
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
+      overflow: hidden;
+    }
+
+    .panel-title {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .panel-title span.tag {
+      font-size: 10px;
+      padding: 1px 6px;
+      border-radius: 999px;
+      background: rgba(255, 179, 71, 0.12);
+      color: var(--accent);
+      border: 1px solid rgba(255, 179, 71, 0.4);
+    }
+    .panel-sub {
+      font-size: 11px;
+      color: var(--txt-sub);
+      margin-bottom: 6px;
+    }
+
+    .slider-group {
+      margin-bottom: 6px;
+      padding: 6px 8px;
+      border-radius: 10px;
+      background: rgba(7, 11, 26, 0.9);
+      border: 1px solid rgba(255, 255, 255, 0.04);
+    }
+    .slider-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin: 3px 0;
+    }
+    .slider-row label {
+      font-size: 11px;
+      width: 58px;
+      color: var(--txt-sub);
+    }
+    .slider-row input[type="range"] {
+      flex: 1;
+      accent-color: var(--accent);
+    }
+    .slider-row span.value {
+      width: 32px;
+      font-size: 11px;
+      text-align: right;
+      color: var(--txt-sub);
+    }
+
+    .meter-block {
+      margin-top: 6px;
+      padding: 6px 8px;
+      border-radius: 10px;
+      background: rgba(7, 11, 26, 0.9);
+      border: 1px solid rgba(255, 255, 255, 0.04);
+      font-size: 11px;
+    }
+    .meter-label-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 2px;
+    }
+    .meter-label {
+      font-weight: 500;
+    }
+    .meter-value {
+      color: var(--txt-sub);
+      font-variant-numeric: tabular-nums;
+    }
+    .meter-bar {
+      width: 100%;
+      height: 7px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.06);
+      overflow: hidden;
+    }
+    .meter-inner {
+      height: 100%;
+      width: 40%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, #4fd893, #ffdd73, #ff5c7a);
+      transition: width 0.25s ease-out;
+    }
+    .meter-inner.safe {
+      background: linear-gradient(90deg, #4fd893, #37c9ff);
+    }
+
+    .risk-block {
+      margin-top: 6px;
+      padding: 6px 8px;
+      border-radius: 10px;
+      background: radial-gradient(circle at 0 0, rgba(255, 92, 122, 0.2) 0, rgba(7, 11, 26, 0.9) 45%);
+      border: 1px solid rgba(255, 92, 122, 0.45);
+      font-size: 11px;
+    }
+    .risk-block strong {
+      color: var(--danger);
+    }
+    .risk-pill-row {
+      display: flex;
+      gap: 4px;
+      flex-wrap: wrap;
+      margin: 3px 0;
+    }
+    .risk-pill {
+      padding: 1px 6px;
+      border-radius: 999px;
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      font-size: 10px;
+      color: var(--txt-sub);
+    }
+    .risk-pill span {
+      font-weight: 600;
+      margin-left: 2px;
+    }
+    .btn-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 4px;
+    }
+    button {
+      border-radius: 999px;
+      border: none;
+      padding: 6px 10px;
+      font-size: 11px;
+      font-weight: 500;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      letter-spacing: 0.03em;
+      white-space: nowrap;
+    }
+    button.btn-primary {
+      background: linear-gradient(135deg, #ffb347, #ff7a5a);
+      color: #220f05;
+      box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1), 0 8px 18px rgba(0, 0, 0, 0.5);
+    }
+    button.btn-ghost {
+      background: rgba(9, 14, 30, 0.8);
+      color: var(--txt-sub);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+    }
+    button.btn-primary:active,
+    button.btn-ghost:active {
+      transform: translateY(1px);
+      box-shadow: none;
+    }
+
+    .experts {
+      margin-top: 8px;
+      padding-top: 6px;
+      border-top: 1px dashed rgba(255, 255, 255, 0.14);
+    }
+    .experts-title {
+      font-size: 11px;
+      font-weight: 600;
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .experts-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 6px;
+    }
+    .expert-card {
+      border-radius: 9px;
+      padding: 4px 6px;
+      background: rgba(8, 13, 30, 0.95);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      cursor: pointer;
+      text-decoration: none;
+      color: var(--txt-main);
+      display: block;
+      transition: transform 0.15s ease-out, box-shadow 0.15s ease-out,
+        border-color 0.15s ease-out, background 0.15s ease-out;
+      min-height: 46px;
+    }
+    .expert-card:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 8px 16px rgba(0, 0, 0, 0.5);
+      border-color: rgba(255, 179, 71, 0.8);
+      background: radial-gradient(circle at 0 0, rgba(255, 179, 71, 0.18), rgba(8, 13, 30, 0.98));
+    }
+    .expert-name {
+      font-size: 11px;
+      font-weight: 600;
+      margin-bottom: 2px;
+    }
+    .expert-role {
+      font-size: 10px;
+      color: var(--txt-sub);
+    }
+
+    .sim-header-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 4px;
+      font-size: 11px;
+      color: var(--txt-sub);
+      gap: 8px;
+    }
+    .sim-header-row .hint {
+      opacity: 0.9;
+    }
+    .sim-header-row .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      justify-content: flex-end;
+    }
+    .legend-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+    .dot.conduction {
+      background: #ffb347;
+    }
+    .dot.convection {
+      background: #4fd893;
+    }
+    .dot.radiation {
+      background: #ff7af2;
+    }
+
+    .sim-wrap {
+      position: relative;
+      border-radius: 10px;
+      overflow: hidden;
+      background: radial-gradient(circle at 50% -10%, #1b2345 0, #050814 60%);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      min-height: 260px;
+    }
+    canvas {
+      display: block;
+      width: 100%;
+      height: auto;
+      touch-action: none; /* 我們自己處理拖曳與縮放 */
+    }
+    .sim-overlay {
+      position: absolute;
+      left: 8px;
+      bottom: 8px;
+      right: 8px;
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      pointer-events: none;
+      font-size: 10px;
+    }
+    .sim-overlay .card {
+      background: rgba(3, 5, 14, 0.8);
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      padding: 4px 6px;
+      color: var(--txt-sub);
+      max-width: 60%;
+    }
+    .sim-overlay .card strong {
+      color: var(--txt-main);
+    }
+
+    .event-banner {
+      position: absolute;
+      left: 8px;
+      right: 8px;
+      top: 8px;
+      padding: 6px 8px;
+      border-radius: 9px;
+      background: rgba(255, 92, 122, 0.9);
+      color: #2a0208;
+      font-size: 11px;
+      font-weight: 600;
+      display: none;
+      box-shadow: 0 8px 16px rgba(0, 0, 0, 0.5);
+    }
+    .event-banner span.small {
+      font-weight: 400;
+      opacity: 0.9;
+    }
+
+    .info-text {
+      margin-top: 4px;
+      font-size: 10px;
+      color: var(--txt-sub);
+    }
+
+    @media (max-width: 768px) {
+      header h1 {
+        font-size: 18px;
+      }
+      .left-panel {
+        flex: 1 1 100%;
+        max-width: none;
+      }
+      .sim-panel {
+        flex: 1 1 100%;
+      }
+      .experts-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+    @media (max-width: 480px) {
+      .experts-grid {
+        grid-template-columns: 1fr 1fr;
+      }
+      .sim-overlay .card {
+        max-width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <div class="badge-row">
+        <div class="badge">國二地科 × 物理</div>
+        <div class="badge">熱傳導／對流／輻射</div>
+        <div class="badge">毫米波深層地熱設計 v0.11</div>
+      </div>
+      <h1>地熱深層開採設計模擬（毫米波 × 超臨界水）</h1>
+      <div class="subtitle">拖曳、縮放觀察星球剖面，調整三種熱傳機制，並留意可能發生的風險事件。</div>
+    </header>
+
+    <div class="layout">
+      <section class="left-panel">
+        <div class="panel-title">
+          地熱工程控制台
+          <span class="tag">TEACHING MODE</span>
+        </div>
+        <div class="panel-sub">
+          透過滑桿調整三種熱傳機制的設計強度，觀察發電輸出與安全風險。適合老師邊操作邊提問。
+        </div>
+
+        <div class="slider-group">
+          <div class="slider-row">
+            <label for="conductionRange">熱傳導</label>
+            <input id="conductionRange" type="range" min="0" max="100" value="60" />
+            <span class="value" id="conductionVal">60%</span>
+          </div>
+          <div class="slider-row">
+            <label for="convectionRange">對流</label>
+            <input id="convectionRange" type="range" min="0" max="100" value="70" />
+            <span class="value" id="convectionVal">70%</span>
+          </div>
+          <div class="slider-row">
+            <label for="radiationRange">輻射</label>
+            <input id="radiationRange" type="range" min="0" max="100" value="40" />
+            <span class="value" id="radiationVal">40%</span>
+          </div>
+        </div>
+
+        <div class="meter-block">
+          <div class="meter-label-row">
+            <span class="meter-label">當前發電輸出</span>
+            <span class="meter-value"><span id="powerText">--</span>%（相對值）</span>
+          </div>
+          <div class="meter-bar">
+            <div class="meter-inner safe" id="powerBar"></div>
+          </div>
+          <div class="meter-label-row" style="margin-top:4px;">
+            <span class="meter-label">系統壓力／風險</span>
+            <span class="meter-value" id="riskText">--</span>
+          </div>
+          <div class="meter-bar">
+            <div class="meter-inner" id="riskBar" style="width:20%;"></div>
+          </div>
+        </div>
+
+        <div class="risk-block">
+          <div><strong>風險事件模擬</strong>（依目前設計估算機率）</div>
+          <div class="risk-pill-row">
+            <div class="risk-pill">水裂誘發地震：<span id="riskQuake">中</span></div>
+            <div class="risk-pill">塵埃與輻射：<span id="riskDust">中</span></div>
+            <div class="risk-pill">岩層電漿化：<span id="riskPlasma">中</span></div>
+          </div>
+          <div class="btn-row">
+            <button class="btn-primary" id="triggerEventBtn">
+              ⚠ 觸發風險事件
+            </button>
+            <button class="btn-ghost" id="resetViewBtn">
+              🔄 重置視角
+            </button>
+          </div>
+        </div>
+
+        <div class="experts">
+          <div class="experts-title">
+            專家小組諮詢連結
+          </div>
+          <div class="experts-grid">
+            <a class="expert-card" href="jigsaw_D_safety.html" target="_blank">
+              <div class="expert-name">安全主任</div>
+              <div class="expert-role">負責水裂、塵埃與輻射、電漿等風險</div>
+            </a>
+            <a class="expert-card" href="jigsaw_A_heat_conduction.html" target="_blank">
+              <div class="expert-name">熱力學專家</div>
+              <div class="expert-role">說明地球內部熱傳導與補熱機制</div>
+            </a>
+            <a class="expert-card" href="jigsaw_B_microwave_tech.html" target="_blank">
+              <div class="expert-name">微波小組</div>
+              <div class="expert-role">解析毫米波鑽孔與玻璃井壁</div>
+            </a>
+            <a class="expert-card" href="jigsaw_C_supercritical.html" target="_blank">
+              <div class="expert-name">Dr. 超臨界</div>
+              <div class="expert-role">負責超臨界水與發電效率</div>
+            </a>
+          </div>
+        </div>
+
+        <div class="info-text">
+          小技巧：讓四位學生分別扮演以上角色，先閱讀各自講義，再由老師操作本頁模擬，請他們輪流發言補充、質疑或提出修改建議。
+        </div>
+      </section>
+
+      <section class="sim-panel">
+        <div class="sim-header-row">
+          <div class="hint">
+            🖱 滑鼠拖曳平移／滾輪縮放　📱 手指拖曳、雙指縮放／單指點選熱源或渦輪看提示
+          </div>
+          <div class="legend">
+            <span class="legend-item"><span class="dot conduction"></span>傳導熱</span>
+            <span class="legend-item"><span class="dot convection"></span>對流熱水</span>
+            <span class="legend-item"><span class="dot radiation"></span>輻射能</span>
+          </div>
+        </div>
+        <div class="sim-wrap">
+          <div class="event-banner" id="eventBanner"></div>
+          <canvas id="simCanvas"></canvas>
+          <div class="sim-overlay">
+            <div class="card">
+              <strong>設計目標：</strong>
+              把地底高溫岩層的熱，透過傳導、對流與輻射，安全有效地送到地表渦輪機發電。
+            </div>
+            <div class="card" style="text-align:right;">
+              點選熱源／管路／渦輪查看狀態；觸發風險事件後，留意發電輸出與畫面變化。
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      const canvas = document.getElementById("simCanvas");
+      const ctx = canvas.getContext("2d");
+
+      let simWidth = 600;
+      let simHeight = 320;
+
+      let panX = 0;
+      let panY = 0;
+      let zoom = 1;
+
+      let isDragging = false;
+      let dragStartX = 0;
+      let dragStartY = 0;
+      let panStartX = 0;
+      let panStartY = 0;
+
+      const pointers = new Map();
+      let pinchInitialDist = 0;
+      let pinchInitialZoom = 1;
+      let pinchInitialPanX = 0;
+      let pinchInitialPanY = 0;
+      let pinchInitialCenter = { x: 0, y: 0 };
+
+      const radius = 140;
+      const heatPos = { x: 0, y: 40 };
+      const surfaceY = -radius;
+      const turbinePos = { x: 0, y: surfaceY - 38 };
+
+      const particles = [];
+      const PARTICLE_COUNT = 80;
+
+      let lastTime = performance.now();
+
+      let currentEvent = null; // { type, ttl }
+      let powerPenalty = 0;
+
+      const conductionRange = document.getElementById("conductionRange");
+      const convectionRange = document.getElementById("convectionRange");
+      const radiationRange = document.getElementById("radiationRange");
+      const conductionVal = document.getElementById("conductionVal");
+      const convectionVal = document.getElementById("convectionVal");
+      const radiationVal = document.getElementById("radiationVal");
+      const powerText = document.getElementById("powerText");
+      const powerBar = document.getElementById("powerBar");
+      const riskText = document.getElementById("riskText");
+      const riskBar = document.getElementById("riskBar");
+      const riskQuake = document.getElementById("riskQuake");
+      const riskDust = document.getElementById("riskDust");
+      const riskPlasma = document.getElementById("riskPlasma");
+      const eventBanner = document.getElementById("eventBanner");
+      const triggerEventBtn = document.getElementById("triggerEventBtn");
+      const resetViewBtn = document.getElementById("resetViewBtn");
+
+      function resizeCanvas() {
+        const wrap = canvas.parentElement;
+        const rect = wrap.getBoundingClientRect();
+        const w = Math.max(280, rect.width);
+        const h = Math.min(480, w * 0.6);
+
+        const dpr = window.devicePixelRatio || 1;
+        canvas.width = w * dpr;
+        canvas.height = h * dpr;
+        canvas.style.width = w + "px";
+        canvas.style.height = h + "px";
+
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.scale(dpr, dpr);
+
+        simWidth = w;
+        simHeight = h;
+      }
+
+      function initParticles() {
+        particles.length = 0;
+        for (let i = 0; i < PARTICLE_COUNT; i++) {
+          particles.push({
+            t: Math.random(),
+            phase: Math.random() * Math.PI * 2,
+          });
+        }
+      }
+
+      function updateSlidersText() {
+        conductionVal.textContent = conductionRange.value + "%";
+        convectionVal.textContent = convectionRange.value + "%";
+        radiationVal.textContent = radiationRange.value + "%";
+      }
+
+      function level(val) {
+        return Math.max(0, Math.min(1, parseFloat(val) / 100));
+      }
+
+      function updateMeters(dt) {
+        const c = level(conductionRange.value);
+        const v = level(convectionRange.value);
+        const r = level(radiationRange.value);
+
+        let basePower = 20 + c * 40 + v * 30 + r * 10;
+        let effectivePower = Math.max(0, Math.min(100, basePower + powerPenalty));
+        powerText.textContent = effectivePower.toFixed(0);
+
+        powerBar.style.width = effectivePower.toFixed(0) + "%";
+
+        const riskScore = c * 0.3 + v * 0.5 + r * 0.2;
+        const riskPercent = Math.max(0, Math.min(100, riskScore * 100));
+        riskBar.style.width = riskPercent.toFixed(0) + "%";
+        if (riskPercent < 34) riskText.textContent = "低";
+        else if (riskPercent < 67) riskText.textContent = "中";
+        else riskText.textContent = "高";
+
+        setRiskLabel(riskQuake, v);
+        setRiskLabel(riskDust, c);
+        setRiskLabel(riskPlasma, r);
+
+        const recoveryRate = 10;
+        if (!currentEvent && powerPenalty < 0) {
+          powerPenalty = Math.min(0, powerPenalty + (dt / 1000) * recoveryRate);
+        }
+      }
+
+      function setRiskLabel(el, value01) {
+        if (value01 < 0.33) el.textContent = "低";
+        else if (value01 < 0.67) el.textContent = "中";
+        else el.textContent = "高";
+      }
+
+      function worldTransform(cb, shakeX = 0, shakeY = 0) {
+        ctx.save();
+        ctx.translate(simWidth / 2 + panX + shakeX, simHeight * 0.7 + panY + shakeY);
+        ctx.scale(zoom, zoom);
+        cb();
+        ctx.restore();
+      }
+
+      function drawScene(deltaTime) {
+        ctx.clearRect(0, 0, simWidth, simHeight);
+
+        let shakeX = 0;
+        let shakeY = 0;
+        if (currentEvent && currentEvent.type === "quake") {
+          const intensity = currentEvent.ttl / currentEvent.maxTtl;
+          shakeX = (Math.random() - 0.5) * 6 * intensity;
+          shakeY = (Math.random() - 0.5) * 4 * intensity;
+        }
+
+        worldTransform(() => {
+          drawPlanet();
+          drawHeatSource();
+          drawPipe();
+          drawParticles(deltaTime);
+          drawRadiation(deltaTime);
+          drawLabels();
+          if (currentEvent) drawEventOverlay();
+        }, shakeX, shakeY);
+      }
+
+      function drawPlanet() {
+        const grd = ctx.createRadialGradient(0, 40, radius * 0.1, 0, 40, radius * 1.2);
+        grd.addColorStop(0, "#ffb347");
+        grd.addColorStop(0.2, "#f46036");
+        grd.addColorStop(0.5, "#271834");
+        grd.addColorStop(1, "#090614");
+
+        ctx.beginPath();
+        ctx.arc(0, 40, radius, Math.PI, 0, false);
+        ctx.lineTo(radius, 60);
+        ctx.lineTo(-radius, 60);
+        ctx.closePath();
+        ctx.fillStyle = grd;
+        ctx.fill();
+
+        ctx.lineWidth = 1;
+        ctx.strokeStyle = "rgba(255,255,255,0.25)";
+        ctx.beginPath();
+        ctx.arc(0, surfaceY, 12, 0, Math.PI * 2);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(-radius, surfaceY);
+        ctx.lineTo(radius, surfaceY);
+        ctx.strokeStyle = "rgba(255,255,255,0.3)";
+        ctx.stroke();
+      }
+
+      function drawHeatSource() {
+        const c = level(conductionRange.value);
+        const maxR = 70 + c * 30;
+
+        const grd = ctx.createRadialGradient(
+          heatPos.x,
+          heatPos.y,
+          0,
+          heatPos.x,
+          heatPos.y,
+          maxR
+        );
+        grd.addColorStop(0, "rgba(255,219,112,1)");
+        grd.addColorStop(0.2, "rgba(255,160,64,0.95)");
+        grd.addColorStop(0.6, "rgba(255,102,0,0.45)");
+        grd.addColorStop(1, "rgba(255,102,0,0.0)");
+        ctx.fillStyle = grd;
+        ctx.beginPath();
+        ctx.arc(heatPos.x, heatPos.y, maxR, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.beginPath();
+        ctx.arc(heatPos.x, heatPos.y, 10, 0, Math.PI * 2);
+        ctx.fillStyle = "#ffe9b8";
+        ctx.fill();
+        ctx.lineWidth = 1;
+        ctx.strokeStyle = "rgba(0,0,0,0.5)";
+        ctx.stroke();
+      }
+
+      function drawPipe() {
+        const v = level(convectionRange.value);
+        const upColor = v > 0.66 ? "#4fd893" : v > 0.33 ? "#50c2ff" : "#5a6afc";
+
+        ctx.save();
+        ctx.lineWidth = 5;
+        ctx.strokeStyle = "rgba(0,0,0,0.8)";
+        ctx.beginPath();
+        ctx.moveTo(heatPos.x, heatPos.y - 6);
+        ctx.lineTo(heatPos.x, surfaceY - 6);
+        ctx.stroke();
+
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = upColor;
+        ctx.beginPath();
+        ctx.moveTo(heatPos.x, heatPos.y - 6);
+        ctx.lineTo(heatPos.x, surfaceY - 6);
+        ctx.stroke();
+
+        ctx.restore();
+
+        ctx.save();
+        ctx.fillStyle = "#dde4ff";
+        ctx.strokeStyle = "rgba(0,0,0,0.6)";
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.rect(turbinePos.x - 16, turbinePos.y - 10, 32, 18);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(turbinePos.x - 10, turbinePos.y - 5);
+        ctx.lineTo(turbinePos.x + 10, turbinePos.y + 5);
+        ctx.moveTo(turbinePos.x + 10, turbinePos.y - 5);
+        ctx.lineTo(turbinePos.x - 10, turbinePos.y + 5);
+        ctx.strokeStyle = "rgba(50,60,110,0.9)";
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      function drawParticles(deltaTime) {
+        const v = level(convectionRange.value);
+        const c = level(conductionRange.value);
+        const speedBase = 0.08 + v * 0.25;
+        const dt = Math.min(60, deltaTime) / 1000;
+
+        for (const p of particles) {
+          p.t += speedBase * dt;
+          if (p.t > 1) p.t -= 1;
+        }
+
+        const totalHeight = heatPos.y - (surfaceY - 6);
+        ctx.save();
+        ctx.lineWidth = 0;
+
+        for (const p of particles) {
+          const y = heatPos.y - p.t * totalHeight;
+          const x = heatPos.x + Math.sin(p.phase + p.t * 6) * 4;
+
+          const tColor = p.t;
+          const hot = 1 - tColor;
+          const r = 255;
+          const g = Math.floor(180 * (1 - tColor) + 80 * tColor);
+          const b = Math.floor(80 * (1 - tColor) + 200 * tColor);
+          ctx.fillStyle = "rgba(" + r + "," + g + "," + b + "," + (0.4 + 0.4 * c) + ")";
+
+          ctx.beginPath();
+          ctx.arc(x, y, 2, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        ctx.restore();
+      }
+
+      function drawRadiation(deltaTime) {
+        const rLevel = level(radiationRange.value);
+        if (rLevel <= 0.02) return;
+
+        const time = performance.now() / 1000;
+        ctx.save();
+        ctx.strokeStyle = "rgba(255,122,242," + (0.35 + rLevel * 0.4) + ")";
+        ctx.lineWidth = 1;
+
+        const rays = 6;
+        const maxLen = radius + 40;
+        for (let i = 0; i < rays; i++) {
+          const baseAngle = (-Math.PI / 2) + (i - (rays - 1) / 2) * (Math.PI / 12);
+          const pulse = Math.sin(time * 2 + i) * 0.08 * rLevel;
+          const angle = baseAngle + pulse;
+          const len = maxLen * (0.4 + rLevel * 0.6);
+          const x2 = Math.cos(angle) * len;
+          const y2 = Math.sin(angle) * len;
+
+          ctx.beginPath();
+          ctx.moveTo(heatPos.x, heatPos.y);
+          ctx.lineTo(x2, y2);
+          ctx.stroke();
+        }
+
+        ctx.restore();
+      }
+
+      function drawLabels() {
+        ctx.fillStyle = "rgba(255,255,255,0.9)";
+        ctx.font = "10px -apple-system, BlinkMacSystemFont, 'Noto Sans TC', sans-serif";
+        ctx.textAlign = "center";
+
+        ctx.fillText("地底超熱岩層", heatPos.x, heatPos.y + 24);
+        ctx.fillText("毫米波加熱區", heatPos.x, heatPos.y + 36);
+        ctx.fillText("地表渦輪發電機", turbinePos.x, turbinePos.y - 16);
+      }
+
+      function drawEventOverlay() {
+        if (!currentEvent) return;
+        ctx.save();
+        if (currentEvent.type === "dust") {
+          const alpha = 0.2 + 0.4 * (currentEvent.ttl / currentEvent.maxTtl);
+          ctx.fillStyle = "rgba(220,210,180," + alpha + ")";
+          const y = surfaceY - 8;
+          for (let i = -120; i <= 120; i += 16) {
+            ctx.beginPath();
+            ctx.ellipse(i + (Math.random() - 0.5) * 8, y + (Math.random() - 0.5) * 4, 10, 4, 0, 0, Math.PI * 2);
+            ctx.fill();
+          }
+          ctx.strokeStyle = "rgba(255,230,140,0.8)";
+          ctx.beginPath();
+          ctx.moveTo(-18, surfaceY - 40);
+          ctx.lineTo(0, surfaceY - 22);
+          ctx.lineTo(18, surfaceY - 40);
+          ctx.closePath();
+          ctx.stroke();
+        } else if (currentEvent.type === "plasma") {
+          const alpha = 0.4 + 0.4 * (currentEvent.ttl / currentEvent.maxTtl);
+          const maxR = 50;
+          const grd = ctx.createRadialGradient(
+            heatPos.x,
+            heatPos.y,
+            0,
+            heatPos.x,
+            heatPos.y,
+            maxR
+          );
+          grd.addColorStop(0, "rgba(180,120,255," + alpha + ")");
+          grd.addColorStop(0.6, "rgba(120,60,255," + alpha * 0.6 + ")");
+          grd.addColorStop(1, "rgba(60,0,120,0)");
+          ctx.fillStyle = grd;
+          ctx.beginPath();
+          ctx.arc(heatPos.x, heatPos.y, maxR, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+      }
+
+      function updateEvent(dt) {
+        if (!currentEvent) return;
+        currentEvent.ttl -= dt;
+        if (currentEvent.ttl <= 0) {
+          currentEvent = null;
+          powerPenalty = 0;
+          eventBanner.style.display = "none";
+        }
+      }
+
+      function showEventBanner(type) {
+        let title = "";
+        let desc = "";
+        if (type === "quake") {
+          title = "水裂誘發地震";
+          desc = "注水壓力過高，沿斷層觸發小規模地震。工程師需要暫時降壓，觀測地震活動。";
+        } else if (type === "dust") {
+          title = "塵埃與游離輻射風險";
+          desc = "深層岩石產生大量高溫細塵，部分可能含天然放射性元素，必須加強過濾與防護。";
+        } else if (type === "plasma") {
+          title = "岩層電漿化／功率下降";
+          desc = "孔底區域形成電漿雲，部分毫米波能量被吸收或反射，鑽進效率與發電輸出暫時下降。";
+        }
+        eventBanner.innerHTML =
+          "⚠ " + title + "　<span class='small'>" + desc + "</span>";
+        eventBanner.style.display = "block";
+      }
+
+      function triggerEvent() {
+        const c = level(conductionRange.value);
+        const v = level(convectionRange.value);
+        const r = level(radiationRange.value);
+
+        const wQuake = 0.2 + v * 0.6;
+        const wDust = 0.2 + c * 0.6;
+        const wPlasma = 0.2 + r * 0.6;
+        const sum = wQuake + wDust + wPlasma;
+        const rnd = Math.random() * sum;
+        let type;
+        if (rnd < wQuake) type = "quake";
+        else if (rnd < wQuake + wDust) type = "dust";
+        else type = "plasma";
+
+        currentEvent = {
+          type,
+          ttl: 5000,
+          maxTtl: 5000,
+        };
+
+        if (type === "quake") {
+          powerPenalty = -10;
+        } else if (type === "dust") {
+          powerPenalty = -15;
+        } else if (type === "plasma") {
+          powerPenalty = -30;
+        }
+
+        showEventBanner(type);
+      }
+
+      function resetView() {
+        panX = 0;
+        panY = 0;
+        zoom = 1;
+      }
+
+      function screenToWorld(clientX, clientY) {
+        const rect = canvas.getBoundingClientRect();
+        const sx = clientX - rect.left;
+        const sy = clientY - rect.top;
+        const wx = (sx - simWidth / 2 - panX) / zoom;
+        const wy = (sy - simHeight * 0.7 - panY) / zoom;
+        return { x: wx, y: wy };
+      }
+
+      function handleTap(clientX, clientY) {
+        const p = screenToWorld(clientX, clientY);
+        const distHeat = Math.hypot(p.x - heatPos.x, p.y - heatPos.y);
+        const distTurbine = Math.hypot(p.x - turbinePos.x, p.y - turbinePos.y);
+        const onPipe = Math.abs(p.x - heatPos.x) < 8 && p.y < heatPos.y && p.y > surfaceY - 6;
+
+        let msg = "";
+        if (distHeat < 20) {
+          msg = "熱源：地底超熱岩層，透過熱傳導把能量傳到井壁，再由水帶走。";
+        } else if (onPipe) {
+          msg = "管路：對流中的熱水／超臨界水正把能量從深處送到地表。";
+        } else if (distTurbine < 24) {
+          msg = "渦輪：被高壓蒸氣或超臨界水推動轉動，帶動發電機產生電力。";
+        } else {
+          msg = "提示：點熱源、管路或渦輪可以看到對應的物理意義。";
+        }
+
+        eventBanner.innerHTML =
+          "📌 " + msg + "　<span class='small'>（此為說明提示，非風險事件）</span>";
+        eventBanner.style.display = "block";
+        if (!currentEvent) {
+          clearTimeout(handleTap._timeoutId);
+          handleTap._timeoutId = setTimeout(() => {
+            if (!currentEvent) eventBanner.style.display = "none";
+          }, 3500);
+        }
+      }
+
+      function onPointerDown(e) {
+        canvas.setPointerCapture(e.pointerId);
+        pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+        if (pointers.size === 1) {
+          isDragging = true;
+          dragStartX = e.clientX;
+          dragStartY = e.clientY;
+          panStartX = panX;
+          panStartY = panY;
+        } else if (pointers.size === 2) {
+          const arr = Array.from(pointers.values());
+          const dx = arr[0].x - arr[1].x;
+          const dy = arr[0].y - arr[1].y;
+          pinchInitialDist = Math.hypot(dx, dy);
+          pinchInitialZoom = zoom;
+          pinchInitialPanX = panX;
+          pinchInitialPanY = panY;
+          pinchInitialCenter = {
+            x: (arr[0].x + arr[1].x) / 2,
+            y: (arr[0].y + arr[1].y) / 2,
+          };
+        }
+      }
+
+      function onPointerMove(e) {
+        if (!pointers.has(e.pointerId)) return;
+        pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+        if (pointers.size === 1 && isDragging) {
+          const dx = e.clientX - dragStartX;
+          const dy = e.clientY - dragStartY;
+          panX = panStartX + dx;
+          panY = panStartY + dy;
+        } else if (pointers.size === 2) {
+          const arr = Array.from(pointers.values());
+          const dx = arr[0].x - arr[1].x;
+          const dy = arr[0].y - arr[1].y;
+          const dist = Math.hypot(dx, dy);
+          if (pinchInitialDist > 0) {
+            const scale = dist / pinchInitialDist;
+            zoom = Math.min(2.5, Math.max(0.6, pinchInitialZoom * scale));
+
+            const centerNow = {
+              x: (arr[0].x + arr[1].x) / 2,
+              y: (arr[0].y + arr[1].y) / 2,
+            };
+            const cx0 = pinchInitialCenter.x - simWidth / 2 - pinchInitialPanX;
+            const cy0 = pinchInitialCenter.y - simHeight * 0.7 - pinchInitialPanY;
+            const cx1 = centerNow.x - simWidth / 2 - panX;
+            const cy1 = centerNow.y - simHeight * 0.7 - panY;
+            panX += (cx1 - cx0);
+            panY += (cy1 - cy0);
+          }
+        }
+      }
+
+      function onPointerUp(e) {
+        if (pointers.has(e.pointerId)) {
+          pointers.delete(e.pointerId);
+        }
+        if (pointers.size === 0) {
+          isDragging = false;
+        }
+
+        if (e.pointerType === "touch") {
+          handleTap(e.clientX, e.clientY);
+        }
+      }
+
+      function onWheel(e) {
+        e.preventDefault();
+        const delta = e.deltaY;
+        const zoomFactor = delta > 0 ? 0.9 : 1.1;
+        const newZoom = Math.min(2.5, Math.max(0.6, zoom * zoomFactor));
+
+        const rect = canvas.getBoundingClientRect();
+        const cx = e.clientX - rect.left;
+        const cy = e.clientY - rect.top;
+        const wxBefore = (cx - simWidth / 2 - panX) / zoom;
+        const wyBefore = (cy - simHeight * 0.7 - panY) / zoom;
+
+        zoom = newZoom;
+
+        const sxAfter = wxBefore * zoom + simWidth / 2 + panX;
+        const syAfter = wyBefore * zoom + simHeight * 0.7 + panY;
+
+        panX += cx - sxAfter;
+        panY += cy - syAfter;
+      }
+
+      function onClick(e) {
+        if (e.pointerType === "mouse") {
+          handleTap(e.clientX, e.clientY);
+        }
+      }
+
+      function loop(now) {
+        const dt = now - lastTime;
+        lastTime = now;
+        updateEvent(dt);
+        updateMeters(dt);
+        drawScene(dt);
+        requestAnimationFrame(loop);
+      }
+
+      conductionRange.addEventListener("input", updateSlidersText);
+      convectionRange.addEventListener("input", updateSlidersText);
+      radiationRange.addEventListener("input", updateSlidersText);
+
+      triggerEventBtn.addEventListener("click", () => {
+        triggerEvent();
+      });
+      resetViewBtn.addEventListener("click", () => {
+        resetView();
+      });
+
+      canvas.addEventListener("pointerdown", onPointerDown);
+      canvas.addEventListener("pointermove", onPointerMove);
+      canvas.addEventListener("pointerup", onPointerUp);
+      canvas.addEventListener("pointercancel", onPointerUp);
+      canvas.addEventListener("wheel", onWheel, { passive: false });
+      canvas.addEventListener("click", onClick);
+
+      window.addEventListener("resize", () => {
+        resizeCanvas();
+      });
+
+      resizeCanvas();
+      resetView();
+      initParticles();
+      updateSlidersText();
+      lastTime = performance.now();
+      requestAnimationFrame(loop);
+    })();
+  </script>
+</body>
+</html>

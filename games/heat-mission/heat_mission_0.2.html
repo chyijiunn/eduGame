@@ -1,0 +1,1170 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>熱路解謎 Heat Puzzle v0.4</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #05060a;
+      --panel-bg: #111320;
+      --accent: #60ffa8;
+      --accent-soft: #3f7f66;
+      --text-main: #f4f4f6;
+      --text-sub: #b0b3c0;
+      --danger: #ff5b6d;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui,
+        "Noto Sans TC", sans-serif;
+      background: radial-gradient(circle at top, #161821 0, #05060a 60%);
+      color: var(--text-main);
+      height: 100vh;
+      overflow: hidden;
+    }
+    #container {
+      display: flex;
+      height: 100vh;
+      width: 100vw;
+      padding: 12px;
+      gap: 12px;
+    }
+    #leftPane {
+      width: 280px;
+      min-width: 260px;
+      max-width: 320px;
+      background: linear-gradient(145deg, #101323, #070812);
+      border-radius: 12px;
+      padding: 12px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      border: 1px solid rgba(255,255,255,0.05);
+      box-shadow: 0 16px 40px rgba(0,0,0,0.55);
+    }
+    #leftPane h1 {
+      margin: 0;
+      font-size: 20px;
+      letter-spacing: 0.08em;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    #leftPane h1 span {
+      font-size: 11px;
+      font-weight: 400;
+      color: var(--text-sub);
+    }
+    #stats {
+      margin-top: 6px;
+      padding: 6px 8px;
+      border-radius: 8px;
+      background: rgba(15,19,36,0.9);
+      font-size: 13px;
+      display: grid;
+      grid-template-columns: 1.2fr 1.2fr;
+      gap: 2px 10px;
+    }
+    #stats div { white-space: nowrap; }
+    #stats span {
+      color: var(--accent);
+      font-variant-numeric: tabular-nums;
+    }
+    #tools { margin-top: 4px; display: flex; flex-direction: column; gap: 4px; }
+    #toolsTitle { font-size: 13px; color: var(--text-sub); }
+    #toolButtons {
+      display: grid;
+      grid-template-columns: repeat(2,minmax(0,1fr));
+      gap: 6px;
+    }
+    button {
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.12);
+      background: radial-gradient(circle at top,#22273e 0,#141622 70%);
+      color: var(--text-main);
+      padding: 6px 10px;
+      font-size: 13px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      transition: background 0.15s ease, transform 0.12s ease,
+        box-shadow 0.12s ease, border-color 0.15s ease;
+    }
+    button span.emoji { font-size: 14px; }
+    button:hover {
+      background: radial-gradient(circle at top,#2e3553 0,#15172b 70%);
+      transform: translateY(-1px);
+      box-shadow: 0 8px 18px rgba(0,0,0,0.45);
+    }
+    button:active { transform: translateY(0); box-shadow: none; }
+    button.tool-active {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 1px rgba(96,255,168,0.5);
+      background: radial-gradient(circle at top,#22382f 0,#101820 70%);
+    }
+    #usageInfo {
+      font-size: 11px;
+      color: var(--text-sub);
+      line-height: 1.4;
+      margin-top: 3px;
+    }
+    #limits {
+      margin-top: 4px;
+      font-size: 12px;
+      color: var(--text-sub);
+    }
+    #limits span {
+      color: var(--accent);
+      font-variant-numeric: tabular-nums;
+    }
+    #speedControl {
+      margin-top: 6px;
+      font-size: 12px;
+      color: var(--text-sub);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    #speedSlider { flex: 1; }
+    #speedLabel {
+      min-width: 40px;
+      text-align: right;
+      color: var(--accent);
+      font-variant-numeric: tabular-nums;
+    }
+    #gameButtons {
+      margin-top: 8px;
+      display: flex;
+      gap: 6px;
+    }
+    #startBtn { flex: 1.2; font-weight: 600; }
+    #resetBtn {
+      flex: 1;
+      border-radius: 999px;
+      border-style: dashed;
+    }
+    #startBtn.running {
+      background: radial-gradient(circle at top,#27513a 0,#102419 70%);
+      border-color: var(--accent);
+    }
+    #status {
+      margin-top: 6px;
+      font-size: 12px;
+      min-height: 32px;
+      color: var(--text-sub);
+    }
+    #status strong { color: var(--accent); }
+    #status span.danger { color: var(--danger); font-weight: 600; }
+    details {
+      margin-top: 6px;
+      padding: 6px 8px;
+      border-radius: 10px;
+      background: rgba(8,10,18,0.9);
+      border: 1px solid rgba(255,255,255,0.07);
+      font-size: 12px;
+    }
+    details summary {
+      cursor: pointer;
+      list-style: none;
+      outline: none;
+    }
+    details[open] summary { margin-bottom: 4px; }
+    details summary::-webkit-details-marker { display: none; }
+    #helpText {
+      color: var(--text-sub);
+      line-height: 1.5;
+    }
+    #helpText p { margin: 4px 0; }
+    #helpText ul { padding-left: 16px; margin: 4px 0; }
+    #helpText li { margin-bottom: 2px; }
+    #gameWrapper {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 0;
+      min-height: 0;
+      border-radius: 16px;
+      background: radial-gradient(circle at top,#101422 0,#05060a 60%);
+      border: 1px solid rgba(255,255,255,0.05);
+      box-shadow: 0 18px 40px rgba(0,0,0,0.7);
+      padding: 8px;
+      position: relative;
+    }
+    #game {
+      display: block;
+      border-radius: 10px;
+      background: #05060a;
+    }
+    #overlayMsg {
+      position: absolute;
+      pointer-events: none;
+      left: 50%; top: 50%;
+      transform: translate(-50%,-50%);
+      padding: 12px 18px;
+      border-radius: 16px;
+      background: rgba(5,6,10,0.9);
+      border: 1px solid rgba(255,255,255,0.12);
+      color: var(--text-main);
+      font-size: 17px;
+      text-align: center;
+      white-space: normal;
+      opacity: 0;
+      transition: opacity 0.25s ease;
+      z-index: 10;
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+    }
+    #overlayMsg.visible { opacity: 1; }
+    #overlayMsg .overlay-title {
+      font-size: 16px;
+      margin-bottom: 4px;
+    }
+    #overlayMsg .overlay-time {
+      font-size: 26px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+    }
+    @media (max-width:900px) {
+      #container { flex-direction: column; }
+      #leftPane {
+        width: 100%;
+        max-width: none;
+        flex: 0 0 auto;
+        order: 1;
+      }
+      #gameWrapper { order: 2; flex: 1; }
+    }
+    @media (max-width:600px) {
+      #leftPane h1 { font-size: 18px; }
+      #stats { grid-template-columns: 1fr 1fr; }
+      #usageInfo { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div id="container">
+    <div id="leftPane">
+      <h1>
+        熱路解謎
+        <span>v0.4 · 傳導×對流×輻射</span>
+      </h1>
+
+      <div id="stats">
+        <div>時間：<span id="timeLabel">0.0</span> s</div>
+        <div>狀態：<span id="stateLabel">準備中</span></div>
+        <div>冰塊溫度：<span id="goalLabel">-50.0</span> ℃</div>
+        <div>動物溫度：<span id="animalLabel">20.0</span> ℃</div>
+      </div>
+
+      <div id="tools">
+        <div id="toolsTitle">工具（請點選工具，再點擊右側格子放置）：</div>
+        <div id="toolButtons">
+          <button data-tool="metal"><span class="emoji">🟥</span>導熱棒</button>
+          <button data-tool="fan"><span class="emoji">🌀</span>風扇</button>
+          <button data-tool="mirror"><span class="emoji">🪞</span>反射板</button>
+          <button data-tool="erase"><span class="emoji">🧽</span>橡皮擦</button>
+        </div>
+      </div>
+
+      <div id="usageInfo">
+        ◇ 建議先暫停 → 佈局工具 → 再開始演化。<br />
+        ◇ 只能放在「空氣或水」區，不能蓋在牆、真空、熱源、動物或冰塊上。<br />
+        ◇ 空氣 & 水以<strong>彩色粒子</strong>表示，顏色代表溫度；黑色區域＝真空。
+      </div>
+
+      <div id="limits">
+        導熱棒剩餘：<span id="metalLeft"></span>　
+        風扇：<span id="fanLeft"></span>　
+        反射板：<span id="mirrorLeft"></span>
+      </div>
+
+      <div id="speedControl">
+        時間加速：
+        <input type="range" id="speedSlider" min="1" max="10" value="3" />
+        <span id="speedLabel">3x</span>
+      </div>
+
+      <div id="gameButtons">
+        <button id="startBtn"><span class="emoji">▶️</span> 開始 / 繼續</button>
+        <button id="resetBtn"><span class="emoji">🔄</span> 重設關卡</button>
+      </div>
+
+      <div id="status">
+        目標：利用 <strong>傳導＋對流＋輻射</strong>，
+        在不讓右上角的小動物 <span class="danger">過熱</span> 的情況下，
+        讓右側冰塊（初始 -50 ℃）升溫到指定溫度。
+      </div>
+
+      <details>
+        <summary>說明 / 教師提示（點開）</summary>
+        <div id="helpText">
+          <p>場景是「橫切面」：</p>
+          <ul>
+            <li>左邊紅色長條：恆溫熱源（火爐）</li>
+            <li>中間區域：水池＋空氣，裡面會看到彩色粒子（代表流體）</li>
+            <li>右邊下方：冰塊（目標，要升溫）</li>
+            <li>右上角：小動物（不能太熱）</li>
+            <li>上方黑色空洞：真空區，沒有粒子，只能靠<strong>輻射</strong>傳熱</li>
+          </ul>
+          <p>工具對應三種機制：</p>
+          <ul>
+            <li>🟥 導熱棒：金屬，<strong>傳導很快</strong></li>
+            <li>🌀 風扇：增加該直線上的<strong>對流強度</strong>（粒子會更明顯往上翻騰）</li>
+            <li>🪞 反射板：幾乎不吸熱，會<strong>反射輻射能</strong>改變光線路徑</li>
+          </ul>
+        </div>
+      </details>
+    </div>
+
+    <div id="gameWrapper">
+      <canvas id="game"></canvas>
+      <div id="overlayMsg"></div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      "use strict";
+
+      const canvas = document.getElementById("game");
+      const ctx = canvas.getContext("2d");
+
+      const timeLabel = document.getElementById("timeLabel");
+      const stateLabel = document.getElementById("stateLabel");
+      const goalLabel = document.getElementById("goalLabel");
+      const animalLabel = document.getElementById("animalLabel");
+      const metalLeftLabel = document.getElementById("metalLeft");
+      const fanLeftLabel = document.getElementById("fanLeft");
+      const mirrorLeftLabel = document.getElementById("mirrorLeft");
+      const overlayMsg = document.getElementById("overlayMsg");
+      const startBtn = document.getElementById("startBtn");
+      const resetBtn = document.getElementById("resetBtn");
+      const speedSlider = document.getElementById("speedSlider");
+      const speedLabel = document.getElementById("speedLabel");
+      const toolButtons = document.querySelectorAll("button[data-tool]");
+
+      const CELL = {
+        AIR: 0,
+        WALL: 1,
+        VACUUM: 2,
+        HEAT: 3,
+        GOAL: 4,
+        ANIMAL: 5,
+        METAL: 6,
+        FAN: 7,
+        MIRROR: 8,
+        WATER: 9,
+      };
+
+      // 加速倍率：讓變化更明顯
+      const COND_BOOST = 3.0;
+      const CONV_BOOST = 2.5;
+      const RAD_BOOST = 4.0;
+
+      // 關卡佈局（30x18）
+      const levelStrings = [
+        "##############################",
+        "#H....~~~~.............VV..A.#",
+        "#H....~~~~.............VV....#",
+        "#H....~~~~.............VV....#",
+        "#H.....................VV....#",
+        "#H.....................VV....#",
+        "#H.........................G.#",
+        "#H............~~~~..........#",
+        "#H............~~~~..........#",
+        "#H............~~~~..........#",
+        "#H...........................#",
+        "#H...........................#",
+        "#H...........................#",
+        "#H.........VVVVVVV...........#",
+        "#H.........VVVVVVV...........#",
+        "#H...........................#",
+        "#............................#",
+        "##############################",
+      ];
+
+      const gridW = levelStrings[0].length;
+      const gridH = levelStrings.length;
+
+      const baseGrid = new Uint8Array(gridW * gridH);
+      const grid = new Uint8Array(gridW * gridH);
+      const T = new Float32Array(gridW * gridH);
+      const Tnext = new Float32Array(gridW * gridH);
+      const convBuf = new Float32Array(gridW * gridH);
+
+      const goalCells = [];
+      const animalCells = [];
+      const heatCells = [];
+      const waterCells = [];
+      const airCells = [];
+
+      const kCond = new Float32Array(10);
+      const coolCoeff = new Float32Array(10);
+      const radAbsorb = new Float32Array(10);
+
+      kCond[CELL.AIR] = 0.02;
+      kCond[CELL.WATER] = 0.05;
+      kCond[CELL.WALL] = 0.07;
+      kCond[CELL.VACUUM] = 0.0;
+      kCond[CELL.HEAT] = 0.1;
+      kCond[CELL.GOAL] = 0.05;
+      kCond[CELL.ANIMAL] = 0.04;
+      kCond[CELL.METAL] = 0.16;
+      kCond[CELL.FAN] = 0.02;
+      kCond[CELL.MIRROR] = 0.04;
+
+      coolCoeff[CELL.AIR] = 0.015;
+      coolCoeff[CELL.WATER] = 0.01;
+      coolCoeff[CELL.WALL] = 0.008;
+      coolCoeff[CELL.VACUUM] = 0.001;
+      coolCoeff[CELL.HEAT] = 0.0;
+      coolCoeff[CELL.GOAL] = 0.01;
+      coolCoeff[CELL.ANIMAL] = 0.01;
+      coolCoeff[CELL.METAL] = 0.01;
+      coolCoeff[CELL.FAN] = 0.015;
+      coolCoeff[CELL.MIRROR] = 0.008;
+
+      radAbsorb[CELL.AIR] = 0.03;
+      radAbsorb[CELL.WATER] = 0.08;
+      radAbsorb[CELL.WALL] = 0.1;
+      radAbsorb[CELL.VACUUM] = 0.0;
+      radAbsorb[CELL.HEAT] = 0.0;
+      radAbsorb[CELL.GOAL] = 0.18;
+      radAbsorb[CELL.ANIMAL] = 0.15;
+      radAbsorb[CELL.METAL] = 0.07;
+      radAbsorb[CELL.FAN] = 0.03;
+      radAbsorb[CELL.MIRROR] = 0.0;
+
+      const ambient = 20;
+      const sourceTemp = 130;
+      const GOAL_TARGET = 60;
+      const ANIMAL_LIMIT = 45;
+      const convK = 0.22;
+
+      const maxMetal = 40;
+      const maxFan = 2;
+      const maxMirror = 4;
+
+      let metalUsed = 0;
+      let fanUsed = 0;
+      let mirrorUsed = 0;
+
+      let currentTool = "metal";
+      let cellSize = 16;
+      let offsetX = 0;
+      let offsetY = 0;
+
+      let gameState = "ready";
+      let simTime = 0;
+      let goalTemp = -50;
+      let animalTemp = ambient;
+      let lastTimestamp = 0;
+      let simAccumulator = 0;
+      const SIM_DT = 0.06;
+      let timeScale = 3;
+
+      const raySegments = [];
+      const particles = [];
+
+      function idx(x, y) { return y * gridW + x; }
+
+      // 初始化地圖
+      (function initLevel() {
+        for (let y = 0; y < gridH; y++) {
+          const row = levelStrings[y];
+          for (let x = 0; x < gridW; x++) {
+            const ch = row[x];
+            let t = CELL.AIR;
+            if (ch === "#") t = CELL.WALL;
+            else if (ch === ".") t = CELL.AIR;
+            else if (ch === "~") t = CELL.WATER;
+            else if (ch === "V") t = CELL.VACUUM;
+            else if (ch === "H") t = CELL.HEAT;
+            else if (ch === "G") t = CELL.GOAL;
+            else if (ch === "A") t = CELL.ANIMAL;
+
+            const i = idx(x, y);
+            baseGrid[i] = t;
+
+            if (t === CELL.GOAL) goalCells.push(i);
+            if (t === CELL.ANIMAL) animalCells.push(i);
+            if (t === CELL.HEAT) heatCells.push(i);
+            if (t === CELL.WATER) waterCells.push(i);
+            if (t === CELL.AIR) airCells.push(i);
+          }
+        }
+      })();
+
+      function initParticles() {
+        particles.length = 0;
+        // 水粒子（比較密集）
+        const waterCount = 450;
+        for (let n = 0; n < waterCount && waterCells.length > 0; n++) {
+          const ci = waterCells[(Math.random() * waterCells.length) | 0];
+          const cx = ci % gridW;
+          const cy = (ci / gridW) | 0;
+          particles.push({ x: cx + Math.random(), y: cy + Math.random(), phase: "water" });
+        }
+        // 空氣粒子（比較鬆散）
+        const airCount = 260;
+        for (let n = 0; n < airCount && airCells.length > 0; n++) {
+          const ci = airCells[(Math.random() * airCells.length) | 0];
+          const cx = ci % gridW;
+          const cy = (ci / gridW) | 0;
+          if (cy > 1 && cy < gridH - 2) {
+            particles.push({ x: cx + Math.random(), y: cy + Math.random(), phase: "air" });
+          }
+        }
+      }
+
+      function resetGame() {
+        for (let i = 0; i < baseGrid.length; i++) {
+          grid[i] = baseGrid[i];
+          T[i] = ambient;
+          Tnext[i] = ambient;
+        }
+        for (let k = 0; k < heatCells.length; k++) {
+          const i = heatCells[k];
+          T[i] = sourceTemp;
+          Tnext[i] = sourceTemp;
+        }
+        for (let k = 0; k < goalCells.length; k++) {
+          const i = goalCells[k];
+          T[i] = -50;
+          Tnext[i] = -50;
+        }
+        simTime = 0;
+        goalTemp = -50;
+        animalTemp = ambient;
+        gameState = "ready";
+        lastTimestamp = 0;
+        simAccumulator = 0;
+        metalUsed = 0;
+        fanUsed = 0;
+        mirrorUsed = 0;
+        currentTool = "metal";
+        raySegments.length = 0;
+        initParticles();
+        hideOverlay();
+        updateToolButtons();
+        updateUI();
+      }
+
+      function computeFanColumnFactor() {
+        const factors = new Float32Array(gridW);
+        for (let x = 0; x < gridW; x++) factors[x] = 1;
+        for (let y = 0; y < gridH; y++) {
+          for (let x = 0; x < gridW; x++) {
+            const i = idx(x, y);
+            if (grid[i] === CELL.FAN) factors[x] = 3;
+          }
+        }
+        return factors;
+      }
+
+      function simulate(dt) {
+        for (let i = 0; i < convBuf.length; i++) convBuf[i] = 0;
+        const fanFactor = computeFanColumnFactor();
+
+        for (let y = 0; y < gridH; y++) {
+          for (let x = 0; x < gridW; x++) {
+            const i = idx(x, y);
+            const type = grid[i];
+            const baseT = T[i];
+            let newT = baseT;
+
+            // 傳導
+            if (type !== CELL.VACUUM) {
+              let sum = 0, count = 0;
+              if (x > 0) {
+                const j = i - 1;
+                if (grid[j] !== CELL.VACUUM) { sum += T[j]; count++; }
+              }
+              if (x < gridW - 1) {
+                const j = i + 1;
+                if (grid[j] !== CELL.VACUUM) { sum += T[j]; count++; }
+              }
+              if (y > 0) {
+                const j = i - gridW;
+                if (grid[j] !== CELL.VACUUM) { sum += T[j]; count++; }
+              }
+              if (y < gridH - 1) {
+                const j = i + gridW;
+                if (grid[j] !== CELL.VACUUM) { sum += T[j]; count++; }
+              }
+              if (count > 0) {
+                const k = (kCond[type] || 0) * COND_BOOST;
+                const avg = sum / count;
+                newT += k * (avg - baseT) * dt;
+              }
+            }
+
+            // 對流：熱往上
+            if (type === CELL.AIR || type === CELL.WATER || type === CELL.FAN) {
+              if (y > 0) {
+                const upIdx = i - gridW;
+                const upType = grid[upIdx];
+                if (upType === CELL.AIR || upType === CELL.WATER || upType === CELL.FAN) {
+                  const upT = T[upIdx];
+                  if (baseT > upT) {
+                    const move =
+                      convK * CONV_BOOST * (baseT - upT) *
+                      fanFactor[x] * dt * 0.5;
+                    if (move > 0) {
+                      newT -= move;
+                      convBuf[upIdx] += move;
+                    }
+                  }
+                }
+              }
+            }
+
+            if (type === CELL.HEAT) {
+              newT = sourceTemp;
+            } else {
+              const c = coolCoeff[type] || 0;
+              newT += -c * (baseT - ambient) * dt;
+            }
+
+            Tnext[i] = newT;
+          }
+        }
+
+        for (let i = 0; i < Tnext.length; i++) Tnext[i] += convBuf[i];
+        castRays(dt);
+
+        for (let i = 0; i < Tnext.length; i++) {
+          if (Tnext[i] < -50) Tnext[i] = -50;
+          if (Tnext[i] > 220) Tnext[i] = 220;
+        }
+        for (let i = 0; i < T.length; i++) T[i] = Tnext[i];
+
+        simTime += dt;
+
+        let gTemp = -999;
+        for (let k = 0; k < goalCells.length; k++) {
+          const i = goalCells[k];
+          if (T[i] > gTemp) gTemp = T[i];
+        }
+        if (gTemp < -100) gTemp = -50;
+        goalTemp = gTemp;
+
+        let aTemp = -999;
+        for (let k = 0; k < animalCells.length; k++) {
+          const i = animalCells[k];
+          if (T[i] > aTemp) aTemp = T[i];
+        }
+        if (aTemp < -100) aTemp = ambient;
+        animalTemp = aTemp;
+
+        if (gameState === "running") {
+          if (goalTemp >= GOAL_TARGET && animalTemp <= ANIMAL_LIMIT) {
+            gameState = "won";
+            showSuccessOverlay();
+          } else if (animalTemp >= ANIMAL_LIMIT + 5) {
+            gameState = "lost";
+            showOverlay("失敗：動物過熱了…請重新設計熱路 🐰💦");
+          }
+        }
+      }
+
+      function castRays(dt) {
+        raySegments.length = 0;
+        const raysPerSource = 60;
+        const stepLen = 0.35;
+        const baseEnergy = 7 * dt * RAD_BOOST;
+
+        for (let h = 0; h < heatCells.length; h++) {
+          const i0 = heatCells[h];
+          const x0 = i0 % gridW;
+          const y0 = (i0 / gridW) | 0;
+          const startX = x0 + 0.5;
+          const startY = y0 + 0.5;
+
+          for (let r = 0; r < raysPerSource; r++) {
+            const baseAngle = -Math.PI / 6;
+            const spread = Math.PI / 2;
+            const angle = baseAngle + (Math.random() - 0.5) * spread;
+
+            let px = startX;
+            let py = startY;
+            let dir = angle;
+            let energy = baseEnergy;
+            let prevX = px;
+            let prevY = py;
+
+            for (let s = 0; s < 40 && energy > 0.02; s++) {
+              px += Math.cos(dir) * stepLen;
+              py += Math.sin(dir) * stepLen;
+              if (px < 0 || px >= gridW || py < 0 || py >= gridH) break;
+
+              const gx = px | 0;
+              const gy = py | 0;
+              const j = idx(gx, gy);
+              const type = grid[j];
+
+              raySegments.push({ x1: prevX, y1: prevY, x2: px, y2: py });
+              prevX = px;
+              prevY = py;
+
+              if (type === CELL.VACUUM || type === CELL.AIR || type === CELL.WATER || type === CELL.FAN) {
+                const abs = radAbsorb[type] || 0;
+                if (abs > 0) {
+                  const taken = energy * abs;
+                  Tnext[j] += taken;
+                  energy -= taken;
+                }
+              } else if (type === CELL.MIRROR) {
+                dir = Math.PI - dir;
+              } else {
+                const abs = radAbsorb[type] || 0.12;
+                const taken = energy * abs;
+                Tnext[j] += taken;
+                energy -= taken;
+                break;
+              }
+            }
+          }
+        }
+      }
+
+      function tempToColor(Tv) {
+        const minT = -50;
+        const maxT = 120;
+        let t = (Tv - minT) / (maxT - minT);
+        if (t < 0) t = 0;
+        if (t > 1) t = 1;
+        const hue = 240 - 240 * t;   // 240(藍) → 0(紅)
+        const sat = 80;
+        const light = 45 + 10 * t;
+        return "hsl(" + hue.toFixed(0) + "," + sat + "%," + light + "%)";
+      }
+
+      function moveParticles(dt) {
+        if (dt <= 0) return;
+        const fanFactor = computeFanColumnFactor();
+        const speed = 4 * dt;
+
+        for (let p of particles) {
+          let gx = Math.floor(p.x);
+          let gy = Math.floor(p.y);
+          if (gx < 0) gx = 0;
+          if (gx >= gridW) gx = gridW - 1;
+          if (gy < 0) gy = 0;
+          if (gy >= gridH) gy = gridH - 1;
+
+          const i = idx(gx, gy);
+          const type = grid[i];
+          const Tv = T[i];
+
+          let vx = (Math.random() - 0.5) * 0.4;
+          let vy = 0;
+          const dT = Tv - ambient;
+
+          if (p.phase === "water") vy = -dT * 0.03;
+          else vy = -dT * 0.02;
+
+          const colFan = fanFactor[gx] || 1;
+          vy *= colFan;
+          vx *= colFan;
+
+          p.x += vx * speed;
+          p.y += vy * speed;
+
+          // 邊界 & 介質檢查
+          if (p.phase === "water") {
+            let gx2 = Math.floor(p.x);
+            let gy2 = Math.floor(p.y);
+            if (gx2 < 0 || gx2 >= gridW || gy2 < 0 || gy2 >= gridH ||
+                grid[idx(gx2, gy2)] !== CELL.WATER) {
+              const ci = waterCells[(Math.random() * waterCells.length) | 0];
+              const cx = ci % gridW;
+              const cy = (ci / gridW) | 0;
+              p.x = cx + Math.random();
+              p.y = cy + Math.random();
+            }
+          } else {
+            let gx2 = Math.floor(p.x);
+            let gy2 = Math.floor(p.y);
+            if (gx2 < 0 || gx2 >= gridW || gy2 < 0 || gy2 >= gridH) {
+              const ci = airCells[(Math.random() * airCells.length) | 0];
+              const cx = ci % gridW;
+              const cy = (ci / gridW) | 0;
+              p.x = cx + Math.random();
+              p.y = cy + Math.random();
+            } else {
+              const t2 = grid[idx(gx2, gy2)];
+              if (
+                t2 === CELL.WALL ||
+                t2 === CELL.HEAT ||
+                t2 === CELL.VACUUM ||
+                t2 === CELL.GOAL ||
+                t2 === CELL.ANIMAL
+              ) {
+                const ci = airCells[(Math.random() * airCells.length) | 0];
+                const cx = ci % gridW;
+                const cy = (ci / gridW) | 0;
+                p.x = cx + Math.random();
+                p.y = cy + Math.random();
+              }
+            }
+          }
+        }
+      }
+
+      function render() {
+        const w = canvas.width;
+        const h = canvas.height;
+        ctx.clearRect(0, 0, w, h);
+        ctx.fillStyle = "#05060b";
+        ctx.fillRect(0, 0, w, h);
+
+        ctx.save();
+        ctx.translate(offsetX, offsetY);
+
+        // 先畫牆、熱源、冰塊、真空框、動物與工具
+        for (let y = 0; y < gridH; y++) {
+          for (let x = 0; x < gridW; x++) {
+            const i = idx(x, y);
+            const type = grid[i];
+            const cx = x * cellSize;
+            const cy = y * cellSize;
+
+            if (type === CELL.VACUUM) {
+              // 真空區：黑框表示區域
+              ctx.strokeStyle = "rgba(0,0,0,0.8)";
+              ctx.lineWidth = 1;
+              ctx.strokeRect(cx + 0.5, cy + 0.5, cellSize - 1, cellSize - 1);
+            }
+
+            if (type === CELL.WALL) {
+              ctx.fillStyle = "rgba(10,10,18,0.95)";
+              ctx.fillRect(cx, cy, cellSize, cellSize);
+            }
+
+            if (type === CELL.HEAT) {
+              ctx.fillStyle = "rgba(255,120,40,0.95)";
+              ctx.fillRect(
+                cx + cellSize * 0.15,
+                cy + cellSize * 0.15,
+                cellSize * 0.7,
+                cellSize * 0.7
+              );
+            }
+
+            if (type === CELL.GOAL) {
+              ctx.fillStyle = "rgba(170,220,255,0.95)";
+              ctx.fillRect(
+                cx + cellSize * 0.15,
+                cy + cellSize * 0.2,
+                cellSize * 0.7,
+                cellSize * 0.6
+              );
+              ctx.strokeStyle = "rgba(40,80,150,0.9)";
+              ctx.lineWidth = 1;
+              ctx.strokeRect(
+                cx + cellSize * 0.15,
+                cy + cellSize * 0.2,
+                cellSize * 0.7,
+                cellSize * 0.6
+              );
+            }
+
+            if (type === CELL.ANIMAL) {
+              ctx.fillStyle = "rgba(255,255,255,0.95)";
+              const r = cellSize * 0.22;
+              ctx.beginPath();
+              ctx.arc(
+                cx + cellSize * 0.55,
+                cy + cellSize * 0.6,
+                r,
+                0,
+                Math.PI * 2
+              );
+              ctx.fill();
+              ctx.beginPath();
+              ctx.moveTo(cx + cellSize * 0.45, cy + cellSize * 0.6);
+              ctx.lineTo(cx + cellSize * 0.45, cy + cellSize * 0.2);
+              ctx.moveTo(cx + cellSize * 0.65, cy + cellSize * 0.6);
+              ctx.lineTo(cx + cellSize * 0.65, cy + cellSize * 0.2);
+              ctx.strokeStyle = "rgba(255,255,255,0.9)";
+              ctx.lineWidth = 1.2;
+              ctx.stroke();
+            }
+
+            if (type === CELL.METAL) {
+              ctx.strokeStyle = "rgba(255,120,120,0.9)";
+              ctx.lineWidth = 2;
+              ctx.strokeRect(cx + 1, cy + 1, cellSize - 2, cellSize - 2);
+            }
+
+            if (type === CELL.FAN) {
+              ctx.strokeStyle = "rgba(120,220,255,0.95)";
+              ctx.lineWidth = 1;
+              ctx.beginPath();
+              ctx.arc(
+                cx + cellSize * 0.5,
+                cy + cellSize * 0.5,
+                cellSize * 0.25,
+                0,
+                Math.PI * 2
+              );
+              ctx.stroke();
+              ctx.beginPath();
+              ctx.moveTo(cx + cellSize * 0.5, cy + cellSize * 0.3);
+              ctx.lineTo(cx + cellSize * 0.5, cy + cellSize * 0.7);
+              ctx.moveTo(cx + cellSize * 0.3, cy + cellSize * 0.5);
+              ctx.lineTo(cx + cellSize * 0.7, cy + cellSize * 0.5);
+              ctx.stroke();
+            }
+
+            if (type === CELL.MIRROR) {
+              ctx.strokeStyle = "rgba(200,240,255,0.9)";
+              ctx.lineWidth = 2;
+              ctx.beginPath();
+              ctx.moveTo(cx + cellSize * 0.2, cy + cellSize * 0.2);
+              ctx.lineTo(cx + cellSize * 0.8, cy + cellSize * 0.8);
+              ctx.stroke();
+            }
+          }
+        }
+
+        // 輻射光線
+        if (raySegments.length > 0) {
+          ctx.save();
+          ctx.globalAlpha = 0.4;
+          ctx.strokeStyle = "#ffd98a";
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          for (let s of raySegments) {
+            ctx.moveTo(s.x1 * cellSize, s.y1 * cellSize);
+            ctx.lineTo(s.x2 * cellSize, s.y2 * cellSize);
+          }
+          ctx.stroke();
+          ctx.restore();
+        }
+
+        // 粒子（空氣＋水）
+        ctx.save();
+        ctx.globalAlpha = 0.95;
+        for (let p of particles) {
+          let gx = Math.max(0, Math.min(gridW - 1, Math.floor(p.x)));
+          let gy = Math.max(0, Math.min(gridH - 1, Math.floor(p.y)));
+          const Tv = T[idx(gx, gy)];
+          ctx.fillStyle = tempToColor(Tv);
+          const px = p.x * cellSize;
+          const py = p.y * cellSize;
+          const r = Math.max(1, cellSize * 0.12);
+          ctx.beginPath();
+          ctx.arc(px, py, r, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+
+        ctx.restore();
+      }
+
+      function updateUI() {
+        timeLabel.textContent = simTime.toFixed(1);
+        goalLabel.textContent = goalTemp.toFixed(1);
+        animalLabel.textContent = animalTemp.toFixed(1);
+        metalLeftLabel.textContent = (maxMetal - metalUsed).toString();
+        fanLeftLabel.textContent = (maxFan - fanUsed).toString();
+        mirrorLeftLabel.textContent = (maxMirror - mirrorUsed).toString();
+
+        let stateText = "";
+        if (gameState === "ready") stateText = "準備中";
+        else if (gameState === "running") stateText = "模擬中";
+        else if (gameState === "paused") stateText = "已暫停";
+        else if (gameState === "won") stateText = "成功過關";
+        else if (gameState === "lost") stateText = "挑戰失敗";
+        stateLabel.textContent = stateText;
+
+        if (gameState === "running") startBtn.classList.add("running");
+        else startBtn.classList.remove("running");
+      }
+
+      function showOverlay(html, isHTML) {
+        overlayMsg.innerHTML = isHTML ? html : String(html);
+        overlayMsg.classList.add("visible");
+      }
+
+      function showSuccessOverlay() {
+        const t = simTime.toFixed(1);
+        const html =
+          '<div class="overlay-title">成功！冰塊升溫了，動物依然安全 🥳</div>' +
+          '<div class="overlay-time">' + t + " 秒</div>";
+        showOverlay(html, true);
+      }
+
+      function hideOverlay() {
+        overlayMsg.classList.remove("visible");
+      }
+
+      function updateToolButtons() {
+        toolButtons.forEach(btn => {
+          const tool = btn.getAttribute("data-tool");
+          if (tool === currentTool) btn.classList.add("tool-active");
+          else btn.classList.remove("tool-active");
+        });
+      }
+
+      function placeTool(gx, gy) {
+        if (gx < 0 || gx >= gridW || gy < 0 || gy >= gridH) return;
+        const i = idx(gx, gy);
+        const baseType = baseGrid[i];
+        const curType = grid[i];
+
+        if (currentTool === "erase") {
+          if (curType !== baseType) {
+            if (curType === CELL.METAL) metalUsed--;
+            if (curType === CELL.FAN) fanUsed--;
+            if (curType === CELL.MIRROR) mirrorUsed--;
+            grid[i] = baseType;
+          }
+          return;
+        }
+
+        if (
+          baseType === CELL.WALL ||
+          baseType === CELL.HEAT ||
+          baseType === CELL.GOAL ||
+          baseType === CELL.ANIMAL ||
+          baseType === CELL.VACUUM
+        ) return;
+
+        if (curType !== baseType) {
+          if (curType === CELL.METAL) metalUsed--;
+          if (curType === CELL.FAN) fanUsed--;
+          if (curType === CELL.MIRROR) mirrorUsed--;
+          grid[i] = baseType;
+        }
+
+        if (currentTool === "metal") {
+          if (metalUsed >= maxMetal) return;
+          grid[i] = CELL.METAL;
+          metalUsed++;
+        } else if (currentTool === "fan") {
+          if (fanUsed >= maxFan) return;
+          grid[i] = CELL.FAN;
+          fanUsed++;
+        } else if (currentTool === "mirror") {
+          if (mirrorUsed >= maxMirror) return;
+          grid[i] = CELL.MIRROR;
+          mirrorUsed++;
+        }
+      }
+
+      function handlePointer(clientX, clientY) {
+        const rect = canvas.getBoundingClientRect();
+        const x = clientX - rect.left;
+        const y = clientY - rect.top;
+        const gx = Math.floor((x - offsetX) / cellSize);
+        const gy = Math.floor((y - offsetY) / cellSize);
+        placeTool(gx, gy);
+        updateUI();
+      }
+
+      canvas.addEventListener("mousedown", e => {
+        e.preventDefault();
+        handlePointer(e.clientX, e.clientY);
+      });
+      canvas.addEventListener("touchstart", e => {
+        e.preventDefault();
+        const t = e.touches[0];
+        handlePointer(t.clientX, t.clientY);
+      }, { passive: false });
+
+      toolButtons.forEach(btn => {
+        btn.addEventListener("click", () => {
+          currentTool = btn.getAttribute("data-tool");
+          updateToolButtons();
+        });
+      });
+
+      startBtn.addEventListener("click", () => {
+        hideOverlay();
+        if (gameState === "won" || gameState === "lost") {
+          resetGame();
+          gameState = "running";
+        } else if (gameState === "ready" || gameState === "paused") {
+          gameState = "running";
+        } else if (gameState === "running") {
+          gameState = "paused";
+        }
+        updateUI();
+      });
+
+      resetBtn.addEventListener("click", () => {
+        resetGame();
+      });
+
+      speedSlider.addEventListener("input", () => {
+        timeScale = parseFloat(speedSlider.value) || 1;
+        speedLabel.textContent = timeScale.toFixed(0) + "x";
+      });
+
+      function onResize() {
+        const wrapper = document.getElementById("gameWrapper").getBoundingClientRect();
+        let availW = wrapper.width - 8;
+        let availH = wrapper.height - 8;
+
+        let targetWidth = availW;
+        let targetHeight = (availW * gridH) / gridW;
+        if (targetHeight > availH) {
+          targetHeight = availH;
+          targetWidth = (availH * gridW) / gridH;
+        }
+        if (targetWidth < 260) targetWidth = 260;
+        if (targetHeight < 160) targetHeight = 160;
+
+        canvas.width = Math.floor(targetWidth);
+        canvas.height = Math.floor(targetHeight);
+
+        cellSize = Math.floor(Math.min(canvas.width / gridW, canvas.height / gridH));
+        if (cellSize < 6) cellSize = 6;
+        offsetX = (canvas.width - cellSize * gridW) * 0.5;
+        offsetY = (canvas.height - cellSize * gridH) * 0.5;
+      }
+
+      window.addEventListener("resize", () => {
+        onResize();
+        render();
+      });
+
+      function loop(timestamp) {
+        if (!lastTimestamp) lastTimestamp = timestamp;
+        const frameDt = (timestamp - lastTimestamp) / 1000;
+        lastTimestamp = timestamp;
+
+        if (gameState === "running") {
+          simAccumulator += frameDt * timeScale;
+          let steps = 0, MAX_STEPS = 12;
+          while (simAccumulator >= SIM_DT && steps < MAX_STEPS) {
+            simulate(SIM_DT);
+            simAccumulator -= SIM_DT;
+            steps++;
+          }
+          moveParticles(frameDt * timeScale);
+        }
+
+        render();
+        updateUI();
+        requestAnimationFrame(loop);
+      }
+
+      onResize();
+      resetGame();
+      updateToolButtons();
+      requestAnimationFrame(loop);
+    })();
+  </script>
+</body>
+</html>
