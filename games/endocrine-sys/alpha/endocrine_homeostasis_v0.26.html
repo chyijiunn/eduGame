@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1" />
-<title>人體恆定控制中心 v0.28 — 內分泌回饋互動（單一 HTML）</title>
+<title>人體恆定控制中心 v0.26 — 內分泌回饋互動（單一 HTML）</title>
 <style>
   :root{
     --bg:#0e0f13; --panel:#14161c; --card:#1a1d25; --muted:#8b92a6; --text:#e7ecf4; --accent:#5be3b6; --danger:#ff6b6b; --warn:#ffd166; --ok:#6ee7a5;
@@ -40,12 +40,9 @@
   .gland circle{transition:all .2s ease}
   .gland:hover circle{filter:drop-shadow(0 0 6px rgba(91,227,182,.6))}
   /* SVG 內的按鈕 */
-  .svgbtn rect{fill:#1c2336; stroke:#2d3752; stroke-width:1.2; transition:filter .15s, stroke .15s, fill .15s}
+  .svgbtn rect{fill:#1c2336; stroke:#2d3752; stroke-width:1.2}
   .svgbtn text{fill:#dce7ff; font:600 10px/1 "Noto Sans TC", system-ui; pointer-events:none}
   .svgbtn:hover rect{filter:drop-shadow(0 2px 6px rgba(0,0,0,.4));}
-  /* Hint 高亮（建議按鈕） */
-  .svgbtn.hint rect{stroke:#ffffff; stroke-width:1.8; filter:drop-shadow(0 0 8px rgba(255,255,255,.55)); fill:#2b395a}
-  /* 傳說圖例 */
   .legend{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; margin-top:10px}
   .legend .chip{display:flex; align-items:center; gap:8px; background:#151926; border:1px solid #242a3a; padding:6px 8px; border-radius:10px}
   .dot{width:10px; height:10px; border-radius:50%}
@@ -77,12 +74,22 @@
   .kpi{display:flex; gap:8px; flex-wrap:wrap}
   .kpi .pill strong{font-size:13px}
   .footer{opacity:.7; font-size:12px; margin-top:8px}
+  .overlay{position:fixed; inset:0; display:none; place-items:center; background:rgba(8,10,14,.6); z-index:999}
+  .overlay.open{display:grid}
+  .modal{width:min(720px,92vw); background:#121624; border:1px solid #2b3348; border-radius:16px; box-shadow:0 14px 50px rgba(0,0,0,.55); overflow:hidden}
+  .modal header{position:unset; background:linear-gradient(180deg,#151a2a,#121624); border-bottom:1px solid #2b3348}
+  .modal .body{padding:14px}
+  .twocol{display:grid; grid-template-columns:1.1fr 1fr; gap:12px}
+  @media (max-width:760px){ .twocol{grid-template-columns:1fr} }
+  .list{margin:0; padding-left:16px}
+  .kv{display:grid; grid-template-columns:1fr auto; gap:8px; align-items:center}
+  .kv .val{font-weight:700}
 </style>
 </head>
 <body>
   <header>
     <span class="badge">單檔 HTML</span>
-    <div class="title">人體恆定控制中心 <small class="badge">v0.28</small></div>
+    <div class="title">人體恆定控制中心 <small class="badge">v0.26</small></div>
     <div class="spacer"></div>
     <div class="row">
       <a href="readme.md" target="_blank" rel="noopener" class="btn btn-ghost" title="開啟說明（readme.md）">📖 說明</a>
@@ -93,11 +100,11 @@
   </header>
 
   <main id="root">
-    <!-- 左：人體平面 + 腺體地圖 -->
+    <!-- 左：人體平面 + 腺體地圖（按鈕化；人物放大） -->
     <section class="panel" id="left">
       <h3>內分泌「按一下就分泌」地圖（按鈕）</h3>
       <div class="body" id="bodyWrap">
-        <!-- 內嵌 SVG 人體平面（延續 v0.27） -->
+        <!-- 內嵌 SVG 人體平面 -->
         <svg id="humanSvg" viewBox="0 0 320 720" preserveAspectRatio="xMidYMid meet" aria-label="人體平面">
           <defs>
             <radialGradient id="halo" cx="50%" cy="-10%" r="90%">
@@ -107,9 +114,11 @@
             </radialGradient>
           </defs>
           <rect x="0" y="0" width="320" height="720" fill="#0f1320"/>
+          <!-- 為了放大人物：在人體與腺體外再包一層，繞 (160,240) 做等比放大 -->
           <g id="humanScale" transform="translate(160,240) scale(1.18) translate(-160,-240)">
             <g id="humanShift" transform="translate(0,0)">
               <ellipse cx="160" cy="140" rx="120" ry="80" fill="url(#halo)"/>
+              <!-- 人體輪廓 -->
               <g fill="#1b2133" stroke="#2b3550" stroke-width="2">
                 <circle cx="160" cy="80" r="44" />
                 <rect x="120" y="124" width="80" height="120" rx="28" />
@@ -120,8 +129,9 @@
                 <rect x="206" y="144" width="22" height="110" rx="11" />
               </g>
 
-              <!-- 腺體 + SVG 按鈕 -->
+              <!-- 腺體 + SVG 按鈕（以 rect+text 呈現） -->
               <g id="glands" transform="translate(0,-20)">
+                <!-- 下視丘/腦下垂體 -->
                 <g class="gland" data-id="pituitary" transform="translate(160,110)">
                   <circle r="12" fill="#25324d" stroke="#61e8c2" stroke-width="2"/>
                   <g class="svgbtn" data-action="btnGH" transform="translate(-22,-28)">
@@ -129,6 +139,8 @@
                     <text x="22" y="11" text-anchor="middle">GH</text>
                   </g>
                 </g>
+
+                <!-- 甲狀腺（T3/T4）-->
                 <g class="gland" data-id="thyroid" transform="translate(160,154)">
                   <circle r="12" fill="#25324d" stroke="#61e8c2" stroke-width="2"/>
                   <g class="svgbtn" data-action="btnTHY" transform="translate(-26,-28)">
@@ -136,6 +148,8 @@
                     <text x="26" y="11" text-anchor="middle">T3/T4</text>
                   </g>
                 </g>
+
+                <!-- 副甲狀線（PTH） -->
                 <g class="gland" data-id="parathyroid" transform="translate(196,154)">
                   <circle r="8" fill="#25324d" stroke="#61e8c2" stroke-width="2"/>
                   <g class="svgbtn" data-action="btnPTH" transform="translate(-20,-26)">
@@ -143,6 +157,8 @@
                     <text x="20" y="11" text-anchor="middle">PTH</text>
                   </g>
                 </g>
+
+                <!-- 腎上腺（左/右）-->
                 <g class="gland" data-id="adrenal" transform="translate(126,272)">
                   <circle r="11" fill="#25324d" stroke="#61e8c2" stroke-width="2"/>
                   <g class="svgbtn" data-action="btnEPI" transform="translate(-22,-28)">
@@ -167,6 +183,8 @@
                     <rect rx="6" width="44" height="16"/><text x="22" y="11" text-anchor="middle">Aldo</text>
                   </g>
                 </g>
+
+                <!-- 胰臟：拆成「胰島素」「升糖素」兩個按鈕 -->
                 <g class="gland" data-id="pancreas" transform="translate(160,315)">
                   <circle r="12" fill="#25324d" stroke="#61e8c2" stroke-width="2"/>
                   <g class="svgbtn" data-action="btnINS" transform="translate(-26,-28)">
@@ -176,6 +194,8 @@
                     <rect rx="6" width="52" height="16"/><text x="26" y="11" text-anchor="middle">升糖素</text>
                   </g>
                 </g>
+
+                <!-- 性腺：睪丸（男）/ 卵巢（女，整體上移 20px） -->
                 <g class="gland sex-male" data-id="testis" data-sex="male" transform="translate(160,448)">
                   <circle r="12" fill="#25324d" stroke="#61e8c2" stroke-width="2"/>
                   <g class="svgbtn" data-action="btnTEST" transform="translate(-24,-28)">
@@ -207,8 +227,8 @@
         <div class="legend">
           <div class="chip"><span class="dot" style="background:#61e8c2"></span><span>按鈕＝立即脈衝分泌</span></div>
           <div class="chip"><span class="dot" style="background:#6ee7a5"></span><span>綠：正常</span></div>
-          <div class="chip"><span class="dot" style="background:#ffd166"></span><span>黃：偏高/偏低</span></div>
-          <div class="chip"><span class="dot" style="background:#ff6b6b"></span><span>紅：異常高/異常低</span></div>
+          <div class="chip"><span class="dot" style="background:#ffd166"></span><span>黃：偏離</span></div>
+          <div class="chip"><span class="dot" style="background:#ff6b6b"></span><span>紅：異常</span></div>
         </div>
       </div>
     </section>
@@ -231,7 +251,7 @@
       </div>
     </section>
 
-    <!-- 右：控制面板 -->
+    <!-- 右：控制面板（保留情境與病理） -->
     <section class="panel" id="right">
       <h3>情境與病理</h3>
       <div class="body">
@@ -246,7 +266,7 @@
               <button class="btn btn-small" id="btnHeat">🔥 熱暴露</button>
               <button class="btn btn-small" id="btnCalcium">🦴 鈣補充</button>
             </div>
-            <div class="footer help">提示：將游標移到任何指標卡上，右側腺體會高亮顯示「建議按鈕」。v0.27 起曲線會顯示正常範圍虛線；v0.26 起體溫採設定點模型。</div>
+            <div class="footer help">提示：按「腺體按鈕」= 直接觸發該激素的脈衝分泌；右上角可調速度。v0.26 起，體溫使用「散熱/產熱雙效應器」模型。</div>
           </div>
 
           <div class="card">
@@ -276,7 +296,7 @@
           <details>
             <summary>模型假設與教學用途</summary>
             <div class="help" style="margin-top:8px">
-              v0.28：新增「滑鼠懸停 → 建議按鈕高亮」功能；映射依 v0.25/0.26/0.27 合併規則。體溫（高/低）與血壓（高/低）會依性別考量雌激素之血管影響。
+              v0.26：體溫 = 產熱（基礎代謝 + 顫抖/棕脂） − 散熱（對流 + 出汗，且受血管舒張/收縮調節）。設定點 = 37°C + 0.25×黃體素。雌激素促進舒張與散熱，腎上腺素抑制之。
             </div>
           </details>
 
@@ -288,33 +308,45 @@
 <script>
 (function(){
   // ======= 狀態 =======
-  const S = { t:0, playing:true, speed:1,
+  const S = { // 系統狀態（可視）
+    t:0, playing:true, speed:1,
     temp:37.0, hr:72, map:93, sys:120, dia:80,
     glucose:90, metabolic:1.0, ca:9.2, po:3.5, mitosis:100,
   };
-  const H = { insulin:0.2, glucagon:0.2, epi:0.1, cortisol:0.2, thyroid:0.2, pth:0.2, calcitonin:0.2, gh:0.2, aldo:0.2, test:0.4, est:0.08, prog:0.05 };
-  const P = { auto:true, ambient:24, stress:0.1, exercise:0.0,
-    dThy:0, insulinResistance:0, t1d:0, dCort:0, dPTH:0, pancreasStrength:1,
+  const H = { // 激素相對活性（0~2 常見）
+    insulin:0.2, glucagon:0.2, epi:0.1, cortisol:0.2, thyroid:0.2, pth:0.2, calcitonin:0.2, gh:0.2, aldo:0.2,
+    test:0.4, est:0.08, prog:0.05
+  };
+  const P = { // 參數/外在
+    auto:true,
+    ambient:24, stress:0.1, exercise:0.0,
+    dThy:0, insulinResistance:0, t1d:0, dCort:0, dPTH:0,
+    pancreasStrength:1,
+    // 事件脈衝
     mealPulse:0, fastPulse:0, calciumPulse:0,
+    // 激素脈衝（按鈕觸發）
     ghPulse:0, thyPulse:0, pthPulse:0, epiPulse:0, cortPulse:0, aldoPulse:0, insulinPulse:0, glucagonPulse:0,
+    // 性別與性腺脈衝
     sex:'male', testPulse:0, estPulse:0, progPulse:0
   };
   const RANGES = {
     temp:[36.1,37.8], hr:[60,100], sys:[95,140], dia:[60,90], glucose:[70,110], metabolic:[0.8,1.2], ca:[8.5,10.5], po:[2.5,4.5], mitosis:[90,110]
   };
-  const MAP_RANGE = [70,105];
 
-  // ======= DOM =======
+  // ======= DOM 參考 =======
   const el = {
-    play:document.getElementById('btnPlay'), reset:document.getElementById('btnReset'), speed:document.getElementById('speed'), speedVal:document.getElementById('speedVal'),
+    play: document.getElementById('btnPlay'), reset:document.getElementById('btnReset'), speed:document.getElementById('speed'), speedVal:document.getElementById('speedVal'),
     autoFb:document.getElementById('autoFb'), ambient:document.getElementById('ambient'), ambientVal:document.getElementById('ambientVal'), stress:document.getElementById('stress'), stressVal:document.getElementById('stressVal'),
     metrics:document.getElementById('metrics'),
     btnMeal:document.getElementById('btnMeal'), btnFast:document.getElementById('btnFast'), btnSprint:document.getElementById('btnSprint'), btnCold:document.getElementById('btnCold'), btnHeat:document.getElementById('btnHeat'), btnCalcium:document.getElementById('btnCalcium'),
     dThy:document.getElementById('dThy'), dThyVal:document.getElementById('dThyVal'), dIR:document.getElementById('dIR'), dIRVal:document.getElementById('dIRVal'), dT1D:document.getElementById('dT1D'), dT1DVal:document.getElementById('dT1DVal'), dCort:document.getElementById('dCort'), dCortVal:document.getElementById('dCortVal'), dPTH:document.getElementById('dPTH'), dPTHVal:document.getElementById('dPTHVal'),
-    humanSvg:document.getElementById('humanSvg'), sexMale:document.getElementById('sexMale'), sexFemale:document.getElementById('sexFemale'), sexVal:document.getElementById('sexVal'),
+    pancreasStrength:document.getElementById('pancreasStrength'), pancreasStrengthVal:document.getElementById('pancreasStrengthVal'), exercise:document.getElementById('exercise'), exerciseVal:document.getElementById('exerciseVal'),
+    humanSvg:document.getElementById('humanSvg'),
+    sexMale:document.getElementById('sexMale'), sexFemale:document.getElementById('sexFemale'), sexVal:document.getElementById('sexVal'),
     btnMaleResist:document.getElementById('btnMaleResist'), btnFemaleFollicular:document.getElementById('btnFemaleFollicular'), btnFemaleLuteal:document.getElementById('btnFemaleLuteal'), btnPregnancy:document.getElementById('btnPregnancy')
   };
 
+  // 指標清單與 sparkline
   const metrics = [
     { key:'temp', name:'體溫', unit:'°C', digits:2 },
     { key:'hr', name:'心跳', unit:'bpm', digits:0 },
@@ -328,24 +360,7 @@
 
   const history = {}; metrics.forEach(m=>history[m.key]=Array(160).fill(null));
 
-  function fmt(v, d){ return (d===0? Math.round(v).toString() : v.toFixed(d)); }
-  function between(x,a,b){ return x>=a && x<=b }
-  function clamp(x,a,b){ return Math.min(b, Math.max(a,x)) }
-  function pos(x){ return Math.max(0,x) }
-
-  function dirFor(key, value){ // -1 低, 0 內, 1 高
-    if(key==='bp'){
-      const hi = (S.sys>RANGES.sys[1] && S.dia>RANGES.dia[1]);
-      const lo = (S.sys<RANGES.sys[0] && S.dia<RANGES.dia[0]);
-      if(hi) return 1; if(lo) return -1;
-      return (S.map>=93 ? 1 : -1);
-    }
-    const r = RANGES[key]; if(!r) return 0;
-    if(value>r[1]) return 1;
-    if(value<r[0]) return -1;
-    return 0;
-  }
-
+  function fmt(v, digits){ return (digits===0? Math.round(v).toString() : v.toFixed(digits)); }
   function statusFor(key, value){
     if(key==='bp'){
       const okSys = between(S.sys, RANGES.sys[0], RANGES.sys[1]);
@@ -359,21 +374,17 @@
     if(value<r[0] || value>r[1]) return 'warn';
     return 'ok';
   }
-  function labelFor(cls, dir){
-    if(cls==='ok') return '正常';
-    if(cls==='warn') return dir>0? '偏高' : '偏低';
-    return dir>0? '異常高' : '異常低';
-  }
+  function between(x,a,b){ return x>=a && x<=b }
 
   function createMetricCards(){
     el.metrics.innerHTML = '';
     metrics.forEach(m=>{
-      const card = document.createElement('div'); card.className='metric'; card.dataset.key = m.key;
+      const card = document.createElement('div'); card.className='metric';
       const head = document.createElement('div'); head.className='head';
       const nm = document.createElement('div'); nm.className='name'; nm.textContent = m.name;
+      const val = document.createElement('div'); val.className='val'; val.id = 'val_'+m.key;
       const st = document.createElement('span'); st.className='status ok'; st.id='st_'+m.key; st.textContent='正常';
       head.append(nm, st);
-      const val = document.createElement('div'); val.className='val'; val.id = 'val_'+m.key;
       card.append(head, val);
       const c = document.createElement('canvas'); c.className='spark'; c.width=300; c.height=42; c.id='sp_'+m.key; card.appendChild(c);
       el.metrics.appendChild(card);
@@ -381,76 +392,51 @@
   }
   createMetricCards();
 
-  // ======= 建議映射（依 v0.25~0.27 合併邏輯） =======
-  // 回傳 data-action 陣列，如 ['btnTHY','btnEPI']
-  function suggestActions(key, dir){
-    // dir: -1 低, 1 高, 0 內
-    const sex = P.sex;
-    if(dir===0) return [];
-    switch(key){
-      case 'temp':
-        if(dir<0) return ['btnTHY','btnEPI']; // 體溫低：提高代謝與減少散熱
-        else return (sex==='female'? ['btnEST'] : []); // 體溫高：女性可用雌激素促進散熱
-      case 'glucose':
-        return dir>0 ? ['btnINS'] : ['btnGLU']; // 高→胰島素；低→升糖素
-      case 'bp':
-        return dir<0 ? ['btnEPI','btnALDO'] : (sex==='female'? ['btnEST']: []); // 低壓：E/NE + Aldo；高壓：女性雌激素促舒張
-      case 'hr':
-        return dir<0 ? ['btnEPI'] : []; // 心跳低→E/NE；高→不建議按激素（避免加劇）
-      case 'metabolic':
-        return dir<0 ? ['btnTHY','btnGH'] : []; // 代謝低→甲狀腺素+GH
-      case 'ca':
-        return dir<0 ? ['btnPTH'] : []; // 低鈣→PTH；高鈣→（本版未提供降鈣素按鈕）
-      case 'po':
-        return dir>0 ? ['btnPTH'] : []; // 高磷→PTH 促腎排磷
-      case 'mitosis':
-        return dir<0 ? ['btnGH','btnTHY'] : ['btnCORT']; // 分裂低→GH/甲狀腺；高→Cort 抑制
-      default: return [];
-    }
-  }
-
-  // 快取所有 svgbtn by action
-  const actionMap = {};
-  document.querySelectorAll('#glands .svgbtn').forEach(n=>{
-    const a = n.getAttribute('data-action');
-    (actionMap[a]||(actionMap[a]=[])).push(n);
-  });
-  function clearHints(){ document.querySelectorAll('#glands .svgbtn.hint').forEach(n=>n.classList.remove('hint')); }
-  function setHints(actions){
-    clearHints();
-    actions.forEach(a=>{ (actionMap[a]||[]).forEach(n=>n.classList.add('hint')); });
-  }
-
-  // ======= 模型核心（同 v0.27） =======
-  function tick(dt){
+  // ======= 模型核心 =======
+  function tick(dt){ // dt: 模擬分鐘
     S.t += dt;
-    const stress = P.stress, exercise = P.exercise;
 
+    const stress = P.stress; // 0~1
+    const exercise = P.exercise;
+
+    // —— 激素目標（含病理 + 按鈕脈衝）——
     const tTone = 0.2 + 0.5*Math.max(0, P.dThy);
-    const tOffset = P.dThy;
+    const tOffset = P.dThy; // -1~1
     const cortBase = 0.2 + 0.5*Math.max(0,P.dCort) - 0.15*Math.max(0,-P.dCort);
     const pthBase = 0.2 + 0.4*Math.max(0,P.dPTH) - 0.2*Math.max(0,-P.dPTH);
 
+    // 下視丘/腦下垂體（GH）
     const ghTarget = clamp(0.15 + 0.4*exercise + 0.05*Math.sin(S.t/30) + 1.0*P.ghPulse, 0, 2);
+
+    // 甲狀腺（T3/T4）：緩慢
     const thyTarget = clamp(tTone + tOffset*0.8 + 0.8*P.thyPulse, 0, 2);
+
+    // 皮質醇：受壓力與病理 + 脈衝
     const cortisolTarget = clamp(cortBase + 0.35*stress + 0.6*P.cortPulse, 0, 2);
+
+    // 腎上腺素：壓力＋運動 + 脈衝
     const epiTarget = clamp(0.08 + 0.8*exercise + 0.25*stress + 0.9*P.epiPulse, 0, 2);
+
+    // 醛固酮：血壓偏低時上升 + 脈衝
     const aldoTarget = clamp(0.15 + (93 - S.map)*0.01 + 0.7*P.aldoPulse, 0, 2);
 
-    const caSet = 9.2; const caErr = caSet - S.ca;
+    // PTH / 降鈣素；PTH 可被按鈕推升
+    const caSet = 9.2; const caErr = caSet - S.ca; // 低鈣→PTH ↑
     const pthTarget = clamp(pthBase + 0.4*pos(caErr) + 0.8*P.pthPulse, 0, 2);
     const calcitoninTarget = clamp(0.15 + 0.4*pos(-caErr), 0, 2);
 
+    // 胰島素/升糖素：由血糖偏差 + 脈衝
     const pancreasK = P.pancreasStrength*(1-P.t1d);
     const insulinSecrete = clamp(0.02 + 0.9*pos((S.glucose-90)/30)*pancreasK + 1.2*P.insulinPulse, 0, 2);
     const glucagonSecrete = clamp(0.02 + 0.9*pos((85 - S.glucose)/25) + 1.2*P.glucagonPulse, 0, 2);
 
+    // 性腺激素：依性別/情境 + 按鈕脈衝
     let testTarget, estTarget, progTarget;
     if(P.sex==='male'){
       testTarget = clamp(0.5 + 0.4*exercise + 0.8*P.testPulse, 0, 2);
-      estTarget = 0.06 + 0.2*P.estPulse;
+      estTarget = 0.06 + 0.2*P.estPulse; // 男性微量
       progTarget = 0.03 + 0.1*P.progPulse;
-    } else {
+    } else { // female
       estTarget = clamp(0.25 + 0.6*P.estPulse, 0, 2);
       progTarget = clamp(0.10 + 0.7*P.progPulse, 0, 2);
       testTarget = 0.08 + 0.2*exercise + 0.2*P.testPulse;
@@ -475,9 +461,11 @@
       decay(H,'test',0.04,dt); decay(H,'est',0.04,dt); decay(H,'prog',0.04,dt);
     }
 
+    // —— 代謝率 ——
     const metabolicTarget = clamp(1.0 + 0.8*H.thyroid + 0.3*H.epi + 0.2*H.cortisol + 0.25*exercise + 0.15*H.test + 0.05*H.est, 0.4, 3);
     approach(S,'metabolic', metabolicTarget, 0.12, dt);
 
+    // —— 血糖 ——
     const insulinEff = H.insulin * (1 - P.insulinResistance);
     const hepaticOutput = (0.6*H.glucagon + 0.25*H.cortisol + 0.35*H.epi) * 0.9;
     const uptake = (0.9*insulinEff + 0.25*(S.metabolic-1) + 0.5*exercise);
@@ -488,9 +476,11 @@
     S.glucose += dG * dt * 10;
     S.glucose = clamp(S.glucose, 40, 300);
 
+    // 脈衝衰減
     P.mealPulse *= Math.exp(-dt/40);
     P.fastPulse *= Math.exp(-dt/120);
     P.calciumPulse *= Math.exp(-dt/60);
+    // 激素按鈕脈衝半衰期
     const half = (x,tau)=> x*Math.exp(-dt/tau);
     P.ghPulse = half(P.ghPulse, 90);
     P.thyPulse = half(P.thyPulse, 180);
@@ -500,36 +490,52 @@
     P.aldoPulse = half(P.aldoPulse, 100);
     P.insulinPulse = half(P.insulinPulse, 50);
     P.glucagonPulse = half(P.glucagonPulse, 50);
+    // 性腺脈衝（不同半衰期）
     P.testPulse = half(P.testPulse, 90);
     P.estPulse  = half(P.estPulse, 120);
     P.progPulse = half(P.progPulse, 120);
 
-    // 體溫（設定點/產熱/散熱）
+    // ====== 體溫（v0.26 新模型）======
+    // 設定點：受黃體素影響
     const setpoint = 37.0 + 0.25*H.prog;
+
+    // 產熱：基礎代謝 + 顫抖/棕脂（低於設定點才啟動；T3/T4、E/NE 增益）
+    const k_heat = 0.22;
     const under = Math.max(0, setpoint - S.temp);
+    const k_shiver = 0.06; // 顫抖/棕脂係數（教學）
+    const shiver_bat = k_shiver * under * (1 + 0.6*H.thyroid + 0.4*H.epi);
+    const heat_prod = k_heat * (S.metabolic - 1.0) + shiver_bat;
+
+    // 散熱：對流（血管舒張可變）+ 出汗（高於設定點才啟動；雌↑、NE↓）
     const over = Math.max(0, S.temp - setpoint);
-    const shiver_bat = 0.06 * under * (1 + 0.6*H.thyroid + 0.4*H.epi);
-    const heat_prod = 0.22 * (S.metabolic - 1.0) + shiver_bat;
-    let vasodilation = 0.2 + 0.6*over + 0.4*H.est - 0.3*H.epi; vasodilation = clamp(vasodilation,0,1);
-    const k_conv = 0.008 + (0.03 - 0.008) * vasodilation;
-    let sweat = 0.8 * over * (1 + 0.4*H.est - 0.3*H.epi); sweat = clamp(sweat,0,1.6);
+    let vasodilation = 0.2 + 0.6*over + 0.4*H.est - 0.3*H.epi;
+    vasodilation = clamp(vasodilation, 0, 1);
+    const k_conv = 0.008 + (0.03 - 0.008) * vasodilation; // 0.008~0.03
+    let sweat = 0.8 * over * (1 + 0.4*H.est - 0.3*H.epi);
+    sweat = clamp(sweat, 0, 1.6);
     let heat_loss = k_conv * (S.temp - P.ambient) * (1 + (S.temp>P.ambient ? sweat : 0));
+
+    // 更新體溫
     S.temp += (heat_prod - heat_loss) * dt;
 
+    // —— 心跳與血壓（含性激素）——
     const hrTarget = clamp(70 + 22*H.epi + 8*H.thyroid + 5*(S.temp-37) + 18*P.exercise + 2*H.est, 40, 180);
     approach(S,'hr', hrTarget, 0.3, dt);
 
-    const mapTarget = clamp(93 + 8*H.epi + 6*H.cortisol + 8*H.aldo + 4*H.test - (Math.max(0, S.temp-setpoint) * 4 + 3*H.est), 60, 130);
+    const vasodilationBP = Math.max(0, S.temp-setpoint) * 4 + 3*H.est; // 雌激素擴張
+    const mapTarget = clamp(93 + 8*H.epi + 6*H.cortisol + 8*H.aldo + 4*H.test - vasodilationBP, 60, 130);
     approach(S,'map', mapTarget, 0.12, dt);
     const pulseP = 40 + 15*H.epi + 10*P.exercise;
     S.sys = clamp(S.map + pulseP*0.5, 80, 220);
     S.dia = clamp(S.map - pulseP*0.5, 40, 140);
 
+    // —— 鈣/磷（含雌激素骨代謝）——
     const dCa = (0.22*H.pth - 0.18*H.calcitonin + 0.15*P.calciumPulse - 0.04*H.est) - 0.05*(S.ca-9.2);
     const dPo = (-0.12*H.pth + 0.06*H.calcitonin) - 0.04*(S.po-3.5);
     S.ca = clamp(S.ca + dCa*dt, 6.5, 12.5);
     S.po = clamp(S.po + dPo*dt, 1.0, 6.0);
 
+    // —— 細胞分裂（指標）——
     const mitTarget = clamp(100 + 22*H.gh + 12*H.thyroid - 12*H.cortisol + 10*H.est + 6*H.test, 40, 220);
     approach(S,'mitosis', mitTarget, 0.2, dt);
 
@@ -538,115 +544,97 @@
 
   function approach(obj, k, target, rate, dt){ obj[k] += (target - obj[k]) * (1 - Math.exp(-rate*dt)); }
   function decay(obj, k, rate, dt){ obj[k] *= Math.exp(-rate*dt); }
+  function clamp(x,a,b){ return Math.min(b, Math.max(a,x)) }
+  function pos(x){ return Math.max(0,x) }
 
-  // ======= 繪圖（含正常虛線、曲線染色、懸停高亮） =======
+  // ======= 視覺更新 =======
   function draw(){
+    // 儀表板數值＋狀態
     metrics.forEach(m=>{
-      const key = m.key;
-      const curVal = key==='bp' ? S.map : (key==='metabolic' ? S.metabolic : S[key]);
-
-      // 值與標籤
-      const txt = (key==='bp') ? `${Math.round(S.sys)}/${Math.round(S.dia)} ${m.unit}` :
-                  (key==='metabolic' ? `×${fmt(S.metabolic,m.digits)}` : `${fmt(S[key],m.digits)} ${m.unit}`);
-      document.getElementById('val_'+key).textContent = txt;
-
-      const cls = statusFor(key, curVal);
-      const dir = dirFor(key, curVal);
-      const st = document.getElementById('st_'+key);
-      st.className = 'status '+cls;
-      st.textContent = (cls==='ok')? '正常' : (cls==='warn' ? (dir>0?'偏高':'偏低') : (dir>0?'異常高':'異常低'));
-
-      // spark
-      const arr = history[key]; arr.push(curVal); if(arr.length>300) arr.shift();
-      const cvs = document.getElementById('sp_'+key); const ctx = cvs.getContext('2d'); ctx.clearRect(0,0,cvs.width,cvs.height);
-
-      const nonNull = arr.filter(x=>x!=null); let mn = nonNull.length? Math.min(...nonNull):0; let mx = nonNull.length? Math.max(...nonNull):1;
-      let nLo=null, nHi=null;
-      if(key==='bp'){ nLo=MAP_RANGE[0]; nHi=MAP_RANGE[1]; }
-      else if(RANGES[key]){ nLo=RANGES[key][0]; nHi=RANGES[key][1]; }
-      if(nLo!=null) mn = Math.min(mn, nLo);
-      if(nHi!=null) mx = Math.max(mx, nHi);
-      const pad = (mx-mn)||1; const ymap = v=>cvs.height-4 - ((v-mn)/pad)*(cvs.height-10);
-
-      ctx.globalAlpha=0.3; ctx.strokeStyle='#2b3348'; ctx.beginPath(); ctx.moveTo(0,cvs.height-12); ctx.lineTo(cvs.width,cvs.height-12); ctx.stroke(); ctx.globalAlpha=1;
-
-      if(nLo!=null && nHi!=null){
-        ctx.save(); ctx.setLineDash([4,3]); ctx.lineWidth=1; ctx.strokeStyle='#3a4764';
-        ctx.beginPath(); ctx.moveTo(0, ymap(nLo)); ctx.lineTo(cvs.width, ymap(nLo)); ctx.stroke();
-        ctx.beginPath(); ctx.moveTo(0, ymap(nHi)); ctx.lineTo(cvs.width, ymap(nHi)); ctx.stroke(); ctx.restore();
+      let v;
+      if(m.key==='bp'){
+        v = `${Math.round(S.sys)}/${Math.round(S.dia)} ${m.unit}`;
+      } else if(m.key==='metabolic'){
+        v = `×${fmt(S.metabolic, m.digits)}`;
+      } else {
+        v = `${fmt(S[m.key], m.digits)} ${m.unit}`;
       }
+      document.getElementById('val_'+m.key).textContent = v;
+      const cls = statusFor(m.key, S[m.key] ?? 0);
+      const st = document.getElementById('st_'+m.key); st.className = 'status '+cls; st.textContent = cls==='ok'?'正常':(cls==='warn'?'偏離':'異常');
 
-      let col = '#61e8c2'; if(cls==='warn') col='#ffd166'; else if(cls==='danger') col='#ff6b6b';
-      ctx.beginPath(); ctx.lineWidth=2; ctx.strokeStyle=col;
-      arr.forEach((v,i)=>{ if(v==null) return; const x = i/(arr.length-1)*cvs.width; const y = ymap(v); i?ctx.lineTo(x,y):ctx.moveTo(x,y); });
+      // append history and draw spark
+      const key = m.key;
+      const arr = history[key];
+      const val = key==='bp' ? S.map : (key==='metabolic' ? S.metabolic : S[key]);
+      arr.push(val); if(arr.length>300) arr.shift();
+      const cvs = document.getElementById('sp_'+key); const ctx = cvs.getContext('2d');
+      ctx.clearRect(0,0,cvs.width,cvs.height);
+      ctx.globalAlpha=0.3; ctx.strokeStyle='#2b3348'; ctx.beginPath(); ctx.moveTo(0,cvs.height-12); ctx.lineTo(cvs.width,cvs.height-12); ctx.stroke(); ctx.globalAlpha=1;
+      const nonNull = arr.filter(x=>x!=null); const mn = Math.min(...nonNull); const mx = Math.max(...nonNull);
+      const pad = (mx-mn)||1; const ymap = v=>cvs.height-4 - ( (v-mn)/pad )*(cvs.height-10);
+      ctx.beginPath(); ctx.lineWidth=2; ctx.strokeStyle='#61e8c2';
+      arr.forEach((v,i)=>{ if(v==null) return; const x = i/ (arr.length-1) * cvs.width; const y = ymap(v); i?ctx.lineTo(x,y):ctx.moveTo(x,y); });
       ctx.stroke();
     });
-  }
 
-  // ======= 懸停高亮：指標卡 → 建議按鈕 =======
-  function attachHoverHints(){
-    document.querySelectorAll('.metric').forEach(card=>{
-      const key = card.dataset.key;
-      card.addEventListener('mouseenter', ()=>{
-        const curVal = key==='bp' ? S.map : (key==='metabolic' ? S.metabolic : S[key]);
-        const cls = statusFor(key, curVal);
-        if(cls==='ok'){ clearHints(); return; }
-        const dir = dirFor(key, curVal);
-        const acts = suggestActions(key, dir);
-        setHints(acts);
-      });
-      card.addEventListener('mouseleave', ()=>{
-        clearHints();
-      });
+    // 性別顯示：僅顯示對應性別的性腺（包含其 SVG 按鈕）
+    document.querySelectorAll('#glands [data-sex]').forEach(n=>{
+      const need = n.getAttribute('data-sex');
+      n.style.display = (need===P.sex)?'inline':'none';
     });
   }
 
   // ======= 互動 =======
-  document.getElementById('btnPlay').addEventListener('click', ()=>{ S.playing = !S.playing; document.getElementById('btnPlay').textContent = S.playing? '⏸ 暫停':'▶ 進行'; });
-  document.getElementById('btnReset').addEventListener('click', ()=>{
+  el.play.addEventListener('click', ()=>{ S.playing = !S.playing; el.play.textContent = S.playing? '⏸ 暫停':'▶ 進行'; });
+  el.reset.addEventListener('click', ()=>{
     Object.assign(S,{t:0,playing:true,speed:1,temp:37,hr:72,map:93,sys:120,dia:80,glucose:90,metabolic:1,ca:9.2,po:3.5,mitosis:100});
     Object.assign(H,{insulin:0.2,glucagon:0.2,epi:0.1,cortisol:0.2,thyroid:0.2,pth:0.2,calcitonin:0.2,gh:0.2,aldo:0.2,test:(P.sex==='male'?0.4:0.1),est:(P.sex==='female'?0.25:0.08),prog:(P.sex==='female'?0.1:0.05)});
     Object.assign(P,{...P,auto:true,ambient:24,stress:0.1,exercise:0,dThy:0,insulinResistance:0,t1d:0,dCort:0,dPTH:0,pancreasStrength:1,
       mealPulse:0,fastPulse:0,calciumPulse:0,ghPulse:0,thyPulse:0,pthPulse:0,epiPulse:0,cortPulse:0,aldoPulse:0,insulinPulse:0,glucagonPulse:0,testPulse:0,estPulse:0,progPulse:0});
-    syncUI(); draw();
+    syncUI();
   });
-  document.getElementById('speed').addEventListener('input', e=>{ S.speed = +e.target.value; document.getElementById('speedVal').textContent = `×${S.speed}`; });
-  document.getElementById('autoFb').addEventListener('change', e=>{ P.auto = e.target.checked; });
-  document.getElementById('ambient').addEventListener('input', e=>{ P.ambient = +e.target.value; document.getElementById('ambientVal').textContent = `${P.ambient}°C`; });
-  document.getElementById('stress').addEventListener('input', e=>{ P.stress = +e.target.value; document.getElementById('stressVal').textContent = P.stress.toFixed(2); });
+  el.speed.addEventListener('input', ()=>{ S.speed = +el.speed.value; el.speedVal.textContent = `×${S.speed}`; });
+  el.autoFb.addEventListener('change', ()=>{ P.auto = el.autoFb.checked; });
+  el.ambient.addEventListener('input', ()=>{ P.ambient = +el.ambient.value; el.ambientVal.textContent = `${P.ambient}°C`; });
+  el.stress.addEventListener('input', ()=>{ P.stress = +el.stress.value; el.stressVal.textContent = P.stress.toFixed(2); });
 
   // 情境
-  document.getElementById('btnMeal').addEventListener('click', ()=>{ P.mealPulse += 1.2; flash(document.getElementById('btnMeal')); });
-  document.getElementById('btnFast').addEventListener('click', ()=>{ P.fastPulse = 1.0; flash(document.getElementById('btnFast')); });
-  let sprintOn=false; document.getElementById('btnSprint').addEventListener('click', ()=>{ sprintOn=!sprintOn; P.exercise = sprintOn? 0.8:0; document.getElementById('btnSprint').textContent = sprintOn? '🏃 停止運動':'🏃 運動（切換）'; });
-  document.getElementById('btnCold').addEventListener('click', ()=>{ P.ambient = 10; const a=document.getElementById('ambient'); a.value=P.ambient; document.getElementById('ambientVal').textContent=`${P.ambient}°C`; flash(document.getElementById('btnCold')); });
-  document.getElementById('btnHeat').addEventListener('click', ()=>{ P.ambient = 34; const a=document.getElementById('ambient'); a.value=P.ambient; document.getElementById('ambientVal').textContent=`${P.ambient}°C`; flash(document.getElementById('btnHeat')); });
-  document.getElementById('btnCalcium').addEventListener('click', ()=>{ P.calciumPulse += 1.0; flash(document.getElementById('btnCalcium')); });
+  el.btnMeal.addEventListener('click', ()=>{ P.mealPulse += 1.2; flash(el.btnMeal); });
+  el.btnFast.addEventListener('click', ()=>{ P.fastPulse = 1.0; flash(el.btnFast); });
+  let sprintOn=false; el.btnSprint.addEventListener('click', ()=>{ sprintOn=!sprintOn; P.exercise = sprintOn? 0.8:0; el.btnSprint.textContent = sprintOn? '🏃 停止運動':'🏃 運動（切換）'; });
+  el.btnCold.addEventListener('click', ()=>{ P.ambient = 10; el.ambient.value=P.ambient; el.ambientVal.textContent=`${P.ambient}°C`; flash(el.btnCold); });
+  el.btnHeat.addEventListener('click', ()=>{ P.ambient = 34; el.ambient.value=P.ambient; el.ambientVal.textContent=`${P.ambient}°C`; flash(el.btnHeat); });
+  el.btnCalcium.addEventListener('click', ()=>{ P.calciumPulse += 1.0; flash(el.btnCalcium); });
 
-  // 性別切換
-  document.getElementById('sexMale').addEventListener('click', ()=>{ P.sex='male'; document.getElementById('sexVal').textContent='男'; setSexButtons(); draw(); flash(document.getElementById('sexMale')); });
-  document.getElementById('sexFemale').addEventListener('click', ()=>{ P.sex='female'; document.getElementById('sexVal').textContent='女'; setSexButtons(); draw(); flash(document.getElementById('sexFemale')); });
+  // 性別切換（不對的性別腺體會消失）
+  el.sexMale.addEventListener('click', ()=>{ P.sex='male'; el.sexVal.textContent='男'; setSexButtons(); draw(); flash(el.sexMale); });
+  el.sexFemale.addEventListener('click', ()=>{ P.sex='female'; el.sexVal.textContent='女'; setSexButtons(); draw(); flash(el.sexFemale); });
 
   function setSexButtons(){
     const male = P.sex==='male';
-    document.getElementById('btnMaleResist').disabled = !male;
-    document.getElementById('btnFemaleFollicular').disabled = male;
-    document.getElementById('btnFemaleLuteal').disabled = male;
-    document.getElementById('btnPregnancy').disabled = male;
+    el.btnMaleResist.disabled = !male;
+    el.btnFemaleFollicular.disabled = male;
+    el.btnFemaleLuteal.disabled = male;
+    el.btnPregnancy.disabled = male;
+    if(male){ H.test = Math.max(H.test,0.4); H.est = Math.min(H.est,0.12); H.prog = Math.min(H.prog,0.08); }
+    else { H.est = Math.max(H.est,0.25); H.prog = Math.max(H.prog,0.10); H.test = Math.min(H.test,0.15); }
   }
-  document.getElementById('btnMaleResist').addEventListener('click', ()=>{ if(P.sex!=='male') return; P.testPulse += 0.8; flash(document.getElementById('btnMaleResist')); });
-  document.getElementById('btnFemaleFollicular').addEventListener('click', ()=>{ if(P.sex!=='female') return; P.estPulse += 0.8; flash(document.getElementById('btnFemaleFollicular')); });
-  document.getElementById('btnFemaleLuteal').addEventListener('click', ()=>{ if(P.sex!=='female') return; P.progPulse += 0.9; flash(document.getElementById('btnFemaleLuteal')); });
-  document.getElementById('btnPregnancy').addEventListener('click', ()=>{ if(P.sex!=='female') return; P.estPulse += 0.6; P.progPulse += 0.7; flash(document.getElementById('btnPregnancy')); });
 
-  // 病理滑桿
-  document.getElementById('dThy').addEventListener('input', e=>{ P.dThy = +e.target.value; document.getElementById('dThyVal').textContent = P.dThy.toFixed(2); });
-  document.getElementById('dIR').addEventListener('input', e=>{ P.insulinResistance = +e.target.value; document.getElementById('dIRVal').textContent = P.insulinResistance.toFixed(2); });
-  document.getElementById('dT1D').addEventListener('input', e=>{ P.t1d = +e.target.value; document.getElementById('dT1DVal').textContent = P.t1d.toFixed(2); });
-  document.getElementById('dCort').addEventListener('input', e=>{ P.dCort = +e.target.value; document.getElementById('dCortVal').textContent = P.dCort.toFixed(2); });
-  document.getElementById('dPTH').addEventListener('input', e=>{ P.dPTH = +e.target.value; document.getElementById('dPTHVal').textContent = P.dPTH.toFixed(2); });
+  // 性別情境
+  el.btnMaleResist.addEventListener('click', ()=>{ if(P.sex!=='male') return; P.testPulse += 0.8; flash(el.btnMaleResist); });
+  el.btnFemaleFollicular.addEventListener('click', ()=>{ if(P.sex!=='female') return; P.estPulse += 0.8; flash(el.btnFemaleFollicular); });
+  el.btnFemaleLuteal.addEventListener('click', ()=>{ if(P.sex!=='female') return; P.progPulse += 0.9; flash(el.btnFemaleLuteal); });
+  el.btnPregnancy.addEventListener('click', ()=>{ if(P.sex!=='female') return; P.estPulse += 0.6; P.progPulse += 0.7; flash(el.btnPregnancy); });
 
-  // SVG 腺體按鈕點擊（脈衝）
+  // 病理與基調
+  el.dThy.addEventListener('input', ()=>{ P.dThy = +el.dThy.value; el.dThyVal.textContent = P.dThy.toFixed(2); });
+  el.dIR.addEventListener('input', ()=>{ P.insulinResistance = +el.dIR.value; el.dIRVal.textContent = P.insulinResistance.toFixed(2); });
+  el.dT1D.addEventListener('input', ()=>{ P.t1d = +el.dT1D.value; el.dT1DVal.textContent = P.t1d.toFixed(2); });
+  el.dCort.addEventListener('input', ()=>{ P.dCort = +el.dCort.value; el.dCortVal.textContent = P.dCort.toFixed(2); });
+  el.dPTH.addEventListener('input', ()=>{ P.dPTH = +el.dPTH.value; el.dPTHVal.textContent = P.dPTH.toFixed(2); });
+
+  // ======= 腺體「按鈕」行為：在 SVG 中找 .svgbtn 並依 data-action 觸發對應脈衝 =======
   document.querySelectorAll('#glands .svgbtn').forEach(btn=>{
     btn.style.cursor = 'pointer';
     btn.addEventListener('click', (e)=>{
@@ -664,7 +652,8 @@
         case 'btnEST': if(P.sex==='female'){ P.estPulse += 0.8; } break;
         case 'btnPROG': if(P.sex==='female'){ P.progPulse += 0.9; } break;
       }
-      flashSVG(btn); e.stopPropagation();
+      flashSVG(btn);
+      e.stopPropagation();
     });
   });
 
@@ -674,30 +663,34 @@
     r.style.filter = 'brightness(1.2) drop-shadow(0 0 6px rgba(97,232,194,.5))';
     setTimeout(()=>{ r.style.filter = old; }, 160);
   }
-  function flash(btn){ const o=btn.style.opacity; btn.style.opacity='0.6'; setTimeout(()=>btn.style.opacity=o||'1',150); }
 
   function syncUI(){
-    document.getElementById('autoFb').checked = P.auto;
-    const a=document.getElementById('ambient'); a.value=P.ambient; document.getElementById('ambientVal').textContent=`${P.ambient}°C`;
-    const s=document.getElementById('stress'); s.value=P.stress; document.getElementById('stressVal').textContent=P.stress.toFixed(2);
-    document.getElementById('dThy').value=P.dThy; document.getElementById('dThyVal').textContent=P.dThy.toFixed(2);
-    document.getElementById('btnPlay').textContent = S.playing? '⏸ 暫停':'▶ 進行';
-    document.getElementById('sexVal').textContent = (P.sex==='male'?'男':'女'); setSexButtons();
+    el.autoFb.checked = P.auto;
+    el.ambient.value=P.ambient; el.ambientVal.textContent=`${P.ambient}°C`;
+    el.stress.value=P.stress; el.stressVal.textContent=P.stress.toFixed(2);
+    el.dThy.value=P.dThy; el.dThyVal.textContent=P.dThy.toFixed(2);
+    el.play.textContent = S.playing? '⏸ 暫停':'▶ 進行';
+    el.sexVal.textContent = (P.sex==='male'?'男':'女'); setSexButtons();
   }
 
-  // 主迴圈
+  function flash(btn){ const o=btn.style.opacity; btn.style.opacity='0.6'; setTimeout(()=>btn.style.opacity=o||'1',150); }
+
+  // ======= 主迴圈 =======
   let last = performance.now();
   function loop(now){
     const dtReal = (now - last)/1000; last = now;
     if(S.playing){
       const simMin = dtReal * 60 * S.speed * 0.2;
-      let remain = simMin; const step = 0.2;
+      let remain = simMin;
+      const step = 0.2;
       while(remain>0){ const d = Math.min(step, remain); tick(d); remain -= d; }
-    } else { draw(); }
+    } else {
+      draw();
+    }
     requestAnimationFrame(loop);
   }
 
-  syncUI(); draw(); attachHoverHints(); requestAnimationFrame(loop);
+  syncUI(); draw(); requestAnimationFrame(loop);
 
 })();
 </script>
