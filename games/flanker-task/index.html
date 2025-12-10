@@ -1,27 +1,37 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
-<head>
+<head><script src="/eduGame/ga4.js"></script>
   <meta charset="UTF-8">
-  <title>Flanker Task 小遊戲 v0.4</title>
+  <title>Flanker Task 小遊戲 v0.7</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
     * { box-sizing: border-box; }
-    body {
+    html, body {
       margin: 0;
-      min-height: 100vh;
-      display: flex;
-      justify-content: center;
-      align-items: center;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+    }
+    body {
       background: #000000;
       color: #ffffff;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans TC", sans-serif;
+      overflow: hidden; /* 重要：禁止 scroll */
     }
 
-    .game-container {
-      background: #000000;
-      border: 1px solid #ffffff;
-      border-radius: 16px;
-      padding: 14px 14px 10px;
+    /* 整個遊戲區 = 視窗大小 */
+    .root {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+    }
+
+    /* 上方 HUD（標題＋狀態） */
+    .hud-top {
+      position: absolute;
+      top: 8px;
+      left: 50%;
+      transform: translateX(-50%);
       width: min(640px, 96vw);
     }
 
@@ -33,7 +43,7 @@
     }
 
     h1 {
-      font-size: 18px;
+      font-size: clamp(16px, 2.4vw, 20px);
       margin: 0;
     }
 
@@ -41,11 +51,12 @@
       border: 1px solid #ffffff;
       background: transparent;
       color: #ffffff;
-      padding: 5px 10px;
+      padding: 4px 10px;
       border-radius: 999px;
       font-size: 13px;
       cursor: pointer;
       transition: transform 0.08s ease, opacity 0.12s ease, background-color 0.12s ease;
+      white-space: nowrap;
     }
     .help-btn:active {
       transform: scale(0.96);
@@ -58,15 +69,15 @@
       display: flex;
       gap: 6px;
       flex-wrap: wrap;
-      margin-bottom: 8px;
+      margin-bottom: 2px;
     }
 
     .status-box {
       border: 1px solid #ffffff;
       border-radius: 10px;
-      padding: 4px 8px;
-      font-size: 13px;
-      min-width: 90px;
+      padding: 3px 6px;
+      font-size: 12px;
+      min-width: 80px;
     }
 
     .status-label {
@@ -74,18 +85,7 @@
       margin-right: 4px;
     }
 
-    /* 中間方框：拉到視窗寬度（全寬橫條） */
-    .stimulus-frame {
-      border: 1px solid #ffffff;
-      border-radius: 0;
-      height: 180px;
-      position: relative;
-      margin: 8px 0;
-      width: 100vw;
-      margin-left: calc(50% - 50vw); /* 讓這個方框滿版 */
-      overflow: hidden;
-    }
-
+    /* 隨機箭頭列（直接鋪在 root 上） */
     .arrow-row {
       position: absolute;
       left: 50%;
@@ -93,35 +93,47 @@
       transform: translate(-50%, -50%);
       font-size: clamp(40px, 8vw, 72px);
       font-weight: 700;
-      letter-spacing: 0.1em; /* 拉近距離，但仍保留空隙感 */
+      letter-spacing: 0.1em;
       text-align: center;
       white-space: nowrap;
+      pointer-events: none;
+    }
+
+    /* 下方 HUD（說明＋按鈕＋訊息） */
+    .hud-bottom {
+      position: absolute;
+      bottom: 8px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: min(640px, 96vw);
+      text-align: center;
     }
 
     .info-text {
       font-size: 12px;
       opacity: 0.7;
-      margin-bottom: 6px;
-      text-align: center;
+      margin-bottom: 4px;
+      line-height: 1.4;
     }
 
     .controls-row {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 8px;
-      margin-bottom: 6px;
+      gap: 6px;
+      margin-bottom: 4px;
     }
 
     .btn {
       border: 1px solid #ffffff;
       background: transparent;
       color: #ffffff;
-      padding: 8px 10px;
+      padding: 6px 8px;
       border-radius: 999px;
-      font-size: 15px;
+      font-size: clamp(13px, 2vw, 15px);
       cursor: pointer;
       text-align: center;
       transition: transform 0.08s ease, opacity 0.12s ease, background-color 0.12s ease;
+      white-space: nowrap;
     }
 
     .btn:active {
@@ -143,9 +155,26 @@
 
     .message {
       min-height: 40px;
-      font-size: 14px;
+      font-size: 13px;
       text-align: center;
       margin-top: 2px;
+    }
+
+    .message table {
+      margin: 4px auto;
+      border-collapse: collapse;
+      font-size: 12px;
+      min-width: 80%;
+      max-width: 100%;
+    }
+    .message th,
+    .message td {
+      border: 1px solid #ffffff;
+      padding: 3px 4px;
+      text-align: center;
+    }
+    .message th {
+      background: rgba(255,255,255,0.05);
     }
 
     .msg-good {
@@ -157,10 +186,10 @@
     }
 
     .version {
-      font-size: 11px;
+      font-size: 10px;
       opacity: 0.45;
       text-align: right;
-      margin-top: 4px;
+      margin-top: 2px;
     }
 
     /* 說明 overlay */
@@ -186,7 +215,7 @@
       background: #000000;
       border: 1px solid #ffffff;
       border-radius: 14px;
-      padding: 14px 14px 10px;
+      padding: 12px 12px 8px;
       width: min(720px, 96vw);
       max-height: 80vh;
       overflow: auto;
@@ -211,7 +240,7 @@
       background: transparent;
       color: #ffffff;
       border-radius: 999px;
-      padding: 5px 10px;
+      padding: 4px 10px;
       font-size: 13px;
       cursor: pointer;
     }
@@ -247,51 +276,56 @@
   </style>
 </head>
 <body>
-  <div class="game-container">
-    <div class="top-row">
-      <h1>Flanker Task 小遊戲</h1>
-      <button id="helpBtn" class="help-btn">說明</button>
-    </div>
+  <div class="root">
+    <!-- 上方 HUD -->
+    <div class="hud-top">
+      <div class="top-row">
+        <h1>Flanker Task 小遊戲</h1>
+        <button id="helpBtn" class="help-btn">說明</button>
+      </div>
 
-    <div class="status-row">
-      <div class="status-box">
-        <span class="status-label">題目</span>
-        <span id="roundNow">0</span>/<span id="roundTotal">10</span>
-      </div>
-      <div class="status-box">
-        <span class="status-label">得分</span>
-        <span id="score">0</span>
-      </div>
-      <div class="status-box">
-        <span class="status-label">錯誤</span>
-        <span id="wrong">0</span>
-      </div>
-      <div class="status-box">
-        <span class="status-label">漏答</span>
-        <span id="missed">0</span>
-      </div>
-    </div>
-
-    <div class="stimulus-frame">
-      <div id="arrowRow" class="arrow-row">
-        <<<<<
+      <div class="status-row">
+        <div class="status-box">
+          <span class="status-label">題目</span>
+          <span id="roundNow">0</span>/<span id="roundTotal">10</span>
+        </div>
+        <div class="status-box">
+          <span class="status-label">得分</span>
+          <span id="score">0</span>
+        </div>
+        <div class="status-box">
+          <span class="status-label">錯誤</span>
+          <span id="wrong">0</span>
+        </div>
+        <div class="status-box">
+          <span class="status-label">漏答</span>
+          <span id="missed">0</span>
+        </div>
       </div>
     </div>
 
-    <div class="info-text">
-      中間那一個箭頭才是目標（但整列的位置會改變）。<br>
-      左右兩側是干擾，請依「中間箭頭方向」決定要選左或選右。<br>
-      可以按按鈕，或直接用鍵盤方向鍵 ← / →。
+    <!-- 隨機位置箭頭列 -->
+    <div id="arrowRow" class="arrow-row">
+      <<<<<
     </div>
 
-    <div class="controls-row">
-      <button id="btnLeft"  class="btn" data-side="left">選左邊（←）</button>
-      <button id="btnRight" class="btn" data-side="right">選右邊（→）</button>
-      <button id="btnStart" class="btn btn-main">開始遊戲</button>
-    </div>
+    <!-- 下方 HUD -->
+    <div class="hud-bottom">
+      <div class="info-text">
+        箭頭列的位置每一題都會不同（上下＋左右皆隨機）。<br>
+        中間那一個箭頭才是目標，左右兩側是干擾。請依「中間箭頭方向」決定要選左或選右。<br>
+        可以按按鈕，或直接用鍵盤方向鍵 ← / →。
+      </div>
 
-    <div id="message" class="message"></div>
-    <div class="version">v0.4 Flanker</div>
+      <div class="controls-row">
+        <button id="btnLeft"  class="btn" data-side="left">選左邊（←）</button>
+        <button id="btnRight" class="btn" data-side="right">選右邊（→）</button>
+        <button id="btnStart" class="btn btn-main">開始遊戲</button>
+      </div>
+
+      <div id="message" class="message"></div>
+      <div class="version">v0.7 Flanker</div>
+    </div>
   </div>
 
   <!-- 說明 overlay -->
@@ -311,8 +345,8 @@
   <script>
     // ===== 遊戲參數 =====
     const TOTAL_ROUNDS = 10;
-    const MIN_DURATION_MS = 1200; // 每題最短可作答時間
-    const MAX_DURATION_MS = 2500; // 每題最長可作答時間
+    const MIN_DURATION_MS = 1200;
+    const MAX_DURATION_MS = 2500;
 
     // DOM
     const roundNowSpan   = document.getElementById('roundNow');
@@ -328,29 +362,36 @@
 
     const helpBtn        = document.getElementById('helpBtn');
     const helpOverlay    = document.getElementById('helpOverlay');
-    the_closeHelpBtn   = document.getElementById('closeHelpBtn');
+    const closeHelpBtn   = document.getElementById('closeHelpBtn');
     const helpBody       = document.getElementById('helpBody');
 
     roundTotalSpan.textContent = TOTAL_ROUNDS;
 
-    // ===== 狀態 =====
+    // 狀態
     let currentRound = 0;
     let score = 0;
     let wrong = 0;
     let missed = 0;
 
     let isAccepting = false;
-    let targetDirection = null;     // 'left' or 'right'
-    let currentCorrectSide = null;  // 'left' or 'right'
+    let targetDirection = null;
+    let currentCorrectSide = null;
     let questionStartTime = null;
     let gameStartTime = null;
     let currentDurationMs = 0;
     let timeoutId = null;
 
-    let reactionTimes = [];   // 所有有作答題目的反應時間（ms）
-    let congruentRTs = [];    // 一致題的反應時間
-    let incongruentRTs = [];  // 不一致題的反應時間
+    let reactionTimes = [];
+    let congruentRTs = [];
+    let incongruentRTs = [];
     let currentIsCongruent = false;
+
+    let congruentTrials = 0;
+    let incongruentTrials = 0;
+    let congruentCorrect = 0;
+    let congruentWrong = 0;
+    let incongruentCorrect = 0;
+    let incongruentWrong = 0;
 
     function randomInRange(min, max) {
       return Math.random() * (max - min) + min;
@@ -378,10 +419,11 @@
     }
 
     function randomizeArrowPosition() {
-      // 垂直位置在 20%～80% 之間隨機，避免總是固定在中線
-      const topPercent = randomInRange(20, 80);
+      // 上下：為了避開 HUD，上界下界收窄一點
+      const topPercent = randomInRange(20, 70);   // 20%~70%
+      const leftPercent = randomInRange(15, 85);  // 15%~85%
       arrowRow.style.top = topPercent + '%';
-      // 水平維持置中（left:50%，transform:translateX(-50%) 已在 CSS）
+      arrowRow.style.left = leftPercent + '%';
     }
 
     function startGame() {
@@ -392,6 +434,12 @@
       reactionTimes = [];
       congruentRTs = [];
       incongruentRTs = [];
+      congruentTrials = 0;
+      incongruentTrials = 0;
+      congruentCorrect = 0;
+      congruentWrong = 0;
+      incongruentCorrect = 0;
+      incongruentWrong = 0;
 
       scoreSpan.textContent = score;
       wrongSpan.textContent = wrong;
@@ -422,17 +470,18 @@
       messageDiv.textContent = '';
       messageDiv.className = 'message';
 
-      // 隨機決定目標箭頭方向（left / right）
       targetDirection = Math.random() < 0.5 ? 'left' : 'right';
       currentCorrectSide = targetDirection;
 
-      // 隨機決定這一題是「一致」或「不一致」
       const congruent = Math.random() < 0.5;
       currentIsCongruent = congruent;
+      if (congruent) {
+        congruentTrials++;
+      } else {
+        incongruentTrials++;
+      }
 
       let patternStr = '';
-
-      // 按照你指定的圖形組合來決定 pattern：
       // 目標左：一致 <<<<<   不一致 >><>>
       // 目標右：一致 >>>>>   不一致 <<><<
       if (targetDirection === 'left') {
@@ -444,9 +493,7 @@
       arrowRow.textContent = patternStr;
       randomizeArrowPosition();
 
-      // 隨機決定這一題可作答時間上限
       currentDurationMs = randomInRange(MIN_DURATION_MS, MAX_DURATION_MS);
-
       isAccepting = true;
       questionStartTime = Date.now();
       enableAnswerButtons();
@@ -474,11 +521,25 @@
       if (side === currentCorrectSide) {
         score++;
         scoreSpan.textContent = score;
+
+        if (currentIsCongruent) {
+          congruentCorrect++;
+        } else {
+          incongruentCorrect++;
+        }
+
         messageDiv.textContent = '✔ 正確！';
         messageDiv.className = 'message msg-good';
       } else {
         wrong++;
         wrongSpan.textContent = wrong;
+
+        if (currentIsCongruent) {
+          congruentWrong++;
+        } else {
+          incongruentWrong++;
+        }
+
         messageDiv.textContent = '✘ 錯誤！請只看中間那一個箭頭。';
         messageDiv.className = 'message msg-bad';
       }
@@ -526,12 +587,36 @@
       messageDiv.className = 'message';
       messageDiv.innerHTML =
         `遊戲結束！<br>` +
-        `得分：<strong>${score}</strong> / ${TOTAL_ROUNDS}<br>` +
-        `錯誤：<strong>${wrong}</strong>，漏答：<strong>${missed}</strong><br>` +
-        `總作答時間：約 <strong>${totalSec.toFixed(2)}</strong> 秒<br>` +
-        `整體平均反應時間：<strong>${fmt(avgRtAllSec)}</strong> 秒／題<br>` +
-        `一致題平均反應時間：<strong>${fmt(avgCongSec)}</strong> 秒／題<br>` +
-        `不一致題平均反應時間：<strong>${fmt(avgIncongSec)}</strong> 秒／題`;
+        `<table>
+          <thead>
+            <tr>
+              <th>條件</th>
+              <th>題數</th>
+              <th>答對數</th>
+              <th>答錯數</th>
+              <th>平均反應時間（秒）</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>一致</td>
+              <td>${congruentTrials}</td>
+              <td>${congruentCorrect}</td>
+              <td>${congruentWrong}</td>
+              <td>${fmt(avgCongSec)}</td>
+            </tr>
+            <tr>
+              <td>不一致</td>
+              <td>${incongruentTrials}</td>
+              <td>${incongruentCorrect}</td>
+              <td>${incongruentWrong}</td>
+              <td>${fmt(avgIncongSec)}</td>
+            </tr>
+          </tbody>
+        </table>
+        整體平均反應時間：<strong>${fmt(avgRtAllSec)}</strong> 秒／題<br>
+        總錯誤：<strong>${wrong}</strong>，總漏答：<strong>${missed}</strong><br>
+        總作答時間：約 <strong>${totalSec.toFixed(2)}</strong> 秒`;
 
       btnStart.textContent = '再玩一次';
       btnStart.classList.remove('disabled');
@@ -539,12 +624,10 @@
       disableAnswerButtons();
     }
 
-    // 事件綁定
     btnStart.addEventListener('click', startGame);
     btnLeft.addEventListener('click', () => handleAnswer('left'));
     btnRight.addEventListener('click', () => handleAnswer('right'));
 
-    // 支援鍵盤方向鍵 ← / →
     window.addEventListener('keydown', (e) => {
       if (!isAccepting) return;
       if (e.key === 'ArrowLeft') {
@@ -554,7 +637,7 @@
       }
     });
 
-    // ===== readme.md 載入與簡易 Markdown 解析 =====
+    // readme 區
     let readmeLoaded = false;
 
     function escapeHtml(str) {
@@ -649,3 +732,5 @@
   </script>
 </body>
 </html>
+
+
