@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <title>Flanker Task 小遊戲 v0.1</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: #000000;
+      color: #ffffff;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans TC", sans-serif;
+    }
+
+    .game-container {
+      background: #000000;
+      border: 1px solid #ffffff;
+      border-radius: 16px;
+      padding: 14px 14px 10px;
+      width: min(640px, 96vw);
+    }
+
+    .top-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+
+    h1 {
+      font-size: 18px;
+      margin: 0;
+    }
+
+    .status-row {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-bottom: 8px;
+    }
+
+    .status-box {
+      border: 1px solid #ffffff;
+      border-radius: 10px;
+      padding: 4px 8px;
+      font-size: 13px;
+      min-width: 90px;
+    }
+
+    .status-label {
+      opacity: 0.7;
+      margin-right: 4px;
+    }
+
+    .stimulus-frame {
+      border: 1px solid #ffffff;
+      border-radius: 12px;
+      height: 120px;
+      position: relative;
+      overflow: hidden;
+      margin-bottom: 8px;
+    }
+
+    .stimulus-obj {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      white-space: nowrap;
+    }
+
+    .arrow-row {
+      font-size: clamp(40px, 8vw, 72px);
+      font-weight: 700;
+      letter-spacing: 0.3em;
+      text-align: center;
+    }
+
+    .info-text {
+      font-size: 12px;
+      opacity: 0.7;
+      margin-bottom: 6px;
+      text-align: center;
+    }
+
+    .controls-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+
+    .btn {
+      border: 1px solid #ffffff;
+      background: transparent;
+      color: #ffffff;
+      padding: 8px 10px;
+      border-radius: 999px;
+      font-size: 15px;
+      cursor: pointer;
+      text-align: center;
+      transition: transform 0.08s ease, opacity 0.12s ease, background-color 0.12s ease;
+    }
+
+    .btn:active {
+      transform: scale(0.96);
+    }
+
+    .btn.disabled {
+      opacity: 0.4;
+      cursor: default;
+    }
+
+    .btn-main {
+      grid-column: 1 / span 2;
+    }
+
+    .message {
+      min-height: 28px;
+      font-size: 14px;
+      text-align: center;
+      margin-top: 2px;
+    }
+
+    .msg-good {
+      color: #a7f3d0;
+    }
+
+    .msg-bad {
+      color: #fb7185;
+    }
+
+    .version {
+      font-size: 11px;
+      opacity: 0.45;
+      text-align: right;
+      margin-top: 4px;
+    }
+
+    /* 動畫：左右滑入／滑出（用 left 百分比） */
+    .stimulus-obj.run-ltr {
+      animation-name: slide-ltr;
+      animation-timing-function: linear;
+      animation-fill-mode: forwards;
+    }
+
+    .stimulus-obj.run-rtl {
+      animation-name: slide-rtl;
+      animation-timing-function: linear;
+      animation-fill-mode: forwards;
+    }
+
+    @keyframes slide-ltr {
+      from { left: -40%; }
+      to   { left: 140%; }
+    }
+
+    @keyframes slide-rtl {
+      from { left: 140%; }
+      to   { left: -40%; }
+    }
+  </style>
+</head>
+<body>
+  <div class="game-container">
+    <div class="top-row">
+      <h1>Flanker Task 小遊戲</h1>
+    </div>
+
+    <div class="status-row">
+      <div class="status-box">
+        <span class="status-label">題目</span>
+        <span id="roundNow">0</span>/<span id="roundTotal">10</span>
+      </div>
+      <div class="status-box">
+        <span class="status-label">得分</span>
+        <span id="score">0</span>
+      </div>
+      <div class="status-box">
+        <span class="status-label">錯誤</span>
+        <span id="wrong">0</span>
+      </div>
+      <div class="status-box">
+        <span class="status-label">漏答</span>
+        <span id="missed">0</span>
+      </div>
+    </div>
+
+    <div class="stimulus-frame">
+      <div id="stimulusObj" class="stimulus-obj">
+        <div id="arrowRow" class="arrow-row">← ← ← ← ←</div>
+      </div>
+    </div>
+
+    <div class="info-text">
+      中間那一個箭頭才是目標。<br>
+      左右兩側是干擾，請依「中間箭頭方向」決定要選左或選右。<br>
+      可以點按按鈕，或直接用鍵盤方向鍵 ← / →。
+    </div>
+
+    <div class="controls-row">
+      <button id="btnLeft"  class="btn" data-side="left">選左邊（←）</button>
+      <button id="btnRight" class="btn" data-side="right">選右邊（→）</button>
+      <button id="btnStart" class="btn btn-main">開始遊戲</button>
+    </div>
+
+    <div id="message" class="message"></div>
+    <div class="version">v0.1 Flanker</div>
+  </div>
+
+  <script>
+    // 遊戲參數
+    const TOTAL_ROUNDS = 10;
+    const MIN_DURATION_MS = 1200; // 每題最短滑動時間
+    const MAX_DURATION_MS = 2500; // 每題最長滑動時間
+
+    // DOM
+    const roundNowSpan   = document.getElementById('roundNow');
+    const roundTotalSpan = document.getElementById('roundTotal');
+    const scoreSpan      = document.getElementById('score');
+    const wrongSpan      = document.getElementById('wrong');
+    const missedSpan     = document.getElementById('missed');
+    const arrowRow       = document.getElementById('arrowRow');
+    const stimulusObj    = document.getElementById('stimulusObj');
+    const btnLeft        = document.getElementById('btnLeft');
+    const btnRight       = document.getElementById('btnRight');
+    const btnStart       = document.getElementById('btnStart');
+    const messageDiv     = document.getElementById('message');
+
+    roundTotalSpan.textContent = TOTAL_ROUNDS;
+
+    // 狀態
+    let currentRound = 0;
+    let score = 0;
+    let wrong = 0;
+    let missed = 0;
+
+    let isAccepting = false;
+    let targetDirection = null; // 'left' or 'right'
+    let currentCorrectSide = null; // 'left' or 'right'
+    let questionStartTime = null;
+    let gameStartTime = null;
+    let currentDurationMs = 0;
+
+    let reactionTimes = []; // 記錄有反應的反應時間（ms）
+
+    function resetStimulusAnimation() {
+      stimulusObj.classList.remove('run-ltr', 'run-rtl');
+      // 重置位置到畫面外（先簡單放左邊）
+      stimulusObj.style.left = '-40%';
+      // 強制 reflow，確保下次加 class 會重新啟動動畫
+      void stimulusObj.offsetWidth;
+    }
+
+    function randomInRange(min, max) {
+      return Math.random() * (max - min) + min;
+    }
+
+    function startGame() {
+      currentRound = 0;
+      score = 0;
+      wrong = 0;
+      missed = 0;
+      reactionTimes = [];
+
+      scoreSpan.textContent = score;
+      wrongSpan.textContent = wrong;
+      missedSpan.textContent = missed;
+      roundNowSpan.textContent = 0;
+      messageDiv.textContent = '';
+      messageDiv.className = 'message';
+
+      btnStart.textContent = '作答中…';
+      btnStart.classList.add('disabled');
+      btnStart.disabled = true;
+
+      enableAnswerButtons();
+
+      gameStartTime = Date.now();
+      nextQuestion();
+    }
+
+    function enableAnswerButtons() {
+      btnLeft.classList.remove('disabled');
+      btnRight.classList.remove('disabled');
+      btnLeft.disabled = false;
+      btnRight.disabled = false;
+    }
+
+    function disableAnswerButtons() {
+      btnLeft.classList.add('disabled');
+      btnRight.classList.add('disabled');
+      btnLeft.disabled = true;
+      btnRight.disabled = true;
+    }
+
+    function nextQuestion() {
+      currentRound++;
+      if (currentRound > TOTAL_ROUNDS) {
+        endGame();
+        return;
+      }
+
+      roundNowSpan.textContent = currentRound;
+      messageDiv.textContent = '';
+      messageDiv.className = 'message';
+
+      // 隨機決定目標箭頭方向（left / right）
+      targetDirection = Math.random() < 0.5 ? 'left' : 'right';
+      currentCorrectSide = targetDirection; // 中間箭頭向左 → 正確回答是 "左"
+
+      const targetChar = (targetDirection === 'left') ? '←' : '→';
+      const flankChar  = (targetDirection === 'left') ? '→' : '←';
+
+      // 隨機決定這一題是「一致」或「不一致」
+      const congruent = Math.random() < 0.5;
+
+      const pattern = [];
+      for (let i = 0; i < 5; i++) {
+        if (i === 2) {
+          // 中間一定是目標方向
+          pattern.push(targetChar);
+        } else {
+          if (congruent) {
+            pattern.push(targetChar);
+          } else {
+            pattern.push(flankChar);
+          }
+        }
+      }
+      // 設定畫面上的箭頭列（用空格隔開增加清楚度）
+      arrowRow.textContent = pattern.join(' ');
+
+      // 隨機決定從左往右或從右往左滑動
+      const moveLeftToRight = Math.random() < 0.5;
+
+      // 隨機決定速度
+      currentDurationMs = randomInRange(MIN_DURATION_MS, MAX_DURATION_MS);
+      const durationSec = currentDurationMs / 1000;
+
+      // 重置動畫，重新啟動
+      resetStimulusAnimation();
+      stimulusObj.style.animationDuration = durationSec + 's';
+      if (moveLeftToRight) {
+        stimulusObj.classList.add('run-ltr');
+      } else {
+        stimulusObj.classList.add('run-rtl');
+      }
+
+      isAccepting = true;
+      questionStartTime = Date.now();
+      enableAnswerButtons();
+    }
+
+    function handleAnswer(side) {
+      if (!isAccepting) return;
+
+      isAccepting = false;
+      disableAnswerButtons();
+
+      // 記錄反應時間
+      const rt = Date.now() - questionStartTime;
+      reactionTimes.push(rt);
+
+      if (side === currentCorrectSide) {
+        score++;
+        scoreSpan.textContent = score;
+        messageDiv.textContent = '✔ 正確！';
+        messageDiv.className = 'message msg-good';
+      } else {
+        wrong++;
+        wrongSpan.textContent = wrong;
+        messageDiv.textContent = '✘ 錯誤！請只看中間那一個箭頭。';
+        messageDiv.className = 'message msg-bad';
+      }
+
+      // 讓玩家稍微看到結果，再進下一題
+      setTimeout(() => {
+        nextQuestion();
+      }, 700);
+    }
+
+    function handleTimeout() {
+      if (!isAccepting) return;
+
+      isAccepting = false;
+      disableAnswerButtons();
+
+      missed++;
+      missedSpan.textContent = missed;
+
+      messageDiv.textContent = '⏱ 未在時間內作答，算一次漏答。';
+      messageDiv.className = 'message msg-bad';
+
+      setTimeout(() => {
+        nextQuestion();
+      }, 700);
+    }
+
+    function endGame() {
+      const totalMs = Date.now() - gameStartTime;
+      const totalSec = totalMs / 1000;
+
+      let avgRtSec = 0;
+      if (reactionTimes.length > 0) {
+        const sum = reactionTimes.reduce((a, b) => a + b, 0);
+        avgRtSec = (sum / reactionTimes.length) / 1000;
+      }
+
+      resetStimulusAnimation();
+
+      messageDiv.className = 'message';
+      messageDiv.innerHTML =
+        `遊戲結束！<br>` +
+        `得分：<strong>${score}</strong> / ${TOTAL_ROUNDS}<br>` +
+        `錯誤：<strong>${wrong}</strong>，漏答：<strong>${missed}</strong><br>` +
+        `總作答時間：約 <strong>${totalSec.toFixed(2)}</strong> 秒<br>` +
+        `有反應題目的平均反應時間：<strong>${avgRtSec.toFixed(2)}</strong> 秒`;
+
+      btnStart.textContent = '再玩一次';
+      btnStart.classList.remove('disabled');
+      btnStart.disabled = false;
+      disableAnswerButtons();
+    }
+
+    // 事件綁定
+    btnStart.addEventListener('click', startGame);
+    btnLeft.addEventListener('click', () => handleAnswer('left'));
+    btnRight.addEventListener('click', () => handleAnswer('right'));
+
+    // 支援鍵盤方向鍵
+    window.addEventListener('keydown', (e) => {
+      if (!isAccepting) return;
+      if (e.key === 'ArrowLeft') {
+        handleAnswer('left');
+      } else if (e.key === 'ArrowRight') {
+        handleAnswer('right');
+      }
+    });
+
+    // 動畫結束 → 視為超時漏答
+    stimulusObj.addEventListener('animationend', () => {
+      // 若玩家還沒作答，就當作漏答
+      handleTimeout();
+    });
+  </script>
+</body>
+</html>
