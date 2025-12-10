@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <title>數字 Stroop 小測驗 v0.1</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: #020617;
+      color: #e5e7eb;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans TC", sans-serif;
+    }
+    .game-container {
+      background: #0f172a;
+      border-radius: 18px;
+      padding: 18px 16px 10px;
+      width: min(800px, 96vw);
+      box-shadow: 0 20px 40px rgba(0,0,0,0.6);
+    }
+    .top-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 4px;
+    }
+    h1 {
+      font-size: 20px;
+      margin: 0;
+      white-space: nowrap;
+    }
+    .help-btn {
+      border: none;
+      border-radius: 999px;
+      padding: 6px 12px;
+      font-size: 14px;
+      cursor: pointer;
+      background: #334155;
+      color: #e5e7eb;
+      flex-shrink: 0;
+      transition: background 0.15s ease, transform 0.1s ease;
+    }
+    .help-btn:hover { background: #475569; }
+    .help-btn:active { transform: scale(0.96); }
+
+    .status-bar {
+      display: flex;
+      justify-content: space-between;
+      font-size: 14px;
+      margin: 4px 0 4px;
+      opacity: 0.9;
+    }
+    .status-bar span.label { opacity: 0.7; }
+
+    .rule-box {
+      font-size: 30px;
+      padding: 6px 10px;
+      border-radius: 10px;
+      background: #020617;
+      text-align: center;
+      margin-bottom: 8px;
+      opacity: 0.9;
+    }
+
+    .question-box {
+      margin: 8px 0 14px;
+      padding: 10px;
+      border-radius: 14px;
+      background: #020617;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      min-height: 110px;
+      gap: 8px;
+    }
+    .number-side {
+      flex: 1;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    .number-text {
+      font-weight: 800;
+      letter-spacing: 0.15em;
+      text-align: center;
+      width: 100%;
+      text-shadow: 0 0 8px rgba(0,0,0,0.5);
+    }
+
+    .info-text {
+      font-size: 20px;
+      text-align: center;
+      opacity: 0.7;
+      margin-top: -2px;
+      margin-bottom: 6px;
+    }
+
+    .choices {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+    .option-btn, .main-btn {
+      border: none;
+      border-radius: 999px;
+      padding: 10px 12px;
+      font-size: 36px;
+      cursor: pointer;
+      background: #111827;
+      color: #e5e7eb;
+      transition: transform 0.1s ease, box-shadow 0.1s ease, background 0.15s ease, opacity 0.15s ease;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+      text-shadow: 0 0 6px rgba(0,0,0,0.4);
+    }
+    .option-btn:active, .main-btn:active {
+      transform: scale(0.96);
+      box-shadow: none;
+    }
+    .option-btn:hover, .main-btn:hover {
+      background: #1f2937;
+    }
+    .option-btn.disabled {
+      opacity: 0.4;
+      pointer-events: none;
+    }
+    .main-btn {
+      grid-column: 1 / span 2;
+      background: #16a34a;
+      font-size: 17px;
+    }
+    .main-btn:hover {
+      background: #22c55e;
+    }
+
+    .message {
+      min-height: 24px;
+      text-align: center;
+      font-size: 15px;
+      margin-top: 4px;
+    }
+    .correct { color: #4ade80; }
+    .wrong   { color: #f97373; }
+
+    .hint-text {
+      font-size: 20px;
+      text-align: center;
+      opacity: 0.7;
+      margin-top: 3px;
+    }
+
+    .version {
+      font-size: 11px;
+      opacity: 0.45;
+      text-align: right;
+      margin-top: 3px;
+    }
+
+    /* 說明 overlay */
+    .overlay {
+      position: fixed;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 50;
+    }
+    .overlay.show { display: flex; }
+    .overlay-backdrop {
+      position: absolute;
+      inset: 0;
+      background: rgba(15,23,42,0.85);
+      backdrop-filter: blur(4px);
+    }
+    .overlay-content {
+      position: relative;
+      background: #020617;
+      border-radius: 14px;
+      padding: 14px 14px 10px;
+      width: min(720px, 96vw);
+      max-height: 80vh;
+      overflow: auto;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.7);
+      z-index: 1;
+    }
+    .overlay-title-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+      gap: 8px;
+    }
+    .overlay-title-row h2 {
+      font-size: 18px;
+      margin: 0;
+    }
+    .close-btn {
+      border: none;
+      border-radius: 999px;
+      padding: 5px 10px;
+      font-size: 13px;
+      cursor: pointer;
+      background: #334155;
+      color: #e5e7eb;
+      flex-shrink: 0;
+    }
+    .close-btn:hover { background: #475569; }
+
+    .help-body {
+      font-size: 14px;
+      line-height: 1.6;
+    }
+    .help-body h1,
+    .help-body h2,
+    .help-body h3 {
+      margin-top: 0.8em;
+      margin-bottom: 0.3em;
+    }
+    .help-body ul {
+      padding-left: 1.4em;
+      margin: 0.2em 0 0.4em;
+    }
+    .help-body li {
+      margin-bottom: 0.2em;
+    }
+    .help-body p {
+      margin: 0.2em 0 0.4em;
+    }
+  </style>
+</head>
+<body>
+  <div class="game-container">
+    <div class="top-row">
+      <h1>數字 Stroop 小測驗</h1>
+      <button id="helpBtn" class="help-btn">說明</button>
+    </div>
+
+    <div class="status-bar">
+      <div>
+        <span class="label">題目：</span><span id="round">0</span> / <span id="totalRounds">10</span>
+      </div>
+      <div>
+        <span class="label">分數：</span><span id="score">0</span>
+      </div>
+    </div>
+
+    <div class="rule-box" id="ruleBox">
+      規則：按下「開始遊戲」啟動。
+    </div>
+
+    <div class="question-box">
+      <div class="number-side">
+        <span id="leftNum" class="number-text">左</span>
+      </div>
+      <div class="number-side">
+        <span id="rightNum" class="number-text">右</span>
+      </div>
+    </div>
+
+    <div class="info-text">可以用滑鼠點選「選左邊 / 選右邊」，也支援鍵盤 ← / →。</div>
+
+    <div class="choices">
+      <button class="option-btn" id="leftBtn" data-side="left">選左邊（←）</button>
+      <button class="option-btn" id="rightBtn" data-side="right">選右邊（→）</button>
+      <button id="startBtn" class="main-btn">開始遊戲</button>
+    </div>
+
+    <div class="message" id="message"></div>
+    <div class="hint-text">
+      題目有兩種：有時要比「數值大小」，有時要比「字體大小」。請仔細看上方規則。
+    </div>
+    <div class="version">v0.1</div>
+  </div>
+
+  <!-- 說明 overlay -->
+  <div id="helpOverlay" class="overlay">
+    <div class="overlay-backdrop"></div>
+    <div class="overlay-content">
+      <div class="overlay-title-row">
+        <h2>遊戲說明（readme.md）</h2>
+        <button id="closeHelpBtn" class="close-btn">關閉</button>
+      </div>
+      <div id="helpBody" class="help-body">讀取說明中…</div>
+    </div>
+  </div>
+
+  <script>
+    const TOTAL_ROUNDS = 10;
+
+    const roundSpan = document.getElementById('round');
+    const totalRoundsSpan = document.getElementById('totalRounds');
+    const scoreSpan = document.getElementById('score');
+    const ruleBox = document.getElementById('ruleBox');
+    const leftNumSpan = document.getElementById('leftNum');
+    const rightNumSpan = document.getElementById('rightNum');
+    const messageDiv = document.getElementById('message');
+    const startBtn = document.getElementById('startBtn');
+    const leftBtn = document.getElementById('leftBtn');
+    const rightBtn = document.getElementById('rightBtn');
+
+    const helpBtn = document.getElementById('helpBtn');
+    const helpOverlay = document.getElementById('helpOverlay');
+    const closeHelpBtn = document.getElementById('closeHelpBtn');
+    const helpBody = document.getElementById('helpBody');
+
+    totalRoundsSpan.textContent = TOTAL_ROUNDS;
+
+    let currentRound = 0;
+    let score = 0;
+    let isAccepting = false;
+
+    let gameStartTime = null;
+    let questionStartTime = null;
+    let reactionTimes = [];
+    let mistakes = 0;
+
+    let currentRule = null; // 'value' or 'font'
+    let correctSide = null; // 'left' or 'right'
+
+    function shuffle(array) {
+      for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+      }
+      return array;
+    }
+
+    function startGame() {
+      currentRound = 0;
+      score = 0;
+      mistakes = 0;
+      reactionTimes = [];
+      scoreSpan.textContent = score;
+      roundSpan.textContent = 0;
+      messageDiv.textContent = '';
+      messageDiv.className = 'message';
+
+      leftNumSpan.textContent = '左';
+      rightNumSpan.textContent = '右';
+      leftNumSpan.style.fontSize = 'clamp(100px, 50vw, 160px)';
+      rightNumSpan.style.fontSize = 'clamp(100px, 50vw, 160px)';
+
+      startBtn.textContent = '作答中…';
+      startBtn.disabled = true;
+      startBtn.style.opacity = '0.6';
+
+      gameStartTime = Date.now();
+      nextQuestion();
+    }
+
+    function nextQuestion() {
+      currentRound++;
+      if (currentRound > TOTAL_ROUNDS) {
+        endGame();
+        return;
+      }
+
+      roundSpan.textContent = currentRound;
+      messageDiv.textContent = '';
+      messageDiv.className = 'message';
+
+      // 隨機規則：比數值 or 比字體大小
+      currentRule = Math.random() < 0.5 ? 'value' : 'font';
+      if (currentRule === 'value') {
+        ruleBox.textContent = '選「數值」大的數字';
+      } else {
+        ruleBox.textContent = '選「字體」大的數字';
+      }
+
+      // 隨機兩個不同數字（1~9）
+      let nums = [1,2,3,4,5,6,7,8,9];
+      nums = shuffle(nums);
+      const leftValue = nums[0];
+      const rightValue = nums[1];
+
+      leftNumSpan.textContent = leftValue;
+      rightNumSpan.textContent = rightValue;
+
+      // 決定字體大小（大 / 小），產生一致 or 不一致題
+      const bigSize = 'clamp(100px, 16vw, 120px)';
+      const smallSize = 'clamp(50px, 9vw, 72px)';
+
+      const leftIsLargerNumber = leftValue > rightValue;
+      const congruent = Math.random() < 0.5; // true: 大數字配大字體；false: 反過來
+
+      let leftFontBig;
+      if (leftIsLargerNumber) {
+        leftFontBig = congruent; // 大數字 -> 大字體（或反之）
+      } else {
+        leftFontBig = !congruent;
+      }
+
+      leftNumSpan.style.fontSize = leftFontBig ? bigSize : smallSize;
+      rightNumSpan.style.fontSize = leftFontBig ? smallSize : bigSize;
+
+      // 決定正確答案是哪一邊
+      if (currentRule === 'value') {
+        correctSide = leftValue > rightValue ? 'left' : 'right';
+      } else {
+        // font 大的那一邊
+        correctSide = leftFontBig ? 'left' : 'right';
+      }
+
+      // 啟用作答
+      isAccepting = true;
+      questionStartTime = Date.now();
+
+      leftBtn.classList.remove('disabled');
+      rightBtn.classList.remove('disabled');
+    }
+
+    function handleAnswer(side) {
+      if (!isAccepting) return;
+
+      isAccepting = false;
+      const rtMs = Date.now() - questionStartTime;
+      reactionTimes.push(rtMs);
+
+      if (side === correctSide) {
+        score++;
+        scoreSpan.textContent = score;
+        messageDiv.textContent = '✔ 正確！';
+        messageDiv.className = 'message correct';
+      } else {
+        mistakes++;
+        messageDiv.textContent = '✘ 錯誤！注意看清楚規則再選。';
+        messageDiv.className = 'message wrong';
+      }
+
+      leftBtn.classList.add('disabled');
+      rightBtn.classList.add('disabled');
+
+      setTimeout(() => {
+        nextQuestion();
+      }, 800);
+    }
+
+    function endGame() {
+      const endTime = Date.now();
+      const rawMs = endTime - gameStartTime;
+      const rawSec = rawMs / 1000;
+
+      const avgRtSec = reactionTimes.length
+        ? (reactionTimes.reduce((a,b)=>a+b,0) / reactionTimes.length / 1000)
+        : 0;
+
+      ruleBox.textContent = '遊戲結束';
+      leftNumSpan.textContent = '-';
+      rightNumSpan.textContent = '-';
+      leftNumSpan.style.fontSize = 'clamp(100px, 10vw, 64px)';
+      rightNumSpan.style.fontSize = 'clamp(100px, 10vw, 64px)';
+
+      messageDiv.className = 'message';
+      messageDiv.innerHTML =
+        `你在 ${TOTAL_ROUNDS} 題中答對 <strong>${score}</strong> 題。<br>` +
+        `實際作答時間：<strong>${rawSec.toFixed(2)}</strong> 秒<br>` +
+        `平均反應時間：<strong>${avgRtSec.toFixed(2)}</strong> 秒／題<br>` +
+        `錯誤次數：<strong>${mistakes}</strong>`;
+
+      startBtn.textContent = '再玩一次';
+      startBtn.disabled = false;
+      startBtn.style.opacity = '1';
+
+      leftBtn.classList.add('disabled');
+      rightBtn.classList.add('disabled');
+    }
+
+    startBtn.addEventListener('click', startGame);
+    leftBtn.addEventListener('click', () => handleAnswer('left'));
+    rightBtn.addEventListener('click', () => handleAnswer('right'));
+
+    // 支援鍵盤 ← → 作答
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowLeft') {
+        handleAnswer('left');
+      } else if (e.key === 'ArrowRight') {
+        handleAnswer('right');
+      }
+    });
+
+    // ---- readme.md 載入 & 簡易 Markdown 解析 ----
+    let readmeLoaded = false;
+
+    function escapeHtml(str) {
+      return str
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+    }
+
+    function markdownToHtml(md) {
+      const lines = md.split(/\r?\n/);
+      let html = '';
+      let inList = false;
+
+      function closeList() {
+        if (inList) {
+          html += '</ul>';
+          inList = false;
+        }
+      }
+
+      for (let line of lines) {
+        const trimmed = line.trim();
+
+        const headingMatch = /^(#{1,6})\s+(.*)$/.exec(trimmed);
+        if (headingMatch) {
+          closeList();
+          const level = headingMatch[1].length;
+          const text = headingMatch[2];
+          html += `<h${level}>${escapeHtml(text)}</h${level}>`;
+          continue;
+        }
+
+        if (/^[-*+]\s+/.test(trimmed)) {
+          if (!inList) {
+            html += '<ul>';
+            inList = true;
+          }
+          const item = trimmed.replace(/^[-*+]\s+/, '');
+          html += `<li>${escapeHtml(item)}</li>`;
+          continue;
+        }
+
+        if (trimmed === '') {
+          closeList();
+          html += '<br>';
+          continue;
+        }
+
+        closeList();
+        html += `<p>${escapeHtml(line)}</p>`;
+      }
+      closeList();
+
+      html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+
+      return html;
+    }
+
+    async function loadReadme() {
+      try {
+        const res = await fetch('readme.md');
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const text = await res.text();
+        helpBody.innerHTML = markdownToHtml(text);
+      } catch (err) {
+        helpBody.innerHTML =
+          '<p>無法讀取 <code>readme.md</code>。請確認檔案是否與本遊戲 HTML 在同一資料夾，或部署在支援的伺服器上。</p>' +
+          `<p>錯誤資訊：${escapeHtml(String(err))}</p>`;
+      }
+    }
+
+    helpBtn.addEventListener('click', () => {
+      helpOverlay.classList.add('show');
+      if (!readmeLoaded) {
+        readmeLoaded = true;
+        helpBody.textContent = '讀取說明中…';
+        loadReadme();
+      }
+    });
+
+    function closeHelp() {
+      helpOverlay.classList.remove('show');
+    }
+
+    closeHelpBtn.addEventListener('click', closeHelp);
+    helpOverlay.addEventListener('click', (e) => {
+      if (e.target === helpOverlay || e.target.classList.contains('overlay-backdrop')) {
+        closeHelp();
+      }
+    });
+  </script>
+</body>
+</html>
