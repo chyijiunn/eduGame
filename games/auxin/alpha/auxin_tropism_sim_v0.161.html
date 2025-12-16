@@ -3,7 +3,7 @@
 <head><script src="/eduGame/ga4.js"></script>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>Auxin Tropism Simulator v0.141</title>
+  <title>Auxin Tropism Simulator v0.1611</title>
   <style>
     :root{
       --bg:#0b0f14;
@@ -148,12 +148,67 @@
         display:block;
         position:absolute;
         right:12px; top:56px;
-        height: calc(100% - 68px);
+        height: calc(100dvh - 68px);
         border-radius: 16px;
         width:min(420px, 92vw);
         z-index:6;
       }
     }
+  
+    .bottomBar{
+      position:absolute;
+      left:12px;
+      bottom:12px;
+      z-index:5;
+      display:flex;
+      gap:8px;
+      align-items:center;
+      flex-wrap:wrap;
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+    /* v0.161: make panel contents scrollable reliably */
+    .panel{
+      display:flex;
+      flex-direction:column;
+      overflow:hidden;
+      padding:14px 14px calc(18px + env(safe-area-inset-bottom));
+    }
+    .panelScroll{
+      overflow:auto;
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior: contain;
+      padding-right:2px;
+      height:100%;
+    }
+    @media (max-width: 980px){
+      .panel.mobile{
+        height: calc(100dvh - 68px);
+      }
+    }
+
+  
+    /* v0.161: desktop panel pinned to RIGHT and scrollable */
+    .panel{
+      position:absolute;
+      right:0;
+      top:0;
+      bottom:0;
+      height:auto;           /* defined by top/bottom */
+      max-height:none;       /* allow full height */
+      display:flex;
+      flex-direction:column;
+      overflow:hidden;       /* scroll happens in .panelScroll */
+      padding:14px 14px calc(18px + env(safe-area-inset-bottom));
+    }
+    .panelScroll{
+      flex:1;
+      min-height:0;          /* critical for flex children to allow scrolling */
+      overflow:auto;
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior: contain;
+      padding-right:2px;
+    }
+
   </style>
 </head>
 <body>
@@ -161,20 +216,24 @@
   <div class="stage">
     <canvas id="c"></canvas>
     <div class="hud">
+      <span class="badge" id="badge">縮放 1.00× | 時間 1×</span>
+      <span class="pill" id="pillAuxin">放大到 2× 以上可看到「生長素粒子」分布</span>
+    </div>
+
+    <div class="bottomBar" aria-label="底部快捷列">
       <button class="btn" id="btnReset">重置</button>
       <button class="btn" id="btnCenter">置中</button>
-      <span class="badge" id="badge">縮放 1.00× | 時間 1×</span>
-      <span class="pill" id="pillAuxin">提示：放大到 2× 以上可看到「生長素粒子」分布</span>
     </div>
     <div class="drawer">
       <button class="btn" id="btnPanel">控制面板</button>
     </div>
     <aside class="panel" id="panel">
+      <div class="panelScroll">
+<h1>auxin</h1>
       <h1>向性與生長素模擬</h1>
 
       <div class="card">
         <div class="hint">
-          <b>概念</b>：生長素（auxin）會因外在刺激在組織兩側分布不均，造成兩側伸長速率不同，進而形成彎曲生長（向性）。
           本模擬以「粒子密度」表示生長素濃度：<span style="color:var(--accent);font-weight:800;">越密＝越高</span>；越疏＝越低。
           只有在<strong>局部放大</strong>時才會顯示粒子，巨觀觀察下看不到分子分布。
         </div>
@@ -234,33 +293,34 @@
           小提示：勾選「噴水壺」後，也可以在盆栽內<strong>點一下左/右半邊</strong>直接噴水（手機單指點選或滑鼠單擊）。
         </div>
       </div>
-
-      <div class="card">
-        <div class="toggle">
-          <label for="bamboo">插竹子（攀附/纏繞）</label>
+        <div class="card">
+          
+        <div class="toggle" style="display:none">
+          <label for="bamboo">插竹子(功能無效)</label>
           <input id="bamboo" type="checkbox" />
-        </div>
-
+        </div> 
         <div class="label"><span class="k">時間加速（0×＝暫停）</span><span class="v" id="timeVal"></span></div>
         <input id="timeScale" type="range" min="0" max="20" step="1" />
 
         <div class="miniBtns" style="margin-top:10px;">
-          <button class="miniBtn" id="btnPause">暫停</button>
+          <button class="miniBtn" id="btnPause">開始/暫停</button>
           <button class="miniBtn danger" id="btnClear">清除設定</button>
         </div>
 
         <div class="footer">
           操作：滑鼠滾輪縮放、按住左鍵拖曳平移；手機雙指縮放/拖曳。<br/>
-          v0.141（單一 HTML 檔，可離線使用）
+          v0.161（單一 HTML 檔，可離線使用）
         </div>
       </div>
-    </aside>
+      </div>
+</aside>
   </div>
 </div>
 
 <script>
+
 (() => {
-  const STORAGE_KEY = "auxin_tropism_sim_v0.141_settings";
+  const STORAGE_KEY = "auxin_tropism_sim_v0.161_settings";
   const canvas = document.getElementById('c');
   const ctx = canvas.getContext('2d', { alpha: true });
 
@@ -319,10 +379,10 @@
   const view = { scale: 1.0, tx: 0, ty: 0 };
 
   // Pot coordinate: origin at pot center on soil line; +x right, +y down.
-  const pot = { topY: 0, bottomY: 330, topHalfW: 225, bottomHalfW: 165, soilY: 30 }; // v0.141: 1.5× larger pot
+  const pot = { topY: 0, bottomY: 330, topHalfW: 225, bottomHalfW: 165, soilY: 30 }; // v0.155: 1.5× larger pot
 
   let paused = false;
-  let lastNonZeroTimeScale = 1; // for pause toggle in v0.141
+  let lastNonZeroTimeScale = 1; // for pause toggle in v0.155
 
   const sim = {
     t: 0,
@@ -336,7 +396,7 @@
     moistR: 0.35,
     watering: false,
     bamboo: false,
-    timeScale: 0,
+    timeScale: 1, // v0.155 default run
 
     shootPath: [],
     rootPath: [],
@@ -346,10 +406,10 @@
     rootAux: {A:0.45, dA:0.0, left:0.45, right:0.45},
 
     bambooX: 70,
-    bambooTopY: -2000, // v0.141: sky-high bamboo
-    bambooBottomY: 2000, // v0.141: sky-high bamboo
+    bambooTopY: -2000, // v0.155: sky-high bamboo
+    bambooBottomY: 2000, // v0.155: sky-high bamboo
     vinePhase: 0,
-    vineAttached: false, // v0.141: only coil after contact
+    vineAttached: false, // v0.155: only coil after contact
 
   };
 
@@ -371,6 +431,9 @@
       const s = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null");
       if(!s) return;
       for(const k of Object.keys(s)) if(k in sim) sim[k] = s[k];
+        sim.bamboo = false;       // BAMBOO OFF (force)
+        sim.vineAttached = false; // 保險：避免殘留攀附狀態
+
     }catch(e){}
   }
   function saveSettings(){
@@ -384,7 +447,7 @@
       moistL: sim.moistL,
       moistR: sim.moistR,
       watering: sim.watering,
-      bamboo: sim.bamboo,
+      //bamboo: sim.bamboo,
       timeScale: sim.timeScale,
     };
     try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(s)); }catch(e){}
@@ -457,7 +520,7 @@
   el.btnWaterR.addEventListener('click', () => { if(sim.watering) sprayWater(+1); });
 
   el.btnPause.addEventListener('click', () => {
-    // v0.141: 0× on time slider means pause
+    // v0.155: 0× on time slider means pause
     if(sim.timeScale === 0){
       sim.timeScale = Math.max(1, lastNonZeroTimeScale || 1);
     }else{
@@ -709,21 +772,21 @@
       A = clamp(A, 0.05, 1.0);
 
       const shootSpeed = lerp(0.22, 1.25, smoothstep(0.05, 0.95, A));
-      let target = vnorm(vadd(vmul(desiredLight, 0.58), vmul(desiredGrav, 0.35)));
+      let target = vnorm(vadd(vmul(desiredLight, 0.58 * sim.sunStrength), vmul(desiredGrav, 0.35))); // v0.155: no light => no phototropic steering
       if(desiredTouch) target = vnorm(vadd(vmul(target, 0.65), vmul(desiredTouch, 0.35)));
 
       const angErr = vang(dir, target);
       const turn = clamp(angErr, -1.2, 1.2) * 0.65 + dA * 0.22;
       const newDir = vnorm(vrot(dir, turn * dt));
 
-      const stepLen = shootSpeed * dt * 14; // v0.141 slower
+      const stepLen = shootSpeed * dt * 14; // v0.155 slower
       const newTip = vadd(tip, vmul(newDir, stepLen));
       if(newTip.y > pot.soilY - 3) newTip.y = pot.soilY - 3;
 
       sim.shootDir = newDir;
       sim.shootPath.push(newTip);
 
-      const bias = 0.90; // v0.141: exaggerate L/R auxin difference for visualization
+      const bias = 0.90; // v0.155: exaggerate L/R auxin difference for visualization
       const left = clamp(A*(1 - bias*dA), 0, 1);
       const right= clamp(A*(1 + bias*dA), 0, 1);
       sim.shootAux = {A, dA, left, right};
@@ -766,7 +829,7 @@
       const rootSpeedRaw = lerp(1.10, 0.08, smoothstep(0.10, 0.95, A));
       const rootSpeed = Math.max(0, rootSpeedRaw);
 
-      let target = vnorm(vadd(vmul(desiredGrav, 0.70), vmul(desiredLight, 0.18)));
+      let target = vnorm(vadd(vmul(desiredGrav, 0.70), vmul(desiredLight, 0.18 * sim.sunStrength))); // v0.155
       if(Math.abs(moistDelta) > 0.02){
         const mo = vnorm(vec(moistDelta, -0.15));
         target = vnorm(vadd(vmul(target, 0.78), vmul(mo, 0.22)));
@@ -777,7 +840,7 @@
       const turn = clamp(angErr, -1.3, 1.3) * 0.55 - dA * 0.20;
       const newDir = vnorm(vrot(dir, turn * dt));
 
-      const stepLen = rootSpeed * dt * 12; // v0.141 slower
+      const stepLen = rootSpeed * dt * 12; // v0.155 slower
       let newTip = vadd(tip, vmul(newDir, stepLen));
 
       if(!pointInPot(newTip)){
@@ -792,13 +855,13 @@
       }
       sim.rootPath.push(newTip);
 
-      const bias = 0.90; // v0.141: exaggerate L/R auxin difference for visualization
+      const bias = 0.90; // v0.155: exaggerate L/R auxin difference for visualization
       const left = clamp(A*(1 - bias*dA), 0, 1);
       const right= clamp(A*(1 + bias*dA), 0, 1);
       sim.rootAux = {A, dA, left, right};
     }
 
-    // v0.141: attach to bamboo only when shoot touches it
+    // v0.155: attach to bamboo only when shoot touches it
     if(sim.bamboo && !sim.vineAttached){
       const st = sim.shootPath[sim.shootPath.length-1];
       const dx = Math.abs(st.x - sim.bambooX);
@@ -889,7 +952,7 @@
   function drawBamboo(){
     ctx.save();
     const x = sim.bambooX;
-    ctx.lineWidth = 14; // v0.141 bigger bamboo
+    ctx.lineWidth = 14; // v0.155 bigger bamboo
     ctx.strokeStyle = "rgba(125,211,168,.92)";
     ctx.beginPath();
     ctx.moveTo(x, sim.bambooTopY);
@@ -989,7 +1052,7 @@
   }
 
   function drawAuxAlongPath(path, aux, segCount, band, color){
-    // v0.141: static "dot density" only (no fog/mist look), obvious L/R difference.
+    // v0.155: static "dot density" only (no fog/mist look), obvious L/R difference.
     // Density scales with light: weak ≈ 5%, strong = 100%.
     const start = Math.max(1, path.length - segCount);
 
@@ -1139,8 +1202,8 @@
     ctx.save();
     ctx.globalAlpha = 0.9;
 
-    drawAuxAlongPath(sim.shootPath, sim.shootAux, 30, 10, "rgba(255,60,60,1)"); // v0.141 red auxin
-    drawAuxAlongPath(sim.rootPath,  sim.rootAux,  30, 9, "rgba(255,60,60,1)"); // v0.141 red auxin
+    drawAuxAlongPath(sim.shootPath, sim.shootAux, 30, 10, "rgba(255,60,60,1)"); // v0.155 red auxin
+    drawAuxAlongPath(sim.rootPath,  sim.rootAux,  30, 9, "rgba(255,60,60,1)"); // v0.155 red auxin
 
     const anchor = vec(pot.bottomHalfW + 18, pot.bottomY - 30);
     ctx.globalAlpha = 0.9;
@@ -1175,11 +1238,12 @@
     ctx.scale(view.scale, view.scale);
 
     const tilt = potRotationRad();
-    ctx.rotate(tilt);
-
+    // v0.155: Sun is fixed in screen/world orientation (does NOT rotate with pot tilt)
     if(sim.sunStrength > 0.001) drawSun();
+
+    ctx.rotate(tilt);
     drawPot();
-    if(sim.bamboo) drawBamboo();
+    //if(sim.bamboo) drawBamboo();
     drawPlant();
 
     const showParticles = view.scale >= 2.0;
@@ -1189,16 +1253,23 @@
     drawSoilMoistureBar();
     ctx.restore();
 
-    // v0.141: full darkness when sunStrength = 0
-    if(sim.sunStrength <= 0.001){
+    // v0.155: full darkness when sunStrength = 0
+      // v0.155: sunStrength=0 means darkness (no light influence) but keep the scene visible
+  {
+    const s = clamp(sim.sunStrength, 0, 1);
+    const dark = 0.35 * (1 - s);
+    if(dark > 0.01){
       ctx.save();
-      ctx.fillStyle = 'rgba(0,0,0,0.92)';
+      ctx.fillStyle = `rgba(0,0,0,${dark.toFixed(3)})`;
       ctx.fillRect(0,0,W,H);
-      ctx.fillStyle = 'rgba(233,238,246,0.70)';
-      ctx.font = '14px ' + getComputedStyle(document.documentElement).getPropertyValue('--sans');
-      ctx.fillText('全黑暗（太陽關閉）', 16, H-18);
+      if(s <= 0.001){
+        ctx.fillStyle = 'rgba(233,238,246,0.70)';
+        ctx.font = '14px ' + getComputedStyle(document.documentElement).getPropertyValue('--sans');
+        ctx.fillText('太陽關閉：光線不影響生長素分布（僅剩引力/濕度/接觸）', 16, H-18);
+      }
       ctx.restore();
     }
+  }
 
     el.badge.textContent = `縮放 ${view.scale.toFixed(2)}× | 時間 ${sim.timeScale}×`;
     el.pillAuxin.style.opacity = (view.scale < 2.0) ? 1 : 0.15;
@@ -1232,6 +1303,7 @@
   }
   init();
 })();
+
 </script>
 </body>
 </html>
