@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>Auxin Tropism Simulator v0.141</title>
+  <title>Auxin Tropism Simulator v0.15</title>
   <style>
     :root{
       --bg:#0b0f14;
@@ -206,42 +206,16 @@
       </div>
 
       <div class="card">
-        <div class="label"><span class="k">土壤基礎濕度</span><span class="v" id="baseMoistVal"></span></div>
-        <input id="baseMoist" type="range" min="0" max="1" step="0.01" />
-
-        <div class="toggle" style="margin-top:10px;">
-          <label for="watering">噴水壺（勾選後可噴根部）</label>
-          <input id="watering" type="checkbox" />
-        </div>
-
-        <div class="miniBtns">
-          <button class="miniBtn" id="btnWaterL" title="增加左側土壤濕度">噴左側根部</button>
-          <button class="miniBtn secondary" id="btnWaterR" title="增加右側土壤濕度">噴右側根部</button>
-        </div>
-
-        <div class="grid2" style="margin-top:10px;">
-          <div>
-            <div class="label"><span class="k">左側濕度</span><span class="v" id="moLVal"></span></div>
-            <input id="moL" type="range" min="0" max="1" step="0.01" />
-          </div>
-          <div>
-            <div class="label"><span class="k">右側濕度</span><span class="v" id="moRVal"></span></div>
-            <input id="moR" type="range" min="0" max="1" step="0.01" />
-          </div>
-        </div>
+        <div class="label"><span class="k">土壤濕度偏向（左高 ← 0 → 右高）</span><span class="v" id="moistBiasVal"></span></div>
+        <input id="moistBias" type="range" min="-1" max="1" step="0.01" />
 
         <div class="hint" style="margin-top:8px;">
-          小提示：勾選「噴水壺」後，也可以在盆栽內<strong>點一下左/右半邊</strong>直接噴水（手機單指點選或滑鼠單擊）。
+          這是一個「左右差異」滑桿：置中（0）代表左右濕度相同；往左表示左側較濕；往右表示右側較濕。
         </div>
       </div>
 
-      <div class="card">
-        <div class="toggle">
-          <label for="bamboo">插竹子（攀附/纏繞）</label>
-          <input id="bamboo" type="checkbox" />
-        </div>
-
-        <div class="label"><span class="k">時間加速（0×＝暫停）</span><span class="v" id="timeVal"></span></div>
+      <div class="card"><div class="card">
+<div class="label"><span class="k">時間加速（0×＝暫停）</span><span class="v" id="timeVal"></span></div>
         <input id="timeScale" type="range" min="0" max="20" step="1" />
 
         <div class="miniBtns" style="margin-top:10px;">
@@ -251,7 +225,7 @@
 
         <div class="footer">
           操作：滑鼠滾輪縮放、按住左鍵拖曳平移；手機雙指縮放/拖曳。<br/>
-          v0.141（單一 HTML 檔，可離線使用）
+          v0.15（單一 HTML 檔，可離線使用）
         </div>
       </div>
     </aside>
@@ -260,7 +234,7 @@
 
 <script>
 (() => {
-  const STORAGE_KEY = "auxin_tropism_sim_v0.141_settings";
+  const STORAGE_KEY = "auxin_tropism_sim_v0.15_settings";
   const canvas = document.getElementById('c');
   const ctx = canvas.getContext('2d', { alpha: true });
 
@@ -278,25 +252,25 @@
     sunAngle: document.getElementById('sunAngle'),
     grav: document.getElementById('grav'),
     tilt: document.getElementById('tilt'),
-    baseMoist: document.getElementById('baseMoist'),
-    watering: document.getElementById('watering'),
-    btnWaterL: document.getElementById('btnWaterL'),
-    btnWaterR: document.getElementById('btnWaterR'),
-    moL: document.getElementById('moL'),
-    moR: document.getElementById('moR'),
-    bamboo: document.getElementById('bamboo'),
+    moistBias: document.getElementById('moistBias'),
     timeScale: document.getElementById('timeScale'),
     sunStrengthVal: document.getElementById('sunStrengthVal'),
     sunAngleVal: document.getElementById('sunAngleVal'),
     gVal: document.getElementById('gVal'),
     tiltVal: document.getElementById('tiltVal'),
-    baseMoistVal: document.getElementById('baseMoistVal'),
-    moLVal: document.getElementById('moLVal'),
-    moRVal: document.getElementById('moRVal'),
+    moistBiasVal: document.getElementById('moistBiasVal'),
     timeVal: document.getElementById('timeVal'),
   };
 
   function clamp(v, a, b){ return Math.max(a, Math.min(b, v)); }
+  function applyMoisture(){
+    // v0.15: fixed-average moisture with left/right bias
+    const base = 0.40; // average moisture
+    const delta = sim.moistBias * 0.35;
+    sim.moistL = clamp(base + delta, 0, 1);
+    sim.moistR = clamp(base - delta, 0, 1);
+  }
+
   function lerp(a,b,t){ return a + (b-a)*t; }
   function smoothstep(a,b,t){
     t = clamp((t-a)/(b-a), 0, 1);
@@ -319,10 +293,10 @@
   const view = { scale: 1.0, tx: 0, ty: 0 };
 
   // Pot coordinate: origin at pot center on soil line; +x right, +y down.
-  const pot = { topY: 0, bottomY: 330, topHalfW: 225, bottomHalfW: 165, soilY: 30 }; // v0.141: 1.5× larger pot
+  const pot = { topY: 0, bottomY: 330, topHalfW: 225, bottomHalfW: 165, soilY: 30 }; // v0.15: 1.5× larger pot
 
   let paused = false;
-  let lastNonZeroTimeScale = 1; // for pause toggle in v0.141
+  let lastNonZeroTimeScale = 1; // for pause toggle in v0.15
 
   const sim = {
     t: 0,
@@ -331,11 +305,11 @@
     autoSun: false,
     g: 0.98,
     tiltDeg: 0,
-    baseMoist: 0.35,
-    moistL: 0.35,
-    moistR: 0.35,
-    watering: false,
-    bamboo: false,
+    // v0.15: simplified soil moisture control
+    moistBias: 0.0, // -1..1 (left wetter .. right wetter)
+    moistL: 0.40,
+    moistR: 0.40,
+moistL: 0.35,
     timeScale: 0,
 
     shootPath: [],
@@ -343,13 +317,6 @@
     shootDir: vec(0,-1),
     rootDir: vec(0, 1),
     shootAux: {A:0.55, dA:0.0, left:0.55, right:0.55},
-    rootAux: {A:0.45, dA:0.0, left:0.45, right:0.45},
-
-    bambooX: 70,
-    bambooTopY: -2000, // v0.141: sky-high bamboo
-    bambooBottomY: 2000, // v0.141: sky-high bamboo
-    vinePhase: 0,
-    vineAttached: false, // v0.141: only coil after contact
 
   };
 
@@ -362,7 +329,6 @@
     sim.shootAux = {A:0.55, dA:0.0, left:0.55, right:0.55};
     sim.rootAux  = {A:0.45, dA:0.0, left:0.45, right:0.45};
     sim.vinePhase = 0;
-    sim.vineAttached = false;
   }
 
   // Persistence
@@ -380,11 +346,6 @@
       autoSun: sim.autoSun,
       g: sim.g,
       tiltDeg: sim.tiltDeg,
-      baseMoist: sim.baseMoist,
-      moistL: sim.moistL,
-      moistR: sim.moistR,
-      watering: sim.watering,
-      bamboo: sim.bamboo,
       timeScale: sim.timeScale,
     };
     try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(s)); }catch(e){}
@@ -398,20 +359,11 @@
     el.sunAngleVal.textContent = `${Math.round(sim.sunAngleDeg)}°`;
     el.gVal.textContent = sim.g.toFixed(2);
     el.tiltVal.textContent = `${Math.round(sim.tiltDeg)}°`;
-    el.baseMoistVal.textContent = sim.baseMoist.toFixed(2);
-    el.moLVal.textContent = sim.moistL.toFixed(2);
-    el.moRVal.textContent = sim.moistR.toFixed(2);
+      // v0.15 moisture label
+  const bias = sim.moistBias;
+  const side = (bias < -0.01) ? '左較濕' : (bias > 0.01 ? '右較濕' : '左右平均');
+  el.moistBiasVal.textContent = `${side} | 左 ${sim.moistL.toFixed(2)} / 右 ${sim.moistR.toFixed(2)}`;
     el.timeVal.textContent = `${sim.timeScale}×`;
-  }
-
-  function updateWaterButtons(){
-    const enabled = !!sim.watering;
-    el.btnWaterL.disabled = !enabled;
-    el.btnWaterR.disabled = !enabled;
-    el.btnWaterL.style.opacity = enabled ? 1 : .45;
-    el.btnWaterR.style.opacity = enabled ? 1 : .45;
-    el.btnWaterL.style.cursor = enabled ? "pointer" : "not-allowed";
-    el.btnWaterR.style.cursor = enabled ? "pointer" : "not-allowed";
   }
 
   function setUIFromSim(){
@@ -420,15 +372,11 @@
     el.sunAngle.value = sim.sunAngleDeg;
     el.grav.value = sim.g;
     el.tilt.value = sim.tiltDeg;
-    el.baseMoist.value = sim.baseMoist;
-    el.moL.value = sim.moistL;
-    el.moR.value = sim.moistR;
-    el.watering.checked = !!sim.watering;
-    el.bamboo.checked = !!sim.bamboo;
-    el.timeScale.value = sim.timeScale;
+    el.moistBias.value = sim.moistBias;
+    applyMoisture();
+                        el.timeScale.value = sim.timeScale;
     if(sim.timeScale > 0) lastNonZeroTimeScale = sim.timeScale;
     updateLabels();
-    updateWaterButtons();
   }
 
   el.autoSun.addEventListener('change', () => { sim.autoSun = el.autoSun.checked; saveSettings(); });
@@ -436,16 +384,12 @@
   el.sunAngle.addEventListener('input', () => { sim.sunAngleDeg = parseFloat(el.sunAngle.value); updateLabels(); saveSettings(); });
   el.grav.addEventListener('input', () => { sim.g = parseFloat(el.grav.value); updateLabels(); saveSettings(); });
   el.tilt.addEventListener('input', () => { sim.tiltDeg = parseFloat(el.tilt.value); updateLabels(); saveSettings(); });
-  el.baseMoist.addEventListener('input', () => { sim.baseMoist = parseFloat(el.baseMoist.value); updateLabels(); saveSettings(); });
 
-  el.moL.addEventListener('input', () => { sim.moistL = parseFloat(el.moL.value); updateLabels(); saveSettings(); });
-  el.moR.addEventListener('input', () => { sim.moistR = parseFloat(el.moR.value); updateLabels(); saveSettings(); });
-
-  el.watering.addEventListener('change', () => { sim.watering = el.watering.checked; updateWaterButtons(); saveSettings(); });
-  el.bamboo.addEventListener('change', () => {
-    sim.bamboo = el.bamboo.checked;
-    if(!sim.bamboo) sim.vineAttached = false;
-    saveSettings();
+  el.moistBias.addEventListener('input', () => {
+    sim.moistBias = parseFloat(el.moistBias.value);
+    applyMoisture();
+    updateLabels(); saveSettings();
+  });
   });
   el.timeScale.addEventListener('input', () => {
     sim.timeScale = parseInt(el.timeScale.value,10);
@@ -453,11 +397,8 @@
     updateLabels(); saveSettings();
   });
 
-  el.btnWaterL.addEventListener('click', () => { if(sim.watering) sprayWater(-1); });
-  el.btnWaterR.addEventListener('click', () => { if(sim.watering) sprayWater(+1); });
-
   el.btnPause.addEventListener('click', () => {
-    // v0.141: 0× on time slider means pause
+    // v0.15: 0× on time slider means pause
     if(sim.timeScale === 0){
       sim.timeScale = Math.max(1, lastNonZeroTimeScale || 1);
     }else{
@@ -475,12 +416,10 @@
     sim.autoSun = false;
     sim.g = 0.98;
     sim.tiltDeg = 0;
-    sim.baseMoist = 0.35;
-    sim.moistL = 0.35;
-    sim.moistR = 0.35;
-    sim.watering = false;
-    sim.bamboo = false;
-    sim.timeScale = 0;
+
+    sim.moistBias = 0.0;
+    applyMoisture();
+sim.timeScale = 0;
     lastNonZeroTimeScale = 1;
     setUIFromSim();
   });
@@ -573,13 +512,6 @@
 
   canvas.addEventListener('pointerup', (e) => {
     if(pointers.has(e.pointerId)) pointers.delete(e.pointerId);
-
-    if(gesture.mode === "pan" && !gesture.moved && sim.watering){
-      const w = gesture.downWorld;
-      if(w && pointInPot(w) && w.y >= pot.topY && w.y <= pot.bottomY){
-        const side = (w.x < 0) ? -1 : +1;
-        sprayWater(side);
-      }
     }
     if(pointers.size === 0){
       gesture.mode = "none";
@@ -620,15 +552,6 @@
     return { x: (sx - cx - tx) / scale, y: (sy - cy - ty) / scale };
   }
 
-  function sprayWater(side){
-    const amt = 0.16;
-    if(side < 0) sim.moistL = clamp(sim.moistL + amt, 0, 1);
-    else sim.moistR = clamp(sim.moistR + amt, 0, 1);
-    el.moL.value = sim.moistL;
-    el.moR.value = sim.moistR;
-    updateLabels(); saveSettings();
-  }
-
   function potHalfWAtY(y){
     const t = clamp((y - pot.topY) / (pot.bottomY - pot.topY), 0, 1);
     return lerp(pot.topHalfW, pot.bottomHalfW, t);
@@ -659,14 +582,7 @@
       sim.sunAngleDeg = lerp(0, 180, day);
       el.sunAngle.value = sim.sunAngleDeg;
     }
-
-    // moisture relax + diffuse
-    const relax = 0.03 * dt;
-    sim.moistL = clamp(lerp(sim.moistL, sim.baseMoist, relax), 0, 1);
-    sim.moistR = clamp(lerp(sim.moistR, sim.baseMoist, relax), 0, 1);
-    const diff = (sim.moistR - sim.moistL) * 0.015 * dt;
-    sim.moistL += diff; sim.moistR -= diff;
-    el.moL.value = sim.moistL; el.moR.value = sim.moistR;
+    applyMoisture();
     updateLabels();
 
     const sunPos = computeSunPos();
@@ -686,74 +602,8 @@
 
       const moistDelta = (sim.moistR - sim.moistL);
       const dA_moist = 0.15 * moistDelta;
-
       let dA_touch = 0;
       let desiredTouch = null;
-      if(sim.bamboo && sim.vineAttached){
-        const pole = vec(sim.bambooX, pot.soilY - 30);
-        const toPole = vsub(pole, tip);
-        const dist = vlen(toPole);
-        if(dist < 90){
-          const radial = vnorm(toPole);
-          const tang = vrot(radial, -Math.PI/2);
-          desiredTouch = vnorm(vadd(vmul(radial, 0.35), vmul(tang, 0.65)));
-          dA_touch = 0.9 * vcross(dir, desiredTouch);
-        }
-      }
-
-      const wL = 1.25, wG = 0.9, wM = 0.35, wT = 0.9;
-      let dA = wL*dA_light + wG*dA_grav + wM*dA_moist + wT*dA_touch;
-      dA = clamp(dA, -1, 1);
-
-      let A = 0.20 + 0.45*sim.sunStrength + 0.12*clamp(sim.g/0.98, 0, 2) + 0.12*clamp((sim.moistL+sim.moistR)/2, 0, 1) + (sim.bamboo ? 0.05 : 0);
-      A = clamp(A, 0.05, 1.0);
-
-      const shootSpeed = lerp(0.22, 1.25, smoothstep(0.05, 0.95, A));
-      let target = vnorm(vadd(vmul(desiredLight, 0.58), vmul(desiredGrav, 0.35)));
-      if(desiredTouch) target = vnorm(vadd(vmul(target, 0.65), vmul(desiredTouch, 0.35)));
-
-      const angErr = vang(dir, target);
-      const turn = clamp(angErr, -1.2, 1.2) * 0.65 + dA * 0.22;
-      const newDir = vnorm(vrot(dir, turn * dt));
-
-      const stepLen = shootSpeed * dt * 14; // v0.141 slower
-      const newTip = vadd(tip, vmul(newDir, stepLen));
-      if(newTip.y > pot.soilY - 3) newTip.y = pot.soilY - 3;
-
-      sim.shootDir = newDir;
-      sim.shootPath.push(newTip);
-
-      const bias = 0.90; // v0.141: exaggerate L/R auxin difference for visualization
-      const left = clamp(A*(1 - bias*dA), 0, 1);
-      const right= clamp(A*(1 + bias*dA), 0, 1);
-      sim.shootAux = {A, dA, left, right};
-    }
-
-    // root
-    {
-      const tip = sim.rootPath[sim.rootPath.length-1];
-      const dir = sim.rootDir;
-
-      const toSun = vnorm(vsub(sunPos, tip));
-      const desiredLight = vmul(toSun, -1);
-      const dA_light = sim.sunStrength * (-vcross(dir, toSun));
-
-      const desiredGrav = gDir;
-      const dA_grav = - (sim.g/0.98) * vcross(dir, gDir);
-
-      const moistDelta = (sim.moistR - sim.moistL);
-      const dA_moist = 1.10 * moistDelta;
-
-      let dA_touch = 0;
-      let desiredTouch = null;
-      if(sim.bamboo){
-        const pole = vec(sim.bambooX, pot.soilY - 30);
-        const toPole = vsub(pole, tip);
-        const dist = vlen(toPole);
-        if(dist < 70){
-          desiredTouch = vnorm(vsub(tip, pole));
-          dA_touch = 0.6 * vcross(dir, desiredTouch);
-        }
       }
 
       const wL = 0.55, wG = 1.05, wM = 1.20, wT = 0.4;
@@ -766,7 +616,7 @@
       const rootSpeedRaw = lerp(1.10, 0.08, smoothstep(0.10, 0.95, A));
       const rootSpeed = Math.max(0, rootSpeedRaw);
 
-      let target = vnorm(vadd(vmul(desiredGrav, 0.70), vmul(desiredLight, 0.18)));
+      let target = vnorm(vadd(vmul(desiredGrav, 0.70), vmul(desiredLight, 0.18 * sim.sunStrength))); // v0.15
       if(Math.abs(moistDelta) > 0.02){
         const mo = vnorm(vec(moistDelta, -0.15));
         target = vnorm(vadd(vmul(target, 0.78), vmul(mo, 0.22)));
@@ -777,7 +627,7 @@
       const turn = clamp(angErr, -1.3, 1.3) * 0.55 - dA * 0.20;
       const newDir = vnorm(vrot(dir, turn * dt));
 
-      const stepLen = rootSpeed * dt * 12; // v0.141 slower
+      const stepLen = rootSpeed * dt * 12; // v0.15 slower
       let newTip = vadd(tip, vmul(newDir, stepLen));
 
       if(!pointInPot(newTip)){
@@ -792,26 +642,13 @@
       }
       sim.rootPath.push(newTip);
 
-      const bias = 0.90; // v0.141: exaggerate L/R auxin difference for visualization
+      const bias = 0.90; // v0.15: exaggerate L/R auxin difference for visualization
       const left = clamp(A*(1 - bias*dA), 0, 1);
       const right= clamp(A*(1 + bias*dA), 0, 1);
       sim.rootAux = {A, dA, left, right};
     }
 
-    // v0.141: attach to bamboo only when shoot touches it
-    if(sim.bamboo && !sim.vineAttached){
-      const st = sim.shootPath[sim.shootPath.length-1];
-      const dx = Math.abs(st.x - sim.bambooX);
-      const inHeight = (st.y < pot.soilY - 2) && (st.y > sim.bambooTopY) && (st.y < sim.bambooBottomY);
-      if(inHeight && dx < 14){
-        sim.vineAttached = true;
-      }
-    }
-
-    if(sim.bamboo && sim.vineAttached) sim.vinePhase += dt * 2.0;
-  }
-
-  function drawDottedBG(W,H){
+    function drawDottedBG(W,H){
     ctx.save();
     ctx.globalAlpha = 0.20;
     const step = 22;
@@ -885,25 +722,6 @@
     ctx.stroke();
     ctx.restore();
   }
-
-  function drawBamboo(){
-    ctx.save();
-    const x = sim.bambooX;
-    ctx.lineWidth = 14; // v0.141 bigger bamboo
-    ctx.strokeStyle = "rgba(125,211,168,.92)";
-    ctx.beginPath();
-    ctx.moveTo(x, sim.bambooTopY);
-    ctx.lineTo(x, sim.bambooBottomY);
-    ctx.stroke();
-
-    ctx.lineWidth = 3.5;
-    ctx.strokeStyle = "rgba(16,24,38,.75)";
-    for(let y = sim.bambooTopY+30; y < sim.bambooBottomY; y += 70){
-      ctx.beginPath();
-      ctx.moveTo(x-10, y);
-      ctx.lineTo(x+10, y);
-      ctx.stroke();
-    }
     ctx.restore();
   }
 
@@ -989,7 +807,7 @@
   }
 
   function drawAuxAlongPath(path, aux, segCount, band, color){
-    // v0.141: static "dot density" only (no fog/mist look), obvious L/R difference.
+    // v0.15: static "dot density" only (no fog/mist look), obvious L/R difference.
     // Density scales with light: weak ≈ 5%, strong = 100%.
     const start = Math.max(1, path.length - segCount);
 
@@ -1139,8 +957,8 @@
     ctx.save();
     ctx.globalAlpha = 0.9;
 
-    drawAuxAlongPath(sim.shootPath, sim.shootAux, 30, 10, "rgba(255,60,60,1)"); // v0.141 red auxin
-    drawAuxAlongPath(sim.rootPath,  sim.rootAux,  30, 9, "rgba(255,60,60,1)"); // v0.141 red auxin
+    drawAuxAlongPath(sim.shootPath, sim.shootAux, 30, 10, "rgba(255,60,60,1)"); // v0.15 red auxin
+    drawAuxAlongPath(sim.rootPath,  sim.rootAux,  30, 9, "rgba(255,60,60,1)"); // v0.15 red auxin
 
     const anchor = vec(pot.bottomHalfW + 18, pot.bottomY - 30);
     ctx.globalAlpha = 0.9;
@@ -1179,7 +997,6 @@
 
     if(sim.sunStrength > 0.001) drawSun();
     drawPot();
-    if(sim.bamboo) drawBamboo();
     drawPlant();
 
     const showParticles = view.scale >= 2.0;
@@ -1189,7 +1006,7 @@
     drawSoilMoistureBar();
     ctx.restore();
 
-    // v0.141: full darkness when sunStrength = 0
+    // v0.15: full darkness when sunStrength = 0
     if(sim.sunStrength <= 0.001){
       ctx.save();
       ctx.fillStyle = 'rgba(0,0,0,0.92)';
@@ -1225,6 +1042,7 @@
   function init(){
     loadSettings();
     setUIFromSim();
+    applyMoisture();
     resetPlant();
     resize();
     centerView();
