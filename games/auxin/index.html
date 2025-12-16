@@ -1,9 +1,10 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
-<head><script src="/eduGame/ga4.js"></script>
+<head>
+  <script src=\"/eduGame/ga4.js\"></script>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>Auxin Tropism Simulator v0.1621</title>
+  <title>Auxin Tropism Simulator v0.1661</title>
   <style>
     :root{
       --bg:#0b0f14;
@@ -155,18 +156,7 @@
       }
     }
   
-    .bottomBar{
-      position:absolute;
-      left:12px;
-      bottom:12px;
-      z-index:5;
-      display:flex;
-      gap:8px;
-      align-items:center;
-      flex-wrap:wrap;
-      padding-bottom: env(safe-area-inset-bottom);
-    }
-    /* v0.162: make panel contents scrollable reliably */
+    /* v0.165: make panel contents scrollable reliably */
     .panel{
       display:flex;
       flex-direction:column;
@@ -187,7 +177,7 @@
     }
 
   
-    /* v0.162: desktop panel pinned to RIGHT and scrollable */
+    /* v0.165: desktop panel pinned to RIGHT and scrollable */
     .panel{
       position:absolute;
       right:0;
@@ -209,6 +199,54 @@
       padding-right:2px;
     }
 
+  
+    /* v0.166: modal + markdown */
+    .modal.hidden{ display:none; }
+    .modal{ position:fixed; inset:0; z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px; }
+    .modalBackdrop{ position:absolute; inset:0; background: rgba(0,0,0,0.55); backdrop-filter: blur(2px); }
+    .modalCard{
+      position:relative;
+      width: min(900px, calc(100vw - 24px));
+      max-height: min(82vh, 820px);
+      background: rgba(18,22,28,0.98);
+      border: 1px solid rgba(255,255,255,0.10);
+      border-radius: 14px;
+      box-shadow: 0 12px 30px rgba(0,0,0,0.45);
+      display:flex;
+      flex-direction:column;
+      overflow:hidden;
+    }
+    .modalHeader{
+      display:flex; align-items:center; justify-content:space-between; gap:12px;
+      padding:12px; border-bottom: 1px solid rgba(255,255,255,0.10);
+      background: rgba(255,255,255,0.03);
+    }
+    .modalTitle{ font-weight:700; letter-spacing:.2px; }
+    .modalBody{ padding:14px 14px 18px; overflow:auto; -webkit-overflow-scrolling: touch; }
+    .md{ line-height:1.65; font-size:14px; color: rgba(233,238,246,0.92); }
+    .md h1{ font-size:20px; margin:0 0 10px; }
+    .md h2{ font-size:16px; margin:18px 0 8px; }
+    .md h3{ font-size:14px; margin:14px 0 6px; }
+    .md p{ margin:8px 0; }
+    .md ul, .md ol{ margin:8px 0 8px 20px; }
+    .md li{ margin:4px 0; }
+    .md code{
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      background: rgba(255,255,255,0.08);
+      padding: 1px 5px;
+      border-radius: 6px;
+    }
+    .md pre{
+      background: rgba(255,255,255,0.06);
+      padding: 10px 12px;
+      border-radius: 12px;
+      overflow:auto;
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+    .md pre code{ background: transparent; padding:0; }
+    .md a{ color: rgba(140,210,255,0.95); text-decoration:none; }
+    .md a:hover{ text-decoration:underline; }
+
   </style>
 </head>
 <body>
@@ -219,17 +257,14 @@
       <span class="badge" id="badge">縮放 1.00× | 時間 1×</span>
       <span class="pill" id="pillAuxin">放大到 2× 以上可看到「生長素粒子」分布</span>
     </div>
-
-    <div class="bottomBar" aria-label="底部快捷列">
-      <button class="btn" id="btnReset">重置</button>
-      <button class="btn" id="btnCenter">置中</button>
-    </div>
-    <div class="drawer">
+<div class="drawer">
       <button class="btn" id="btnPanel">控制面板</button>
     </div>
     <aside class="panel" id="panel">
       <div class="panelScroll">
+<h1>auxin</h1>
       <h1>向性與生長素模擬</h1>
+
       <div class="card">
         <div class="hint">
           本模擬以「粒子密度」表示生長素濃度：<span style="color:var(--accent);font-weight:800;">越密＝越高</span>；越疏＝越低。
@@ -305,11 +340,20 @@
           <button class="miniBtn danger" id="btnClear">清除設定</button>
         </div>
 
-        <div class="footer">
-          操作：滑鼠滾輪縮放、按住左鍵拖曳平移；手機雙指縮放/拖曳。<br/>
-          v0.162（單一 HTML 檔，可離線使用）
+        
+        <div class="miniBtns" style="margin-top:10px;">
+          <button class="miniBtn" id="btnReset">重置</button>
+          <button class="miniBtn" id="btnCenter">置中</button>
         </div>
-      </div>
+<div class="footer">
+          操作：滑鼠滾輪縮放、按住左鍵拖曳平移；手機雙指縮放/拖曳。<br/>
+          v0.166（單一 HTML 檔，可離線使用）
+        </div>
+      
+        <div class="miniBtns" style="margin-top:10px; justify-content:flex-end;">
+          <button class="miniBtn" id="btnHelp">說明</button>
+        </div>
+</div>
       </div>
 </aside>
   </div>
@@ -318,8 +362,12 @@
 <script>
 
 
+
+
+
+
 (() => {
-  const STORAGE_KEY = "auxin_tropism_sim_v0.162_settings";
+  const STORAGE_KEY = "auxin_tropism_sim_v0.166_settings";
   const canvas = document.getElementById('c');
   const ctx = canvas.getContext('2d', { alpha: true });
 
@@ -732,7 +780,7 @@
     updateLabels();
 
     const sunPos = computeSunPos();
-    const gDir = gravityDirInPot(); // v0.162: gravity expressed in pot-local coordinates, so tilt creates L/R auxin asymmetry
+    const gDir = gravityDirInPot(); // v0.165: gravity expressed in pot-local coordinates, so tilt creates L/R auxin asymmetry
 
     // shoot
     {
@@ -740,11 +788,11 @@
       const dir = sim.shootDir;
 
       const toSun = vnorm(vsub(sunPos, tip));
-      const dA_light = sim.sunStrength * vcross(dir, toSun); // + => light on left => auxin on right
+      const dA_light = sim.sunStrength * (-vcross(dir, toSun)); // v0.165: shoots accumulate auxin on shaded side (opposite light) // v0.165: light on left => auxin on right (shaded side for shoots)
       const desiredLight = toSun;
 
       const desiredGrav = vmul(gDir, -1);
-      const dA_grav = - (sim.g/0.98) * vcross(dir, gDir);
+      const dA_grav = (sim.g/0.98) * vcross(dir, gDir); // v0.165: sign fixed so auxin increases toward gravity (lower side)
 
       const moistDelta = (sim.moistR - sim.moistL);
       const dA_moist = 0.15 * moistDelta;
@@ -801,7 +849,7 @@
       const dA_light = sim.sunStrength * (-vcross(dir, toSun));
 
       const desiredGrav = gDir;
-      const dA_grav = - (sim.g/0.98) * vcross(dir, gDir);
+      const dA_grav = (sim.g/0.98) * vcross(dir, gDir); // v0.165: sign fixed so auxin increases toward gravity (lower side)
 
       const moistDelta = (sim.moistR - sim.moistL);
       const dA_moist = 1.10 * moistDelta;
@@ -1056,7 +1104,7 @@
     const start = Math.max(1, path.length - segCount);
 
     const s = clamp(sim.sunStrength, 0, 1);
-    const lightFactor = (s <= 0.001) ? 0.0 : (0.05 + 0.95 * Math.pow(s, 1.7));
+    const lightFactor = (0.05 + 0.95 * Math.pow(s, 1.7)); // v0.165: keep 5% baseline even in darkness so gravity/moisture asymmetry is visible
 
     const A = clamp(aux.A || 0, 0, 1);
 
@@ -1246,14 +1294,6 @@
     drawPlant();
 
     const showParticles = view.scale >= 2.0;
-    if(showParticles) drawAuxinParticles();
-    else drawZoomHint();
-
-    drawSoilMoistureBar();
-    ctx.restore();
-
-    // v0.155: full darkness when sunStrength = 0
-      // v0.155: sunStrength=0 means darkness (no light influence) but keep the scene visible
   {
     const s = clamp(sim.sunStrength, 0, 1);
     const dark = 0.35 * (1 - s);
@@ -1265,11 +1305,20 @@
         ctx.fillStyle = 'rgba(233,238,246,0.70)';
         ctx.font = '14px ' + getComputedStyle(document.documentElement).getPropertyValue('--sans');
         ctx.fillText('太陽關閉：光線不影響生長素分布（僅剩引力/濕度/接觸）', 16, H-34);
-          ctx.fillText('提示：請用「盆栽角度」傾斜，才能在放大時看到向地性造成的左右生長素差', 16, H-18);
+          ctx.fillText('提示：請用「盆栽角度」傾斜，才能在放大時看到向地性（重力）造成的左右生長素差（偏向較低側）', 16, H-18);
       }
       ctx.restore();
     }
   }
+
+    if(showParticles) drawAuxinParticles();
+    else drawZoomHint();
+
+    drawSoilMoistureBar();
+    ctx.restore();
+
+    // v0.155: full darkness when sunStrength = 0
+      // v0.155: sunStrength=0 means darkness (no light influence) but keep the scene visible
 
     el.badge.textContent = `縮放 ${view.scale.toFixed(2)}× | 時間 ${sim.timeScale}×`;
     el.pillAuxin.style.opacity = (view.scale < 2.0) ? 1 : 0.15;
@@ -1301,10 +1350,122 @@
     centerView();
     requestAnimationFrame(tick);
   }
-  init();
+  
+  // v0.166: Minimal Markdown renderer (headings, lists, links, bold/italic, inline/fenced code)
+  function __escapeHtml(s){
+    return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  }
+  function mdToHtml(md){
+    md = md.replace(/\r\n/g,"\n");
+    const fences = [];
+    md = md.replace(/```([\s\S]*?)```/g, (m, code) => {
+      fences.push(code);
+      return `@@FENCE_${fences.length-1}@@`;
+    });
+    md = __escapeHtml(md);
+
+    md = md.replace(/^###\s+(.*)$/gm, "<h3>$1</h3>");
+    md = md.replace(/^##\s+(.*)$/gm, "<h2>$1</h2>");
+    md = md.replace(/^#\s+(.*)$/gm, "<h1>$1</h1>");
+    md = md.replace(/^>\s?(.*)$/gm, "<blockquote>$1</blockquote>");
+
+    md = md.replace(/`([^`]+)`/g, "<code>$1</code>");
+    md = md.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+    md = md.replace(/\*([^*]+)\*/g, "<em>$1</em>");
+    md = md.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+
+    const lines = md.split("\n");
+    let out = [];
+    let inUL = false, inOL = false;
+    function closeLists(){
+      if(inUL){ out.push("</ul>"); inUL=false; }
+      if(inOL){ out.push("</ol>"); inOL=false; }
+    }
+    for(const line0 of lines){
+      const line = line0;
+      if(line.trim()===""){ closeLists(); out.push(""); continue; }
+      const ul = line.match(/^\s*[-*+]\s+(.*)$/);
+      const ol = line.match(/^\s*\d+\.\s+(.*)$/);
+      if(ul){
+        if(inOL){ out.push("</ol>"); inOL=false; }
+        if(!inUL){ out.push("<ul>"); inUL=true; }
+        out.push("<li>"+ul[1]+"</li>");
+        continue;
+      }
+      if(ol){
+        if(inUL){ out.push("</ul>"); inUL=false; }
+        if(!inOL){ out.push("<ol>"); inOL=true; }
+        out.push("<li>"+ol[1]+"</li>");
+        continue;
+      }
+      closeLists();
+      if(/^<h[1-3]>/.test(line) || /^<blockquote>/.test(line)){
+        out.push(line);
+      }else{
+        out.push("<p>"+line+"</p>");
+      }
+    }
+    closeLists();
+    let html2 = out.join("\n");
+    html2 = html2.replace(/@@FENCE_(\d+)@@/g, (m, idx) => {
+      const code = __escapeHtml(fences[parseInt(idx,10)] || "");
+      return `<pre><code>${code}</code></pre>`;
+    });
+    return html2;
+  }
+
+  async function openHelp(){
+    const modal = document.getElementById('helpModal');
+    const content = document.getElementById('helpContent');
+    if(!modal || !content) return;
+    modal.classList.remove('hidden');
+    content.textContent = "讀取中…";
+    try{
+      const res = await fetch('readme.md?ts=' + Date.now(), {cache: 'no-store'});
+      const md = await res.text();
+      content.innerHTML = mdToHtml(md);
+    }catch(e){
+      content.textContent = "讀取 readme.md 失敗。請確認 readme.md 與 HTML 位於同一資料夾。";
+      console.warn(e);
+    }
+  }
+  function closeHelp(){
+    const modal = document.getElementById('helpModal');
+    if(modal) modal.classList.add('hidden');
+  }
+
+init();
 })();
 
 
+
+
+
+
+  // v0.166: Help button wiring
+  const __btnHelp = document.getElementById('btnHelp');
+  const __btnHelpClose = document.getElementById('btnHelpClose');
+  const __helpBackdrop = document.getElementById('helpBackdrop');
+  if(__btnHelp) __btnHelp.addEventListener('click', openHelp);
+  if(__btnHelpClose) __btnHelpClose.addEventListener('click', closeHelp);
+  if(__helpBackdrop) __helpBackdrop.addEventListener('click', closeHelp);
+  window.addEventListener('keydown', (e) => { if(e.key === 'Escape') closeHelp(); });
+
 </script>
+
+  <!-- v0.166: Help modal (renders readme.md) -->
+  <div class="modal hidden" id="helpModal" role="dialog" aria-modal="true" aria-label="說明視窗">
+    <div class="modalBackdrop" id="helpBackdrop"></div>
+    <div class="modalCard" role="document">
+      <div class="modalHeader">
+        <div class="modalTitle">說明（readme.md）</div>
+        <button class="btn" id="btnHelpClose" aria-label="關閉說明">關閉</button>
+      </div>
+      <div class="modalBody">
+        <div class="md" id="helpContent">讀取中…</div>
+      </div>
+    </div>
+  </div>
+
 </body>
 </html>

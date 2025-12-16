@@ -1,9 +1,10 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
-<head><script src="/eduGame/ga4.js"></script>
+<head>
+  <script src=\"/eduGame/ga4.js\"></script>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>Auxin Tropism Simulator v0.15</title>
+  <title>Auxin Tropism Simulator v0.1661</title>
   <style>
     :root{
       --bg:#0b0f14;
@@ -148,12 +149,104 @@
         display:block;
         position:absolute;
         right:12px; top:56px;
-        height: calc(100% - 68px);
+        height: calc(100dvh - 68px);
         border-radius: 16px;
         width:min(420px, 92vw);
         z-index:6;
       }
     }
+  
+    /* v0.165: make panel contents scrollable reliably */
+    .panel{
+      display:flex;
+      flex-direction:column;
+      overflow:hidden;
+      padding:14px 14px calc(18px + env(safe-area-inset-bottom));
+    }
+    .panelScroll{
+      overflow:auto;
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior: contain;
+      padding-right:2px;
+      height:100%;
+    }
+    @media (max-width: 980px){
+      .panel.mobile{
+        height: calc(100dvh - 68px);
+      }
+    }
+
+  
+    /* v0.165: desktop panel pinned to RIGHT and scrollable */
+    .panel{
+      position:absolute;
+      right:0;
+      top:0;
+      bottom:0;
+      height:auto;           /* defined by top/bottom */
+      max-height:none;       /* allow full height */
+      display:flex;
+      flex-direction:column;
+      overflow:hidden;       /* scroll happens in .panelScroll */
+      padding:14px 14px calc(18px + env(safe-area-inset-bottom));
+    }
+    .panelScroll{
+      flex:1;
+      min-height:0;          /* critical for flex children to allow scrolling */
+      overflow:auto;
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior: contain;
+      padding-right:2px;
+    }
+
+  
+    /* v0.166: modal + markdown */
+    .modal.hidden{ display:none; }
+    .modal{ position:fixed; inset:0; z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px; }
+    .modalBackdrop{ position:absolute; inset:0; background: rgba(0,0,0,0.55); backdrop-filter: blur(2px); }
+    .modalCard{
+      position:relative;
+      width: min(900px, calc(100vw - 24px));
+      max-height: min(82vh, 820px);
+      background: rgba(18,22,28,0.98);
+      border: 1px solid rgba(255,255,255,0.10);
+      border-radius: 14px;
+      box-shadow: 0 12px 30px rgba(0,0,0,0.45);
+      display:flex;
+      flex-direction:column;
+      overflow:hidden;
+    }
+    .modalHeader{
+      display:flex; align-items:center; justify-content:space-between; gap:12px;
+      padding:12px; border-bottom: 1px solid rgba(255,255,255,0.10);
+      background: rgba(255,255,255,0.03);
+    }
+    .modalTitle{ font-weight:700; letter-spacing:.2px; }
+    .modalBody{ padding:14px 14px 18px; overflow:auto; -webkit-overflow-scrolling: touch; }
+    .md{ line-height:1.65; font-size:14px; color: rgba(233,238,246,0.92); }
+    .md h1{ font-size:20px; margin:0 0 10px; }
+    .md h2{ font-size:16px; margin:18px 0 8px; }
+    .md h3{ font-size:14px; margin:14px 0 6px; }
+    .md p{ margin:8px 0; }
+    .md ul, .md ol{ margin:8px 0 8px 20px; }
+    .md li{ margin:4px 0; }
+    .md code{
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      background: rgba(255,255,255,0.08);
+      padding: 1px 5px;
+      border-radius: 6px;
+    }
+    .md pre{
+      background: rgba(255,255,255,0.06);
+      padding: 10px 12px;
+      border-radius: 12px;
+      overflow:auto;
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+    .md pre code{ background: transparent; padding:0; }
+    .md a{ color: rgba(140,210,255,0.95); text-decoration:none; }
+    .md a:hover{ text-decoration:underline; }
+
   </style>
 </head>
 <body>
@@ -161,20 +254,19 @@
   <div class="stage">
     <canvas id="c"></canvas>
     <div class="hud">
-      <button class="btn" id="btnReset">重置</button>
-      <button class="btn" id="btnCenter">置中</button>
       <span class="badge" id="badge">縮放 1.00× | 時間 1×</span>
-      <span class="pill" id="pillAuxin">提示：放大到 2× 以上可看到「生長素粒子」分布</span>
+      <span class="pill" id="pillAuxin">放大到 2× 以上可看到「生長素粒子」分布</span>
     </div>
-    <div class="drawer">
+<div class="drawer">
       <button class="btn" id="btnPanel">控制面板</button>
     </div>
     <aside class="panel" id="panel">
+      <div class="panelScroll">
+<h1>auxin</h1>
       <h1>向性與生長素模擬</h1>
 
       <div class="card">
         <div class="hint">
-          <b>概念</b>：生長素（auxin）會因外在刺激在組織兩側分布不均，造成兩側伸長速率不同，進而形成彎曲生長（向性）。
           本模擬以「粒子密度」表示生長素濃度：<span style="color:var(--accent);font-weight:800;">越密＝越高</span>；越疏＝越低。
           只有在<strong>局部放大</strong>時才會顯示粒子，巨觀觀察下看不到分子分布。
         </div>
@@ -206,35 +298,76 @@
       </div>
 
       <div class="card">
-        <div class="label"><span class="k">土壤濕度偏向（左高 ← 0 → 右高）</span><span class="v" id="moistBiasVal"></span></div>
-        <input id="moistBias" type="range" min="-1" max="1" step="0.01" />
+        <div class="label"><span class="k">土壤基礎濕度</span><span class="v" id="baseMoistVal"></span></div>
+        <input id="baseMoist" type="range" min="0" max="1" step="0.01" />
+
+        <div class="toggle" style="margin-top:10px;">
+          <label for="watering">噴水壺（勾選後可噴根部）</label>
+          <input id="watering" type="checkbox" />
+        </div>
+
+        <div class="miniBtns">
+          <button class="miniBtn" id="btnWaterL" title="增加左側土壤濕度">噴左側根部</button>
+          <button class="miniBtn secondary" id="btnWaterR" title="增加右側土壤濕度">噴右側根部</button>
+        </div>
+
+        <div class="grid2" style="margin-top:10px;">
+          <div>
+            <div class="label"><span class="k">左側濕度</span><span class="v" id="moLVal"></span></div>
+            <input id="moL" type="range" min="0" max="1" step="0.01" />
+          </div>
+          <div>
+            <div class="label"><span class="k">右側濕度</span><span class="v" id="moRVal"></span></div>
+            <input id="moR" type="range" min="0" max="1" step="0.01" />
+          </div>
+        </div>
 
         <div class="hint" style="margin-top:8px;">
-          這是一個「左右差異」滑桿：置中（0）代表左右濕度相同；往左表示左側較濕；往右表示右側較濕。
+          小提示：勾選「噴水壺」後，也可以在盆栽內<strong>點一下左/右半邊</strong>直接噴水（手機單指點選或滑鼠單擊）。
         </div>
       </div>
-
-      <div class="card"><div class="card">
-<div class="label"><span class="k">時間加速（0×＝暫停）</span><span class="v" id="timeVal"></span></div>
+        <div class="card">
+          
+        <div class="toggle" style="display:none">
+          <label for="bamboo">插竹子(功能無效)</label>
+          <input id="bamboo" type="checkbox" />
+        </div> 
+        <div class="label"><span class="k">時間加速（0×＝暫停）</span><span class="v" id="timeVal"></span></div>
         <input id="timeScale" type="range" min="0" max="20" step="1" />
 
         <div class="miniBtns" style="margin-top:10px;">
-          <button class="miniBtn" id="btnPause">暫停</button>
+          <button class="miniBtn" id="btnPause">開始/暫停</button>
           <button class="miniBtn danger" id="btnClear">清除設定</button>
         </div>
 
-        <div class="footer">
-          操作：滑鼠滾輪縮放、按住左鍵拖曳平移；手機雙指縮放/拖曳。<br/>
-          v0.15（單一 HTML 檔，可離線使用）
+        
+        <div class="miniBtns" style="margin-top:10px;">
+          <button class="miniBtn" id="btnReset">重置</button>
+          <button class="miniBtn" id="btnCenter">置中</button>
         </div>
+<div class="footer">
+          操作：滑鼠滾輪縮放、按住左鍵拖曳平移；手機雙指縮放/拖曳。<br/>
+          v0.166（單一 HTML 檔，可離線使用）
+        </div>
+      
+        <div class="miniBtns" style="margin-top:10px; justify-content:flex-end;">
+          <button class="miniBtn" id="btnHelp">說明</button>
+        </div>
+</div>
       </div>
-    </aside>
+</aside>
   </div>
 </div>
 
 <script>
+
+
+
+
+
+
 (() => {
-  const STORAGE_KEY = "auxin_tropism_sim_v0.15_settings";
+  const STORAGE_KEY = "auxin_tropism_sim_v0.166_settings";
   const canvas = document.getElementById('c');
   const ctx = canvas.getContext('2d', { alpha: true });
 
@@ -252,25 +385,25 @@
     sunAngle: document.getElementById('sunAngle'),
     grav: document.getElementById('grav'),
     tilt: document.getElementById('tilt'),
-    moistBias: document.getElementById('moistBias'),
+    baseMoist: document.getElementById('baseMoist'),
+    watering: document.getElementById('watering'),
+    btnWaterL: document.getElementById('btnWaterL'),
+    btnWaterR: document.getElementById('btnWaterR'),
+    moL: document.getElementById('moL'),
+    moR: document.getElementById('moR'),
+    bamboo: document.getElementById('bamboo'),
     timeScale: document.getElementById('timeScale'),
     sunStrengthVal: document.getElementById('sunStrengthVal'),
     sunAngleVal: document.getElementById('sunAngleVal'),
     gVal: document.getElementById('gVal'),
     tiltVal: document.getElementById('tiltVal'),
-    moistBiasVal: document.getElementById('moistBiasVal'),
+    baseMoistVal: document.getElementById('baseMoistVal'),
+    moLVal: document.getElementById('moLVal'),
+    moRVal: document.getElementById('moRVal'),
     timeVal: document.getElementById('timeVal'),
   };
 
   function clamp(v, a, b){ return Math.max(a, Math.min(b, v)); }
-  function applyMoisture(){
-    // v0.15: fixed-average moisture with left/right bias
-    const base = 0.40; // average moisture
-    const delta = sim.moistBias * 0.35;
-    sim.moistL = clamp(base + delta, 0, 1);
-    sim.moistR = clamp(base - delta, 0, 1);
-  }
-
   function lerp(a,b,t){ return a + (b-a)*t; }
   function smoothstep(a,b,t){
     t = clamp((t-a)/(b-a), 0, 1);
@@ -293,10 +426,10 @@
   const view = { scale: 1.0, tx: 0, ty: 0 };
 
   // Pot coordinate: origin at pot center on soil line; +x right, +y down.
-  const pot = { topY: 0, bottomY: 330, topHalfW: 225, bottomHalfW: 165, soilY: 30 }; // v0.15: 1.5× larger pot
+  const pot = { topY: 0, bottomY: 330, topHalfW: 225, bottomHalfW: 165, soilY: 30 }; // v0.155: 1.5× larger pot
 
   let paused = false;
-  let lastNonZeroTimeScale = 1; // for pause toggle in v0.15
+  let lastNonZeroTimeScale = 1; // for pause toggle in v0.155
 
   const sim = {
     t: 0,
@@ -305,18 +438,25 @@
     autoSun: false,
     g: 0.98,
     tiltDeg: 0,
-    // v0.15: simplified soil moisture control
-    moistBias: 0.0, // -1..1 (left wetter .. right wetter)
-    moistL: 0.40,
-    moistR: 0.40,
-moistL: 0.35,
-    timeScale: 0,
+    baseMoist: 0.35,
+    moistL: 0.35,
+    moistR: 0.35,
+    watering: false,
+    bamboo: false,
+    timeScale: 1, // v0.155 default run
 
     shootPath: [],
     rootPath: [],
     shootDir: vec(0,-1),
     rootDir: vec(0, 1),
     shootAux: {A:0.55, dA:0.0, left:0.55, right:0.55},
+    rootAux: {A:0.45, dA:0.0, left:0.45, right:0.45},
+
+    bambooX: 70,
+    bambooTopY: -2000, // v0.155: sky-high bamboo
+    bambooBottomY: 2000, // v0.155: sky-high bamboo
+    vinePhase: 0,
+    vineAttached: false, // v0.155: only coil after contact
 
   };
 
@@ -329,6 +469,7 @@ moistL: 0.35,
     sim.shootAux = {A:0.55, dA:0.0, left:0.55, right:0.55};
     sim.rootAux  = {A:0.45, dA:0.0, left:0.45, right:0.45};
     sim.vinePhase = 0;
+    sim.vineAttached = false;
   }
 
   // Persistence
@@ -337,6 +478,9 @@ moistL: 0.35,
       const s = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null");
       if(!s) return;
       for(const k of Object.keys(s)) if(k in sim) sim[k] = s[k];
+        sim.bamboo = false;       // BAMBOO OFF (force)
+        sim.vineAttached = false; // 保險：避免殘留攀附狀態
+
     }catch(e){}
   }
   function saveSettings(){
@@ -346,6 +490,11 @@ moistL: 0.35,
       autoSun: sim.autoSun,
       g: sim.g,
       tiltDeg: sim.tiltDeg,
+      baseMoist: sim.baseMoist,
+      moistL: sim.moistL,
+      moistR: sim.moistR,
+      watering: sim.watering,
+      //bamboo: sim.bamboo,
       timeScale: sim.timeScale,
     };
     try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(s)); }catch(e){}
@@ -359,11 +508,20 @@ moistL: 0.35,
     el.sunAngleVal.textContent = `${Math.round(sim.sunAngleDeg)}°`;
     el.gVal.textContent = sim.g.toFixed(2);
     el.tiltVal.textContent = `${Math.round(sim.tiltDeg)}°`;
-      // v0.15 moisture label
-  const bias = sim.moistBias;
-  const side = (bias < -0.01) ? '左較濕' : (bias > 0.01 ? '右較濕' : '左右平均');
-  el.moistBiasVal.textContent = `${side} | 左 ${sim.moistL.toFixed(2)} / 右 ${sim.moistR.toFixed(2)}`;
+    el.baseMoistVal.textContent = sim.baseMoist.toFixed(2);
+    el.moLVal.textContent = sim.moistL.toFixed(2);
+    el.moRVal.textContent = sim.moistR.toFixed(2);
     el.timeVal.textContent = `${sim.timeScale}×`;
+  }
+
+  function updateWaterButtons(){
+    const enabled = !!sim.watering;
+    el.btnWaterL.disabled = !enabled;
+    el.btnWaterR.disabled = !enabled;
+    el.btnWaterL.style.opacity = enabled ? 1 : .45;
+    el.btnWaterR.style.opacity = enabled ? 1 : .45;
+    el.btnWaterL.style.cursor = enabled ? "pointer" : "not-allowed";
+    el.btnWaterR.style.cursor = enabled ? "pointer" : "not-allowed";
   }
 
   function setUIFromSim(){
@@ -372,11 +530,15 @@ moistL: 0.35,
     el.sunAngle.value = sim.sunAngleDeg;
     el.grav.value = sim.g;
     el.tilt.value = sim.tiltDeg;
-    el.moistBias.value = sim.moistBias;
-    applyMoisture();
-                        el.timeScale.value = sim.timeScale;
+    el.baseMoist.value = sim.baseMoist;
+    el.moL.value = sim.moistL;
+    el.moR.value = sim.moistR;
+    el.watering.checked = !!sim.watering;
+    el.bamboo.checked = !!sim.bamboo;
+    el.timeScale.value = sim.timeScale;
     if(sim.timeScale > 0) lastNonZeroTimeScale = sim.timeScale;
     updateLabels();
+    updateWaterButtons();
   }
 
   el.autoSun.addEventListener('change', () => { sim.autoSun = el.autoSun.checked; saveSettings(); });
@@ -384,12 +546,16 @@ moistL: 0.35,
   el.sunAngle.addEventListener('input', () => { sim.sunAngleDeg = parseFloat(el.sunAngle.value); updateLabels(); saveSettings(); });
   el.grav.addEventListener('input', () => { sim.g = parseFloat(el.grav.value); updateLabels(); saveSettings(); });
   el.tilt.addEventListener('input', () => { sim.tiltDeg = parseFloat(el.tilt.value); updateLabels(); saveSettings(); });
+  el.baseMoist.addEventListener('input', () => { sim.baseMoist = parseFloat(el.baseMoist.value); updateLabels(); saveSettings(); });
 
-  el.moistBias.addEventListener('input', () => {
-    sim.moistBias = parseFloat(el.moistBias.value);
-    applyMoisture();
-    updateLabels(); saveSettings();
-  });
+  el.moL.addEventListener('input', () => { sim.moistL = parseFloat(el.moL.value); updateLabels(); saveSettings(); });
+  el.moR.addEventListener('input', () => { sim.moistR = parseFloat(el.moR.value); updateLabels(); saveSettings(); });
+
+  el.watering.addEventListener('change', () => { sim.watering = el.watering.checked; updateWaterButtons(); saveSettings(); });
+  el.bamboo.addEventListener('change', () => {
+    sim.bamboo = el.bamboo.checked;
+    if(!sim.bamboo) sim.vineAttached = false;
+    saveSettings();
   });
   el.timeScale.addEventListener('input', () => {
     sim.timeScale = parseInt(el.timeScale.value,10);
@@ -397,8 +563,11 @@ moistL: 0.35,
     updateLabels(); saveSettings();
   });
 
+  el.btnWaterL.addEventListener('click', () => { if(sim.watering) sprayWater(-1); });
+  el.btnWaterR.addEventListener('click', () => { if(sim.watering) sprayWater(+1); });
+
   el.btnPause.addEventListener('click', () => {
-    // v0.15: 0× on time slider means pause
+    // v0.155: 0× on time slider means pause
     if(sim.timeScale === 0){
       sim.timeScale = Math.max(1, lastNonZeroTimeScale || 1);
     }else{
@@ -416,10 +585,12 @@ moistL: 0.35,
     sim.autoSun = false;
     sim.g = 0.98;
     sim.tiltDeg = 0;
-
-    sim.moistBias = 0.0;
-    applyMoisture();
-sim.timeScale = 0;
+    sim.baseMoist = 0.35;
+    sim.moistL = 0.35;
+    sim.moistR = 0.35;
+    sim.watering = false;
+    sim.bamboo = false;
+    sim.timeScale = 0;
     lastNonZeroTimeScale = 1;
     setUIFromSim();
   });
@@ -512,6 +683,13 @@ sim.timeScale = 0;
 
   canvas.addEventListener('pointerup', (e) => {
     if(pointers.has(e.pointerId)) pointers.delete(e.pointerId);
+
+    if(gesture.mode === "pan" && !gesture.moved && sim.watering){
+      const w = gesture.downWorld;
+      if(w && pointInPot(w) && w.y >= pot.topY && w.y <= pot.bottomY){
+        const side = (w.x < 0) ? -1 : +1;
+        sprayWater(side);
+      }
     }
     if(pointers.size === 0){
       gesture.mode = "none";
@@ -552,6 +730,15 @@ sim.timeScale = 0;
     return { x: (sx - cx - tx) / scale, y: (sy - cy - ty) / scale };
   }
 
+  function sprayWater(side){
+    const amt = 0.16;
+    if(side < 0) sim.moistL = clamp(sim.moistL + amt, 0, 1);
+    else sim.moistR = clamp(sim.moistR + amt, 0, 1);
+    el.moL.value = sim.moistL;
+    el.moR.value = sim.moistR;
+    updateLabels(); saveSettings();
+  }
+
   function potHalfWAtY(y){
     const t = clamp((y - pot.topY) / (pot.bottomY - pot.topY), 0, 1);
     return lerp(pot.topHalfW, pot.bottomHalfW, t);
@@ -582,11 +769,18 @@ sim.timeScale = 0;
       sim.sunAngleDeg = lerp(0, 180, day);
       el.sunAngle.value = sim.sunAngleDeg;
     }
-    applyMoisture();
+
+    // moisture relax + diffuse
+    const relax = 0.03 * dt;
+    sim.moistL = clamp(lerp(sim.moistL, sim.baseMoist, relax), 0, 1);
+    sim.moistR = clamp(lerp(sim.moistR, sim.baseMoist, relax), 0, 1);
+    const diff = (sim.moistR - sim.moistL) * 0.015 * dt;
+    sim.moistL += diff; sim.moistR -= diff;
+    el.moL.value = sim.moistL; el.moR.value = sim.moistR;
     updateLabels();
 
     const sunPos = computeSunPos();
-    const gDir = gravityDirInPot();
+    const gDir = gravityDirInPot(); // v0.165: gravity expressed in pot-local coordinates, so tilt creates L/R auxin asymmetry
 
     // shoot
     {
@@ -594,16 +788,82 @@ sim.timeScale = 0;
       const dir = sim.shootDir;
 
       const toSun = vnorm(vsub(sunPos, tip));
-      const dA_light = sim.sunStrength * vcross(dir, toSun); // + => light on left => auxin on right
+      const dA_light = sim.sunStrength * (-vcross(dir, toSun)); // v0.165: shoots accumulate auxin on shaded side (opposite light) // v0.165: light on left => auxin on right (shaded side for shoots)
       const desiredLight = toSun;
 
       const desiredGrav = vmul(gDir, -1);
-      const dA_grav = - (sim.g/0.98) * vcross(dir, gDir);
+      const dA_grav = (sim.g/0.98) * vcross(dir, gDir); // v0.165: sign fixed so auxin increases toward gravity (lower side)
 
       const moistDelta = (sim.moistR - sim.moistL);
       const dA_moist = 0.15 * moistDelta;
+
       let dA_touch = 0;
       let desiredTouch = null;
+      if(sim.bamboo && sim.vineAttached){
+        const pole = vec(sim.bambooX, pot.soilY - 30);
+        const toPole = vsub(pole, tip);
+        const dist = vlen(toPole);
+        if(dist < 90){
+          const radial = vnorm(toPole);
+          const tang = vrot(radial, -Math.PI/2);
+          desiredTouch = vnorm(vadd(vmul(radial, 0.35), vmul(tang, 0.65)));
+          dA_touch = 0.9 * vcross(dir, desiredTouch);
+        }
+      }
+
+      const wL = 1.25, wG = 0.9, wM = 0.35, wT = 0.9;
+      let dA = wL*dA_light + wG*dA_grav + wM*dA_moist + wT*dA_touch;
+      dA = clamp(dA, -1, 1);
+
+      let A = 0.20 + 0.45*sim.sunStrength + 0.12*clamp(sim.g/0.98, 0, 2) + 0.12*clamp((sim.moistL+sim.moistR)/2, 0, 1) + (sim.bamboo ? 0.05 : 0);
+      A = clamp(A, 0.05, 1.0);
+
+      const shootSpeed = lerp(0.22, 1.25, smoothstep(0.05, 0.95, A));
+      let target = vnorm(vadd(vmul(desiredLight, 0.58 * sim.sunStrength), vmul(desiredGrav, 0.35))); // v0.155: no light => no phototropic steering
+      if(desiredTouch) target = vnorm(vadd(vmul(target, 0.65), vmul(desiredTouch, 0.35)));
+
+      const angErr = vang(dir, target);
+      const turn = clamp(angErr, -1.2, 1.2) * 0.65 + dA * 0.22;
+      const newDir = vnorm(vrot(dir, turn * dt));
+
+      const stepLen = shootSpeed * dt * 14; // v0.155 slower
+      const newTip = vadd(tip, vmul(newDir, stepLen));
+      if(newTip.y > pot.soilY - 3) newTip.y = pot.soilY - 3;
+
+      sim.shootDir = newDir;
+      sim.shootPath.push(newTip);
+
+      const bias = 0.90; // v0.155: exaggerate L/R auxin difference for visualization
+      const left = clamp(A*(1 - bias*dA), 0, 1);
+      const right= clamp(A*(1 + bias*dA), 0, 1);
+      sim.shootAux = {A, dA, left, right};
+    }
+
+    // root
+    {
+      const tip = sim.rootPath[sim.rootPath.length-1];
+      const dir = sim.rootDir;
+
+      const toSun = vnorm(vsub(sunPos, tip));
+      const desiredLight = vmul(toSun, -1);
+      const dA_light = sim.sunStrength * (-vcross(dir, toSun));
+
+      const desiredGrav = gDir;
+      const dA_grav = (sim.g/0.98) * vcross(dir, gDir); // v0.165: sign fixed so auxin increases toward gravity (lower side)
+
+      const moistDelta = (sim.moistR - sim.moistL);
+      const dA_moist = 1.10 * moistDelta;
+
+      let dA_touch = 0;
+      let desiredTouch = null;
+      if(sim.bamboo){
+        const pole = vec(sim.bambooX, pot.soilY - 30);
+        const toPole = vsub(pole, tip);
+        const dist = vlen(toPole);
+        if(dist < 70){
+          desiredTouch = vnorm(vsub(tip, pole));
+          dA_touch = 0.6 * vcross(dir, desiredTouch);
+        }
       }
 
       const wL = 0.55, wG = 1.05, wM = 1.20, wT = 0.4;
@@ -616,7 +876,7 @@ sim.timeScale = 0;
       const rootSpeedRaw = lerp(1.10, 0.08, smoothstep(0.10, 0.95, A));
       const rootSpeed = Math.max(0, rootSpeedRaw);
 
-      let target = vnorm(vadd(vmul(desiredGrav, 0.70), vmul(desiredLight, 0.18 * sim.sunStrength))); // v0.15
+      let target = vnorm(vadd(vmul(desiredGrav, 0.70), vmul(desiredLight, 0.18 * sim.sunStrength))); // v0.155
       if(Math.abs(moistDelta) > 0.02){
         const mo = vnorm(vec(moistDelta, -0.15));
         target = vnorm(vadd(vmul(target, 0.78), vmul(mo, 0.22)));
@@ -627,7 +887,7 @@ sim.timeScale = 0;
       const turn = clamp(angErr, -1.3, 1.3) * 0.55 - dA * 0.20;
       const newDir = vnorm(vrot(dir, turn * dt));
 
-      const stepLen = rootSpeed * dt * 12; // v0.15 slower
+      const stepLen = rootSpeed * dt * 12; // v0.155 slower
       let newTip = vadd(tip, vmul(newDir, stepLen));
 
       if(!pointInPot(newTip)){
@@ -642,13 +902,26 @@ sim.timeScale = 0;
       }
       sim.rootPath.push(newTip);
 
-      const bias = 0.90; // v0.15: exaggerate L/R auxin difference for visualization
+      const bias = 0.90; // v0.155: exaggerate L/R auxin difference for visualization
       const left = clamp(A*(1 - bias*dA), 0, 1);
       const right= clamp(A*(1 + bias*dA), 0, 1);
       sim.rootAux = {A, dA, left, right};
     }
 
-    function drawDottedBG(W,H){
+    // v0.155: attach to bamboo only when shoot touches it
+    if(sim.bamboo && !sim.vineAttached){
+      const st = sim.shootPath[sim.shootPath.length-1];
+      const dx = Math.abs(st.x - sim.bambooX);
+      const inHeight = (st.y < pot.soilY - 2) && (st.y > sim.bambooTopY) && (st.y < sim.bambooBottomY);
+      if(inHeight && dx < 14){
+        sim.vineAttached = true;
+      }
+    }
+
+    if(sim.bamboo && sim.vineAttached) sim.vinePhase += dt * 2.0;
+  }
+
+  function drawDottedBG(W,H){
     ctx.save();
     ctx.globalAlpha = 0.20;
     const step = 22;
@@ -722,6 +995,25 @@ sim.timeScale = 0;
     ctx.stroke();
     ctx.restore();
   }
+
+  function drawBamboo(){
+    ctx.save();
+    const x = sim.bambooX;
+    ctx.lineWidth = 14; // v0.155 bigger bamboo
+    ctx.strokeStyle = "rgba(125,211,168,.92)";
+    ctx.beginPath();
+    ctx.moveTo(x, sim.bambooTopY);
+    ctx.lineTo(x, sim.bambooBottomY);
+    ctx.stroke();
+
+    ctx.lineWidth = 3.5;
+    ctx.strokeStyle = "rgba(16,24,38,.75)";
+    for(let y = sim.bambooTopY+30; y < sim.bambooBottomY; y += 70){
+      ctx.beginPath();
+      ctx.moveTo(x-10, y);
+      ctx.lineTo(x+10, y);
+      ctx.stroke();
+    }
     ctx.restore();
   }
 
@@ -807,12 +1099,12 @@ sim.timeScale = 0;
   }
 
   function drawAuxAlongPath(path, aux, segCount, band, color){
-    // v0.15: static "dot density" only (no fog/mist look), obvious L/R difference.
+    // v0.155: static "dot density" only (no fog/mist look), obvious L/R difference.
     // Density scales with light: weak ≈ 5%, strong = 100%.
     const start = Math.max(1, path.length - segCount);
 
     const s = clamp(sim.sunStrength, 0, 1);
-    const lightFactor = (s <= 0.001) ? 0.0 : (0.05 + 0.95 * Math.pow(s, 1.7));
+    const lightFactor = (0.05 + 0.95 * Math.pow(s, 1.7)); // v0.165: keep 5% baseline even in darkness so gravity/moisture asymmetry is visible
 
     const A = clamp(aux.A || 0, 0, 1);
 
@@ -957,8 +1249,8 @@ sim.timeScale = 0;
     ctx.save();
     ctx.globalAlpha = 0.9;
 
-    drawAuxAlongPath(sim.shootPath, sim.shootAux, 30, 10, "rgba(255,60,60,1)"); // v0.15 red auxin
-    drawAuxAlongPath(sim.rootPath,  sim.rootAux,  30, 9, "rgba(255,60,60,1)"); // v0.15 red auxin
+    drawAuxAlongPath(sim.shootPath, sim.shootAux, 30, 10, "rgba(255,60,60,1)"); // v0.155 red auxin
+    drawAuxAlongPath(sim.rootPath,  sim.rootAux,  30, 9, "rgba(255,60,60,1)"); // v0.155 red auxin
 
     const anchor = vec(pot.bottomHalfW + 18, pot.bottomY - 30);
     ctx.globalAlpha = 0.9;
@@ -970,7 +1262,7 @@ sim.timeScale = 0;
 
     ctx.fillStyle = "rgba(233,238,246,.88)";
     ctx.font = "12px " + getComputedStyle(document.documentElement).getPropertyValue('--sans');
-    ctx.fillText("生長素粒子（放大可見）", anchor.x-166, anchor.y-48);
+    ctx.fillText("生長素粒子（放大可見；黑暗時需傾斜盆栽才會有左右差）", anchor.x-166, anchor.y-48);
 
     drawDotCluster(anchor.x-162, anchor.y-28, 18, 16);
     ctx.fillStyle = "rgba(233,238,246,.75)";
@@ -993,29 +1285,40 @@ sim.timeScale = 0;
     ctx.scale(view.scale, view.scale);
 
     const tilt = potRotationRad();
-    ctx.rotate(tilt);
-
+    // v0.155: Sun is fixed in screen/world orientation (does NOT rotate with pot tilt)
     if(sim.sunStrength > 0.001) drawSun();
+
+    ctx.rotate(tilt);
     drawPot();
+    //if(sim.bamboo) drawBamboo();
     drawPlant();
 
     const showParticles = view.scale >= 2.0;
+  {
+    const s = clamp(sim.sunStrength, 0, 1);
+    const dark = 0.35 * (1 - s);
+    if(dark > 0.01){
+      ctx.save();
+      ctx.fillStyle = `rgba(0,0,0,${dark.toFixed(3)})`;
+      ctx.fillRect(0,0,W,H);
+      if(s <= 0.001){
+        ctx.fillStyle = 'rgba(233,238,246,0.70)';
+        ctx.font = '14px ' + getComputedStyle(document.documentElement).getPropertyValue('--sans');
+        ctx.fillText('太陽關閉：光線不影響生長素分布（僅剩引力/濕度/接觸）', 16, H-34);
+          ctx.fillText('提示：請用「盆栽角度」傾斜，才能在放大時看到向地性（重力）造成的左右生長素差（偏向較低側）', 16, H-18);
+      }
+      ctx.restore();
+    }
+  }
+
     if(showParticles) drawAuxinParticles();
     else drawZoomHint();
 
     drawSoilMoistureBar();
     ctx.restore();
 
-    // v0.15: full darkness when sunStrength = 0
-    if(sim.sunStrength <= 0.001){
-      ctx.save();
-      ctx.fillStyle = 'rgba(0,0,0,0.92)';
-      ctx.fillRect(0,0,W,H);
-      ctx.fillStyle = 'rgba(233,238,246,0.70)';
-      ctx.font = '14px ' + getComputedStyle(document.documentElement).getPropertyValue('--sans');
-      ctx.fillText('全黑暗（太陽關閉）', 16, H-18);
-      ctx.restore();
-    }
+    // v0.155: full darkness when sunStrength = 0
+      // v0.155: sunStrength=0 means darkness (no light influence) but keep the scene visible
 
     el.badge.textContent = `縮放 ${view.scale.toFixed(2)}× | 時間 ${sim.timeScale}×`;
     el.pillAuxin.style.opacity = (view.scale < 2.0) ? 1 : 0.15;
@@ -1042,14 +1345,127 @@ sim.timeScale = 0;
   function init(){
     loadSettings();
     setUIFromSim();
-    applyMoisture();
     resetPlant();
     resize();
     centerView();
     requestAnimationFrame(tick);
   }
-  init();
+  
+  // v0.166: Minimal Markdown renderer (headings, lists, links, bold/italic, inline/fenced code)
+  function __escapeHtml(s){
+    return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  }
+  function mdToHtml(md){
+    md = md.replace(/\r\n/g,"\n");
+    const fences = [];
+    md = md.replace(/```([\s\S]*?)```/g, (m, code) => {
+      fences.push(code);
+      return `@@FENCE_${fences.length-1}@@`;
+    });
+    md = __escapeHtml(md);
+
+    md = md.replace(/^###\s+(.*)$/gm, "<h3>$1</h3>");
+    md = md.replace(/^##\s+(.*)$/gm, "<h2>$1</h2>");
+    md = md.replace(/^#\s+(.*)$/gm, "<h1>$1</h1>");
+    md = md.replace(/^>\s?(.*)$/gm, "<blockquote>$1</blockquote>");
+
+    md = md.replace(/`([^`]+)`/g, "<code>$1</code>");
+    md = md.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+    md = md.replace(/\*([^*]+)\*/g, "<em>$1</em>");
+    md = md.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+
+    const lines = md.split("\n");
+    let out = [];
+    let inUL = false, inOL = false;
+    function closeLists(){
+      if(inUL){ out.push("</ul>"); inUL=false; }
+      if(inOL){ out.push("</ol>"); inOL=false; }
+    }
+    for(const line0 of lines){
+      const line = line0;
+      if(line.trim()===""){ closeLists(); out.push(""); continue; }
+      const ul = line.match(/^\s*[-*+]\s+(.*)$/);
+      const ol = line.match(/^\s*\d+\.\s+(.*)$/);
+      if(ul){
+        if(inOL){ out.push("</ol>"); inOL=false; }
+        if(!inUL){ out.push("<ul>"); inUL=true; }
+        out.push("<li>"+ul[1]+"</li>");
+        continue;
+      }
+      if(ol){
+        if(inUL){ out.push("</ul>"); inUL=false; }
+        if(!inOL){ out.push("<ol>"); inOL=true; }
+        out.push("<li>"+ol[1]+"</li>");
+        continue;
+      }
+      closeLists();
+      if(/^<h[1-3]>/.test(line) || /^<blockquote>/.test(line)){
+        out.push(line);
+      }else{
+        out.push("<p>"+line+"</p>");
+      }
+    }
+    closeLists();
+    let html2 = out.join("\n");
+    html2 = html2.replace(/@@FENCE_(\d+)@@/g, (m, idx) => {
+      const code = __escapeHtml(fences[parseInt(idx,10)] || "");
+      return `<pre><code>${code}</code></pre>`;
+    });
+    return html2;
+  }
+
+  async function openHelp(){
+    const modal = document.getElementById('helpModal');
+    const content = document.getElementById('helpContent');
+    if(!modal || !content) return;
+    modal.classList.remove('hidden');
+    content.textContent = "讀取中…";
+    try{
+      const res = await fetch('readme.md?ts=' + Date.now(), {cache: 'no-store'});
+      const md = await res.text();
+      content.innerHTML = mdToHtml(md);
+    }catch(e){
+      content.textContent = "讀取 readme.md 失敗。請確認 readme.md 與 HTML 位於同一資料夾。";
+      console.warn(e);
+    }
+  }
+  function closeHelp(){
+    const modal = document.getElementById('helpModal');
+    if(modal) modal.classList.add('hidden');
+  }
+
+init();
 })();
+
+
+
+
+
+
+  // v0.166: Help button wiring
+  const __btnHelp = document.getElementById('btnHelp');
+  const __btnHelpClose = document.getElementById('btnHelpClose');
+  const __helpBackdrop = document.getElementById('helpBackdrop');
+  if(__btnHelp) __btnHelp.addEventListener('click', openHelp);
+  if(__btnHelpClose) __btnHelpClose.addEventListener('click', closeHelp);
+  if(__helpBackdrop) __helpBackdrop.addEventListener('click', closeHelp);
+  window.addEventListener('keydown', (e) => { if(e.key === 'Escape') closeHelp(); });
+
 </script>
+
+  <!-- v0.166: Help modal (renders readme.md) -->
+  <div class="modal hidden" id="helpModal" role="dialog" aria-modal="true" aria-label="說明視窗">
+    <div class="modalBackdrop" id="helpBackdrop"></div>
+    <div class="modalCard" role="document">
+      <div class="modalHeader">
+        <div class="modalTitle">說明（readme.md）</div>
+        <button class="btn" id="btnHelpClose" aria-label="關閉說明">關閉</button>
+      </div>
+      <div class="modalBody">
+        <div class="md" id="helpContent">讀取中…</div>
+      </div>
+    </div>
+  </div>
+
 </body>
 </html>
