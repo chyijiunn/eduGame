@@ -1,0 +1,1254 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Auxin Tropism Simulator v0.13</title>
+  <style>
+    :root{
+      --bg:#0b0f14;
+      --panel:#101826;
+      --panel2:#0e1520;
+      --text:#e9eef6;
+      --muted:#a7b4c6;
+      --accent:#7dd3a8;
+      --accent2:#86a8ff;
+      --danger:#ff6b6b;
+      --line:rgba(255,255,255,.12);
+      --shadow: 0 12px 30px rgba(0,0,0,.35);
+      --radius:14px;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", Arial, sans-serif;
+    }
+    html,body{height:100%; margin:0; background:var(--bg); color:var(--text); font-family:var(--sans); overflow:hidden;}
+    *{box-sizing:border-box;}
+    .app{
+      position:fixed; inset:0;
+      display:flex;
+      background: radial-gradient(1200px 800px at 70% 30%, rgba(125,211,168,.08), transparent 55%),
+                  radial-gradient(900px 600px at 20% 80%, rgba(134,168,255,.08), transparent 55%),
+                  var(--bg);
+    }
+    .stage{
+      position:relative; flex:1; min-width:0;
+    }
+    canvas{position:absolute; inset:0; width:100%; height:100%; touch-action:none; user-select:none;}
+    .hud{
+      position:absolute; left:12px; top:12px;
+      display:flex; gap:8px; align-items:center;
+      z-index:5;
+      flex-wrap:wrap;
+    }
+    .btn{
+      appearance:none; border:1px solid var(--line);
+      background:rgba(16,24,38,.72);
+      color:var(--text);
+      padding:10px 12px;
+      border-radius:12px;
+      cursor:pointer;
+      box-shadow: var(--shadow);
+      font-weight:650;
+      letter-spacing:.2px;
+      backdrop-filter: blur(10px);
+    }
+    .btn:hover{border-color:rgba(125,211,168,.45);}
+    .btn:active{transform:translateY(1px);}
+    .badge{
+      padding:8px 10px; border-radius:12px;
+      border:1px solid var(--line);
+      background:rgba(16,24,38,.55);
+      box-shadow: var(--shadow);
+      font-family:var(--mono);
+      color:var(--muted);
+      white-space:nowrap;
+    }
+    .panel{
+      width:360px; max-width: min(360px, 92vw);
+      border-left:1px solid rgba(255,255,255,.08);
+      background: linear-gradient(180deg, rgba(16,24,38,.92), rgba(14,21,32,.92));
+      backdrop-filter: blur(14px);
+      box-shadow: -20px 0 50px rgba(0,0,0,.35);
+      padding:14px 14px 18px;
+      overflow:auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    .panel h1{
+      font-size:14px; margin:2px 0 10px;
+      letter-spacing:.4px; color:var(--muted); font-weight:700;
+      text-transform:uppercase;
+    }
+    .card{
+      border:1px solid rgba(255,255,255,.10);
+      border-radius: var(--radius);
+      background: rgba(14,21,32,.65);
+      box-shadow: var(--shadow);
+      padding:12px;
+      margin-bottom:12px;
+    }
+    .row{display:flex; gap:10px; align-items:center; flex-wrap:wrap;}
+    .row > *{flex:1;}
+    .label{display:flex; align-items:center; justify-content:space-between; gap:10px; margin:6px 0 6px;}
+    .label .k{font-weight:700; color:var(--text); font-size:13px;}
+    .label .v{font-family:var(--mono); font-size:12px; color:var(--muted);}
+    input[type="range"]{
+      width:100%;
+      accent-color: var(--accent);
+    }
+    .toggle{
+      display:flex; align-items:center; justify-content:space-between; gap:10px;
+      padding:10px 10px; border-radius:12px;
+      border:1px solid rgba(255,255,255,.10);
+      background: rgba(16,24,38,.5);
+    }
+    .toggle label{font-weight:700; font-size:13px;}
+    .toggle input{transform:scale(1.15);}
+    .hint{
+      color:var(--muted); font-size:12px; line-height:1.55;
+    }
+    .pill{
+      display:inline-flex; align-items:center; gap:8px;
+      padding:8px 10px; border-radius:999px;
+      border:1px solid rgba(255,255,255,.10);
+      background: rgba(16,24,38,.55);
+      color:var(--muted);
+      font-size:12px;
+      box-shadow: var(--shadow);
+    }
+    .grid2{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+    .miniBtns{display:flex; gap:10px; flex-wrap:wrap; margin-top:8px;}
+    .miniBtn{
+      flex:1; min-width:120px;
+      appearance:none; border:1px solid rgba(255,255,255,.10);
+      background: rgba(16,24,38,.65);
+      color:var(--text);
+      padding:10px 12px;
+      border-radius:12px;
+      cursor:pointer;
+      font-weight:700;
+    }
+    .miniBtn:hover{border-color:rgba(125,211,168,.45);}
+    .miniBtn.secondary:hover{border-color:rgba(134,168,255,.45);}
+    .miniBtn.danger:hover{border-color:rgba(255,107,107,.55);}
+    .miniBtn.secondary{background: rgba(16,24,38,.55);}
+    .miniBtn.danger{background: rgba(32,16,18,.60);}
+    .sep{height:1px; background:rgba(255,255,255,.10); margin:10px 0;}
+    .note{
+      font-size:12px; color:var(--muted); line-height:1.55;
+      margin:0;
+    }
+    .footer{margin-top:12px; color:rgba(255,255,255,.55); font-size:11px; line-height:1.6;}
+    .drawer{
+      display:none;
+      position:absolute; right:12px; top:12px; z-index:6;
+    }
+    @media (max-width: 980px){
+      .panel{display:none;}
+      .drawer{display:block;}
+      .panel.mobile{
+        display:block;
+        position:absolute;
+        right:12px; top:56px;
+        height: calc(100% - 68px);
+        border-radius: 16px;
+        width:min(420px, 92vw);
+        z-index:6;
+      }
+    }
+  </style>
+</head>
+<body>
+<div class="app">
+  <div class="stage">
+    <canvas id="c"></canvas>
+    <div class="hud">
+      <button class="btn" id="btnReset">重置</button>
+      <button class="btn" id="btnCenter">置中</button>
+      <span class="badge" id="badge">縮放 1.00× | 時間 1×</span>
+      <span class="pill" id="pillAuxin">提示：放大到 2× 以上可看到「生長素粒子」分布</span>
+    </div>
+    <div class="drawer">
+      <button class="btn" id="btnPanel">控制面板</button>
+    </div>
+    <aside class="panel" id="panel">
+      <h1>向性與生長素模擬</h1>
+
+      <div class="card">
+        <div class="hint">
+          <b>概念</b>：生長素（auxin）會因外在刺激在組織兩側分布不均，造成兩側伸長速率不同，進而形成彎曲生長（向性）。
+          本模擬以「粒子密度」表示生長素濃度：<span style="color:var(--accent);font-weight:800;">越密＝越高</span>；越疏＝越低。
+          只有在<strong>局部放大</strong>時才會顯示粒子，巨觀觀察下看不到分子分布。
+        </div>
+        <div class="sep"></div>
+        <p class="note">
+          <b>濃度效應（簡化規則）</b>：生長素濃度高 → <b>莖伸長較快</b>、<b>根伸長變慢甚至停止</b>；濃度低 → <b>根伸長較快</b>、<b>莖伸長變慢</b>。
+        </p>
+      </div>
+
+      <div class="card">
+        <div class="toggle">
+          <label for="autoSun">日照自動東升西落</label>
+          <input id="autoSun" type="checkbox" />
+        </div>
+
+        <div class="label"><span class="k">日照強度</span><span class="v" id="sunStrengthVal"></span></div>
+        <input id="sunStrength" type="range" min="0" max="1" step="0.01" />
+
+        <div class="label"><span class="k">日照角度（右 0° → 左 180°）</span><span class="v" id="sunAngleVal"></span></div>
+        <input id="sunAngle" type="range" min="0" max="180" step="1" />
+
+        <div class="sep"></div>
+
+        <div class="label"><span class="k">地心引力強度（g）</span><span class="v" id="gVal"></span></div>
+        <input id="grav" type="range" min="0" max="2" step="0.01" />
+
+        <div class="label"><span class="k">盆栽傾斜角（°）</span><span class="v" id="tiltVal"></span></div>
+        <input id="tilt" type="range" min="-90" max="90" step="1" />
+      </div>
+
+      <div class="card">
+        <div class="label"><span class="k">土壤基礎濕度</span><span class="v" id="baseMoistVal"></span></div>
+        <input id="baseMoist" type="range" min="0" max="1" step="0.01" />
+
+        <div class="toggle" style="margin-top:10px;">
+          <label for="watering">噴水壺（勾選後可噴根部）</label>
+          <input id="watering" type="checkbox" />
+        </div>
+
+        <div class="miniBtns">
+          <button class="miniBtn" id="btnWaterL" title="增加左側土壤濕度">噴左側根部</button>
+          <button class="miniBtn secondary" id="btnWaterR" title="增加右側土壤濕度">噴右側根部</button>
+        </div>
+
+        <div class="grid2" style="margin-top:10px;">
+          <div>
+            <div class="label"><span class="k">左側濕度</span><span class="v" id="moLVal"></span></div>
+            <input id="moL" type="range" min="0" max="1" step="0.01" />
+          </div>
+          <div>
+            <div class="label"><span class="k">右側濕度</span><span class="v" id="moRVal"></span></div>
+            <input id="moR" type="range" min="0" max="1" step="0.01" />
+          </div>
+        </div>
+
+        <div class="hint" style="margin-top:8px;">
+          小提示：勾選「噴水壺」後，也可以在盆栽內<strong>點一下左/右半邊</strong>直接噴水（手機單指點選或滑鼠單擊）。
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="toggle">
+          <label for="bamboo">插竹子（攀附/纏繞）</label>
+          <input id="bamboo" type="checkbox" />
+        </div>
+
+        <div class="label"><span class="k">時間加速（0×＝暫停）</span><span class="v" id="timeVal"></span></div>
+        <input id="timeScale" type="range" min="0" max="20" step="1" />
+
+        <div class="miniBtns" style="margin-top:10px;">
+          <button class="miniBtn" id="btnPause">暫停</button>
+          <button class="miniBtn danger" id="btnClear">清除設定</button>
+        </div>
+
+        <div class="footer">
+          操作：滑鼠滾輪縮放、按住左鍵拖曳平移；手機雙指縮放/拖曳。<br/>
+          v0.13（單一 HTML 檔，可離線使用）
+        </div>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<script>
+(() => {
+  const STORAGE_KEY = "auxin_tropism_sim_v0.13_settings";
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d', { alpha: true });
+
+  const el = {
+    panel: document.getElementById('panel'),
+    btnPanel: document.getElementById('btnPanel'),
+    badge: document.getElementById('badge'),
+    pillAuxin: document.getElementById('pillAuxin'),
+    btnReset: document.getElementById('btnReset'),
+    btnCenter: document.getElementById('btnCenter'),
+    btnPause: document.getElementById('btnPause'),
+    btnClear: document.getElementById('btnClear'),
+    autoSun: document.getElementById('autoSun'),
+    sunStrength: document.getElementById('sunStrength'),
+    sunAngle: document.getElementById('sunAngle'),
+    grav: document.getElementById('grav'),
+    tilt: document.getElementById('tilt'),
+    baseMoist: document.getElementById('baseMoist'),
+    watering: document.getElementById('watering'),
+    btnWaterL: document.getElementById('btnWaterL'),
+    btnWaterR: document.getElementById('btnWaterR'),
+    moL: document.getElementById('moL'),
+    moR: document.getElementById('moR'),
+    bamboo: document.getElementById('bamboo'),
+    timeScale: document.getElementById('timeScale'),
+    sunStrengthVal: document.getElementById('sunStrengthVal'),
+    sunAngleVal: document.getElementById('sunAngleVal'),
+    gVal: document.getElementById('gVal'),
+    tiltVal: document.getElementById('tiltVal'),
+    baseMoistVal: document.getElementById('baseMoistVal'),
+    moLVal: document.getElementById('moLVal'),
+    moRVal: document.getElementById('moRVal'),
+    timeVal: document.getElementById('timeVal'),
+  };
+
+  function clamp(v, a, b){ return Math.max(a, Math.min(b, v)); }
+  function lerp(a,b,t){ return a + (b-a)*t; }
+  function smoothstep(a,b,t){
+    t = clamp((t-a)/(b-a), 0, 1);
+    return t*t*(3-2*t);
+  }
+  function vec(x=0,y=0){ return {x,y}; }
+  function vadd(a,b){ return {x:a.x+b.x, y:a.y+b.y}; }
+  function vsub(a,b){ return {x:a.x-b.x, y:a.y-b.y}; }
+  function vmul(a,s){ return {x:a.x*s, y:a.y*s}; }
+  function vlen(a){ return Math.hypot(a.x, a.y); }
+  function vnorm(a){ const l=vlen(a)||1e-9; return {x:a.x/l, y:a.y/l}; }
+  function vrot(a, ang){
+    const c=Math.cos(ang), s=Math.sin(ang);
+    return {x:a.x*c - a.y*s, y:a.x*s + a.y*c};
+  }
+  function vcross(a,b){ return a.x*b.y - a.y*b.x; }
+  function vdot(a,b){ return a.x*b.x + a.y*b.y; }
+  function vang(a,b){ return Math.atan2(vcross(a,b), vdot(a,b)); }
+
+  const view = { scale: 1.0, tx: 0, ty: 0 };
+
+  // Pot coordinate: origin at pot center on soil line; +x right, +y down.
+  const pot = { topY: 0, bottomY: 330, topHalfW: 225, bottomHalfW: 165, soilY: 30 }; // v0.13: 1.5× larger pot
+
+  let paused = false;
+  let lastNonZeroTimeScale = 1; // for pause toggle in v0.13
+
+  const sim = {
+    t: 0,
+    sunStrength: 0.55,
+    sunAngleDeg: 130,
+    autoSun: false,
+    g: 0.98,
+    tiltDeg: 0,
+    baseMoist: 0.35,
+    moistL: 0.35,
+    moistR: 0.35,
+    watering: false,
+    bamboo: false,
+    timeScale: 0,
+
+    shootPath: [],
+    rootPath: [],
+    shootDir: vec(0,-1),
+    rootDir: vec(0, 1),
+    shootAux: {A:0.55, dA:0.0, left:0.55, right:0.55},
+    rootAux: {A:0.45, dA:0.0, left:0.45, right:0.45},
+
+    bambooX: 70,
+    bambooTopY: -80,
+    bambooBottomY: 240,
+    vinePhase: 0,
+    vineAttached: false, // v0.13: only coil after contact
+
+  };
+
+  function resetPlant(){
+    sim.t = 0;
+    sim.shootPath = [vec(0, pot.soilY), vec(0, pot.soilY-8)];
+    sim.rootPath  = [vec(0, pot.soilY), vec(0, pot.soilY+8)];
+    sim.shootDir = vnorm(vsub(sim.shootPath[1], sim.shootPath[0]));
+    sim.rootDir  = vnorm(vsub(sim.rootPath[1],  sim.rootPath[0]));
+    sim.shootAux = {A:0.55, dA:0.0, left:0.55, right:0.55};
+    sim.rootAux  = {A:0.45, dA:0.0, left:0.45, right:0.45};
+    sim.vinePhase = 0;
+    sim.vineAttached = false;
+  }
+
+  // Persistence
+  function loadSettings(){
+    try{
+      const s = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null");
+      if(!s) return;
+      for(const k of Object.keys(s)) if(k in sim) sim[k] = s[k];
+    }catch(e){}
+  }
+  function saveSettings(){
+    const s = {
+      sunStrength: sim.sunStrength,
+      sunAngleDeg: sim.sunAngleDeg,
+      autoSun: sim.autoSun,
+      g: sim.g,
+      tiltDeg: sim.tiltDeg,
+      baseMoist: sim.baseMoist,
+      moistL: sim.moistL,
+      moistR: sim.moistR,
+      watering: sim.watering,
+      bamboo: sim.bamboo,
+      timeScale: sim.timeScale,
+    };
+    try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(s)); }catch(e){}
+  }
+  function clearSettings(){
+    try{ localStorage.removeItem(STORAGE_KEY); }catch(e){}
+  }
+
+  function updateLabels(){
+    el.sunStrengthVal.textContent = sim.sunStrength.toFixed(2);
+    el.sunAngleVal.textContent = `${Math.round(sim.sunAngleDeg)}°`;
+    el.gVal.textContent = sim.g.toFixed(2);
+    el.tiltVal.textContent = `${Math.round(sim.tiltDeg)}°`;
+    el.baseMoistVal.textContent = sim.baseMoist.toFixed(2);
+    el.moLVal.textContent = sim.moistL.toFixed(2);
+    el.moRVal.textContent = sim.moistR.toFixed(2);
+    el.timeVal.textContent = `${sim.timeScale}×`;
+  }
+
+  function updateWaterButtons(){
+    const enabled = !!sim.watering;
+    el.btnWaterL.disabled = !enabled;
+    el.btnWaterR.disabled = !enabled;
+    el.btnWaterL.style.opacity = enabled ? 1 : .45;
+    el.btnWaterR.style.opacity = enabled ? 1 : .45;
+    el.btnWaterL.style.cursor = enabled ? "pointer" : "not-allowed";
+    el.btnWaterR.style.cursor = enabled ? "pointer" : "not-allowed";
+  }
+
+  function setUIFromSim(){
+    el.autoSun.checked = !!sim.autoSun;
+    el.sunStrength.value = sim.sunStrength;
+    el.sunAngle.value = sim.sunAngleDeg;
+    el.grav.value = sim.g;
+    el.tilt.value = sim.tiltDeg;
+    el.baseMoist.value = sim.baseMoist;
+    el.moL.value = sim.moistL;
+    el.moR.value = sim.moistR;
+    el.watering.checked = !!sim.watering;
+    el.bamboo.checked = !!sim.bamboo;
+    el.timeScale.value = sim.timeScale;
+    if(sim.timeScale > 0) lastNonZeroTimeScale = sim.timeScale;
+    updateLabels();
+    updateWaterButtons();
+  }
+
+  el.autoSun.addEventListener('change', () => { sim.autoSun = el.autoSun.checked; saveSettings(); });
+  el.sunStrength.addEventListener('input', () => { sim.sunStrength = parseFloat(el.sunStrength.value); updateLabels(); saveSettings(); });
+  el.sunAngle.addEventListener('input', () => { sim.sunAngleDeg = parseFloat(el.sunAngle.value); updateLabels(); saveSettings(); });
+  el.grav.addEventListener('input', () => { sim.g = parseFloat(el.grav.value); updateLabels(); saveSettings(); });
+  el.tilt.addEventListener('input', () => { sim.tiltDeg = parseFloat(el.tilt.value); updateLabels(); saveSettings(); });
+  el.baseMoist.addEventListener('input', () => { sim.baseMoist = parseFloat(el.baseMoist.value); updateLabels(); saveSettings(); });
+
+  el.moL.addEventListener('input', () => { sim.moistL = parseFloat(el.moL.value); updateLabels(); saveSettings(); });
+  el.moR.addEventListener('input', () => { sim.moistR = parseFloat(el.moR.value); updateLabels(); saveSettings(); });
+
+  el.watering.addEventListener('change', () => { sim.watering = el.watering.checked; updateWaterButtons(); saveSettings(); });
+  el.bamboo.addEventListener('change', () => {
+    sim.bamboo = el.bamboo.checked;
+    if(!sim.bamboo) sim.vineAttached = false;
+    saveSettings();
+  });
+  el.timeScale.addEventListener('input', () => {
+    sim.timeScale = parseInt(el.timeScale.value,10);
+    if(sim.timeScale > 0) lastNonZeroTimeScale = sim.timeScale;
+    updateLabels(); saveSettings();
+  });
+
+  el.btnWaterL.addEventListener('click', () => { if(sim.watering) sprayWater(-1); });
+  el.btnWaterR.addEventListener('click', () => { if(sim.watering) sprayWater(+1); });
+
+  el.btnPause.addEventListener('click', () => {
+    // v0.13: 0× on time slider means pause
+    if(sim.timeScale === 0){
+      sim.timeScale = Math.max(1, lastNonZeroTimeScale || 1);
+    }else{
+      lastNonZeroTimeScale = sim.timeScale;
+      sim.timeScale = 0;
+    }
+    el.timeScale.value = sim.timeScale;
+    updateLabels(); saveSettings();
+  });
+
+  el.btnClear.addEventListener('click', () => {
+    clearSettings();
+    sim.sunStrength = 0.55;
+    sim.sunAngleDeg = 130;
+    sim.autoSun = false;
+    sim.g = 0.98;
+    sim.tiltDeg = 0;
+    sim.baseMoist = 0.35;
+    sim.moistL = 0.35;
+    sim.moistR = 0.35;
+    sim.watering = false;
+    sim.bamboo = false;
+    sim.timeScale = 0;
+    lastNonZeroTimeScale = 1;
+    setUIFromSim();
+  });
+
+  el.btnReset.addEventListener('click', () => { resetPlant(); });
+  el.btnCenter.addEventListener('click', () => { centerView(); });
+
+  el.btnPanel.addEventListener('click', () => {
+    const isMobilePanel = el.panel.classList.contains('mobile');
+    if(isMobilePanel) el.panel.classList.remove('mobile');
+    else el.panel.classList.add('mobile');
+  });
+
+  function resize(){
+    const dpr = Math.max(1, Math.min(2.5, window.devicePixelRatio || 1));
+    canvas.width = Math.floor(canvas.clientWidth * dpr);
+    canvas.height = Math.floor(canvas.clientHeight * dpr);
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+  }
+  window.addEventListener('resize', resize);
+
+  // Interaction: pointer-based pan/zoom + tap-to-water
+  const pointers = new Map();
+  let gesture = {
+    mode: "none",
+    startScale: 1,
+    startTx: 0,
+    startTy: 0,
+    startDist: 1,
+    startMid: vec(),
+    startPt: vec(),
+    moved: false,
+    downWorld: null,
+  };
+
+  canvas.addEventListener('pointerdown', (e) => {
+    canvas.setPointerCapture(e.pointerId);
+    pointers.set(e.pointerId, {x:e.clientX, y:e.clientY});
+    if(pointers.size === 1){
+      gesture.mode = "pan";
+      gesture.startScale = view.scale;
+      gesture.startTx = view.tx;
+      gesture.startTy = view.ty;
+      gesture.startPt = vec(e.clientX, e.clientY);
+      gesture.moved = false;
+      gesture.downWorld = screenToWorld(e.clientX, e.clientY);
+    } else if(pointers.size === 2){
+      gesture.mode = "pinch";
+      const pts = [...pointers.values()];
+      const mid = vec((pts[0].x+pts[1].x)/2, (pts[0].y+pts[1].y)/2);
+      gesture.startMid = mid;
+      gesture.startScale = view.scale;
+      gesture.startTx = view.tx;
+      gesture.startTy = view.ty;
+      gesture.startDist = Math.hypot(pts[0].x-pts[1].x, pts[0].y-pts[1].y) || 1;
+    }
+  });
+
+  canvas.addEventListener('pointermove', (e) => {
+    if(!pointers.has(e.pointerId)) return;
+    pointers.set(e.pointerId, {x:e.clientX, y:e.clientY});
+
+    if(gesture.mode === "pan" && pointers.size === 1){
+      const dx = e.clientX - gesture.startPt.x;
+      const dy = e.clientY - gesture.startPt.y;
+      if(Math.hypot(dx,dy) > 4) gesture.moved = true;
+      view.tx = gesture.startTx + dx;
+      view.ty = gesture.startTy + dy;
+    }
+    if(gesture.mode === "pinch" && pointers.size === 2){
+      const pts = [...pointers.values()];
+      const mid = vec((pts[0].x+pts[1].x)/2, (pts[0].y+pts[1].y)/2);
+      const dist = Math.hypot(pts[0].x-pts[1].x, pts[0].y-pts[1].y) || 1;
+
+      const zoom = dist / gesture.startDist;
+      const newScale = clamp(gesture.startScale * zoom, 0.5, 6);
+
+      const before = screenToWorld(mid.x, mid.y, gesture.startScale, gesture.startTx, gesture.startTy);
+      const after = screenToWorld(mid.x, mid.y, newScale, gesture.startTx, gesture.startTy);
+      view.scale = newScale;
+      view.tx = gesture.startTx + (after.x - before.x) * newScale;
+      view.ty = gesture.startTy + (after.y - before.y) * newScale;
+
+      const mdx = mid.x - gesture.startMid.x;
+      const mdy = mid.y - gesture.startMid.y;
+      view.tx += mdx;
+      view.ty += mdy;
+    }
+  });
+
+  canvas.addEventListener('pointerup', (e) => {
+    if(pointers.has(e.pointerId)) pointers.delete(e.pointerId);
+
+    if(gesture.mode === "pan" && !gesture.moved && sim.watering){
+      const w = gesture.downWorld;
+      if(w && pointInPot(w) && w.y >= pot.topY && w.y <= pot.bottomY){
+        const side = (w.x < 0) ? -1 : +1;
+        sprayWater(side);
+      }
+    }
+    if(pointers.size === 0){
+      gesture.mode = "none";
+    }else if(pointers.size === 1){
+      const p = [...pointers.values()][0];
+      gesture.mode = "pan";
+      gesture.startScale = view.scale;
+      gesture.startTx = view.tx;
+      gesture.startTy = view.ty;
+      gesture.startPt = vec(p.x, p.y);
+      gesture.moved = false;
+      gesture.downWorld = screenToWorld(p.x, p.y);
+    }
+  });
+
+  canvas.addEventListener('pointercancel', (e) => {
+    pointers.delete(e.pointerId);
+    if(pointers.size===0) gesture.mode="none";
+  });
+
+  canvas.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const delta = -e.deltaY;
+    const factor = Math.exp(delta * 0.0014);
+    const newScale = clamp(view.scale * factor, 0.5, 6);
+
+    const mx = e.clientX, my = e.clientY;
+    const before = screenToWorld(mx, my);
+    view.scale = newScale;
+    const after = screenToWorld(mx, my);
+    view.tx += (after.x - before.x) * view.scale;
+    view.ty += (after.y - before.y) * view.scale;
+  }, {passive:false});
+
+  function screenToWorld(sx, sy, scale=view.scale, tx=view.tx, ty=view.ty){
+    const cx = canvas.clientWidth/2;
+    const cy = canvas.clientHeight/2;
+    return { x: (sx - cx - tx) / scale, y: (sy - cy - ty) / scale };
+  }
+
+  function sprayWater(side){
+    const amt = 0.16;
+    if(side < 0) sim.moistL = clamp(sim.moistL + amt, 0, 1);
+    else sim.moistR = clamp(sim.moistR + amt, 0, 1);
+    el.moL.value = sim.moistL;
+    el.moR.value = sim.moistR;
+    updateLabels(); saveSettings();
+  }
+
+  function potHalfWAtY(y){
+    const t = clamp((y - pot.topY) / (pot.bottomY - pot.topY), 0, 1);
+    return lerp(pot.topHalfW, pot.bottomHalfW, t);
+  }
+  function pointInPot(p){
+    if(p.y < pot.topY || p.y > pot.bottomY) return false;
+    const hw = potHalfWAtY(p.y);
+    return Math.abs(p.x) <= hw;
+  }
+
+  function computeSunPos(){
+    const r = 340;
+    const x = Math.cos((180 - sim.sunAngleDeg) * Math.PI/180) * r;
+    const y = -Math.sin((180 - sim.sunAngleDeg) * Math.PI/180) * r - 170;
+    return {x, y};
+  }
+
+  function potRotationRad(){ return sim.tiltDeg * Math.PI/180; }
+
+  function gravityDirInPot(){
+    const tilt = potRotationRad();
+    return vnorm(vrot(vec(0,1), -tilt));
+  }
+
+  function stepPlant(dt){
+    if(sim.autoSun){
+      const day = (sim.t * 0.025) % 1;
+      sim.sunAngleDeg = lerp(0, 180, day);
+      el.sunAngle.value = sim.sunAngleDeg;
+    }
+
+    // moisture relax + diffuse
+    const relax = 0.03 * dt;
+    sim.moistL = clamp(lerp(sim.moistL, sim.baseMoist, relax), 0, 1);
+    sim.moistR = clamp(lerp(sim.moistR, sim.baseMoist, relax), 0, 1);
+    const diff = (sim.moistR - sim.moistL) * 0.015 * dt;
+    sim.moistL += diff; sim.moistR -= diff;
+    el.moL.value = sim.moistL; el.moR.value = sim.moistR;
+    updateLabels();
+
+    const sunPos = computeSunPos();
+    const gDir = gravityDirInPot();
+
+    // shoot
+    {
+      const tip = sim.shootPath[sim.shootPath.length-1];
+      const dir = sim.shootDir;
+
+      const toSun = vnorm(vsub(sunPos, tip));
+      const dA_light = sim.sunStrength * vcross(dir, toSun); // + => light on left => auxin on right
+      const desiredLight = toSun;
+
+      const desiredGrav = vmul(gDir, -1);
+      const dA_grav = - (sim.g/0.98) * vcross(dir, gDir);
+
+      const moistDelta = (sim.moistR - sim.moistL);
+      const dA_moist = 0.15 * moistDelta;
+
+      let dA_touch = 0;
+      let desiredTouch = null;
+      if(sim.bamboo && sim.vineAttached){
+        const pole = vec(sim.bambooX, pot.soilY - 30);
+        const toPole = vsub(pole, tip);
+        const dist = vlen(toPole);
+        if(dist < 90){
+          const radial = vnorm(toPole);
+          const tang = vrot(radial, -Math.PI/2);
+          desiredTouch = vnorm(vadd(vmul(radial, 0.35), vmul(tang, 0.65)));
+          dA_touch = 0.9 * vcross(dir, desiredTouch);
+        }
+      }
+
+      const wL = 1.25, wG = 0.9, wM = 0.35, wT = 0.9;
+      let dA = wL*dA_light + wG*dA_grav + wM*dA_moist + wT*dA_touch;
+      dA = clamp(dA, -1, 1);
+
+      let A = 0.20 + 0.45*sim.sunStrength + 0.12*clamp(sim.g/0.98, 0, 2) + 0.12*clamp((sim.moistL+sim.moistR)/2, 0, 1) + (sim.bamboo ? 0.05 : 0);
+      A = clamp(A, 0.05, 1.0);
+
+      const shootSpeed = lerp(0.22, 1.25, smoothstep(0.05, 0.95, A));
+      let target = vnorm(vadd(vmul(desiredLight, 0.58), vmul(desiredGrav, 0.35)));
+      if(desiredTouch) target = vnorm(vadd(vmul(target, 0.65), vmul(desiredTouch, 0.35)));
+
+      const angErr = vang(dir, target);
+      const turn = clamp(angErr, -1.2, 1.2) * 0.65 + dA * 0.22;
+      const newDir = vnorm(vrot(dir, turn * dt));
+
+      const stepLen = shootSpeed * dt * 14; // v0.13 slower
+      const newTip = vadd(tip, vmul(newDir, stepLen));
+      if(newTip.y > pot.soilY - 3) newTip.y = pot.soilY - 3;
+
+      sim.shootDir = newDir;
+      sim.shootPath.push(newTip);
+
+      const bias = 0.90; // v0.13: exaggerate L/R auxin difference for visualization
+      const left = clamp(A*(1 - bias*dA), 0, 1);
+      const right= clamp(A*(1 + bias*dA), 0, 1);
+      sim.shootAux = {A, dA, left, right};
+    }
+
+    // root
+    {
+      const tip = sim.rootPath[sim.rootPath.length-1];
+      const dir = sim.rootDir;
+
+      const toSun = vnorm(vsub(sunPos, tip));
+      const desiredLight = vmul(toSun, -1);
+      const dA_light = sim.sunStrength * (-vcross(dir, toSun));
+
+      const desiredGrav = gDir;
+      const dA_grav = - (sim.g/0.98) * vcross(dir, gDir);
+
+      const moistDelta = (sim.moistR - sim.moistL);
+      const dA_moist = 1.10 * moistDelta;
+
+      let dA_touch = 0;
+      let desiredTouch = null;
+      if(sim.bamboo){
+        const pole = vec(sim.bambooX, pot.soilY - 30);
+        const toPole = vsub(pole, tip);
+        const dist = vlen(toPole);
+        if(dist < 70){
+          desiredTouch = vnorm(vsub(tip, pole));
+          dA_touch = 0.6 * vcross(dir, desiredTouch);
+        }
+      }
+
+      const wL = 0.55, wG = 1.05, wM = 1.20, wT = 0.4;
+      let dA = wL*dA_light + wG*dA_grav + wM*dA_moist + wT*dA_touch;
+      dA = clamp(dA, -1, 1);
+
+      let A = 0.18 + 0.28*sim.sunStrength + 0.10*clamp(sim.g/0.98, 0, 2) + 0.32*clamp((sim.moistL+sim.moistR)/2, 0, 1);
+      A = clamp(A, 0.05, 1.0);
+
+      const rootSpeedRaw = lerp(1.10, 0.08, smoothstep(0.10, 0.95, A));
+      const rootSpeed = Math.max(0, rootSpeedRaw);
+
+      let target = vnorm(vadd(vmul(desiredGrav, 0.70), vmul(desiredLight, 0.18)));
+      if(Math.abs(moistDelta) > 0.02){
+        const mo = vnorm(vec(moistDelta, -0.15));
+        target = vnorm(vadd(vmul(target, 0.78), vmul(mo, 0.22)));
+      }
+      if(desiredTouch) target = vnorm(vadd(vmul(target, 0.75), vmul(desiredTouch, 0.25)));
+
+      const angErr = vang(dir, target);
+      const turn = clamp(angErr, -1.3, 1.3) * 0.55 - dA * 0.20;
+      const newDir = vnorm(vrot(dir, turn * dt));
+
+      const stepLen = rootSpeed * dt * 12; // v0.13 slower
+      let newTip = vadd(tip, vmul(newDir, stepLen));
+
+      if(!pointInPot(newTip)){
+        const steer = vnorm(vec(-Math.sign(newTip.x)*0.85, 0.45));
+        sim.rootDir = vnorm(vadd(vmul(newDir, 0.6), vmul(steer, 0.4)));
+        newTip = vadd(tip, vmul(sim.rootDir, stepLen));
+        const hw = potHalfWAtY(clamp(newTip.y, pot.topY, pot.bottomY));
+        newTip.x = clamp(newTip.x, -hw+2, hw-2);
+        newTip.y = clamp(newTip.y, pot.soilY+2, pot.bottomY-2);
+      }else{
+        sim.rootDir = newDir;
+      }
+      sim.rootPath.push(newTip);
+
+      const bias = 0.90; // v0.13: exaggerate L/R auxin difference for visualization
+      const left = clamp(A*(1 - bias*dA), 0, 1);
+      const right= clamp(A*(1 + bias*dA), 0, 1);
+      sim.rootAux = {A, dA, left, right};
+    }
+
+    // v0.13: attach to bamboo only when shoot touches it
+    if(sim.bamboo && !sim.vineAttached){
+      const st = sim.shootPath[sim.shootPath.length-1];
+      const dx = Math.abs(st.x - sim.bambooX);
+      const inHeight = (st.y < pot.soilY - 2) && (st.y > sim.bambooTopY) && (st.y < sim.bambooBottomY);
+      if(inHeight && dx < 14){
+        sim.vineAttached = true;
+      }
+    }
+
+    if(sim.bamboo && sim.vineAttached) sim.vinePhase += dt * 2.0;
+  }
+
+  function drawDottedBG(W,H){
+    ctx.save();
+    ctx.globalAlpha = 0.20;
+    const step = 22;
+    ctx.fillStyle = "rgba(255,255,255,.22)";
+    for(let y = (Math.floor((-view.ty)%step)+step)%step; y < H; y += step){
+      for(let x = (Math.floor((-view.tx)%step)+step)%step; x < W; x += step){
+        ctx.beginPath();
+        ctx.arc(x, y, 1.1, 0, Math.PI*2);
+        ctx.fill();
+      }
+    }
+    const g = ctx.createRadialGradient(W*0.5,H*0.5,Math.min(W,H)*0.2, W*0.5,H*0.5, Math.max(W,H)*0.75);
+    g.addColorStop(0, "rgba(0,0,0,0)");
+    g.addColorStop(1, "rgba(0,0,0,.55)");
+    ctx.fillStyle = g;
+    ctx.globalAlpha = 1;
+    ctx.fillRect(0,0,W,H);
+    ctx.restore();
+  }
+
+  function drawSun(){
+    const sunPos = computeSunPos();
+    const R = lerp(14, 32, sim.sunStrength);
+    ctx.save();
+    ctx.translate(sunPos.x, sunPos.y);
+    ctx.globalAlpha = 0.55;
+    ctx.strokeStyle = "rgba(255,226,140,.65)";
+    ctx.lineWidth = 2.2;
+    for(let i=0;i<10;i++){
+      const a = i*(Math.PI*2/10);
+      const r1 = R+6, r2=R+18;
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(a)*r1, Math.sin(a)*r1);
+      ctx.lineTo(Math.cos(a)*r2, Math.sin(a)*r2);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = "rgba(255,226,140,.92)";
+    ctx.beginPath(); ctx.arc(0,0,R,0,Math.PI*2); ctx.fill();
+    ctx.restore();
+  }
+
+  function drawPot(){
+    ctx.save();
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = "rgba(235,243,255,.70)";
+    ctx.fillStyle = "rgba(180,210,255,.05)";
+    ctx.beginPath();
+    ctx.moveTo(-pot.topHalfW, pot.topY);
+    ctx.lineTo(-pot.bottomHalfW, pot.bottomY);
+    ctx.lineTo(pot.bottomHalfW, pot.bottomY);
+    ctx.lineTo(pot.topHalfW, pot.topY);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.strokeStyle = "rgba(235,243,255,.55)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    const hw = potHalfWAtY(pot.soilY);
+    ctx.moveTo(-hw, pot.soilY);
+    ctx.lineTo(hw, pot.soilY);
+    ctx.stroke();
+
+    ctx.globalAlpha = 0.6;
+    ctx.strokeStyle = "rgba(125,211,168,.18)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(-pot.topHalfW+18, pot.topY+18);
+    ctx.lineTo(-pot.bottomHalfW+12, pot.bottomY-18);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawBamboo(){
+    ctx.save();
+    const x = sim.bambooX;
+    ctx.lineWidth = 7;
+    ctx.strokeStyle = "rgba(125,211,168,.75)";
+    ctx.beginPath();
+    ctx.moveTo(x, sim.bambooTopY);
+    ctx.lineTo(x, sim.bambooBottomY);
+    ctx.stroke();
+
+    ctx.lineWidth = 2.5;
+    ctx.strokeStyle = "rgba(16,24,38,.75)";
+    for(let y = sim.bambooTopY+20; y < sim.bambooBottomY; y += 38){
+      ctx.beginPath();
+      ctx.moveTo(x-10, y);
+      ctx.lineTo(x+10, y);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function strokePath(path){
+    ctx.beginPath();
+    for(let i=0;i<path.length;i++){
+      const p=path[i];
+      if(i===0) ctx.moveTo(p.x,p.y);
+      else ctx.lineTo(p.x,p.y);
+    }
+    ctx.stroke();
+  }
+
+  function drawLeaf(origin, dir, len, w){
+    const d = vnorm(dir);
+    const n = vrot(d, Math.PI/2);
+    const p1 = vadd(origin, vmul(d, len));
+    const c1 = vadd(origin, vadd(vmul(d, len*0.55), vmul(n, w)));
+    const c2 = vadd(origin, vadd(vmul(d, len*0.55), vmul(n, -w)));
+    ctx.beginPath();
+    ctx.moveTo(origin.x, origin.y);
+    ctx.quadraticCurveTo(c1.x, c1.y, p1.x, p1.y);
+    ctx.quadraticCurveTo(c2.x, c2.y, origin.x, origin.y);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  function drawPlant(){
+    ctx.save();
+    ctx.lineWidth = 4.5;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.strokeStyle = "rgba(125,211,168,.95)";
+    strokePath(sim.shootPath);
+
+    const st = sim.shootPath[sim.shootPath.length-1];
+    const dir = sim.shootDir;
+    ctx.fillStyle = "rgba(125,211,168,.85)";
+    drawLeaf(st, vrot(dir, -0.6), 20, 12);
+    drawLeaf(st, vrot(dir, +0.6), 20, 12);
+
+    if(sim.bamboo){
+      const bx = sim.bambooX;
+      const startY = pot.soilY - 8;
+      const endY = st.y;
+      if(endY < startY){
+        const turns = Math.min(8, Math.max(2, Math.floor((startY - endY)/45)));
+        ctx.strokeStyle = "rgba(125,211,168,.55)";
+        ctx.lineWidth = 2.0;
+        ctx.beginPath();
+        for(let i=0;i<=120;i++){
+          const t = i/120;
+          const y = lerp(startY, endY, t);
+          const ang = (t*turns*2*Math.PI) + sim.vinePhase*0.35;
+          const x = bx + Math.cos(ang) * 10;
+          if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+        }
+        ctx.stroke();
+      }
+    }
+    ctx.restore();
+
+    ctx.save();
+    ctx.lineWidth = 3.8;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.strokeStyle = "rgba(215,173,126,.92)";
+    strokePath(sim.rootPath);
+
+    ctx.globalAlpha = 0.5;
+    ctx.lineWidth = 1.4;
+    ctx.strokeStyle = "rgba(215,173,126,.55)";
+    const rr = sim.rootPath;
+    for(let i=Math.max(2, rr.length-36); i<rr.length-2; i+=3){
+      const p = rr[i];
+      const d = vnorm(vsub(rr[i+1], rr[i-1]));
+      const n = vrot(d, Math.PI/2);
+      const len = 5 + (i%4)*2;
+      ctx.beginPath();
+      ctx.moveTo(p.x, p.y);
+      ctx.lineTo(p.x + n.x*len, p.y + n.y*len);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function pseudo(seed){
+    const x = Math.sin(seed*12.9898) * 43758.5453;
+    return x - Math.floor(x);
+  }
+
+  function drawDot(p, r, color, alpha){
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, r, 0, Math.PI*2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawAuxAlongPath(path, aux, segCount, band, color){
+    // v0.13: smaller particles + density scales with light (weak≈5%, strong=100%)
+    // and L/R density difference constrained to ~10–30% (visual clarity, not exaggerated).
+    const start = Math.max(1, path.length - segCount);
+
+    // Overall density factor from light: when sunStrength is very weak -> ~5%, strong -> 100%.
+    // If sun is fully off (handled elsewhere as full darkness), we effectively show none.
+    const s = clamp(sim.sunStrength, 0, 1);
+    const lightFactor = (s <= 0.001) ? 0.0 : (0.05 + 0.95 * Math.pow(s, 1.7));
+
+    // Use aux.A as macro baseline, then apply light scaling.
+    const A = clamp(aux.A || 0, 0, 1);
+
+    // Determine which side is higher (sign of asymmetry), then enforce a moderate difference.
+    const sideSign = ((aux.right || 0) - (aux.left || 0)) >= 0 ? +1 : -1; // +1: right higher
+
+    // difference percentage in [0.10, 0.30]
+    const dAbs = clamp(Math.abs(aux.dA || 0), 0, 1);
+    const diffPct = clamp(0.10 + 0.20 * dAbs, 0.10, 0.30);
+
+    // Side factors so that (right-left)/base ~= diffPct
+    const fHi = 1 + diffPct/2;
+    const fLo = 1 - diffPct/2;
+
+    const fL = (sideSign > 0) ? fLo : fHi;
+    const fR = (sideSign > 0) ? fHi : fLo;
+
+    // Base per-sample dot count (before side factors) based on A and light
+    const densMin = 1;
+    const densMax = 20;
+    const baseDots = lerp(densMin, densMax, Math.pow(A, 1.15)) * lightFactor;
+
+    for(let i=start;i<path.length-1;i++){
+      const p0 = path[i-1] || path[i];
+      const p1 = path[i];
+      const p2 = path[i+1];
+
+      const d = vnorm(vsub(p2, p0));
+      const n = vrot(d, Math.PI/2);
+
+      const segL = vlen(vsub(p2,p1));
+      const N = Math.floor(segL * 0.22) + 2;
+
+      for(let k=0;k<N;k++){
+        const t = (k) / N;
+        const basePt = vadd(p1, vmul(vsub(p2,p1), t));
+
+        const nL = Math.max(0, Math.floor(baseDots * fL + 0.5));
+        for(let j=0;j<nL;j++){
+          const r1 = pseudo(i*999 + k*17 + j*101) - 0.5;
+          const r2 = pseudo(i*555 + k*31 + j*19) - 0.5;
+          const off = vmul(n, - (band*0.32 + (Math.abs(r1)*band)));
+          const jit = vec(r2*3.0, r1*3.0);
+          drawDot(vadd(basePt, vadd(off, jit)), 0.55, color, 0.85);
+        }
+
+        const nR = Math.max(0, Math.floor(baseDots * fR + 0.5));
+        for(let j=0;j<nR;j++){
+          const r1 = pseudo(i*777 + k*13 + j*97) - 0.5;
+          const r2 = pseudo(i*333 + k*29 + j*23) - 0.5;
+          const off = vmul(n, + (band*0.32 + (Math.abs(r1)*band)));
+          const jit = vec(r2*3.0, r1*3.0);
+          drawDot(vadd(basePt, vadd(off, jit)), 0.55, color, 0.85);
+        }
+      }
+    }
+  }
+
+  function drawDotCluster(x, y, count, spread){
+    ctx.save();
+    ctx.fillStyle = "rgba(255,255,255,.80)";
+    for(let i=0;i<count;i++){
+      const a = pseudo(i*99.1) * Math.PI*2;
+      const r = pseudo(i*37.7) * spread*0.55;
+      const px = x + Math.cos(a)*r;
+      const py = y + Math.sin(a)*r;
+      ctx.beginPath();
+      ctx.arc(px, py, 0.7, 0, Math.PI*2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  function roundRect(x,y,w,h,r,fill,stroke){
+    const rr = Math.min(r, w/2, h/2);
+    ctx.beginPath();
+    ctx.moveTo(x+rr, y);
+    ctx.arcTo(x+w, y, x+w, y+h, rr);
+    ctx.arcTo(x+w, y+h, x, y+h, rr);
+    ctx.arcTo(x, y+h, x, y, rr);
+    ctx.arcTo(x, y, x+w, y, rr);
+    ctx.closePath();
+    if(fill) ctx.fill();
+    if(stroke) ctx.stroke();
+  }
+
+  function drawZoomHint(){
+    const st = sim.shootPath[sim.shootPath.length-1];
+    ctx.save();
+    ctx.globalAlpha = 0.45;
+    ctx.strokeStyle = "rgba(255,255,255,.50)";
+    ctx.lineWidth = 1.8;
+    ctx.beginPath();
+    ctx.arc(st.x+22, st.y-22, 16, 0, Math.PI*2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(st.x+33, st.y-11);
+    ctx.lineTo(st.x+48, st.y+4);
+    ctx.stroke();
+    ctx.globalAlpha = 0.55;
+    ctx.fillStyle = "rgba(233,238,246,.60)";
+    ctx.font = "12px " + getComputedStyle(document.documentElement).getPropertyValue('--sans');
+    ctx.fillText("放大可見生長素粒子", st.x+54, st.y+8);
+    ctx.restore();
+  }
+
+  function drawSoilMoistureBar(){
+    ctx.save();
+    const y = pot.bottomY - 16;
+    const w = pot.bottomHalfW*2 - 20;
+    const x0 = -w/2;
+    const h = 8;
+
+    ctx.globalAlpha = 0.85;
+    ctx.fillStyle = "rgba(16,24,38,.70)";
+    roundRect(x0, y, w, h, 6, true, false);
+
+    const l = clamp(sim.moistL,0,1);
+    const r = clamp(sim.moistR,0,1);
+    const wl = w*0.5*l;
+    const wr = w*0.5*r;
+
+    ctx.fillStyle = "rgba(134,168,255,.65)";
+    roundRect(x0, y, wl, h, 6, true, false);
+
+    ctx.fillStyle = "rgba(125,211,168,.65)";
+    roundRect(x0 + w*0.5, y, wr, h, 6, true, false);
+
+    ctx.globalAlpha = 0.6;
+    ctx.fillStyle = "rgba(233,238,246,.70)";
+    ctx.font = "11px " + getComputedStyle(document.documentElement).getPropertyValue('--mono');
+    ctx.fillText("左濕", x0, y-6);
+    ctx.fillText("右濕", x0 + w*0.5, y-6);
+
+    ctx.restore();
+  }
+
+  function drawAuxinParticles(){
+    ctx.save();
+    ctx.globalAlpha = 0.9;
+
+    drawAuxAlongPath(sim.shootPath, sim.shootAux, 26, 9, "rgba(255,255,255,.78)");
+    drawAuxAlongPath(sim.rootPath,  sim.rootAux,  26, 8, "rgba(255,255,255,.74)");
+
+    const anchor = vec(pot.bottomHalfW + 18, pot.bottomY - 30);
+    ctx.globalAlpha = 0.9;
+    ctx.fillStyle = "rgba(16,24,38,.82)";
+    roundRect(anchor.x-176, anchor.y-70, 164, 62, 10, true, false);
+    ctx.strokeStyle = "rgba(255,255,255,.12)";
+    ctx.lineWidth = 1.5;
+    roundRect(anchor.x-176, anchor.y-70, 164, 62, 10, false, true);
+
+    ctx.fillStyle = "rgba(233,238,246,.88)";
+    ctx.font = "12px " + getComputedStyle(document.documentElement).getPropertyValue('--sans');
+    ctx.fillText("生長素粒子（放大可見）", anchor.x-166, anchor.y-48);
+
+    drawDotCluster(anchor.x-162, anchor.y-28, 18, 16);
+    ctx.fillStyle = "rgba(233,238,246,.75)";
+    ctx.fillText("濃度高", anchor.x-134, anchor.y-24);
+
+    drawDotCluster(anchor.x-162, anchor.y-10, 6, 16);
+    ctx.fillStyle = "rgba(233,238,246,.75)";
+    ctx.fillText("濃度低", anchor.x-134, anchor.y-6);
+
+    ctx.restore();
+  }
+
+  function draw(){
+    const W = canvas.clientWidth, H = canvas.clientHeight;
+    ctx.clearRect(0,0,W,H);
+    drawDottedBG(W,H);
+
+    ctx.save();
+    ctx.translate(W/2 + view.tx, H/2 + view.ty);
+    ctx.scale(view.scale, view.scale);
+
+    const tilt = potRotationRad();
+    ctx.rotate(tilt);
+
+    if(sim.sunStrength > 0.001) drawSun();
+    drawPot();
+    if(sim.bamboo) drawBamboo();
+    drawPlant();
+
+    const showParticles = view.scale >= 2.0;
+    if(showParticles) drawAuxinParticles();
+    else drawZoomHint();
+
+    drawSoilMoistureBar();
+    ctx.restore();
+
+    // v0.13: full darkness when sunStrength = 0
+    if(sim.sunStrength <= 0.001){
+      ctx.save();
+      ctx.fillStyle = 'rgba(0,0,0,0.92)';
+      ctx.fillRect(0,0,W,H);
+      ctx.fillStyle = 'rgba(233,238,246,0.70)';
+      ctx.font = '14px ' + getComputedStyle(document.documentElement).getPropertyValue('--sans');
+      ctx.fillText('全黑暗（太陽關閉）', 16, H-18);
+      ctx.restore();
+    }
+
+    el.badge.textContent = `縮放 ${view.scale.toFixed(2)}× | 時間 ${sim.timeScale}×`;
+    el.pillAuxin.style.opacity = (view.scale < 2.0) ? 1 : 0.15;
+  }
+
+  function centerView(){ view.scale = 1.0; view.tx = 0; view.ty = 0; }
+
+  // main loop
+  let last = performance.now();
+  function tick(now){
+    const dtReal = Math.min(0.033, (now - last) / 1000);
+    last = now;
+
+    if(!paused){
+      const dt = dtReal * sim.timeScale;
+      sim.t += dt;
+      stepPlant(dt);
+    }
+    draw();
+    requestAnimationFrame(tick);
+  }
+
+  // init
+  function init(){
+    loadSettings();
+    setUIFromSim();
+    resetPlant();
+    resize();
+    centerView();
+    requestAnimationFrame(tick);
+  }
+  init();
+})();
+</script>
+</body>
+</html>
