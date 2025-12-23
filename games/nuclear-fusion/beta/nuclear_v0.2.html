@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>nuclear v0.1 — 核素合成教學模擬</title>
+<style>
+  :root{
+    --bg:#070a12; --panel:#0d1424; --line:#1b2a4a; --txt:#e9f2ff; --sub:#9db3ff;
+    --red:#ff4d4d; --blue:#58a6ff; --violet:#b067ff; --gold:#ffdb6e;
+    --accent:#3a6cff; --symSize:68px; --metaSize:36px;
+  }
+  html,body{height:100%;margin:0;background:var(--bg);color:var(--txt);font-family:system-ui,-apple-system,Segoe UI,Inter,Roboto,Arial}
+  #gl{position:fixed;inset:0 380px 0 0;display:block;touch-action:none;background:radial-gradient(1200px 600px at 50% 100%, #0e1830 0%, #070a12 60%)}
+  #ui{position:fixed;right:0;top:0;bottom:0;width:380px;max-width:100vw;background:rgba(13,20,36,.92);backdrop-filter:blur(6px);border-left:1px solid var(--line);display:flex;flex-direction:column}
+  #head{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-bottom:1px solid var(--line)}
+  .tag{font-size:12px;padding:3px 8px;border-radius:999px;background:#14213a;border:1px solid #21325a;color:#9bdcff}
+  #panel{padding:12px;overflow:auto;flex:1}
+  .card{border:1px solid var(--line);border-radius:12px;background:var(--panel);padding:12px;margin-bottom:12px}
+  .sq{position:relative;width:88%;margin:0 auto;aspect-ratio:1/1;border:1px dashed var(--line);border-radius:12px;display:flex;align-items:center;justify-content:center}
+  .sq .sym{font-size:var(--symSize);font-weight:800;letter-spacing:.5px;line-height:1;transform:translateY(-2px)}
+  .sq .a{position:absolute;left:10px;top:6px;font-size:var(--metaSize);font-weight:800;color:var(--gold)}
+  .sq .z{position:absolute;left:10px;bottom:6px;font-size:var(--metaSize);font-weight:800;color:var(--gold)}
+  .sq .charge{position:absolute;right:10px;top:6px;font-size:var(--metaSize);font-weight:800;color:var(--gold)}
+  .row{display:flex;gap:10px;flex-wrap:wrap}
+  button{background:#1a2743;color:#e6f0ff;border:1px solid #2a3d6b;padding:8px 10px;border-radius:12px;cursor:pointer}
+  button:hover{background:#23365e}
+  .bigbtn{flex:1 1 30%;font-size:18px;padding:14px 10px}
+  .good{background:#2e7d32;border-color:#2e7d32}
+  .bad{background:#9b2c2c;border-color:#9b2c2c}
+  .pill{display:inline-flex;align-items:center;gap:6px;border:1px solid #2a3d6b;border-radius:999px;padding:4px 8px;background:#0f1625;font-size:12px}
+  .dot{width:10px;height:10px;border-radius:50%}
+  .p{background:var(--red);box-shadow:0 0 8px #ff4d4d80}
+  .n{background:var(--blue);box-shadow:0 0 8px #58a6ff80}
+  .e{background:var(--violet);box-shadow:0 0 8px #b067ff80}
+  .stat{font-variant-numeric:tabular-nums}
+  .log{font-size:12px;line-height:1.5;border:1px solid var(--line);background:#0b131f;padding:8px;border-radius:10px;max-height:180px;overflow:auto}
+  .log div{margin-bottom:4px}
+  #footer{padding:10px 12px;border-top:1px solid var(--line);font-size:12px;color:#9bb3ff}
+  /* 說明 Modal */
+  #help{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;z-index:20}
+  #help .box{width:min(900px,92vw);height:min(76vh,780px);background:#0e1626;border:1px solid #22345a;border-radius:14px;overflow:hidden;display:flex;flex-direction:column}
+  #helpHead{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-bottom:1px solid #22345a}
+  #helpBody{padding:12px;overflow:auto}
+  #helpBody h1,h2,h3{color:#cfe0ff}
+  #helpBody code{background:#091220;border:1px solid #1b2a4a;border-radius:6px;padding:0 6px}
+  #helpBody pre{background:#091220;border:1px solid #1b2a4a;border-radius:8px;padding:10px;overflow:auto}
+  #helpBody a{color:#9bdcff}
+  @media (max-width:1100px){
+    #gl{inset:0 0 50% 0}
+    #ui{inset:auto 0 0 0;height:50%;width:100%;border-left:none;border-top:1px solid var(--line)}
+  }
+</style>
+</head>
+<body>
+<canvas id="gl"></canvas>
+
+<div id="ui">
+  <div id="head">
+    <div class="tag">nuclear v0.1</div>
+    <div class="tag">核素合成教學</div>
+  </div>
+  <div id="panel">
+    <div class="card">
+      <div class="sq" id="tile">
+        <div class="a" id="tileA">1</div>
+        <div class="sym" id="tileSym">H</div>
+        <div class="z" id="tileZ">1</div>
+        <div class="charge" id="tileQ"></div>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <button id="addP" class="bigbtn">質子</button>
+        <button id="addN" class="bigbtn">中子</button>
+        <button id="addE" class="bigbtn">電子</button>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <span class="pill"><span class="dot p"></span>質子</span>
+        <span class="pill"><span class="dot n"></span>中子</span>
+        <span class="pill"><span class="dot e"></span>電子</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div id="now" class="stat">目前：總質量數 0；質子 0、中子 0、電子 0。核素：—</div>
+      <div id="st" class="stat" style="margin-top:6px;color:#9bdcff">狀態：—</div>
+      <div class="row" style="margin-top:10px">
+        <button id="reset" class="bad">清空</button>
+        <button id="neutralize">自動補電子（成中性）</button>
+        <button id="btnHelp" class="good">說明</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div style="font-size:13px;color:#9bb3ff;margin-bottom:6px">事件紀錄</div>
+      <div id="log" class="log" role="log" aria-live="polite"></div>
+    </div>
+  </div>
+  <div id="footer">完成目標元素：達到該元素任一穩定同位素即視為完成；系統自動切換到下一個元素。</div>
+</div>
+
+<!-- 說明 Modal -->
+<div id="help" aria-hidden="true">
+  <div class="box">
+    <div id="helpHead">
+      <div>說明（readme.md）</div>
+      <button id="closeHelp">關閉</button>
+    </div>
+    <div id="helpBody">載入中…</div>
+  </div>
+</div>
+
+<script>
+/* ====== 基礎資料（Z ≤ 10） ====== */
+const SYMBOL = ["","H","He","Li","Be","B","C","N","O","F","Ne"];
+const NAME   = ["","氫","氦","鋰","鈹","硼","碳","氮","氧","氟","氖"];
+const STABLE_N = { 1:[0,1], 2:[1,2], 3:[3,4], 4:[5], 5:[5,6], 6:[6,7], 7:[7,8], 8:[8,9,10], 9:[10], 10:[10,11,12] };
+const TARGET_A = {1:1,2:4,3:7,4:9,5:11,6:12,7:14,8:16,9:19,10:20};
+
+/* ====== 狀態 ====== */
+let Z=0,N=0,e=0;
+let decayTimer=null;
+let currentTargetZ=1;
+let animT=0;
+let DPR=Math.min(2,window.devicePixelRatio||1);
+
+/* ====== 介面 ====== */
+const canvas=document.getElementById('gl');
+const logEl=document.getElementById('log');
+const nowEl=document.getElementById('now');
+const stEl=document.getElementById('st');
+const tileA=document.getElementById('tileA');
+const tileSym=document.getElementById('tileSym');
+const tileZ=document.getElementById('tileZ');
+const tileQ=document.getElementById('tileQ');
+const help=document.getElementById('help');
+const helpBody=document.getElementById('helpBody');
+document.getElementById('btnHelp').onclick=()=>{ openHelp(); };
+document.getElementById('closeHelp').onclick=()=>{ help.style.display='none'; help.setAttribute('aria-hidden','true'); };
+
+function setTile(){
+  tileA.textContent = TARGET_A[currentTargetZ]||"?";
+  tileSym.textContent = SYMBOL[currentTargetZ]||"?";
+  tileZ.textContent = String(currentTargetZ);
+  updateChargeBadge();
+}
+setTile();
+
+function updateChargeBadge(){
+  const q = Z - e;
+  if (q===0){ tileQ.textContent = ""; return; }
+  tileQ.textContent = (Math.abs(q)===1? ""+ (q>0?"+":"-") : Math.abs(q)+(q>0?"+":"-"));
+}
+
+function uiNow(){
+  const A=Z+N;
+  const label = (Z>0) ? `${SYMBOL[Z]}-${A}` : "—";
+  nowEl.textContent = `目前：總質量數 ${A}；質子 ${Z}、中子 ${N}、電子 ${e}。核素：${label}`;
+}
+function uiStateStable(){
+  const A=Z+N, sym=(SYMBOL[Z]||"");
+  stEl.style.color="#7cf7a8";
+  stEl.textContent = `狀態：穩定 ${sym}-${A}`;
+}
+function uiStateUnstable(){
+  const A=Z+N, sym=(SYMBOL[Z]||"");
+  stEl.style.color="#ffb070";
+  stEl.textContent = `狀態：不穩定 ☢  ${sym}-${A}`;
+}
+function uiStateEmpty(){
+  stEl.style.color="#9bdcff";
+  stEl.textContent = "狀態：—";
+}
+
+function log(msg){
+  const line=document.createElement('div');
+  line.textContent = new Date().toLocaleTimeString()+"  "+msg;
+  logEl.prepend(line);
+}
+
+/* ====== 規則 ====== */
+function isStable(Z,N){
+  if (Z<=0 || N<0) return false;
+  if (!STABLE_N[Z]) return false;
+  return STABLE_N[Z].includes(N);
+}
+function averageStableN(Z){
+  const arr=STABLE_N[Z]; if (!arr) return null;
+  return arr.reduce((a,b)=>a+b,0)/arr.length;
+}
+function nuclideLabel(Z,N){ if (Z<=0) return "—"; const A=Z+N; return `${SYMBOL[Z]||"?"}-${A}`; }
+function scheduleDecay(){
+  clearTimeout(decayTimer);
+  if (Z===0) return;
+  if (isStable(Z,N)) return;
+  if (Z===1 && N===2){
+    decayTimer=setTimeout(()=>{
+      spawnBetaMinus();
+      Z=2; N=1;
+      log("β⁻ 衰變：H-3 → He-3");
+      onStructureChanged();
+    }, 1200);
+    return;
+  }
+  const avg = averageStableN(Z);
+  if (avg==null) return;
+  const mode = (N>avg) ? 'beta-' : 'beta+';
+  decayTimer=setTimeout(()=>{
+    if (mode==='beta-'){
+      if (N<=0) return;
+      N--; Z++;
+      spawnBetaMinus();
+      log(`β⁻ 衰變：→ ${nuclideLabel(Z,N)}`);
+    }else{
+      if (Z<=1){
+        spawnNoop(); log("β⁺ 衰變嘗試：質子數過少，略過。");
+      }else{
+        Z--; N++;
+        spawnBetaPlus();
+        log(`β⁺ 衰變：→ ${nuclideLabel(Z,N)}`);
+      }
+    }
+    onStructureChanged();
+  }, 1200);
+}
+
+function checkTargetAdvance(){
+  if (Z===currentTargetZ && isStable(Z,N)){
+    flashTile();
+    currentTargetZ = Math.min(10, currentTargetZ+1);
+    setTile();
+    log(`達成目標元素：${SYMBOL[Z]}，前往下一個元素 ${SYMBOL[currentTargetZ]||""}`);
+  }
+}
+function flashTile(){
+  const t=document.getElementById('tile');
+  t.style.transition="transform .2s, box-shadow .2s"; t.style.transform="scale(1.04)"; t.style.boxShadow="0 0 0 3px #3a6cff66";
+  setTimeout(()=>{t.style.transform="scale(1)"; t.style.boxShadow="none";}, 300);
+}
+
+/* ====== GL 初始化與兩盞燈 ====== */
+let gl,W,H;
+const camera={yaw:0,pitch:0,dist:520,fov:55*Math.PI/180, zoom:1};
+let sphereGeo, progSphere, progPoint;
+let particles=[];
+function initGL(){
+  gl=canvas.getContext('webgl',{antialias:true,alpha:false,premultipliedAlpha:false});
+  if(!gl){ alert("此裝置不支援 WebGL"); return; }
+  gl.enable(gl.DEPTH_TEST); gl.enable(gl.CULL_FACE);
+  gl.clearColor(0.06,0.08,0.13,1);
+  resize();
+  initPrograms();
+  sphereGeo = buildSphere(20,32);
+  requestAnimationFrame(draw);
+}
+function resize(){
+  const right=(window.innerWidth>1100)?380:0;
+  W = canvas.width = Math.floor((window.innerWidth - right)*DPR);
+  H = canvas.height= Math.floor(((window.innerWidth>1100)?window.innerHeight:window.innerHeight*0.5)*DPR);
+  canvas.style.width = Math.floor(W/DPR)+"px";
+  canvas.style.height= Math.floor(H/DPR)+"px";
+  if(gl) gl.viewport(0,0,W,H);
+}
+window.addEventListener('resize', resize);
+
+/* ====== 矩陣 ====== */
+function mat4Identity(){ return [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1]; }
+function mat4Mul(a,b){
+  const out=new Array(16);
+  for (let i=0;i<4;i++)
+    for (let j=0;j<4;j++)
+      out[i*4+j]= a[0*4+j]*b[i*4+0] + a[1*4+j]*b[i*4+1] + a[2*4+j]*b[i*4+2] + a[3*4+j]*b[i*4+3];
+  return out;
+}
+function mat4Perspective(fovy,aspect,near,far){
+  const f=1/Math.tan(fovy/2), nf=1/(near-far);
+  return [f/aspect,0,0,0, 0,f,0,0, 0,0,(far+near)*nf,-1, 0,0,(2*far*near)*nf,0];
+}
+function mat4Translate(m,x,y,z){ const t=[1,0,0,0, 0,1,0,0, 0,0,1,0, x,y,z,1]; return mat4Mul(m,t); }
+function mat4RotateX(m,a){ const c=Math.cos(a),s=Math.sin(a); return mat4Mul(m,[1,0,0,0, 0,c,s,0, 0,-s,c,0, 0,0,0,1]); }
+function mat4RotateY(m,a){ const c=Math.cos(a),s=Math.sin(a); return mat4Mul(m,[c,0,-s,0, 0,1,0,0, s,0,c,0, 0,0,0,1]); }
+function mat4Scale(m,sx,sy,sz){ return mat4Mul(m,[sx,0,0,0, 0,sy,0,0, 0,0,sz,0, 0,0,0,1]); }
+
+/* ====== Shaders（雙光源） ====== */
+const sphereVS=`
+precision mediump float;
+attribute vec3 aPos;
+attribute vec3 aNorm;
+uniform mat4 uMVP;
+uniform mat4 uModel;
+varying vec3 vN;
+varying vec3 vWPos;
+void main(){
+  vec4 w = uModel * vec4(aPos,1.0);
+  vWPos = w.xyz;
+  vN = normalize(mat3(uModel) * aNorm);
+  gl_Position = uMVP * vec4(aPos,1.0);
+}`;
+const sphereFS=`
+precision mediump float;
+varying vec3 vN;
+varying vec3 vWPos;
+uniform vec3 uLightDir1; // 側前方主光
+uniform vec3 uLightDir2; // 相機前方補光
+uniform vec3 uAmbient;
+uniform vec3 uColor;
+uniform float uAlpha;
+uniform vec3 uCamPos;
+void main(){
+  vec3 N = normalize(vN);
+  vec3 L1 = normalize(uLightDir1);
+  vec3 L2 = normalize(uLightDir2);
+  vec3 V  = normalize(uCamPos - vWPos);
+  vec3 H1 = normalize(L1+V);
+  vec3 H2 = normalize(L2+V);
+
+  float diff1 = max(dot(N,L1),0.0);
+  float diff2 = max(dot(N,L2),0.0);
+  float spec1 = pow(max(dot(N,H1),0.0), 48.0);
+  float spec2 = pow(max(dot(N,H2),0.0), 28.0);
+
+  vec3 col = uAmbient
+           + uColor*(0.70*diff1 + 0.35*diff2)
+           + vec3(1.0)*(0.28*spec1 + 0.18*spec2);
+
+  gl_FragColor = vec4(col, uAlpha);
+}`;
+const pointVS=`
+precision mediump float;
+attribute vec3 aPos;
+uniform mat4 uMVP;
+uniform float uSize;
+void main(){
+  gl_Position = uMVP * vec4(aPos,1.0);
+  gl_PointSize = uSize;
+}`;
+const pointFS=`
+precision mediump float;
+uniform vec3 uColor;
+uniform float uAlpha;
+void main(){
+  vec2 uv = gl_PointCoord*2.0-1.0;
+  float r = length(uv);
+  float m = smoothstep(1.0,0.6,r);
+  gl_FragColor = vec4(uColor, uAlpha*m);
+}`;
+function compileShader(type,src){
+  const s=gl.createShader(type); gl.shaderSource(s,src); gl.compileShader(s);
+  if(!gl.getShaderParameter(s,gl.COMPILE_STATUS)) console.error(gl.getShaderInfoLog(s));
+  return s;
+}
+function program(vs,fs){
+  const p=gl.createProgram();
+  gl.attachShader(p,compileShader(gl.VERTEX_SHADER,vs));
+  gl.attachShader(p,compileShader(gl.FRAGMENT_SHADER,fs));
+  gl.linkProgram(p);
+  if(!gl.getProgramParameter(p,gl.LINK_STATUS)) console.error(gl.getProgramInfoLog(p));
+  return p;
+}
+function initPrograms(){
+  progSphere = program(sphereVS,sphereFS);
+  progSphere.aPos=gl.getAttribLocation(progSphere,'aPos');
+  progSphere.aNorm=gl.getAttribLocation(progSphere,'aNorm');
+  progSphere.uMVP=gl.getUniformLocation(progSphere,'uMVP');
+  progSphere.uModel=gl.getUniformLocation(progSphere,'uModel');
+  progSphere.uLightDir1=gl.getUniformLocation(progSphere,'uLightDir1');
+  progSphere.uLightDir2=gl.getUniformLocation(progSphere,'uLightDir2');
+  progSphere.uAmbient=gl.getUniformLocation(progSphere,'uAmbient');
+  progSphere.uColor=gl.getUniformLocation(progSphere,'uColor');
+  progSphere.uAlpha=gl.getUniformLocation(progSphere,'uAlpha');
+  progSphere.uCamPos=gl.getUniformLocation(progSphere,'uCamPos');
+
+  progPoint = program(pointVS,pointFS);
+  progPoint.aPos=gl.getAttribLocation(progPoint,'aPos');
+  progPoint.uMVP=gl.getUniformLocation(progPoint,'uMVP');
+  progPoint.uSize=gl.getUniformLocation(progPoint,'uSize');
+  progPoint.uColor=gl.getUniformLocation(progPoint,'uColor');
+  progPoint.uAlpha=gl.getUniformLocation(progPoint,'uAlpha');
+}
+
+/* ====== 幾何 ====== */
+function buildSphere(lat=20,lon=32){
+  const pos=[],norm=[],idx=[];
+  for(let y=0;y<=lat;y++){
+    const v=y/lat, phi=v*Math.PI;
+    for(let x=0;x<=lon;x++){
+      const u=x/lon, th=u*Math.PI*2;
+      const sx=Math.cos(th)*Math.sin(phi);
+      const sy=Math.cos(phi);
+      const sz=Math.sin(th)*Math.sin(phi);
+      pos.push(sx,sy,sz); norm.push(sx,sy,sz);
+    }
+  }
+  for(let y=0;y<lat;y++){
+    for(let x=0;x<lon;x++){
+      const i=y*(lon+1)+x;
+      const a=i,b=i+lon+1,c=i+1,d=i+lon+2;
+      idx.push(a,b,c,c,b,d);
+    }
+  }
+  const vbuf=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,vbuf);
+  const packed=new Float32Array(pos.length+norm.length);
+  packed.set(pos,0); packed.set(norm,pos.length);
+  gl.bufferData(gl.ARRAY_BUFFER, packed, gl.STATIC_DRAW);
+  const ibo=gl.createBuffer(); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,ibo);
+  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(idx), gl.STATIC_DRAW);
+  return {vbuf,ibo,count:idx.length,normOfs:pos.length*4};
+}
+
+/* ====== 3D 模型資料 ====== */
+let nucleus=[];
+let shells=[];
+function rebuildGeometry(){
+  const A=Z+N;
+  const Rn = 18 + Math.cbrt(Math.max(1,A))*7;
+  nucleus = makeNucleusPoints(A, Rn*0.6).map((v,i)=>({pos:v,isP:i<Z}));
+  shells = buildShells(e, Rn);
+  autoFit(Rn, shells);
+  updateChargeBadge();
+}
+function makeNucleusPoints(total,R){
+  if (total<=0) return [];
+  const pts=[];
+  for(let i=0;i<total;i++){
+    const u=Math.random(), v=Math.random();
+    const th=2*Math.PI*u, cz=2*v-1, sz=Math.sqrt(1-cz*cz);
+    pts.push([sz*Math.cos(th)*R*0.6, cz*R*0.6, sz*Math.sin(th)*R*0.6]);
+  }
+  for(let it=0; it<30; it++){
+    for(let i=0;i<pts.length;i++){
+      let fx=0,fy=0,fz=0;
+      for(let j=0;j<pts.length;j++){ if(i===j) continue;
+        const dx=pts[i][0]-pts[j][0], dy=pts[i][1]-pts[j][1], dz=pts[i][2]-pts[j][2];
+        const d=Math.hypot(dx,dy,dz)+0.01, rep=(R*0.16)/(d*d);
+        fx+=dx/d*rep; fy+=dy/d*rep; fz+=dz/d*rep;
+      }
+      pts[i][0]+=fx*0.05; pts[i][1]+=fy*0.05; pts[i][2]+=fz*0.05;
+      const d=Math.hypot(pts[i][0],pts[i][1],pts[i][2])+1e-6, s=Math.min(1, R*0.85/d);
+      pts[i][0]*=s; pts[i][1]*=s; pts[i][2]*=s;
+    }
+  }
+  return pts;
+}
+function buildShells(eCount, Rn){
+  const caps=[2,8,8,18,18];
+  const out=[]; let left=eCount; let ring=0;
+  while(left>0 && ring<caps.length){
+    const take=Math.min(left, caps[ring]);
+    out.push({n:take, R: Rn + 24 + ring*20, tilt:(ring%2?0.6:-0.4), phi:Math.random()*Math.PI*2 });
+    left-=take; ring++;
+  }
+  return out;
+}
+function autoFit(Rn, shells){
+  let maxR = Rn;
+  if (shells.length) maxR = Math.max(maxR, shells[shells.length-1].R + 6);
+  const pad=0.8;
+  const need = maxR / (Math.tan(camera.fov/2)*pad);
+  const target = Math.max(260, need);
+  camera.dist = camera.dist*0.85 + target*0.15;
+}
+
+/* ====== 粒子效果 ====== */
+function spawnPointBurst(color,count,spd=2.2){
+  for(let i=0;i<count;i++){
+    const v=randVec(); particles.push({x:0,y:0,z:0, vx:v[0]*spd,vy:v[1]*spd,vz:v[2]*spd, life:1, color, size:10});
+  }
+}
+function spawnBetaMinus(){ spawnPointBurst([0.69,0.40,1.0], 30, 3.0); spawnPointBurst([0.70,0.80,1.0], 18, 2.6); }
+function spawnBetaPlus(){  spawnPointBurst([1.0,0.55,0.80], 30, 3.0); spawnPointBurst([0.70,0.80,1.0], 18, 2.6); }
+function spawnNoop(){ spawnPointBurst([1.0,0.85,0.45], 10, 1.6); }
+function randVec(){ const u=Math.random(), v=Math.random(); const th=2*Math.PI*u; const cz=2*v-1; const sz=Math.sqrt(1-cz*cz); return [sz*Math.cos(th),cz,sz*Math.sin(th)]; }
+
+/* ====== 互動 ====== */
+canvas.addEventListener('contextmenu',e=>e.preventDefault());
+let gesture={two:false,lastX:0,lastY:0,angle:0,dist:0};
+canvas.addEventListener('mousedown',e=>{ if(e.button===2){gesture.two=true; gesture.lastX=e.clientX; gesture.lastY=e.clientY;} });
+window.addEventListener('mousemove',e=>{
+  if(gesture.two){
+    const dx=e.clientX-gesture.lastX, dy=e.clientY-gesture.lastY;
+    camera.yaw += dx*0.005; camera.pitch += dy*0.005; camera.pitch=Math.max(-1.2,Math.min(1.2,camera.pitch));
+    gesture.lastX=e.clientX; gesture.lastY=e.clientY;
+  }
+});
+window.addEventListener('mouseup',()=>{gesture.two=false;});
+canvas.addEventListener('wheel',e=>{ e.preventDefault(); camera.zoom*=Math.exp(-e.deltaY*0.001); camera.zoom=Math.max(0.7,Math.min(2.0,camera.zoom)); },{passive:false});
+canvas.addEventListener('dblclick',()=>{ camera.yaw=0; camera.pitch=0; camera.zoom=1; });
+
+canvas.addEventListener('touchstart',e=>{
+  e.preventDefault();
+  if(e.touches.length===2){
+    const [a,b]=e.touches; gesture.two=true;
+    gesture.angle=Math.atan2(b.clientY-a.clientY, b.clientX-a.clientX);
+    gesture.dist=Math.hypot(b.clientX-a.clientX, b.clientY-a.clientY);
+  }
+},{passive:false});
+canvas.addEventListener('touchmove',e=>{
+  e.preventDefault();
+  if(e.touches.length===2 && gesture.two){
+    const [a,b]=e.touches;
+    const ang=Math.atan2(b.clientY-a.clientY, b.clientX-a.clientX);
+    const dist=Math.hypot(b.clientX-a.clientX, b.clientY-a.clientY);
+    camera.yaw += (ang-gesture.angle)*0.8; gesture.angle=ang;
+    const sc=dist/Math.max(1,gesture.dist); camera.zoom*=sc; camera.zoom=Math.max(0.7,Math.min(2.0,camera.zoom)); gesture.dist=dist;
+  }
+},{passive:false});
+canvas.addEventListener('touchend',()=>{gesture.two=false;},{passive:false});
+
+/* ====== 控制按鈕 ====== */
+document.getElementById('addP').onclick=()=>{ Z++; log("加入 1 個質子"); onStructureChanged(); };
+document.getElementById('addN').onclick=()=>{ N++; log("加入 1 個中子"); onStructureChanged(); };
+document.getElementById('addE').onclick=()=>{ e++; log("加入 1 個電子"); onStructureChanged(false); };
+document.getElementById('reset').onclick=()=>{ Z=0;N=0;e=0; log("清空"); onStructureChanged(false); };
+document.getElementById('neutralize').onclick=()=>{ e=Z; log("自動補電子至中性"); onStructureChanged(false); };
+
+/* ====== 說明（readme.md） ====== */
+async function openHelp(){
+  help.style.display='flex'; help.setAttribute('aria-hidden','false');
+  try{
+    const res = await fetch('readme.md', {cache:'no-store'});
+    const md = await res.text();
+    helpBody.innerHTML = markdownToHTML(md);
+  }catch(err){
+    helpBody.textContent = "無法載入 readme.md ："+err;
+  }
+}
+function markdownToHTML(md){
+  md = md.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  md = md.replace(/^### (.*)$/gm,'<h3>$1</h3>')
+         .replace(/^## (.*)$/gm,'<h2>$1</h2>')
+         .replace(/^# (.*)$/gm,'<h1>$1</h1>');
+  md = md.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
+         .replace(/\*(.+?)\*/g,'<em>$1</em>')
+         .replace(/`([^`]+)`/g,'<code>$1</code>');
+  md = md.replace(/(?:^|\n)([-*] .*(?:\n[-*] .*)+)/g, m => {
+    const items = m.trim().split('\n').map(s=>s.replace(/^[-*] /,'')).map(s=>`<li>${s}</li>`).join('');
+    return `\n<ul>${items}</ul>`;
+  });
+  md = md.replace(/```([\s\S]*?)```/g, (m,code)=>`<pre><code>${code}</code></pre>`);
+  md = md.replace(/(?:\n){2,}/g,'</p><p>');
+  return '<p>'+md+'</p>';
+}
+
+/* ====== 當結構變化 ====== */
+function onStructureChanged(runDecay=true){
+  uiNow();
+  rebuildGeometry();
+  if (Z===0){ uiStateEmpty(); clearTimeout(decayTimer); return; }
+  const ok=isStable(Z,N);
+  if (ok){
+    uiStateStable();
+    clearTimeout(decayTimer);
+    checkTargetAdvance();
+  }else{
+    uiStateUnstable();
+    if (runDecay) scheduleDecay();
+  }
+}
+
+/* ====== 繪圖 ====== */
+function draw(){
+  animT+=1;
+  gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+
+  const aspect=W/H;
+  const P=mat4Perspective(camera.fov, aspect, 0.1, 5000);
+  let V=mat4Identity();
+  V=mat4Translate(V,0,0,-camera.dist);
+  V=mat4RotateX(V,camera.pitch);
+  V=mat4RotateY(V,camera.yaw);
+  V=mat4Scale(V,camera.zoom,camera.zoom,camera.zoom);
+  const PV=mat4Mul(P,V);
+  const camPos=[0,0,camera.dist];
+
+  // 光源：主光（側前方）+ 補光（相機前方）
+  const L1=[0.9, 0.2, 0.6];
+  const L2=[0.0, 0.0, 1.0];
+
+  // 核子
+  gl.useProgram(progSphere);
+  gl.bindBuffer(gl.ARRAY_BUFFER, sphereGeo.vbuf);
+  gl.vertexAttribPointer(gl.getAttribLocation(progSphere,'aPos'),3,gl.FLOAT,false,0,0);
+  gl.enableVertexAttribArray(gl.getAttribLocation(progSphere,'aPos'));
+  gl.vertexAttribPointer(gl.getAttribLocation(progSphere,'aNorm'),3,gl.FLOAT,false,0,sphereGeo.normOfs);
+  gl.enableVertexAttribArray(gl.getAttribLocation(progSphere,'aNorm'));
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, sphereGeo.ibo);
+  gl.uniform3fv(gl.getUniformLocation(progSphere,'uLightDir1'), new Float32Array(L1));
+  gl.uniform3fv(gl.getUniformLocation(progSphere,'uLightDir2'), new Float32Array(L2));
+  gl.uniform3fv(gl.getUniformLocation(progSphere,'uAmbient'), new Float32Array([0.18,0.22,0.30]));
+  gl.uniform3fv(gl.getUniformLocation(progSphere,'uCamPos'), new Float32Array(camPos));
+
+  for(const q of nucleus){
+    const c = q.isP ? [1.0,0.30,0.30] : [0.34,0.65,1.0];
+    let M=mat4Identity();
+    M=mat4Translate(M, q.pos[0], q.pos[1], q.pos[2]);
+    M=mat4Scale(M, 5.6,5.6,5.6);
+    gl.uniformMatrix4fv(gl.getUniformLocation(progSphere,'uMVP'), false, new Float32Array(mat4Mul(PV,M)));
+    gl.uniformMatrix4fv(gl.getUniformLocation(progSphere,'uModel'), false, new Float32Array(M));
+    gl.uniform3fv(gl.getUniformLocation(progSphere,'uColor'), new Float32Array(c));
+    gl.uniform1f(gl.getUniformLocation(progSphere,'uAlpha'), 1.0);
+    gl.drawElements(gl.TRIANGLES, sphereGeo.count, gl.UNSIGNED_SHORT, 0);
+  }
+
+  // 電子（紫）
+  for(const s of shells){
+    for(let i=0;i<s.n;i++){
+      const ang = i/s.n*Math.PI*2 + animT*0.02 + s.phi;
+      const ex=Math.cos(ang)*s.R;
+      const ey=Math.sin(ang)*s.R*Math.cos(s.tilt);
+      const ez=Math.sin(ang)*s.R*Math.sin(s.tilt);
+      let M=mat4Identity();
+      M=mat4Translate(M, ex,ey,ez);
+      M=mat4Scale(M, 3.9,3.9,3.9);
+      gl.uniformMatrix4fv(gl.getUniformLocation(progSphere,'uMVP'), false, new Float32Array(mat4Mul(PV,M)));
+      gl.uniformMatrix4fv(gl.getUniformLocation(progSphere,'uModel'), false, new Float32Array(M));
+      gl.uniform3fv(gl.getUniformLocation(progSphere,'uColor'), new Float32Array([0.69,0.40,1.0]));
+      gl.uniform1f(gl.getUniformLocation(progSphere,'uAlpha'), 1.0);
+      gl.drawElements(gl.TRIANGLES, sphereGeo.count, gl.UNSIGNED_SHORT, 0);
+    }
+  }
+
+  // 放射性粒子
+  if (particles.length){
+    const prog=progPoint;
+    gl.useProgram(prog);
+    const buf=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+    const data=new Float32Array(particles.length*3);
+    for(let i=0;i<particles.length;i++){ const p=particles[i]; data[i*3+0]=p.x; data[i*3+1]=p.y; data[i*3+2]=p.z; }
+    gl.bufferData(gl.ARRAY_BUFFER, data, gl.DYNAMIC_DRAW);
+    gl.vertexAttribPointer(prog.aPos,3,gl.FLOAT,false,0,0); gl.enableVertexAttribArray(prog.aPos);
+    gl.uniformMatrix4fv(prog.uMVP,false,new Float32Array(PV));
+    gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
+    for(let i=0;i<particles.length;i++){
+      const p=particles[i];
+      gl.uniform1f(prog.uSize, p.size);
+      gl.uniform3fv(prog.uColor, new Float32Array(p.color));
+      gl.uniform1f(prog.uAlpha, p.life*0.9);
+      gl.drawArrays(gl.POINTS, i, 1);
+      p.x+=p.vx; p.y+=p.vy; p.z+=p.vz; p.life-=0.02;
+    }
+    gl.disable(gl.BLEND);
+    particles = particles.filter(p=>p.life>0.05);
+  }
+
+  requestAnimationFrame(draw);
+}
+
+/* ====== 啟動 ====== */
+initGL();
+uiNow();
+uiStateEmpty();
+</script>
+</body>
+</html>
