@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
-<head>
+<head><script src="/eduGame/ga4.js"></script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 <title>NuclearFusion</title>
@@ -247,10 +247,11 @@ function checkTargetAdvance(){
 }
 
 function allowedElectronMax(Z){
-  if (Z<=0) return 0;
-  const shellCap = 2+8; // 教學簡化：只模擬前兩層上限
-  const extra = (Z===1?1 : (Z===8?2 : (Z===7?3 : (Z===9?1 : 0))));
-  return Math.min(Z+extra, shellCap);
+  // 僅放寬可加入電子數的上限，保留原本顯示/殼層邏輯不變
+  if (!Number.isFinite(Z) || Z <= 0) return 0;
+  // 教學餘裕：允許到 Z+8；同時設定一個很寬鬆的硬上限，避免無限增加
+  const HARD_CAP = 200; 
+  return Math.min(HARD_CAP, Z + 8);
 }
 function enforceElectronCap(){
   const eMax = allowedElectronMax(Z);
@@ -550,7 +551,142 @@ function mat4Perspective(fovy,aspect,near,far){
 }
 
 })();</script>
-<!-- ===== 說明按鈕 + 讀取 readme.md 的彈窗（貼在 </body> 前） ===== -->
+<!-- ===== 說明按鈕 + 讀取 readme.md 的彈窗（貼在 
+<!-- === UI 佈局調整（僅調整外觀；不改動邏輯） === -->
+<style>
+  .twocol-row{ display:grid; grid-template-columns: 1fr 1fr; gap:12px; align-items:end; justify-items:stretch; }
+  .tileSmall{ width:100%; aspect-ratio:1/1; height:auto; margin:0 !important; }
+  .tileSmall .sym{ font-size:64px !important; }
+  .tileSmall .a,.tileSmall .z,.tileSmall .charge{ font-size:28px !important; }
+  .tileLabel{
+    position:absolute; top:6px; left:50%; transform:translateX(-50%);
+    padding:2px 8px; border-radius:999px; font-size:12px;
+    background:#14213a; border:1px solid #21325a; color:#9bdcff; pointer-events:none;
+  }
+  .tileToolbar{ display:flex; justify-content:flex-end; margin-bottom:8px; gap:8px; }
+  .sq.tileSmall{ margin:0; }
+</style>
+
+<script>
+(function(){
+  function ready(fn){ if(document.readyState!=='loading'){fn();} else {document.addEventListener('DOMContentLoaded',fn);} }
+  ready(function(){
+    var panel = document.getElementById('panel');
+    var cards = panel ? panel.getElementsByClassName('card') : [];
+    if (!panel || cards.length < 2) return;
+
+    var cardTarget = cards[0];
+    var cardNow    = cards[1];
+    var tileTarget = document.getElementById('tile');
+    var tileNow    = document.getElementById('currTile');
+    if(!tileTarget || !tileNow) return;
+
+    // 建立工具列，將「說明」按鈕移入此處（若存在）
+    var toolbar = document.createElement('div');
+    toolbar.className = 'tileToolbar';
+    var helpBtn = document.getElementById('helpBtn');
+    if (helpBtn) toolbar.appendChild(helpBtn);
+
+    // 建立兩欄容器，縮小兩個方框並排
+    var row = document.createElement('div');
+    row.className = 'twocol-row';
+    tileTarget.classList.add('tileSmall');
+    tileNow.classList.add('tileSmall');
+
+    // 標籤
+    function addLabel(el, text){
+      var lab = document.createElement('div');
+      lab.className = 'tileLabel';
+      lab.textContent = text;
+      el.style.position = 'relative';
+      el.appendChild(lab);
+    }
+    addLabel(tileTarget, '目標元素');
+    addLabel(tileNow, '現在狀態');
+
+    // 把「現在狀態」方框移到第一張卡片，和目標方框同列
+    row.appendChild(tileTarget);
+    row.appendChild(tileNow);
+
+    // 將工具列置於第一張卡片頂部
+    cardTarget.insertBefore(toolbar, cardTarget.firstChild);
+
+    // 將兩欄容器插入到三顆按鈕之前
+    var buttonsRow = cardTarget.querySelector('.row');
+    if (buttonsRow) cardTarget.insertBefore(row, buttonsRow);
+    else cardTarget.appendChild(row);
+  });
+})();
+</script>
+<!-- === /UI 佈局調整 === -->
+
+
+<!-- === Header row patch: put 「原子煉金術」 and 「說明」 button on the same row === -->
+<style>
+  #head{ display:flex; align-items:center; justify-content:space-between; gap:12px; }
+  .headRow{ display:flex; align-items:center; gap:10px; }
+  .appTitle{ font-size:clamp(22px,2.2vw,28px); font-weight:900; letter-spacing:.5px; margin:0; line-height:1.1; }
+  .helpBtnLite{ font-size:12px; padding:3px 8px; border-radius:999px; background:#14213a; border:1px solid #21325a; color:#9bdcff; cursor:pointer }
+</style>
+<script>
+(function(){
+  function ready(fn){ if(document.readyState!=='loading'){fn();} else {document.addEventListener('DOMContentLoaded',fn);} }
+  ready(function(){
+    var head = document.getElementById('head');
+    if(!head) return;
+
+    // 1) 建立左側容器 headRow
+    var row = document.createElement('div');
+    row.className = 'headRow';
+
+    // 2) 尋找「原子煉金術」文字所在的節點；若找不到就建立一個
+    var titleEl = null;
+    var all = head.querySelectorAll('*');
+    for (var i=0;i<all.length;i++){
+      var t = (all[i].textContent||'').trim();
+      if (t && t.indexOf('原子煉金術') !== -1){
+        titleEl = all[i];
+        break;
+      }
+    }
+    if (!titleEl){
+      titleEl = document.createElement('div');
+      titleEl.textContent = '原子煉金術';
+      head.insertBefore(titleEl, head.firstChild);
+    }
+    titleEl.classList.add('appTitle');
+
+    // 3) 取得「說明」按鈕（若不存在就建立一個，支援已有的 helpModal）
+    var helpBtn = document.getElementById('helpBtn');
+    if (!helpBtn){
+      helpBtn = document.createElement('button');
+      helpBtn.id = 'helpBtn';
+      helpBtn.type = 'button';
+      helpBtn.className = 'helpBtnLite';
+      helpBtn.textContent = '說明';
+      helpBtn.addEventListener('click', function(){
+        var modal = document.getElementById('helpModal');
+        if (modal){ modal.style.display='flex'; }
+        else { alert('請先在同目錄放置 readme.md 或 nuclear_readme_v0_4.md，並加入我先前提供的「說明彈窗」程式碼。'); }
+      });
+    }else{
+      helpBtn.classList.add('helpBtnLite');
+    }
+
+    // 若說明按鈕還留在 tileToolbar，把它移除以避免重複
+    var old = document.querySelector('.tileToolbar #helpBtn');
+    if (old && old!==helpBtn && old.parentElement){ old.parentElement.removeChild(old); }
+
+    // 4) 組合：把 title 與 help 按鈕放進 headRow，並插到 head 最前面（保留其他標籤在右側）
+    row.appendChild(titleEl);
+    row.appendChild(helpBtn);
+    head.insertBefore(row, head.firstChild);
+  });
+})();
+</script>
+<!-- === /Header row patch === -->
+
+</body> 前） ===== -->
 <style>
   /* 僅限說明彈窗使用，不影響其它樣式 */
   #helpModal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.55);z-index:9999}
@@ -680,6 +816,141 @@ function mat4Perspective(fovy,aspect,near,far){
 })();
 </script>
 <!-- ===== /說明彈窗 ===== -->
+
+
+<!-- === UI 佈局調整（僅調整外觀；不改動邏輯） === -->
+<style>
+  .twocol-row{ display:flex; gap:12px; align-items:flex-start; }
+  .tileSmall{ width:48%; aspect-ratio:1/1; }
+  .tileSmall .sym{ font-size:64px !important; }
+  .tileSmall .a,.tileSmall .z,.tileSmall .charge{ font-size:28px !important; }
+  .tileLabel{
+    position:absolute; top:6px; left:50%; transform:translateX(-50%);
+    padding:2px 8px; border-radius:999px; font-size:12px;
+    background:#14213a; border:1px solid #21325a; color:#9bdcff; pointer-events:none;
+  }
+  .tileToolbar{ display:flex; justify-content:flex-end; margin-bottom:8px; gap:8px; }
+  .sq.tileSmall{ margin:0; }
+</style>
+
+<script>
+(function(){
+  function ready(fn){ if(document.readyState!=='loading'){fn();} else {document.addEventListener('DOMContentLoaded',fn);} }
+  ready(function(){
+    var panel = document.getElementById('panel');
+    var cards = panel ? panel.getElementsByClassName('card') : [];
+    if (!panel || cards.length < 2) return;
+
+    var cardTarget = cards[0];
+    var cardNow    = cards[1];
+    var tileTarget = document.getElementById('tile');
+    var tileNow    = document.getElementById('currTile');
+    if(!tileTarget || !tileNow) return;
+
+    // 建立工具列，將「說明」按鈕移入此處（若存在）
+    var toolbar = document.createElement('div');
+    toolbar.className = 'tileToolbar';
+    var helpBtn = document.getElementById('helpBtn');
+    if (helpBtn) toolbar.appendChild(helpBtn);
+
+    // 建立兩欄容器，縮小兩個方框並排
+    var row = document.createElement('div');
+    row.className = 'twocol-row';
+    tileTarget.classList.add('tileSmall');
+    tileNow.classList.add('tileSmall');
+
+    // 標籤
+    function addLabel(el, text){
+      var lab = document.createElement('div');
+      lab.className = 'tileLabel';
+      lab.textContent = text;
+      el.style.position = 'relative';
+      el.appendChild(lab);
+    }
+    addLabel(tileTarget, '目標元素');
+    addLabel(tileNow, '現在狀態');
+
+    // 把「現在狀態」方框移到第一張卡片，和目標方框同列
+    row.appendChild(tileTarget);
+    row.appendChild(tileNow);
+
+    // 將工具列置於第一張卡片頂部
+    cardTarget.insertBefore(toolbar, cardTarget.firstChild);
+
+    // 將兩欄容器插入到三顆按鈕之前
+    var buttonsRow = cardTarget.querySelector('.row');
+    if (buttonsRow) cardTarget.insertBefore(row, buttonsRow);
+    else cardTarget.appendChild(row);
+  });
+})();
+</script>
+<!-- === /UI 佈局調整 === -->
+
+
+<!-- === Header row patch: put 「原子煉金術」 and 「說明」 button on the same row === -->
+<style>
+  #head{ display:flex; align-items:center; justify-content:space-between; gap:12px; }
+  .headRow{ display:flex; align-items:center; gap:10px; }
+  .appTitle{ font-size:clamp(22px,2.2vw,28px); font-weight:900; letter-spacing:.5px; margin:0; line-height:1.1; }
+  .helpBtnLite{ font-size:12px; padding:3px 8px; border-radius:999px; background:#14213a; border:1px solid #21325a; color:#9bdcff; cursor:pointer }
+</style>
+<script>
+(function(){
+  function ready(fn){ if(document.readyState!=='loading'){fn();} else {document.addEventListener('DOMContentLoaded',fn);} }
+  ready(function(){
+    var head = document.getElementById('head');
+    if(!head) return;
+
+    // 1) 建立左側容器 headRow
+    var row = document.createElement('div');
+    row.className = 'headRow';
+
+    // 2) 尋找「原子煉金術」文字所在的節點；若找不到就建立一個
+    var titleEl = null;
+    var all = head.querySelectorAll('*');
+    for (var i=0;i<all.length;i++){
+      var t = (all[i].textContent||'').trim();
+      if (t && t.indexOf('原子煉金術') !== -1){
+        titleEl = all[i];
+        break;
+      }
+    }
+    if (!titleEl){
+      titleEl = document.createElement('div');
+      titleEl.textContent = '原子煉金術';
+      head.insertBefore(titleEl, head.firstChild);
+    }
+    titleEl.classList.add('appTitle');
+
+    // 3) 取得「說明」按鈕（若不存在就建立一個，支援已有的 helpModal）
+    var helpBtn = document.getElementById('helpBtn');
+    if (!helpBtn){
+      helpBtn = document.createElement('button');
+      helpBtn.id = 'helpBtn';
+      helpBtn.type = 'button';
+      helpBtn.className = 'helpBtnLite';
+      helpBtn.textContent = '說明';
+      helpBtn.addEventListener('click', function(){
+        var modal = document.getElementById('helpModal');
+        if (modal){ modal.style.display='flex'; }
+        else { alert('請先在同目錄放置 readme.md 或 nuclear_readme_v0_4.md，並加入我先前提供的「說明彈窗」程式碼。'); }
+      });
+    }else{
+      helpBtn.classList.add('helpBtnLite');
+    }
+
+    // 若說明按鈕還留在 tileToolbar，把它移除以避免重複
+    var old = document.querySelector('.tileToolbar #helpBtn');
+    if (old && old!==helpBtn && old.parentElement){ old.parentElement.removeChild(old); }
+
+    // 4) 組合：把 title 與 help 按鈕放進 headRow，並插到 head 最前面（保留其他標籤在右側）
+    row.appendChild(titleEl);
+    row.appendChild(helpBtn);
+    head.insertBefore(row, head.firstChild);
+  });
+})();
+</script>
+<!-- === /Header row patch === -->
 
 </body>
 </html>
