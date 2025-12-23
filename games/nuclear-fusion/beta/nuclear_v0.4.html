@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-<title>NuclearFusion</title>
+<title>nuclear v0.4 — 擴充穩定同位素（Rescue 版）</title>
 <style>
   :root{
     --bg:#070a12; --panel:#0e1626; --line:#1b2a4a; --txt:#e9f2ff; --sub:#9bb3ff;
@@ -49,7 +49,8 @@
 
 <div id="ui">
   <div id="head">
-    <div class="tag">原子煉金術</div>
+    <div class="tag">nuclear v0.4</div>
+    <div class="tag">Rescue 版</div>
   </div>
 
   <div id="panel">
@@ -550,136 +551,5 @@ function mat4Perspective(fovy,aspect,near,far){
 }
 
 })();</script>
-<!-- ===== 說明按鈕 + 讀取 readme.md 的彈窗（貼在 </body> 前） ===== -->
-<style>
-  /* 僅限說明彈窗使用，不影響其它樣式 */
-  #helpModal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.55);z-index:9999}
-  #helpCard{width:min(960px,90vw);max-height:80vh;overflow:auto;background:#0f1626;border:1px solid #2a3d6b;border-radius:14px;box-shadow:0 10px 40px rgba(0,0,0,.35);color:#e9f2ff}
-  #helpHead{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid #22365e;position:sticky;top:0;background:#0f1626}
-  #helpBody{padding:14px}
-  #helpBody h1,#helpBody h2,#helpBody h3{margin:10px 0}
-  #helpBody table{width:100%;border-collapse:collapse;margin:10px 0;font-size:14px}
-  #helpBody th,#helpBody td{border:1px solid #2a3d6b;padding:6px 8px;text-align:left}
-  #helpBody code, #helpBody pre{background:#0b131f;border:1px solid #1b2a4a;border-radius:8px;padding:6px 8px;display:block;white-space:pre-wrap}
-  .helpBtnLite{font-size:12px;padding:3px 8px;border-radius:999px;background:#14213a;border:1px solid #21325a;color:#9bdcff;cursor:pointer}
-</style>
-
-<div id="helpModal" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
-  <div id="helpCard">
-    <div id="helpHead">
-      <div class="helpBtnLite" id="helpTitle">說明（從 readme.md 載入）</div>
-      <button id="helpClose" class="helpBtnLite" type="button">關閉</button>
-    </div>
-    <div id="helpBody"><div style="color:#9bb3ff">讀取中…</div></div>
-  </div>
-</div>
-
-<script>
-(function(){
-  // 在 #head 內自動插入「說明」按鈕；若找不到，就放一個右上角懸浮按鈕
-  function ensureHelpButton(){
-    var btn = document.createElement('button');
-    btn.id = 'helpBtn';
-    btn.type = 'button';
-    btn.className = 'helpBtnLite';
-    btn.textContent = '說明';
-    var head = document.getElementById('head');
-    if (head) {
-      head.appendChild(btn);
-    } else {
-      // 後備浮動按鈕（不影響版面）
-      btn.style.position = 'fixed';
-      btn.style.top = '10px';
-      btn.style.right = '10px';
-      btn.style.zIndex = '9999';
-      document.body.appendChild(btn);
-    }
-    return btn;
-  }
-
-  function esc(s){return s.replace(/[&<>]/g, function(m){return ({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]);});}
-
-  // 極簡 Markdown 轉 HTML（支援標題/粗體/清單/程式區塊/表格）
-  function renderMarkdown(md){
-    // 程式區塊 ```
-    md = md.replace(/```([\s\S]*?)```/g, function(_,code){ return "<pre><code>"+esc(code)+"</code></pre>"; });
-    // 標題
-    md = md.replace(/^######\s+(.+)$/gm, "<h6>$1</h6>")
-           .replace(/^#####\s+(.+)$/gm, "<h5>$1</h5>")
-           .replace(/^####\s+(.+)$/gm, "<h4>$1</h4>")
-           .replace(/^###\s+(.+)$/gm, "<h3>$1</h3>")
-           .replace(/^##\s+(.+)$/gm, "<h2>$1</h2>")
-           .replace(/^#\s+(.+)$/gm, "<h1>$1</h1>");
-    // 粗斜體（簡化）
-    md = md.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
-           .replace(/\*([^*]+)\*/g, "<em>$1</em>");
-    // 單層清單
-    md = md.replace(/^(?:-|\*)\s+(.+)$/gm, "<li>$1</li>");
-    md = md.replace(/(<li>[\s\S]*?<\/li>)/g, "<ul>$1</ul>");
-    // 表格（GitHub 風格）
-    md = md.replace(/(^\|.*\n)(\|[-:\s|]+\n)((\|.*\n)+)/gm, function(_, head, sep, rows){
-      function rowToCells(line){
-        var parts = line.trim().replace(/^\|/,'').replace(/\|$/,'').split('|').map(function(s){return s.trim();});
-        return parts;
-      }
-      var ths = rowToCells(head);
-      var html = "<table><thead><tr>"+ths.map(function(h){return "<th>"+esc(h)+"</th>";}).join("")+"</tr></thead><tbody>";
-      rows.trim().split("\n").forEach(function(l){
-        if(!l.trim()) return;
-        var tds = rowToCells(l);
-        html += "<tr>"+tds.map(function(d){return "<td>"+esc(d)+"</td>";}).join("")+"</tr>";
-      });
-      html += "</tbody></table>";
-      return html+"\n";
-    });
-    // 段落（保留已轉為 HTML 的區塊）
-    md = md.split(/\n{2,}/).map(function(block){
-      var b = block.trim();
-      if (!b) return "";
-      if (/^<h\d|^<table|^<pre|^<ul|^<li|^<p|^<strong|^<em/.test(b)) return b;
-      var lines = b.split("\n").map(function(x){return x.trim();}).filter(Boolean).join(" ");
-      return "<p>"+lines+"</p>";
-    }).join("\n");
-    return md;
-  }
-
-  async function loadReadme(into){
-    into.innerHTML = '<div style="color:#9bb3ff">讀取中…</div>';
-    var txt = "";
-    try{
-      var r1 = await fetch('readme.md');
-      if (r1.ok) txt = await r1.text();
-      else throw new Error("readme.md 不存在");
-    }catch(_){
-      try{
-        var r2 = await fetch('nuclear_readme_v0_4.md');
-        if (r2.ok) txt = await r2.text();
-      }catch(e){
-        txt = "# 無法讀取說明\\n請確認與本頁同資料夾中存在 **readme.md** 或 **nuclear_readme_v0_4.md**。";
-      }
-    }
-    into.innerHTML = renderMarkdown(txt || "# 空白的 readme.md");
-  }
-
-  var helpBtn  = ensureHelpButton();
-  var helpModal= document.getElementById('helpModal');
-  var helpBody = document.getElementById('helpBody');
-  var helpClose= document.getElementById('helpClose');
-
-  helpBtn.addEventListener('click', function(){
-    helpModal.style.display = 'flex';
-    loadReadme(helpBody);
-  });
-  helpClose.addEventListener('click', function(){
-    helpModal.style.display = 'none';
-  });
-  // 點擊遮罩關閉
-  helpModal.addEventListener('click', function(e){
-    if (e.target === helpModal) helpModal.style.display = 'none';
-  });
-})();
-</script>
-<!-- ===== /說明彈窗 ===== -->
-
 </body>
 </html>
