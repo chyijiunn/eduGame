@@ -1,0 +1,764 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>阿富汗相機光圈量測（Aperture Meter）</title>
+  <style>
+    :root { color-scheme: dark; }
+    body { margin:0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif; background:#0b0e14; color:#e6e8ee; }
+    .app { display:flex; flex-direction:column; min-height:100vh; }
+    header { position:sticky; top:0; z-index:30; background: rgba(11,14,20,0.86); backdrop-filter: blur(10px); border-bottom:1px solid rgba(255,255,255,0.08); }
+    .bar { display:flex; align-items:center; justify-content:space-between; padding:12px 14px; }
+    .title { font-weight:700; letter-spacing:0.2px; font-size:14px; opacity:0.95; }
+    .helpBtn { border:1px solid rgba(255,255,255,0.18); background: rgba(255,255,255,0.06); color:#e6e8ee; padding:8px 10px; border-radius:12px; font-size:13px; }
+    .helpBtn:active { transform: translateY(1px); }
+
+    main { flex:1; display:flex; flex-direction:column; gap:12px; padding:12px 12px 18px; }
+
+    .card { border:1px solid rgba(255,255,255,0.10); background: rgba(255,255,255,0.04); border-radius:16px; overflow:hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.30); }
+    .card .pad { padding:14px; }
+    .row { display:flex; gap:10px; flex-wrap:wrap; }
+    .row > * { flex:1 1 140px; }
+    label { font-size:12px; opacity:0.9; display:block; margin-bottom:6px; }
+    input { width:100%; padding:12px 12px; border-radius:12px; border:1px solid rgba(255,255,255,0.14); background: rgba(0,0,0,0.25); color:#e6e8ee; font-size:16px; outline:none; }
+    input:focus { border-color: rgba(255,255,255,0.26); }
+
+    .actions { display:flex; gap:10px; flex-wrap:wrap; }
+    button { border:1px solid rgba(255,255,255,0.16); background: rgba(255,255,255,0.06); color:#e6e8ee; padding:12px 12px; border-radius:14px; font-size:14px; font-weight:650; }
+    button.primary { background: rgba(255,255,255,0.12); border-color: rgba(255,255,255,0.22); }
+    button.danger { background: rgba(255,80,80,0.12); border-color: rgba(255,80,80,0.30); }
+    button:disabled { opacity:0.45; }
+    button:active { transform: translateY(1px); }
+
+    .hint { font-size:13px; opacity:0.86; line-height:1.5; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; }
+
+    .viewer { position:relative; width:100%; aspect-ratio: 3/4; background:#070a10; }
+    video { width:100%; height:100%; object-fit:cover; display:block; }
+    canvas.overlay { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
+    .status { font-size:12px; opacity:0.78; padding:10px 14px; border-top:1px solid rgba(255,255,255,0.08); }
+
+    .resultBig { font-size:48px; font-weight:850; letter-spacing:0.5px; line-height:1.0; }
+    .resultLine { margin-top:8px; font-size:14px; opacity:0.92; }
+    .pill { display:inline-flex; align-items:center; gap:8px; border:1px solid rgba(255,255,255,0.16); background: rgba(255,255,255,0.06); padding:8px 10px; border-radius:999px; font-size:12px; opacity:0.95; }
+    .grid2 { display:grid; grid-template-columns: 1fr 1fr; gap:10px; }
+    .kv { border:1px solid rgba(255,255,255,0.10); background: rgba(0,0,0,0.20); border-radius:14px; padding:12px; }
+    .kv .k { font-size:12px; opacity:0.75; }
+    .kv .v { margin-top:6px; font-size:16px; font-weight:700; }
+    .small { font-size:12px; opacity:0.72; margin-top:10px; line-height:1.45; }
+
+    /* Modal */
+    .modalWrap { position:fixed; inset:0; z-index:50; display:none; }
+    .modalWrap.show { display:block; }
+    .backdrop { position:absolute; inset:0; background: rgba(0,0,0,0.65); }
+    .modal { position:absolute; left:50%; top:50%; transform: translate(-50%,-50%); width: min(920px, calc(100vw - 24px)); max-height: min(84vh, 760px); background:#0c1018; border:1px solid rgba(255,255,255,0.12); border-radius:18px; overflow:hidden; box-shadow: 0 20px 60px rgba(0,0,0,0.55); display:flex; flex-direction:column; }
+    .modalHead { display:flex; align-items:center; justify-content:space-between; padding:12px 14px; border-bottom:1px solid rgba(255,255,255,0.10); }
+    .modalTitle { font-weight:800; font-size:14px; opacity:0.95; }
+    .modalBody { padding:14px; overflow:auto; }
+    .md h1,.md h2,.md h3 { margin: 14px 0 8px; }
+    .md h1 { font-size:18px; }
+    .md h2 { font-size:16px; }
+    .md h3 { font-size:14px; }
+    .md p, .md li { font-size:14px; line-height:1.6; opacity:0.95; }
+    .md code { background: rgba(255,255,255,0.08); padding:2px 6px; border-radius:8px; }
+    .md pre { background: rgba(0,0,0,0.35); padding:12px; border-radius:14px; overflow:auto; border:1px solid rgba(255,255,255,0.10); }
+    .md a { color: #cfe3ff; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <div class="bar">
+        <div class="title">阿富汗相機光圈量測（手機版）</div>
+        <button class="helpBtn" id="helpBtn">說明</button>
+      </div>
+    </header>
+
+    <main>
+      <section class="card">
+        <div class="pad">
+          <div class="row">
+            <div>
+              <label>鏡片直徑 D（mm）— 最大有效口徑</label>
+              <input id="diameter" inputmode="decimal" value="27" />
+            </div>
+            <div>
+              <label>焦距 f（mm）</label>
+              <input id="focal" inputmode="decimal" value="150" />
+            </div>
+          </div>
+
+          <div style="height:10px"></div>
+
+          <div class="grid2">
+            <div class="kv">
+              <div class="k">滿開光圈（f/D）</div>
+              <div class="v" id="n0Label">f/5.56</div>
+            </div>
+            <div class="kv">
+              <div class="k">ROI（分析區域）</div>
+              <div class="v" id="roiLabel">短邊 80%</div>
+            </div>
+          </div>
+
+          <div class="small" id="prepText">
+            使用前：把光圈放到最大（全開）、打開發光平板背光、降低環境反光。按「開始」允許相機後，先拍第一張做校準，再反覆拍第二張計算。建議檔位：<span class="mono">5.6 / 8 / 11 / 16 / 22</span>。
+          </div>
+
+          <div style="height:10px"></div>
+          <div class="actions">
+            <button class="primary" id="startBtn">開始（開啟相機）</button>
+            <button id="calBtn" disabled>拍第一張（全開校準）</button>
+            <button id="measureBtn" disabled>拍第二張（計算）</button>
+            <button class="danger" id="resetBtn" disabled>重新校準</button>
+          </div>
+        </div>
+        <div class="status" id="status">尚未啟動相機。</div>
+      </section>
+
+      <section class="card">
+        <div class="viewer">
+          <video id="video" playsinline muted></video>
+          <canvas class="overlay" id="overlay"></canvas>
+        </div>
+        <div class="status">
+          <span class="pill">提示：孔洞需落在中央 ROI（短邊 80%）</span>
+          <span class="pill">背光越均勻越穩</span>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="pad">
+          <div class="resultBig" id="bigResult">—</div>
+          <div class="resultLine" id="lineResult">拍第一張完成校準後，再拍第二張計算光圈。</div>
+
+          <div style="height:12px"></div>
+          <div class="grid2">
+            <div class="kv">
+              <div class="k">A0（全開亮區像素）</div>
+              <div class="v" id="a0Label">—</div>
+            </div>
+            <div class="kv">
+              <div class="k">A1（本次亮區像素）</div>
+              <div class="v" id="a1Label">—</div>
+            </div>
+          </div>
+          <div class="small" id="debugNote">若數值不合理（例如 A1 ≥ A0），請調整對位、降低反光或重新校準。</div>
+        </div>
+      </section>
+
+      <canvas id="capture" style="display:none;"></canvas>
+    </main>
+
+    <!-- Help Modal -->
+    <div class="modalWrap" id="modalWrap" aria-hidden="true">
+      <div class="backdrop" id="backdrop"></div>
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+        <div class="modalHead">
+          <div class="modalTitle" id="modalTitle">readme.md</div>
+          <button id="closeModal">關閉</button>
+        </div>
+        <div class="modalBody">
+          <div class="md" id="mdBody">載入中…</div>
+        </div>
+      </div>
+    </div>
+
+  <script>
+    // ---------- Utility ----------
+    const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+    const fmt = (x, digits=2) => {
+      if (!isFinite(x)) return "—";
+      return Number(x).toFixed(digits);
+    };
+    const roundNice = (x) => {
+      // show like f/7.1, f/5.6 etc
+      if (!isFinite(x)) return "—";
+      const candidates = [1.0,1.1,1.2,1.4,1.6,1.8,2.0,2.2,2.5,2.8,3.2,3.5,4.0,4.5,5.0,5.6,6.3,7.1,8.0,9.0,10,11,13,14,16,18,20,22,25,29,32];
+      let best = candidates[0], bestd = Math.abs(x - best);
+      for (const c of candidates) {
+        const d = Math.abs(x - c);
+        if (d < bestd) { bestd = d; best = c; }
+      }
+      return best;
+    };
+    const nearestStop = (x) => {
+      const stops = [5.6, 8, 11, 16, 22];
+      let best = stops[0], bestd = Math.abs(x - best);
+      for (const s of stops) {
+        const d = Math.abs(x - s);
+        if (d < bestd) { bestd = d; best = s; }
+      }
+      return best;
+    };
+    const evDiff = (x, ref) => {
+      // EV difference based on aperture ratio: EV = 2*log2(N/ref)
+      if (!isFinite(x) || !isFinite(ref) || x<=0 || ref<=0) return NaN;
+      return 2 * (Math.log(x/ref) / Math.log(2));
+    };
+
+    // ---------- Minimal Markdown Renderer ----------
+    function escapeHtml(s){
+      return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+    }
+    function renderMarkdown(md){
+      // Very small subset: headings, lists, code fences, inline code, links, paragraphs
+      const lines = md.replace(/\r\n/g,"\n").split("\n");
+      let html = "";
+      let inCode = false;
+      let listOpen = false;
+      for (let i=0; i<lines.length; i++){
+        let line = lines[i];
+        if (line.startsWith("```")){
+          if (!inCode){
+            inCode = true;
+            if (listOpen){ html += "</ul>"; listOpen=false; }
+            html += "<pre><code>";
+          } else {
+            inCode = false;
+            html += "</code></pre>";
+          }
+          continue;
+        }
+        if (inCode){
+          html += escapeHtml(line) + "\n";
+          continue;
+        }
+        const m1 = line.match(/^(#{1,3})\s+(.*)$/);
+        if (m1){
+          if (listOpen){ html += "</ul>"; listOpen=false; }
+          const level = m1[1].length;
+          html += `<h${level}>${escapeHtml(m1[2])}</h${level}>`;
+          continue;
+        }
+        const m2 = line.match(/^\s*[-*]\s+(.*)$/);
+        if (m2){
+          if (!listOpen){ html += "<ul>"; listOpen=true; }
+          html += `<li>${inlineMarkdown(m2[1])}</li>`;
+          continue;
+        } else {
+          if (listOpen && line.trim()===""){
+            html += "</ul>"; listOpen=false;
+            continue;
+          }
+        }
+        if (line.trim()===""){
+          if (listOpen){ html += "</ul>"; listOpen=false; }
+          continue;
+        }
+        if (listOpen){ html += "</ul>"; listOpen=false; }
+        html += `<p>${inlineMarkdown(line)}</p>`;
+      }
+      if (listOpen) html += "</ul>";
+      if (inCode) html += "</code></pre>";
+      return html;
+    }
+    function inlineMarkdown(s){
+      let out = escapeHtml(s);
+      // links [text](url)
+      out = out.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (m,t,u)=>`<a href="${escapeHtml(u)}" target="_blank" rel="noopener">${escapeHtml(t)}</a>`);
+      // inline code `code`
+      out = out.replace(/`([^`]+)`/g, (m,c)=>`<code>${escapeHtml(c)}</code>`);
+      // bold **text**
+      out = out.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+      // italic *text*
+      out = out.replace(/\*([^*]+)\*/g, "<em>$1</em>");
+      return out;
+    }
+
+    // ---------- Camera + Processing ----------
+    const diameterEl = document.getElementById("diameter");
+    const focalEl = document.getElementById("focal");
+    const n0Label = document.getElementById("n0Label");
+    const startBtn = document.getElementById("startBtn");
+    const calBtn = document.getElementById("calBtn");
+    const measureBtn = document.getElementById("measureBtn");
+    const resetBtn = document.getElementById("resetBtn");
+    const statusEl = document.getElementById("status");
+
+    const video = document.getElementById("video");
+    const overlay = document.getElementById("overlay");
+    const octx = overlay.getContext("2d");
+    const capture = document.getElementById("capture");
+    const bigResult = document.getElementById("bigResult");
+    const lineResult = document.getElementById("lineResult");
+    const a0Label = document.getElementById("a0Label");
+    const a1Label = document.getElementById("a1Label");
+
+    const helpBtn = document.getElementById("helpBtn");
+    const modalWrap = document.getElementById("modalWrap");
+    const backdrop = document.getElementById("backdrop");
+    const closeModal = document.getElementById("closeModal");
+    const mdBody = document.getElementById("mdBody");
+
+    let stream = null;
+    let rafId = null;
+
+    // Calibration state
+    let A0 = null;
+    let lastCenter = null; // {x,y} in ROI coords
+    let template = null; // {cx, cy, r, bbox} in ROI coords
+    let N0 = null;
+
+    function computeN0(){
+      const D = parseFloat(diameterEl.value);
+      const f = parseFloat(focalEl.value);
+      if (!(isFinite(D) && isFinite(f) && D>0 && f>0)) return NaN;
+      return f / D;
+    }
+    function updateN0UI(){
+      N0 = computeN0();
+      n0Label.textContent = isFinite(N0) ? `f/${fmt(N0,2)}` : "—";
+    }
+    diameterEl.addEventListener("input", updateN0UI);
+    focalEl.addEventListener("input", updateN0UI);
+    updateN0UI();
+
+    async function startCamera(){
+      if (stream) return;
+      try{
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } },
+          audio: false
+        });
+        video.srcObject = stream;
+        await video.play();
+        statusEl.textContent = "相機已啟動。請先拍第一張（全開校準）。";
+        calBtn.disabled = false;
+        resetBtn.disabled = false;
+        drawLoop();
+      }catch(e){
+        console.error(e);
+        statusEl.textContent = "無法啟動相機。請確認已允許相機權限，或改用 Chrome / Safari 開啟。";
+      }
+    }
+
+    function stopCamera(){
+      if (rafId) cancelAnimationFrame(rafId);
+      rafId = null;
+      if (stream){
+        stream.getTracks().forEach(t=>t.stop());
+        stream = null;
+      }
+      statusEl.textContent = "相機已關閉。";
+    }
+
+    function drawLoop(){
+      const w = overlay.clientWidth;
+      const h = overlay.clientHeight;
+      overlay.width = Math.floor(w * devicePixelRatio);
+      overlay.height = Math.floor(h * devicePixelRatio);
+      octx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);
+      function frame(){
+        octx.clearRect(0,0,w,h);
+        // ROI box: 80% of short side, centered
+        const side = Math.min(w,h) * 0.8;
+        const x = (w - side)/2;
+        const y = (h - side)/2;
+
+        // Draw ROI
+        octx.strokeStyle = "rgba(255,255,255,0.35)";
+        octx.lineWidth = 2;
+        octx.strokeRect(x,y,side,side);
+
+        // Crosshair
+        octx.strokeStyle = "rgba(255,255,255,0.55)";
+        octx.lineWidth = 2;
+        const cx = w/2, cy = h/2;
+        octx.beginPath();
+        octx.moveTo(cx-14,cy); octx.lineTo(cx+14,cy);
+        octx.moveTo(cx,cy-14); octx.lineTo(cx,cy+14);
+        octx.stroke();
+
+        // Template overlay (after calibration)
+        if (template){
+          // Draw semi-transparent ring/circle
+          const tx = x + template.cx * (side / template.roiSide);
+          const ty = y + template.cy * (side / template.roiSide);
+          const tr = template.r * (side / template.roiSide);
+          octx.strokeStyle = "rgba(120,200,255,0.65)";
+          octx.lineWidth = 3;
+          octx.beginPath();
+          octx.arc(tx, ty, tr, 0, Math.PI*2);
+          octx.stroke();
+
+          // Draw bbox as well (lighter)
+          octx.strokeStyle = "rgba(120,200,255,0.35)";
+          octx.lineWidth = 2;
+          const bx = x + template.bbox.x * (side / template.roiSide);
+          const by = y + template.bbox.y * (side / template.roiSide);
+          const bw = template.bbox.w * (side / template.roiSide);
+          const bh = template.bbox.h * (side / template.roiSide);
+          octx.strokeRect(bx,by,bw,bh);
+        }
+
+        rafId = requestAnimationFrame(frame);
+      }
+      rafId = requestAnimationFrame(frame);
+    }
+
+    function captureFrame(){
+      const vw = video.videoWidth;
+      const vh = video.videoHeight;
+      if (!vw || !vh) return null;
+      capture.width = vw;
+      capture.height = vh;
+      const ctx = capture.getContext("2d", { willReadFrequently: true });
+      ctx.drawImage(video, 0, 0, vw, vh);
+      return { ctx, vw, vh };
+    }
+
+    function getCenteredROI(imageData, vw, vh, roiFactor=0.8){
+      const side = Math.floor(Math.min(vw, vh) * roiFactor);
+      const x0 = Math.floor((vw - side) / 2);
+      const y0 = Math.floor((vh - side) / 2);
+      // Extract ROI pixels
+      const full = imageData.data;
+      const roi = new Uint8ClampedArray(side*side*4);
+      let di = 0;
+      for (let y=0; y<side; y++){
+        let si = ((y0+y)*vw + x0) * 4;
+        roi.set(full.subarray(si, si + side*4), di);
+        di += side*4;
+      }
+      return { roi, side, x0, y0 };
+    }
+
+    function toGray(roiRGBA, side){
+      // return Uint8Array grayscale
+      const gray = new Uint8Array(side*side);
+      for (let i=0, p=0; i<gray.length; i++, p+=4){
+        const r = roiRGBA[p], g = roiRGBA[p+1], b = roiRGBA[p+2];
+        // luminance
+        gray[i] = (0.2126*r + 0.7152*g + 0.0722*b) | 0;
+      }
+      return gray;
+    }
+
+    function contrastStretch(gray){
+      // normalize to 0-255 by 1st and 99th percentile-ish (fast approx using histogram)
+      const hist = new Uint32Array(256);
+      for (let i=0;i<gray.length;i++) hist[gray[i]]++;
+      const total = gray.length;
+      const loCount = Math.floor(total * 0.01);
+      const hiCount = Math.floor(total * 0.99);
+      let cum=0, lo=0, hi=255;
+      for (let i=0;i<256;i++){ cum += hist[i]; if (cum>=loCount){ lo=i; break; } }
+      cum=0;
+      for (let i=0;i<256;i++){ cum += hist[i]; if (cum>=hiCount){ hi=i; break; } }
+      if (hi<=lo) return gray;
+      const out = new Uint8Array(gray.length);
+      const scale = 255 / (hi - lo);
+      for (let i=0;i<gray.length;i++){
+        const v = (gray[i]-lo)*scale;
+        out[i] = clamp(Math.round(v),0,255);
+      }
+      return out;
+    }
+
+    function otsuThreshold(gray){
+      const hist = new Uint32Array(256);
+      for (let i=0;i<gray.length;i++) hist[gray[i]]++;
+      const total = gray.length;
+      let sum = 0;
+      for (let t=0;t<256;t++) sum += t*hist[t];
+      let sumB = 0;
+      let wB = 0;
+      let wF = 0;
+      let varMax = -1;
+      let threshold = 128;
+      for (let t=0;t<256;t++){
+        wB += hist[t];
+        if (wB===0) continue;
+        wF = total - wB;
+        if (wF===0) break;
+        sumB += t*hist[t];
+        const mB = sumB / wB;
+        const mF = (sum - sumB) / wF;
+        const varBetween = wB*wF*(mB - mF)*(mB - mF);
+        if (varBetween > varMax){
+          varMax = varBetween;
+          threshold = t;
+        }
+      }
+      return threshold;
+    }
+
+    function binarize(gray, thr){
+      const bin = new Uint8Array(gray.length);
+      for (let i=0;i<gray.length;i++){
+        bin[i] = gray[i] > thr ? 1 : 0;
+      }
+      return bin;
+    }
+
+    function morph(bin, side, op, iterations=1){
+      // op: "dilate" or "erode"
+      let src = bin;
+      const dst = new Uint8Array(bin.length);
+      const idx = (x,y)=>y*side+x;
+      for (let it=0; it<iterations; it++){
+        dst.fill(op==="erode" ? 1 : 0);
+        for (let y=1;y<side-1;y++){
+          for (let x=1;x<side-1;x++){
+            let v;
+            if (op==="dilate"){
+              v = 0;
+              for (let dy=-1;dy<=1;dy++){
+                for (let dx=-1;dx<=1;dx++){
+                  if (src[idx(x+dx,y+dy)]){
+                    v=1; dx=2; dy=2; break;
+                  }
+                }
+              }
+            } else { // erode
+              v = 1;
+              for (let dy=-1;dy<=1;dy++){
+                for (let dx=-1;dx<=1;dx++){
+                  if (!src[idx(x+dx,y+dy)]){
+                    v=0; dx=2; dy=2; break;
+                  }
+                }
+              }
+            }
+            dst[idx(x,y)] = v;
+          }
+        }
+        src = dst.slice();
+      }
+      return src;
+    }
+
+    function closingOpening(bin, side){
+      // closing: dilate then erode, opening: erode then dilate
+      let x = morph(bin, side, "dilate", 1);
+      x = morph(x, side, "erode", 1);
+      x = morph(x, side, "erode", 1);
+      x = morph(x, side, "dilate", 1);
+      return x;
+    }
+
+    function connectedComponents(bin, side){
+      // returns blobs: {area, cx, cy, bbox:{x,y,w,h}, touchesEdge:boolean}
+      const visited = new Uint8Array(bin.length);
+      const blobs = [];
+      const dirs = [1,-1,side,-side];
+      const idx = (x,y)=>y*side+x;
+      for (let i=0;i<bin.length;i++){
+        if (!bin[i] || visited[i]) continue;
+        // BFS
+        let q = [i];
+        visited[i]=1;
+        let area=0, sumx=0, sumy=0;
+        let minx=1e9, miny=1e9, maxx=-1, maxy=-1;
+        let touchesEdge=false;
+        while(q.length){
+          const p = q.pop();
+          area++;
+          const y = Math.floor(p/side);
+          const x = p - y*side;
+          sumx += x; sumy += y;
+          if (x<minx) minx=x;
+          if (y<miny) miny=y;
+          if (x>maxx) maxx=x;
+          if (y>maxy) maxy=y;
+          if (x===0 || y===0 || x===side-1 || y===side-1) touchesEdge=true;
+
+          // 4-neighbors
+          // left
+          if (x>0){
+            const n = p-1;
+            if (bin[n] && !visited[n]){ visited[n]=1; q.push(n); }
+          }
+          // right
+          if (x<side-1){
+            const n = p+1;
+            if (bin[n] && !visited[n]){ visited[n]=1; q.push(n); }
+          }
+          // up
+          if (y>0){
+            const n = p-side;
+            if (bin[n] && !visited[n]){ visited[n]=1; q.push(n); }
+          }
+          // down
+          if (y<side-1){
+            const n = p+side;
+            if (bin[n] && !visited[n]){ visited[n]=1; q.push(n); }
+          }
+        }
+        const cx = sumx/area, cy = sumy/area;
+        blobs.push({
+          area,
+          cx, cy,
+          bbox: { x:minx, y:miny, w:(maxx-minx+1), h:(maxy-miny+1) },
+          touchesEdge
+        });
+      }
+      return blobs;
+    }
+
+    function pickBlob(blobs, preferCenter){
+      if (!blobs.length) return null;
+      let best = null;
+      let bestScore = Infinity;
+      for (const b of blobs){
+        // score: distance to preferCenter dominates; area as tie-break (prefer larger)
+        const dx = b.cx - preferCenter.x;
+        const dy = b.cy - preferCenter.y;
+        const dist2 = dx*dx + dy*dy;
+        // penalize edge-touching blobs (likely ROI too small or glare)
+        const edgePenalty = b.touchesEdge ? 1e8 : 0;
+        // prefer larger area slightly
+        const areaTerm = -b.area * 0.05; // small bias
+        const score = dist2 + edgePenalty + areaTerm;
+        if (score < bestScore){
+          bestScore = score;
+          best = b;
+        }
+      }
+      return best;
+    }
+
+    function analyzeCurrentFrame(isCalibration){
+      const shot = captureFrame();
+      if (!shot) return { ok:false, msg:"相機影像尚未就緒。" };
+      const { ctx, vw, vh } = shot;
+      const imageData = ctx.getImageData(0,0,vw,vh);
+      const { roi, side } = getCenteredROI(imageData, vw, vh, 0.8);
+      let gray = toGray(roi, side);
+      gray = contrastStretch(gray);
+      const thr = otsuThreshold(gray);
+      let bin = binarize(gray, thr);
+      bin = closingOpening(bin, side);
+      const blobs = connectedComponents(bin, side);
+
+      // prefer center: calibration uses ROI center; measure uses lastCenter if available else ROI center
+      const prefer = lastCenter ? lastCenter : { x: side/2, y: side/2 };
+      const blob = pickBlob(blobs, prefer);
+      if (!blob) return { ok:false, msg:"找不到亮區。請提高背光、降低反光並讓孔洞位於中央 ROI。" };
+
+      // sanity checks
+      if (blob.area < side*side*0.001){
+        return { ok:false, msg:"亮區太小或雜訊過多。請靠近一點、提高背光或重新對位。" };
+      }
+
+      // update lastCenter
+      lastCenter = { x: blob.cx, y: blob.cy };
+
+      // compute a template on calibration
+      if (isCalibration){
+        const r = 0.5 * Math.max(blob.bbox.w, blob.bbox.h); // approximate
+        template = { cx: blob.cx, cy: blob.cy, r, bbox: blob.bbox, roiSide: side };
+      }
+      return { ok:true, side, thr, blob };
+    }
+
+    function updateResult(A1){
+      if (!isFinite(N0) || !isFinite(A0) || !isFinite(A1) || A0<=0 || A1<=0){
+        bigResult.textContent = "—";
+        lineResult.textContent = "資料不足。";
+        return;
+      }
+      const r = A1 / A0;
+      const N1 = N0 * Math.sqrt(1 / r);
+      const N1Nice = roundNice(N1);
+      const occ = (1 - r) * 100;
+      const near = nearestStop(N1);
+      const diff = evDiff(N1, near);
+
+      bigResult.textContent = `f/${fmt(N1Nice, (N1Nice<10 ? 1 : 0))}`;
+      // one-line highlight
+      const occTxt = `遮擋 ${fmt(occ,1)}%`;
+      let line = `${occTxt}｜最接近 f/${near}`;
+      if (isFinite(diff)){
+        const sign = diff>=0 ? "+" : "";
+        line += `（差 ${sign}${fmt(diff,2)}EV）`;
+      }
+      lineResult.textContent = line;
+    }
+
+    // ---------- Button handlers ----------
+    startBtn.addEventListener("click", async () => {
+      await startCamera();
+      startBtn.disabled = true;
+    });
+
+    calBtn.addEventListener("click", () => {
+      updateN0UI();
+      statusEl.textContent = "分析第一張（全開校準）中…";
+      const res = analyzeCurrentFrame(true);
+      if (!res.ok){
+        statusEl.textContent = res.msg;
+        return;
+      }
+      A0 = res.blob.area;
+      a0Label.textContent = `${A0}`;
+      a1Label.textContent = "—";
+      bigResult.textContent = "—";
+      lineResult.textContent = "校準完成。請調整光圈後拍第二張計算。";
+      measureBtn.disabled = false;
+      statusEl.textContent = "校準完成。現在可以反覆拍第二張（計算）。";
+    });
+
+    measureBtn.addEventListener("click", () => {
+      if (!A0){
+        statusEl.textContent = "請先拍第一張（全開校準）。";
+        return;
+      }
+      statusEl.textContent = "分析第二張（計算）中…";
+      const res = analyzeCurrentFrame(false);
+      if (!res.ok){
+        statusEl.textContent = res.msg;
+        return;
+      }
+      const A1 = res.blob.area;
+      a1Label.textContent = `${A1}`;
+      if (A1 >= A0){
+        statusEl.textContent = "警告：A1 ≥ A0（不合理）。請調整對位、降低反光，或重新校準。";
+      } else {
+        statusEl.textContent = "完成。本次結果已更新，可繼續拍第二張重複量測。";
+      }
+      updateResult(A1);
+    });
+
+    resetBtn.addEventListener("click", () => {
+      A0 = null;
+      lastCenter = null;
+      template = null;
+      a0Label.textContent = "—";
+      a1Label.textContent = "—";
+      bigResult.textContent = "—";
+      lineResult.textContent = "已重置。請再拍第一張（全開校準）。";
+      measureBtn.disabled = true;
+      calBtn.disabled = !stream ? true : false;
+      statusEl.textContent = "已重置。請讓光圈全開並拍第一張重新校準。";
+    });
+
+    // ---------- Help Modal ----------
+    async function openHelp(){
+      modalWrap.classList.add("show");
+      modalWrap.setAttribute("aria-hidden","false");
+      mdBody.textContent = "載入中…";
+      try{
+        const resp = await fetch("readme.md", { cache: "no-store" });
+        if (!resp.ok) throw new Error("fetch failed");
+        const text = await resp.text();
+        mdBody.innerHTML = renderMarkdown(text);
+      }catch(e){
+        mdBody.innerHTML = "<p>無法讀取 readme.md。請確認它與本頁在同一資料夾，並以網站方式（如 GitHub Pages）開啟。</p>";
+      }
+    }
+    function closeHelp(){
+      modalWrap.classList.remove("show");
+      modalWrap.setAttribute("aria-hidden","true");
+    }
+    helpBtn.addEventListener("click", openHelp);
+    backdrop.addEventListener("click", closeHelp);
+    closeModal.addEventListener("click", closeHelp);
+
+    // Safety: stop camera when leaving
+    window.addEventListener("pagehide", stopCamera);
+  </script>
+</body>
+</html>
