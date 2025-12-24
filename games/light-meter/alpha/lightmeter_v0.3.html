@@ -1,0 +1,779 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>手機測光器 v0.3（穩健統計 + 多點/分段校準）</title>
+  <style>
+    :root{
+      --bg:#0b0f14;
+      --text:#e8eef6;
+      --muted:#9fb0c3;
+      --line:rgba(255,255,255,.12);
+      --good:#b9ffb3;
+      --warn:#ffe28a;
+      --bad:#ffb3b3;
+      --pad:14px;
+      --radius:16px;
+    }
+    html,body{height:100%; background:var(--bg); color:var(--text); margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,"PingFang TC","Noto Sans TC","Microsoft JhengHei",sans-serif;}
+    .app{max-width:1060px; margin:0 auto; padding:calc(env(safe-area-inset-top) + 12px) 12px calc(env(safe-area-inset-bottom) + 14px);}
+
+    .hero{
+      position:relative;
+      border-radius:24px;
+      overflow:hidden;
+      background:#111;
+      border:1px solid var(--line);
+      height:min(56vh, 520px);
+    }
+    video{position:absolute; inset:0; width:100%; height:100%; object-fit:cover; transform:scaleX(-1);}
+    .overlay{position:absolute; inset:0; display:flex; align-items:center; justify-content:center; pointer-events:none;}
+    .ev{
+      text-align:center;
+      backdrop-filter: blur(10px);
+      background: rgba(0,0,0,.25);
+      border:1px solid rgba(255,255,255,.14);
+      border-radius:26px;
+      padding:16px 18px;
+      min-width: 190px;
+    }
+    .ev .label{font-size:12px; letter-spacing:.12em; color:var(--muted); margin-bottom:8px;}
+    .ev .value{font-size:72px; font-weight:750; line-height:1; margin:0;}
+    .ev .sub{margin-top:10px; font-size:13px; color:var(--muted); display:flex; gap:10px; justify-content:center; flex-wrap:wrap;}
+    .pill{border:1px solid rgba(255,255,255,.14); padding:6px 10px; border-radius:999px; background:rgba(0,0,0,.18);}
+
+    .roi{
+      position:absolute;
+      left:50%; top:50%;
+      width:40%; height:40%;
+      transform:translate(-50%,-50%);
+      border:2px solid rgba(255,255,255,.70);
+      border-radius:14px;
+      box-shadow:0 0 0 2000px rgba(0,0,0,.10) inset;
+      pointer-events:none;
+      display:none;
+    }
+
+    .controls{margin-top:12px; display:grid; grid-template-columns: 1fr; gap:12px;}
+    .card{border:1px solid var(--line); border-radius: var(--radius); background: rgba(255,255,255,.04); overflow:hidden;}
+    .card .hd{display:flex; align-items:center; justify-content:space-between; padding:12px var(--pad); border-bottom:1px solid var(--line); background: rgba(255,255,255,.03); gap:10px; flex-wrap:wrap;}
+    .card .hd .title{font-weight:650;}
+    .card .bd{padding:12px var(--pad);}
+
+    .row{display:flex; gap:10px; flex-wrap:wrap; align-items:center;}
+    .btn{
+      appearance:none; border:1px solid rgba(255,255,255,.16); background:rgba(0,0,0,.18); color:var(--text);
+      padding:10px 12px; border-radius:12px; font-weight:650; cursor:pointer;
+    }
+    .btn:active{transform:translateY(1px);}
+    .btn.primary{background:rgba(255,255,255,.16); border-color:rgba(255,255,255,.24);}
+    .btn.toggle[aria-pressed="true"]{background:rgba(255,255,255,.20); border-color:rgba(255,255,255,.28);}
+    .btn:disabled{opacity:.55; cursor:not-allowed;}
+    .btn.cal{border-color: rgba(255,255,255,.24);}
+    .btn.danger{border-color: rgba(255,140,140,.28);}
+
+    .kv{display:grid; grid-template-columns: 148px 1fr 86px; gap:10px; align-items:center;}
+    .kv label{color:var(--muted); font-size:13px;}
+    input[type="range"]{width:100%;}
+    input[type="number"], select{
+      width:100%;
+      background:rgba(0,0,0,.18);
+      border:1px solid rgba(255,255,255,.16);
+      border-radius:10px;
+      color:var(--text);
+      padding:10px 10px;
+      font-weight:650;
+      appearance:none;
+    }
+    select{padding-right:28px;}
+    .hint{color:var(--muted); font-size:12.5px; line-height:1.5; margin-top:10px;}
+    .callout{
+      border:1px solid rgba(255,255,255,.14);
+      background: rgba(0,0,0,.14);
+      border-radius: 14px;
+      padding:10px 12px;
+      margin-bottom:10px;
+      color: var(--muted);
+      font-size: 12.5px;
+      line-height: 1.5;
+    }
+    .callout b{color:var(--text);}
+
+    table{width:100%; border-collapse:collapse; font-variant-numeric: tabular-nums;}
+    th,td{padding:10px 10px; border-bottom:1px solid rgba(255,255,255,.08); text-align:left;}
+    th{color:var(--muted); font-weight:650; font-size:12.5px; letter-spacing:.06em;}
+    td{font-weight:650;}
+    .right{text-align:right;}
+    .muted{color:var(--muted); font-weight:600;}
+
+    .badge{display:inline-flex; align-items:center; gap:8px; padding:6px 10px; border-radius:999px; border:1px solid rgba(255,255,255,.14); background: rgba(0,0,0,.16); color: var(--muted); font-size:12px;}
+    .dot{width:8px; height:8px; border-radius:50%; background:var(--warn); display:inline-block;}
+    .dot.ok{background:var(--good);}
+    .dot.bad{background:var(--bad);}
+
+    .split{display:grid; grid-template-columns: 1fr; gap:12px;}
+    @media (min-width: 980px){
+      .controls{grid-template-columns: 1fr 1fr;}
+      .hero{height:min(62vh, 580px);}
+      .split{grid-template-columns: 1fr 1fr;}
+    }
+
+    code{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace;}
+    canvas{display:none;}
+    .small{font-size:12px;}
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="hero">
+      <video id="video" playsinline muted></video>
+      <div class="roi" id="roi"></div>
+      <div class="overlay">
+        <div class="ev" aria-live="polite">
+          <div class="label">EV（四捨五入）</div>
+          <p class="value" id="evInt">--</p>
+          <div class="sub">
+            <span class="pill" id="modePill">平均測光</span>
+            <span class="pill">ISO <span id="isoShow">100</span></span>
+            <span class="pill">統計 <span id="statShow">中位數</span></span>
+            <span class="pill">校準 <span id="calShow">0 點</span></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="controls">
+      <div class="card">
+        <div class="hd">
+          <div class="title">控制 / 估算設定</div>
+          <div class="badge"><span class="dot" id="statusDot"></span><span id="statusText">尚未開啟相機</span></div>
+        </div>
+        <div class="bd">
+          <div class="row" style="margin-bottom:10px;">
+            <button class="btn primary" id="btnStart">開啟相機</button>
+            <button class="btn" id="btnStop" disabled>停止</button>
+            <button class="btn toggle" id="btnModeAvg" aria-pressed="true" title="以整個畫面估算">平均測光</button>
+            <button class="btn toggle" id="btnModeCenter" aria-pressed="false" title="以中央方框估算">中央重點</button>
+          </div>
+
+          <div class="kv">
+            <label for="iso">ISO</label>
+            <input id="iso" type="range" min="50" max="6400" step="50" value="100" />
+            <input id="isoNum" type="number" min="50" max="6400" step="50" value="100" />
+          </div>
+
+          <div class="kv" style="margin-top:10px;">
+            <label for="offset">微調偏移（EV）</label>
+            <input id="offset" type="range" min="-8" max="8" step="0.1" value="0" />
+            <input id="offsetNum" type="number" min="-8" max="8" step="0.1" value="0" />
+          </div>
+
+          <div class="split" style="margin-top:10px;">
+            <div class="kv">
+              <label for="statMode">穩健統計</label>
+              <select id="statMode">
+                <option value="median">中位數（median）</option>
+                <option value="trimmed">截尾平均（trimmed mean）</option>
+              </select>
+              <div class="small muted" id="statHint">抗高光壓縮與噪點</div>
+            </div>
+
+            <div class="kv">
+              <label for="trim">截尾比例</label>
+              <input id="trim" type="range" min="0" max="0.40" step="0.02" value="0.10" />
+              <input id="trimNum" type="number" min="0" max="0.40" step="0.02" value="0.10" />
+            </div>
+
+            <div class="kv">
+              <label for="smooth">平滑係數</label>
+              <input id="smooth" type="range" min="0" max="0.9" step="0.05" value="0.35" />
+              <input id="smoothNum" type="number" min="0" max="0.9" step="0.05" value="0.35" />
+            </div>
+
+            <div class="kv">
+              <label for="sample">取樣密度</label>
+              <input id="sample" type="range" min="1" max="5" step="1" value="2" />
+              <input id="sampleNum" type="number" min="1" max="5" step="1" value="2" />
+            </div>
+          </div>
+
+          <div class="hint">
+            限制：必須在 <span class="muted">HTTPS</span> 或 <span class="muted">localhost</span> 才能呼叫相機權限（GitHub Pages 可用）。<br/>
+            說明：本工具以畫面亮度「估算」EV；手機 HDR/自動曝光會造成非線性。v0.3 改用穩健統計 + 多點/分段校準，提高一致性。
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="hd">
+          <div class="title">多點 / 分段校準</div>
+          <div class="muted" id="calSummary">尚未校準（使用預設映射）</div>
+        </div>
+        <div class="bd">
+          <div class="callout">
+            <b>建議至少記錄 3 點</b>（亮、中、暗），再由系統做「分段線性」插值。<br/>
+            你可以用已知曝光組合反推 EV：例如相機顯示的 <code>f/8, 1/125, ISO100 → EV100≈13</code>。<br/>
+            注意：<b>用遮鏡頭當 EV0 不穩</b>（iPhone 會自動拉增益），建議改用「昏暗但仍有細節」的場景當低 EV 參考點。
+          </div>
+
+          <div class="row" style="margin-bottom:10px;">
+            <button class="btn cal" data-quick-ev="15" id="q15">快速：EV15</button>
+            <button class="btn cal" data-quick-ev="12" id="q12">快速：EV12</button>
+            <button class="btn cal" data-quick-ev="9"  id="q9">快速：EV9</button>
+            <button class="btn cal" data-quick-ev="6"  id="q6">快速：EV6</button>
+            <button class="btn cal" data-quick-ev="3"  id="q3">快速：EV3</button>
+            <button class="btn cal" data-quick-ev="0"  id="q0">快速：EV0</button>
+          </div>
+
+          <div class="row" style="margin-bottom:10px;">
+            <input type="number" id="evInput" min="-2" max="20" step="0.5" value="12" style="max-width:120px;" />
+            <button class="btn cal" id="btnAddPoint">新增/更新此 EV 點</button>
+            <button class="btn danger" id="btnRemoveLast">刪除最後一點</button>
+            <button class="btn danger" id="btnClearPoints">清除全部</button>
+          </div>
+
+          <div class="split">
+            <div>
+              <div class="muted small" style="margin:6px 0 8px;">已記錄點（依亮度排序；系統用分段插值）</div>
+              <table>
+                <thead>
+                  <tr>
+                    <th>EV</th>
+                    <th class="right">log2(亮度)</th>
+                  </tr>
+                </thead>
+                <tbody id="pointsBody">
+                  <tr><td class="muted">--</td><td class="right muted">--</td></tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div>
+              <div class="muted small" style="margin:6px 0 8px;">映射狀態</div>
+              <div class="callout" style="margin-bottom:0;">
+                <div>當前估算：<code id="dbgX">x=--</code>（log2 亮度）</div>
+                <div>使用段：<code id="dbgSeg">--</code></div>
+                <div>EV100：<code id="dbgEV100">--</code></div>
+                <div class="small" style="margin-top:8px;">
+                  若點數 ≥ 2：EV = 分段線性插值（x→EV），再加上「微調偏移」。
+                  若點數 < 2：回退到預設映射。
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="hd">
+          <div class="title">建議光圈 / 快門（依 ISO）</div>
+          <div class="muted" id="ev100Line">EV100：--（估算）</div>
+        </div>
+        <div class="bd">
+          <table>
+            <thead>
+              <tr>
+                <th>光圈</th>
+                <th class="right">建議快門</th>
+              </tr>
+            </thead>
+            <tbody id="comboBody">
+              <tr><td class="muted">--</td><td class="right muted">--</td></tr>
+            </tbody>
+          </table>
+          <div class="hint">
+            計算式：<span class="muted">t = N² / (2^EV100 × ISO/100)</span>。表格快門為「接近的常用檔位」。
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <canvas id="c"></canvas>
+  </div>
+
+<script>
+(() => {
+  // ----------------------------
+  // DOM
+  // ----------------------------
+  const video = document.getElementById('video');
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+  const evIntEl = document.getElementById('evInt');
+  const isoEl = document.getElementById('iso');
+  const isoNumEl = document.getElementById('isoNum');
+  const isoShowEl = document.getElementById('isoShow');
+
+  const offsetEl = document.getElementById('offset');
+  const offsetNumEl = document.getElementById('offsetNum');
+
+  const btnStart = document.getElementById('btnStart');
+  const btnStop = document.getElementById('btnStop');
+  const btnModeAvg = document.getElementById('btnModeAvg');
+  const btnModeCenter = document.getElementById('btnModeCenter');
+  const modePill = document.getElementById('modePill');
+  const roi = document.getElementById('roi');
+
+  const statModeEl = document.getElementById('statMode');
+  const trimEl = document.getElementById('trim');
+  const trimNumEl = document.getElementById('trimNum');
+  const smoothEl = document.getElementById('smooth');
+  const smoothNumEl = document.getElementById('smoothNum');
+  const sampleEl = document.getElementById('sample');
+  const sampleNumEl = document.getElementById('sampleNum');
+  const statShowEl = document.getElementById('statShow');
+
+  const comboBody = document.getElementById('comboBody');
+  const ev100Line = document.getElementById('ev100Line');
+  const statusDot = document.getElementById('statusDot');
+  const statusText = document.getElementById('statusText');
+
+  const calShow = document.getElementById('calShow');
+  const calSummary = document.getElementById('calSummary');
+  const pointsBody = document.getElementById('pointsBody');
+
+  const evInput = document.getElementById('evInput');
+  const btnAddPoint = document.getElementById('btnAddPoint');
+  const btnRemoveLast = document.getElementById('btnRemoveLast');
+  const btnClearPoints = document.getElementById('btnClearPoints');
+
+  const dbgX = document.getElementById('dbgX');
+  const dbgSeg = document.getElementById('dbgSeg');
+  const dbgEV100 = document.getElementById('dbgEV100');
+
+  // ----------------------------
+  // State (persisted)
+  // ----------------------------
+  let stream = null;
+  let running = false;
+
+  let mode = localStorage.getItem('lm_mode') || 'avg'; // 'avg' | 'center'
+  let iso = Number(localStorage.getItem('lm_iso') || 100);
+  let offset = Number(localStorage.getItem('lm_offset') || 0);
+
+  let statMode = localStorage.getItem('lm_stat_mode') || 'median'; // median | trimmed
+  let trim = Number(localStorage.getItem('lm_trim') || 0.10); // 0..0.4
+  let smooth = Number(localStorage.getItem('lm_smooth') || 0.35); // 0..0.9
+  let sampleStep = Number(localStorage.getItem('lm_sample') || 2); // 1..5
+
+  // Calibration points: [{ev:number, x:number, t:number}]
+  // x = robust estimate of log2(luminance)
+  let points = [];
+  try {
+    const raw = localStorage.getItem('lm_points_v03');
+    if (raw) points = JSON.parse(raw);
+    if (!Array.isArray(points)) points = [];
+  } catch { points = []; }
+
+  // Fallback baseline (if not calibrated enough)
+  const BASE_K = 8.2;
+
+  // Live
+  let lastX = NaN;
+  let smoothedX = NaN;
+  let lastSegText = '--';
+  let lastEV100 = NaN;
+
+  // ----------------------------
+  // Helpers
+  // ----------------------------
+  function setStatus(kind, text){
+    statusText.textContent = text;
+    statusDot.classList.remove('ok','bad');
+    if(kind==='ok') statusDot.classList.add('ok');
+    if(kind==='bad') statusDot.classList.add('bad');
+  }
+  function clamp(v,min,max){ return Math.max(min, Math.min(max, v)); }
+  function log2(x){ return Math.log(x) / Math.log(2); }
+
+  function formatShutter(t){
+    if (!isFinite(t) || t <= 0) return '--';
+    if (t >= 1) {
+      const nice = [1,2,4,8,15,30];
+      let best = nice[0], bestErr = Math.abs(Math.log2(t/best));
+      for (const n of nice){
+        const err = Math.abs(Math.log2(t/n));
+        if (err < bestErr){ bestErr = err; best = n; }
+      }
+      return best + 's';
+    } else {
+      const denomNice = [8000,4000,2000,1000,500,250,125,60,30,15,8,4,2];
+      let best = denomNice[0], bestErr = Infinity;
+      for (const d of denomNice){
+        const cand = 1/d;
+        const err = Math.abs(Math.log2(t/cand));
+        if (err < bestErr){ bestErr = err; best = d; }
+      }
+      return '1/' + best;
+    }
+  }
+  const apertures = [1.4, 2, 2.8, 4, 5.6, 8, 11, 16];
+
+  function updateCombos(ev100){
+    lastEV100 = ev100;
+    if (!isFinite(ev100)){
+      comboBody.innerHTML = `<tr><td class="muted">--</td><td class="right muted">--</td></tr>`;
+      ev100Line.textContent = 'EV100：--（估算）';
+      dbgEV100.textContent = '--';
+      return;
+    }
+    ev100Line.textContent = `EV100：${ev100.toFixed(2)}（估算）`;
+    dbgEV100.textContent = ev100.toFixed(3);
+
+    const isoFactor = iso/100;
+    let rows = '';
+    for (const N of apertures){
+      const t = (N*N) / (Math.pow(2, ev100) * isoFactor);
+      rows += `<tr><td>f/${N}</td><td class="right">${formatShutter(t)}</td></tr>`;
+    }
+    comboBody.innerHTML = rows;
+  }
+
+  function srgbToLinear(c){
+    if (c <= 0.04045) return c / 12.92;
+    return Math.pow((c + 0.055) / 1.055, 2.4);
+  }
+
+  function robustLogLum(imageData, x0, y0, w, h){
+    const data = imageData.data;
+    const width = imageData.width;
+
+    const step = sampleStep; // 1..5
+    const xs = [];
+
+    for (let y = y0; y < y0 + h; y += step){
+      let idx = (y * width + x0) * 4;
+      for (let x = x0; x < x0 + w; x += step){
+        const r = srgbToLinear(data[idx] / 255);
+        const g = srgbToLinear(data[idx+1] / 255);
+        const b = srgbToLinear(data[idx+2] / 255);
+        const Y = 0.2126*r + 0.7152*g + 0.0722*b;
+        const yClamped = clamp(Y, 1e-6, 1);
+        xs.push(log2(yClamped));
+        idx += 4 * step;
+      }
+    }
+
+    if (!xs.length) return NaN;
+    xs.sort((a,b) => a-b);
+
+    if (statMode === 'median'){
+      const mid = Math.floor(xs.length / 2);
+      if (xs.length % 2) return xs[mid];
+      return (xs[mid-1] + xs[mid]) / 2;
+    } else {
+      const t = clamp(trim, 0, 0.40);
+      const n = xs.length;
+      const a = Math.floor(n * t);
+      const b = Math.max(a+1, Math.ceil(n * (1 - t)));
+      let sum = 0;
+      let cnt = 0;
+      for (let i = a; i < b; i++){ sum += xs[i]; cnt++; }
+      return cnt ? (sum / cnt) : xs[Math.floor(n/2)];
+    }
+  }
+
+  function persistPoints(){
+    localStorage.setItem('lm_points_v03', JSON.stringify(points));
+  }
+
+  function normalizedPoints(){
+    // Merge by EV (last wins), drop invalid, sort by x
+    const m = new Map();
+    for (const p of points){
+      if (!p || !isFinite(p.ev) || !isFinite(p.x)) continue;
+      m.set(String(p.ev), { ev: Number(p.ev), x: Number(p.x), t: p.t || Date.now() });
+    }
+    const arr = Array.from(m.values());
+    arr.sort((a,b) => a.x - b.x);
+    return arr;
+  }
+
+  function updatePointsUI(){
+    const arr = normalizedPoints();
+    calShow.textContent = `${arr.length} 點`;
+    if (arr.length < 2){
+      calSummary.textContent = '尚未校準或點數不足（< 2）— 使用預設映射';
+    } else {
+      const minEV = Math.min(...arr.map(p => p.ev));
+      const maxEV = Math.max(...arr.map(p => p.ev));
+      calSummary.textContent = `已校準：${arr.length} 點（EV 範圍 ${minEV}～${maxEV}；分段線性插值）`;
+    }
+
+    if (!arr.length){
+      pointsBody.innerHTML = `<tr><td class="muted">--</td><td class="right muted">--</td></tr>`;
+      return;
+    }
+    pointsBody.innerHTML = arr.map(p => (
+      `<tr><td>${p.ev}</td><td class="right">${p.x.toFixed(4)}</td></tr>`
+    )).join('');
+  }
+
+  function mapXToEV(x){
+    // Piecewise linear interpolation in x-domain
+    const arr = normalizedPoints();
+    if (arr.length < 2 || !isFinite(x)){
+      lastSegText = 'fallback';
+      return (x + BASE_K + offset);
+    }
+
+    // below range
+    if (x <= arr[0].x){
+      const p0 = arr[0], p1 = arr[1];
+      const m = (p1.ev - p0.ev) / (p1.x - p0.x);
+      lastSegText = `extrapolate: [${p0.ev}↔${p1.ev}]`;
+      return (p0.ev + m * (x - p0.x) + offset);
+    }
+    // above range
+    if (x >= arr[arr.length-1].x){
+      const p0 = arr[arr.length-2], p1 = arr[arr.length-1];
+      const m = (p1.ev - p0.ev) / (p1.x - p0.x);
+      lastSegText = `extrapolate: [${p0.ev}↔${p1.ev}]`;
+      return (p1.ev + m * (x - p1.x) + offset);
+    }
+
+    for (let i = 0; i < arr.length - 1; i++){
+      const a = arr[i], b = arr[i+1];
+      if (x >= a.x && x <= b.x){
+        const t = (x - a.x) / (b.x - a.x);
+        lastSegText = `interpolate: [${a.ev}↔${b.ev}]`;
+        return (a.ev + (b.ev - a.ev) * t + offset);
+      }
+    }
+
+    lastSegText = 'fallback';
+    return (x + BASE_K + offset);
+  }
+
+  function setMode(next){
+    mode = next;
+    localStorage.setItem('lm_mode', mode);
+    const isAvg = (mode === 'avg');
+    btnModeAvg.setAttribute('aria-pressed', String(isAvg));
+    btnModeCenter.setAttribute('aria-pressed', String(!isAvg));
+    modePill.textContent = isAvg ? '平均測光' : '中央重點測光';
+    roi.style.display = isAvg ? 'none' : 'block';
+  }
+  function setISO(val){
+    iso = clamp(Number(val || 100), 50, 6400);
+    isoEl.value = iso;
+    isoNumEl.value = iso;
+    isoShowEl.textContent = iso;
+    localStorage.setItem('lm_iso', String(iso));
+  }
+  function setOffset(val){
+    offset = clamp(Number(val || 0), -8, 8);
+    offsetEl.value = offset;
+    offsetNumEl.value = offset;
+    localStorage.setItem('lm_offset', String(offset));
+  }
+  function setStatMode(val){
+    statMode = (val === 'trimmed') ? 'trimmed' : 'median';
+    localStorage.setItem('lm_stat_mode', statMode);
+    statModeEl.value = statMode;
+    statShowEl.textContent = (statMode === 'median') ? '中位數' : '截尾平均';
+  }
+  function setTrim(val){
+    trim = clamp(Number(val || 0.10), 0, 0.40);
+    trimEl.value = trim;
+    trimNumEl.value = trim;
+    localStorage.setItem('lm_trim', String(trim));
+  }
+  function setSmooth(val){
+    smooth = clamp(Number(val || 0.35), 0, 0.9);
+    smoothEl.value = smooth;
+    smoothNumEl.value = smooth;
+    localStorage.setItem('lm_smooth', String(smooth));
+  }
+  function setSample(val){
+    sampleStep = clamp(Number(val || 2), 1, 5);
+    sampleEl.value = sampleStep;
+    sampleNumEl.value = sampleStep;
+    localStorage.setItem('lm_sample', String(sampleStep));
+  }
+
+  function requireFrame(){
+    if (!running || !isFinite(smoothedX)){
+      alert('請先開啟相機，並讓畫面穩定 1–2 秒後再按。');
+      return false;
+    }
+    return true;
+  }
+
+  function addOrUpdatePoint(ev){
+    if (!requireFrame()) return;
+    ev = Number(ev);
+    if (!isFinite(ev)) return;
+
+    const x = smoothedX;
+    points.push({ ev, x, t: Date.now() });
+    // Keep only last ~30 raw entries (we normalize by EV in UI)
+    if (points.length > 30) points = points.slice(points.length - 30);
+    persistPoints();
+    updatePointsUI();
+    alert(`已記錄：EV ${ev} ↔ log2(亮度) ${x.toFixed(4)}\n（建議再記錄 2–4 個不同明暗點）`);
+  }
+
+  function removeLastPoint(){
+    if (!points.length) return;
+    points.pop();
+    persistPoints();
+    updatePointsUI();
+  }
+
+  function clearPoints(){
+    if (!confirm('確定要清除全部校準點？')) return;
+    points = [];
+    persistPoints();
+    updatePointsUI();
+  }
+
+  // ----------------------------
+  // Camera loop
+  // ----------------------------
+  let lastTick = 0;
+  function tick(ts){
+    if (!running) return;
+    if (!video.videoWidth || !video.videoHeight) {
+      requestAnimationFrame(tick);
+      return;
+    }
+    if (ts - lastTick < 125) { requestAnimationFrame(tick); return; }
+    lastTick = ts;
+
+    // downsample canvas
+    const target = 112;
+    const vw = video.videoWidth;
+    const vh = video.videoHeight;
+    const aspect = vw / vh;
+    let cw = target, ch = target;
+    if (aspect >= 1) { ch = target; cw = Math.round(target * aspect); }
+    else { cw = target; ch = Math.round(target / aspect); }
+
+    canvas.width = cw;
+    canvas.height = ch;
+
+    ctx.drawImage(video, 0, 0, cw, ch);
+    const img = ctx.getImageData(0, 0, cw, ch);
+
+    let x0 = 0, y0 = 0, w = cw, h = ch;
+    if (mode === 'center'){
+      const sideW = Math.round(cw * 0.40);
+      const sideH = Math.round(ch * 0.40);
+      x0 = Math.round((cw - sideW)/2);
+      y0 = Math.round((ch - sideH)/2);
+      w = sideW; h = sideH;
+    }
+
+    const x = robustLogLum(img, x0, y0, w, h);
+    lastX = x;
+    if (!isFinite(smoothedX)) smoothedX = x;
+    else smoothedX = (smooth * x) + ((1 - smooth) * smoothedX);
+
+    dbgX.textContent = `x=${smoothedX.toFixed(4)}`;
+    const ev100 = mapXToEV(smoothedX);
+    dbgSeg.textContent = lastSegText;
+
+    evIntEl.textContent = String(Math.round(ev100));
+    updateCombos(ev100);
+
+    requestAnimationFrame(tick);
+  }
+
+  async function startCamera(){
+    try{
+      setStatus('', '請求相機權限…');
+      const constraints = {
+        audio: false,
+        video: {
+          facingMode: { ideal: 'environment' },
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        }
+      };
+      stream = await navigator.mediaDevices.getUserMedia(constraints);
+      video.srcObject = stream;
+      await video.play();
+      running = true;
+      btnStart.disabled = true;
+      btnStop.disabled = false;
+      setStatus('ok', '相機運作中');
+      requestAnimationFrame(tick);
+    } catch (e){
+      console.error(e);
+      setStatus('bad', '無法開啟相機（請確認 HTTPS 與權限）');
+      alert('無法開啟相機。請確認：\n1) 網站在 HTTPS/localhost\n2) 已允許相機權限\n3) 不是在內嵌瀏覽器限制環境（可改用 Safari/Chrome 直接開）');
+    }
+  }
+
+  function stopCamera(){
+    running = false;
+    btnStart.disabled = false;
+    btnStop.disabled = true;
+    if (stream){
+      for (const t of stream.getTracks()) t.stop();
+      stream = null;
+    }
+    video.srcObject = null;
+    setStatus('', '已停止');
+  }
+
+  // ----------------------------
+  // Wire UI
+  // ----------------------------
+  btnStart.addEventListener('click', startCamera);
+  btnStop.addEventListener('click', stopCamera);
+
+  btnModeAvg.addEventListener('click', () => setMode('avg'));
+  btnModeCenter.addEventListener('click', () => setMode('center'));
+
+  isoEl.addEventListener('input', (e) => setISO(e.target.value));
+  isoNumEl.addEventListener('change', (e) => setISO(e.target.value));
+
+  offsetEl.addEventListener('input', (e) => setOffset(e.target.value));
+  offsetNumEl.addEventListener('change', (e) => setOffset(e.target.value));
+
+  statModeEl.addEventListener('change', (e) => setStatMode(e.target.value));
+  trimEl.addEventListener('input', (e) => setTrim(e.target.value));
+  trimNumEl.addEventListener('change', (e) => setTrim(e.target.value));
+
+  smoothEl.addEventListener('input', (e) => setSmooth(e.target.value));
+  smoothNumEl.addEventListener('change', (e) => setSmooth(e.target.value));
+
+  sampleEl.addEventListener('input', (e) => setSample(e.target.value));
+  sampleNumEl.addEventListener('change', (e) => setSample(e.target.value));
+
+  btnAddPoint.addEventListener('click', () => addOrUpdatePoint(evInput.value));
+  btnRemoveLast.addEventListener('click', removeLastPoint);
+  btnClearPoints.addEventListener('click', clearPoints);
+
+  for (const btn of document.querySelectorAll('button[data-quick-ev]')){
+    btn.addEventListener('click', (e) => {
+      const ev = Number(e.currentTarget.getAttribute('data-quick-ev'));
+      addOrUpdatePoint(ev);
+    });
+  }
+
+  // ----------------------------
+  // Init
+  // ----------------------------
+  setMode(mode);
+  setISO(iso);
+  setOffset(offset);
+  setStatMode(statMode);
+  setTrim(trim);
+  setSmooth(smooth);
+  setSample(sampleStep);
+
+  setStatus('', '尚未開啟相機');
+  updatePointsUI();
+  updateCombos(NaN);
+
+  window.addEventListener('pagehide', stopCamera);
+})();
+</script>
+</body>
+</html>
