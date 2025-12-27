@@ -54,7 +54,6 @@
     gap:10px;
   }
 
-  /* ---- Center everything important ---- */
   .center{
     display:flex;
     flex-direction:column;
@@ -65,13 +64,13 @@
     text-align:center;
   }
   .bigLabel{
-    font-size:30px;       /* 關鍵字也超大 */
+    font-size:30px;
     font-weight:900;
     line-height:1.0;
     letter-spacing:.6px;
   }
   .bigValue{
-    font-size:46px;       /* 數字最大 */
+    font-size:46px;
     font-weight:900;
     line-height:1.0;
   }
@@ -86,7 +85,6 @@
     accent-color: var(--accent);
   }
 
-  /* Pinhole mini inputs */
   .miniRow{
     width:100%;
     display:flex;
@@ -107,7 +105,6 @@
   }
   .mini:focus{ border-color: var(--accent); box-shadow: 0 0 0 3px rgba(90,167,255,.15); }
 
-  /* Mode toggle */
   .seg{
     display:flex;
     width:100%;
@@ -159,6 +156,7 @@
         <div class="bigValue" id="shVal">—</div>
         <div class="hint" id="shHint"></div>
       </div>
+      <!-- Lens 模式才顯示快門滑桿；Pinhole 模式隱藏 -->
       <input id="shSlider" type="range" min="0" max="10" step="1" value="6" />
     </div>
 
@@ -174,7 +172,6 @@
         <div class="bigValue" id="apVal">f/1.4</div>
         <div class="hint" id="apHint">鏡頭模式：滑桿選擇</div>
 
-        <!-- 針孔輸入（預設隱藏） -->
         <div id="pinholeInputs" style="display:none; width:100%;">
           <div class="miniRow">
             <input id="phF" class="mini" type="number" step="0.1" value="100" inputmode="decimal" placeholder="焦距 f (mm)">
@@ -202,7 +199,7 @@
       <div class="center">
         <div class="bigLabel">ISO</div>
         <div class="bigValue" id="isoVal">100</div>
-        <div class="hint" id="isoHint">改 ISO：優先常用快門</div>
+        <div class="hint" id="isoHint">鏡頭模式：改 ISO 會吸附常用快門</div>
       </div>
       <input id="isoSlider" type="range" min="0" max="0" step="1" value="0" />
     </div>
@@ -215,7 +212,7 @@
 
   <div class="footer">
     公式：EV = log₂(N² / t) − log₂(ISO / 100)；N=f-number；t=秒。<br/>
-    規則：動光圈→算快門；動快門→算光圈；動 ISO→快門先吸附常用檔位再算光圈；EV 預設室內 8。
+    針孔模式：快門以「計算值」直接輸出，不做檔位吸附、不限制 1 秒。
   </div>
 </div>
 
@@ -233,13 +230,12 @@
 
   // Leica M-A shutter detents (<=1s)
   const SH_MA_FAST = [1, 1/2, 1/4, 1/8, 1/15, 1/30, 1/60, 1/125, 1/250, 1/500, 1/1000];
-  // Only when ISO < 100
+  // Only when ISO < 100 (lens mode only)
   const SH_SLOW = [2, 4, 8, 15, 30];
 
   const AP_LIST = [1.4, 2, 2.8, 4, 5.6, 8, 11, 16, 22];
-  const ISO_LIST = [3, 6,12,25,50,100,200,400,800];
+  const ISO_LIST = [3,6,12,25,50,100,200,400,800];
 
-  // EV scene descriptions (integers)
   const EV_SCENE = {
     "-2":"星光極暗",
     "-1":"星光/極微光",
@@ -276,6 +272,7 @@
   const shHint = document.getElementById('shHint');
   const apHint = document.getElementById('apHint');
   const evScene= document.getElementById('evScene');
+  const isoHint= document.getElementById('isoHint');
 
   const modeLens = document.getElementById('modeLens');
   const modePinhole = document.getElementById('modePinhole');
@@ -283,18 +280,38 @@
   const phF = document.getElementById('phF');
   const phD = document.getElementById('phD');
 
-  let lastMode = 'ap';         // 'ap' = 動光圈算快門；'sh' = 動快門算光圈
+  let lastMode = 'ap';         // lens mode only
   let apMode = 'lens';         // 'lens' or 'pinhole'
   let pinholeN = 1.4;          // computed N in pinhole mode
 
-  function fmtShutter(t){
+  function fmtAperture(n){
+    if (!isFinite(n) || n<=0) return '—';
+    // Pinhole may be huge; show one decimal, but if very large show integer
+    const s = (n >= 100) ? Math.round(n).toString() : (Math.round(n*10)/10).toString().replace(/\.0$/,'');
+    return `f/${s}`;
+  }
+
+  function fmtShutterComputed(t){
+    if (!isFinite(t) || t<=0) return '—';
+    if (t >= 60) {
+      const m = Math.floor(t/60);
+      const s = t - m*60;
+      const sTxt = (s < 10) ? s.toFixed(1) : s.toFixed(0);
+      return `${m}m ${sTxt}s`;
+    }
+    if (t >= 10) return `${t.toFixed(0)}s`;
+    if (t >= 1) return `${t.toFixed(1)}s`;
+    // under 1s show fraction with rounding to common denom
+    const denom = Math.round(1/t);
+    return `1/${denom}`;
+  }
+
+  function fmtShutterDetent(t){
+    // for lens mode display Leica detent nicely
     if (t >= 1) return `${t}s`;
     return `1/${Math.round(1/t)}`;
   }
-  function fmtAperture(n){
-    const s = (Math.round(n*10)/10).toString().replace(/\.0$/,'');
-    return `f/${s}`;
-  }
+
   function nearestIndex(value, arr){
     let bestI = 0;
     let bestD = Math.abs(arr[0]-value);
@@ -304,8 +321,16 @@
     }
     return bestI;
   }
-  function getShutterList(ISO){
+
+  function getShutterListForLens(ISO){
     return (ISO < 100) ? SH_MA_FAST.concat(SH_SLOW) : SH_MA_FAST.slice();
+  }
+
+  function computePinholeN(){
+    const f = parseFloat(phF.value);
+    const d = parseFloat(phD.value);
+    if (!isFinite(f) || !isFinite(d) || d <= 0) return null;
+    return f / d;
   }
 
   function currentN(){
@@ -313,52 +338,47 @@
     return AP_LIST[parseInt(apSlider.value,10)];
   }
 
-  function computePinholeN(){
-    const f = parseFloat(phF.value);
-    const d = parseFloat(phD.value);
-    if (!isFinite(f) || !isFinite(d) || d <= 0){
-      return null;
-    }
-    return f / d;
-  }
-
   function render(){
     const EV = parseInt(evSlider.value,10);
     const ISO = ISO_LIST[parseInt(isoSlider.value,10)];
-    const shList = getShutterList(ISO);
-
-    // keep shutter slider in range if list changes
-    const newMax = shList.length - 1;
-    if (parseInt(shSlider.max,10) !== newMax){
-      shSlider.max = String(newMax);
-      shSlider.value = String(Math.min(parseInt(shSlider.value,10), newMax));
-    }
-
-    const sh = shList[parseInt(shSlider.value,10)];
     const N  = currentN();
 
     evVal.textContent  = String(EV);
     evScene.textContent = EV_SCENE[String(EV)] || '';
     isoVal.textContent = String(ISO);
+    apVal.textContent  = fmtAperture(N);
 
-    shVal.textContent = fmtShutter(sh);
-    shHint.textContent = (ISO < 100) ? 'ISO<100：含 2–30s' : 'M-A 檔位';
-
-    apVal.textContent = fmtAperture(N);
-    if (apMode === 'lens'){
-      apHint.textContent = (lastMode === 'ap') ? '動光圈→算快門' : '動快門→算光圈';
+    if (apMode === 'pinhole'){
+      // computed shutter only
+      const tExact = calcT(N, EV, ISO);
+      shVal.textContent = fmtShutterComputed(tExact);
+      shHint.textContent = `計算值：t = ${tExact.toFixed(3)} s`;
+      apHint.textContent = '針孔模式：輸入 f、d → 直接計算快門';
+      isoHint.textContent = '針孔模式：改 ISO 直接重算快門';
     } else {
-      apHint.textContent = '針孔模式：由 f、d 自動算 N';
+      const shList = getShutterListForLens(ISO);
+      // update slider max in case ISO threshold changes
+      const newMax = shList.length - 1;
+      if (parseInt(shSlider.max,10) !== newMax){
+        shSlider.max = String(newMax);
+        shSlider.value = String(Math.min(parseInt(shSlider.value,10), newMax));
+      }
+      const t = shList[parseInt(shSlider.value,10)];
+      shVal.textContent = fmtShutterDetent(t);
+      shHint.textContent = (ISO < 100) ? 'ISO<100：含 2–30s 檔位' : 'Leica M-A 檔位';
+      apHint.textContent = (lastMode === 'ap') ? '動光圈→算快門' : '動快門→算光圈';
+      isoHint.textContent = '鏡頭模式：改 ISO 會吸附常用快門';
     }
   }
 
-  function solveFromAperture(){
+  // -------- lens mode solvers --------
+  function solveFromAperture_Lens(){
     const EV = parseInt(evSlider.value,10);
     const ISO = ISO_LIST[parseInt(isoSlider.value,10)];
-    const N = currentN();
+    const N = AP_LIST[parseInt(apSlider.value,10)];
 
     const tExact = calcT(N, EV, ISO);
-    const shList = getShutterList(ISO);
+    const shList = getShutterListForLens(ISO);
     const i = nearestIndex(tExact, shList);
 
     shSlider.max = String(shList.length - 1);
@@ -368,18 +388,10 @@
     render();
   }
 
-  function solveFromShutter(){
-    if (apMode === 'pinhole'){
-      // 針孔模式不反推針孔直徑，避免 UI 變複雜；維持 N 由使用者輸入 f、d 決定
-      // 所以動快門時，在針孔模式下不改光圈，只更新顯示即可
-      lastMode = 'sh';
-      render();
-      return;
-    }
-
+  function solveFromShutter_Lens(){
     const EV = parseInt(evSlider.value,10);
     const ISO = ISO_LIST[parseInt(isoSlider.value,10)];
-    const shList = getShutterList(ISO);
+    const shList = getShutterListForLens(ISO);
     const t = shList[parseInt(shSlider.value,10)];
 
     const nExact = calcN(t, EV, ISO);
@@ -391,58 +403,73 @@
   }
 
   function onISOChange(){
-    // ISO changed -> prioritize common shutter detents (already detents), then compute aperture (lens mode).
-    const ISO = ISO_LIST[parseInt(isoSlider.value,10)];
-    const shList = getShutterList(ISO);
+    if (apMode === 'pinhole'){
+      // pinhole: recompute shutter directly, no detents
+      render();
+      return;
+    }
 
-    // keep current shutter time closest after list changes
-    const curT = shList[Math.min(parseInt(shSlider.value,10), shList.length-1)];
+    // lens: keep shutter on detent (already detent), but list length may change
+    const ISO = ISO_LIST[parseInt(isoSlider.value,10)];
+    const shList = getShutterListForLens(ISO);
+
+    const curIdx = Math.min(parseInt(shSlider.value,10), shList.length-1);
+    const curT = shList[curIdx];
     const iSh = nearestIndex(curT, shList);
+
     shSlider.max = String(shList.length - 1);
     shSlider.value = String(iSh);
 
-    // rule: compute aperture (lens) from shutter; if pinhole, keep N fixed
-    solveFromShutter();
+    // then solve aperture from shutter
+    solveFromShutter_Lens();
   }
 
   function onEVChange(){
-    // EV changed -> follow lastMode
-    if (lastMode === 'ap') solveFromAperture();
-    else solveFromShutter();
-  }
-
-  function setMode(newMode){
-    apMode = newMode;
-    if (apMode === 'lens'){
-      modeLens.classList.add('active');
-      modePinhole.classList.remove('active');
-      pinholeInputs.style.display = 'none';
-      apSlider.style.display = '';
-      // whenever returning to lens, ensure we have a valid slider N and then solve based on lastMode
-      if (lastMode === 'ap') solveFromAperture();
-      else solveFromShutter();
-    } else {
-      modePinhole.classList.add('active');
-      modeLens.classList.remove('active');
-      pinholeInputs.style.display = '';
-      apSlider.style.display = 'none';
-
-      const n = computePinholeN();
-      if (n !== null) pinholeN = n;
-
-      // in pinhole mode, we treat aperture as fixed; changing it should update shutter
-      solveFromAperture();
+    if (apMode === 'pinhole'){
+      render(); // direct recompute
+      return;
     }
+    if (lastMode === 'ap') solveFromAperture_Lens();
+    else solveFromShutter_Lens();
   }
 
   function onPinholeInput(){
     const n = computePinholeN();
     if (n === null) return;
     pinholeN = n;
-    // change N -> compute shutter
-    solveFromAperture();
+    render(); // direct recompute shutter
   }
 
+  // -------- mode switch --------
+  function setMode(newMode){
+    apMode = newMode;
+
+    if (apMode === 'lens'){
+      modeLens.classList.add('active');
+      modePinhole.classList.remove('active');
+      pinholeInputs.style.display = 'none';
+      apSlider.style.display = '';
+      shSlider.style.display = '';        // SHOW shutter slider in lens mode
+
+      apHint.textContent = '鏡頭模式：滑桿選擇';
+
+      // solve to align lens detents
+      if (lastMode === 'ap') solveFromAperture_Lens();
+      else solveFromShutter_Lens();
+    } else {
+      modePinhole.classList.add('active');
+      modeLens.classList.remove('active');
+      pinholeInputs.style.display = '';
+      apSlider.style.display = 'none';
+      shSlider.style.display = 'none';    // HIDE shutter slider in pinhole mode
+
+      const n = computePinholeN();
+      if (n !== null) pinholeN = n;
+      render();
+    }
+  }
+
+  // -------- init ranges/defaults --------
   function syncRanges(){
     apSlider.min = 0;
     apSlider.max = AP_LIST.length - 1;
@@ -451,21 +478,22 @@
     isoSlider.min = 0;
     isoSlider.max = ISO_LIST.length - 1;
     isoSlider.step = 1;
-
-    // shutter slider range depends on ISO; set later
   }
 
   function setDefaults(){
     evSlider.value = "8"; // 室內 8
     isoSlider.value = String(ISO_LIST.indexOf(100));
     apSlider.value = String(AP_LIST.indexOf(1.4));
-    pinholeN = 1.4;
+    phF.value = "100";
+    phD.value = "0.30";
+    pinholeN = computePinholeN() ?? 333;
 
+    // set a reasonable lens shutter index
     const EV = parseInt(evSlider.value,10);
     const ISO = ISO_LIST[parseInt(isoSlider.value,10)];
     const N = AP_LIST[parseInt(apSlider.value,10)];
     const tExact = calcT(N, EV, ISO);
-    const shList = getShutterList(ISO);
+    const shList = getShutterListForLens(ISO);
 
     shSlider.min = 0;
     shSlider.max = String(shList.length - 1);
@@ -480,11 +508,11 @@
   // events
   syncRanges();
 
-  modeLens.addEventListener('click', () => setMode('lens'));
-  modePinhole.addEventListener('click', () => setMode('pinhole'));
+  document.getElementById('modeLens').addEventListener('click', () => setMode('lens'));
+  document.getElementById('modePinhole').addEventListener('click', () => setMode('pinhole'));
 
-  apSlider.addEventListener('input', () => { lastMode='ap'; solveFromAperture(); });
-  shSlider.addEventListener('input', () => { lastMode='sh'; solveFromShutter(); });
+  apSlider.addEventListener('input', () => { lastMode='ap'; solveFromAperture_Lens(); });
+  shSlider.addEventListener('input', () => { lastMode='sh'; solveFromShutter_Lens(); });
 
   isoSlider.addEventListener('input', onISOChange);
   evSlider.addEventListener('input', onEVChange);
@@ -494,7 +522,6 @@
 
   document.getElementById('resetBtn').addEventListener('click', setDefaults);
 
-  // init
   setDefaults();
 })();
 </script>
