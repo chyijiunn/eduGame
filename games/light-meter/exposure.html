@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Leica EV 曝光計算器</title>
+
+<style>
+body{
+  margin:0;
+  background:#0e0e11;
+  color:#f2f2f2;
+  font-family:-apple-system,BlinkMacSystemFont,"PingFang TC","Noto Sans TC",sans-serif;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  min-height:100vh;
+}
+.panel{
+  width:360px;
+  background:#16161b;
+  padding:20px;
+  border-radius:14px;
+  box-shadow:0 10px 30px rgba(0,0,0,.4);
+}
+h1{
+  font-size:18px;
+  margin:0 0 12px;
+}
+label{
+  display:block;
+  font-size:13px;
+  color:#aaa;
+  margin-top:14px;
+}
+select,input{
+  width:100%;
+  margin-top:6px;
+  padding:10px;
+  font-size:16px;
+  border-radius:10px;
+  border:1px solid #333;
+  background:#0f0f14;
+  color:#fff;
+}
+.result{
+  margin-top:18px;
+  padding:12px;
+  background:#0f0f14;
+  border-radius:10px;
+  text-align:center;
+  font-size:18px;
+}
+small{ color:#888; }
+</style>
+</head>
+
+<body>
+<div class="panel">
+  <h1>Leica M-A 曝光計算</h1>
+
+  <!-- EV -->
+  <label>EV（場景 / 手動）</label>
+  <select id="evPreset">
+    <option value="">手動輸入</option>
+    <option value="15">☀️ 大太陽（EV 15）</option>
+    <option value="13">🌤 陰天戶外（EV 13）</option>
+    <option value="10">🏠 明亮室內（EV 10）</option>
+    <option value="8">🌆 黃昏 / 室內偏暗（EV 8）</option>
+    <option value="6">🌃 昏暗室內（EV 6）</option>
+    <option value="3">🌙 夜晚街燈（EV 3）</option>
+  </select>
+  <input id="evInput" type="number" step="0.1" value="15">
+
+  <!-- Aperture -->
+  <label>光圈</label>
+  <select id="aperture">
+    <option>1.4</option><option>2</option><option>2.8</option>
+    <option>4</option><option>5.6</option><option>8</option>
+    <option>11</option><option>16</option>
+  </select>
+
+  <!-- ISO -->
+  <label>ISO</label>
+  <select id="iso">
+    <option>25</option>
+    <option>50</option>
+    <option selected>100</option>
+    <option>200</option>
+    <option>400</option>
+    <option>800</option>
+  </select>
+
+  <!-- Result -->
+  <div class="result" id="result">快門：—</div>
+  <small>公式：EV = log₂(N² / t) − log₂(ISO / 100)</small>
+</div>
+
+<script>
+const log2 = x => Math.log(x)/Math.log(2);
+const pow2 = x => Math.pow(2,x);
+
+// Leica M-A 快門檔位
+const leicaFast = [
+  1/1000,1/500,1/250,1/125,1/60,1/30,1/15,1/8,1/4,1/2,1
+];
+const leicaSlow = [2,4,8,15,30];
+
+const evPreset = document.getElementById("evPreset");
+const evInput  = document.getElementById("evInput");
+const aperture = document.getElementById("aperture");
+const isoSel   = document.getElementById("iso");
+const result   = document.getElementById("result");
+
+evPreset.onchange = () => {
+  if(evPreset.value) evInput.value = evPreset.value;
+  calc();
+};
+[evInput, aperture, isoSel].forEach(el => el.onchange = calc);
+
+function calc(){
+  const EV = parseFloat(evInput.value);
+  const N  = parseFloat(aperture.value);
+  const ISO = parseFloat(isoSel.value);
+
+  if(isNaN(EV)) return;
+
+  const t = (N*N) / pow2(EV + log2(ISO/100));
+
+  let shutters = [...leicaFast];
+  if(ISO < 100) shutters = shutters.concat(leicaSlow);
+
+  let best = shutters[0];
+  let diff = Math.abs(best - t);
+  shutters.forEach(s=>{
+    const d = Math.abs(s - t);
+    if(d < diff){ best=s; diff=d; }
+  });
+
+  result.innerHTML = "快門：" + (best>=1 ? best+" s" : "1/"+Math.round(1/best));
+}
+
+calc();
+</script>
+</body>
+</html>
