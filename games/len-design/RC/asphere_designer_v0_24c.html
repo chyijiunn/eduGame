@@ -1,0 +1,573 @@
+
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>非球面平凸透鏡 設計器 v0.24c（mm）</title>
+<style>
+  :root{ --bg:#0b0f14; --panel:#10161f; --ink:#e6f0ff; --muted:#9bb3cc; --accent:#7cc4ff; --good:#3ddc97; --warn:#ffd166; --bad:#ef476f; }
+  html,body{height:100%;}
+  body{margin:0; font-family: system-ui,-apple-system,Segoe UI,Roboto,Noto Sans TC,Helvetica,Arial; background:var(--bg); color:var(--ink);}
+  .wrap{display:grid; grid-template-columns: 300px 1fr; gap:16px; height:100vh;}
+  .panel{background:var(--panel); padding:14px; overflow:auto; box-shadow:inset 0 0 0 1px #1b2430;}
+  h1{font-size:18px; margin:0 0 8px;}
+  h2{font-size:14px; color:var(--muted); margin:16px 0 8px; letter-spacing:.02em; font-weight:600;}
+  .row{margin:10px 0 14px;}
+  .row label{display:block; font-size:13px; color:var(--muted); margin-bottom:6px;}
+  .row input[type="number"].num{width:12ch; box-sizing:content-box;}
+  .row input[type="number"], select{background:#0e141c; color:var(--ink); border:1px solid #223048; border-radius:8px; padding:8px 10px; font-size:14px; font-variant-numeric: tabular-nums;}
+  .row input[type="range"]{width:100%; margin-top:8px;}
+  .note{font-size:12px; color:var(--muted); margin-top:6px; line-height:1.48;}
+  .btns{display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;}
+  button{background:#142132; color:var(--ink); border:1px solid #223048; border-radius:10px; padding:8px 12px; cursor:pointer; font-weight:600;}
+  button:hover{border-color:#2f4666; background:#0e1a29;}
+  .viewer{position:relative; overflow:hidden;}
+  #svg{width:100%; height:100vh; background:linear-gradient(#0f1724,#0b0f14); touch-action:none;}
+  #err{position:fixed; inset:auto 8px 8px 8px; display:none; white-space:pre-wrap; background:#2a0f15; color:#ffe6e6; border:1px solid #a33; border-radius:10px; padding:8px 10px; z-index:99; font-size:12px;}
+  .badge{position:absolute; top:8px; right:8px; font-size:12px; color:#b9d4f2; background:#0F1520aa; padding:6px 10px; border-radius:999px; border:1px solid #25344d;}
+  .legend{position:absolute; bottom:8px; left:8px; font-size:12px; color:#cfe2ff; background:#0F1520aa; padding:6px 10px; border-radius:10px; border:1px solid #25344d;}
+  .handle{cursor:ew-resize;}
+  noscript{display:block; color:#fff; background:#b00; padding:8px; margin:0;}
+</style>
+</head>
+<body>
+<noscript>此工具需要啟用 JavaScript。</noscript>
+<div class="wrap">
+  <div class="panel">
+    <h1>非球面平凸透鏡 設計器 <small>v0.24c</small></h1>
+
+    <h2>主要尺寸 & 光學</h2>
+    <div class="row"><label>清孔徑 CA（直徑, mm）</label><input id="ca" class="num" type="number" step="0.1" value="25"><input id="caR" type="range" min="2" max="100" step="0.1" value="25"></div>
+    <div class="row"><label>目標焦距 EFL（mm）</label><input id="efl" class="num" type="number" step="0.1" value="30"><input id="eflR" type="range" min="5" max="300" step="0.1" value="30"></div>
+    <div class="row"><label>折射率 n（UV 光膠示例）</label><input id="nidx" class="num" type="number" step="0.001" value="1.520"><input id="nidxR" type="range" min="1.45" max="1.60" step="0.001" value="1.520"></div>
+
+    <h2>厚度定義</h2>
+    <div class="row"><label>厚度模式</label>
+      <select id="thickMode"><option value="ET">邊緣厚度 ET（建議）</option><option value="CT">中心厚度 CT</option></select>
+    </div>
+    <div class="row" id="etRow"><label>邊緣厚度 ET（mm）</label><input id="et" class="num" type="number" step="0.01" value="2.00"><input id="etR" type="range" min="0.5" max="10" step="0.01" value="2.00"></div>
+    <div class="row" id="ctRow" style="display:none"><label>中心厚度 CT（mm）</label><input id="ct" class="num" type="number" step="0.01" value="4.00"><input id="ctR" type="range" min="1.0" max="20" step="0.01" value="4.00"></div>
+
+    <h2>非球面（前表）</h2>
+    <div class="row"><label>圓錐常數 K（預設拋物面）</label><input id="K" class="num" type="number" step="0.01" value="-1"><input id="KR" type="range" min="-4" max="2" step="0.01" value="-1"></div>
+    <div class="row"><label>A4（×10^-6 mm^-3）</label><input id="A4" class="num" type="number" step="1" value="0"><input id="A4R" type="range" min="-5000" max="5000" step="1" value="0"></div>
+    <div class="row"><label>A6（×10^-9 mm^-5）</label><input id="A6" class="num" type="number" step="1" value="0"><input id="A6R" type="range" min="-5000" max="5000" step="1" value="0"></div>
+    <div class="row"><label>A8（×10^-12 mm^-7）</label><input id="A8" class="num" type="number" step="1" value="0"><input id="A8R" type="range" min="-5000" max="5000" step="1" value="0"></div>
+
+    <h2>匯出</h2>
+    <div class="row"><label>STL 格式</label>
+      <select id="stlFormat"><option value="binary" selected>Binary</option><option value="ascii">ASCII</option></select>
+    </div>
+    <div class="row"><label>網格品質</label>
+      <select id="stlQuality"><option value="draft">草稿</option><option value="medium" selected>中等</option><option value="fine">精細</option><option value="ultra">超細</option></select>
+    </div>
+    <div class="row"><label>自適應徑向弦高（μm）</label><input id="stlTol" class="num" type="number" step="0.5" value="10"><input id="stlTolR" type="range" min="1" max="100" step="0.5" value="10"></div>
+    <div class="note" id="stlStats">—</div>
+
+    <div class="btns">
+      <button id="reset">重設</button>
+      <button id="dlCSV">下載 CSV</button>
+      <button id="dlSTL">下載實心 STL</button>
+      <button id="toggleSim">模擬成像：開/關</button>
+    </div>
+
+    <h2>計算</h2>
+    <div class="note" id="stats">—</div>
+  </div>
+
+  <div class="viewer">
+    <div class="badge"><span id="modeLabel">設計</span>視圖</div>
+    <svg id="svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 700" preserveAspectRatio="xMidYMid meet"></svg>
+    <div class="legend" id="legend">設計視圖：藍=非球前表面，綠=後平面，黃=ET 標示，青=CA 標示。模擬時：可拖曳物體/屏幕、滾輪/雙指縮放、拖移畫面。</div>
+  </div>
+</div>
+
+<div id="err"></div>
+
+<script>
+(function(){
+  'use strict';
+  const VERSION='v0.24c';
+  const $=(s)=>document.querySelector(s);
+  const svg=$('#svg');
+  const ERR=$('#err');
+  let simMode=false;
+
+  function showErr(msg){
+    if(!ERR) return;
+    ERR.style.display='block';
+    ERR.textContent='腳本錯誤：\\n'+msg;
+    console.error('[ERROR]', msg);
+  }
+  window.addEventListener('error', e=>showErr(e.message));
+  window.addEventListener('unhandledrejection', e=>showErr(e.reason?.message||e.reason));
+
+  const inp={
+    ca:$('#ca'), caR:$('#caR'),
+    efl:$('#efl'), eflR:$('#eflR'),
+    nidx:$('#nidx'), nidxR:$('#nidxR'),
+    K:$('#K'), KR:$('#KR'),
+    A4:$('#A4'), A4R:$('#A4R'),
+    A6:$('#A6'), A6R:$('#A6R'),
+    A8:$('#A8'), A8R:$('#A8R'),
+    thickMode:$('#thickMode'),
+    et:$('#et'), etR:$('#etR'),
+    ct:$('#ct'), ctR:$('#ctR'),
+    stlFormat:$('#stlFormat'),
+    stlQuality:$('#stlQuality'),
+    stlTol:$('#stlTol'), stlTolR:$('#stlTolR')
+  };
+  const etRow=$('#etRow'), ctRow=$('#ctRow');
+
+  function bindPair(num, rng){
+    const onAny=()=>{ rng.value=num.value; computeAndDraw(); };
+    const onAnyR=()=>{ num.value=rng.value; computeAndDraw(); };
+    num.addEventListener('input', onAny);
+    num.addEventListener('change', onAny);
+    rng.addEventListener('input', onAnyR);
+    rng.addEventListener('change', onAnyR);
+  }
+  [['ca','caR'],['efl','eflR'],['nidx','nidxR'],['K','KR'],['A4','A4R'],['A6','A6R'],['A8','A8R'],['et','etR'],['ct','ctR'],['stlTol','stlTolR']].forEach(p=>bindPair(inp[p[0]], inp[p[1]]));
+
+  inp.thickMode.addEventListener('change', ()=>{
+    const m=inp.thickMode.value;
+    etRow.style.display=(m==='ET')?'block':'none';
+    ctRow.style.display=(m==='CT')?'block':'none';
+    computeAndDraw();
+  });
+  ['stlFormat','stlQuality'].forEach(id=>inp[id].addEventListener('change', ()=>updateSTLEstimate()));
+
+  $('#reset').addEventListener('click', ()=>{
+    inp.ca.value=inp.caR.value=25;
+    inp.efl.value=inp.eflR.value=30;
+    inp.nidx.value=inp.nidxR.value=1.520;
+    inp.K.value=inp.KR.value=-1;
+    inp.A4.value=inp.A4R.value=0;
+    inp.A6.value=inp.A6R.value=0;
+    inp.A8.value=inp.A8R.value=0;
+    inp.thickMode.value='ET'; etRow.style.display='block'; ctRow.style.display='none';
+    inp.et.value=inp.etR.value=2.00; inp.ct.value=inp.ctR.value=4.00;
+    inp.stlFormat.value='binary'; inp.stlQuality.value='medium'; inp.stlTol.value=inp.stlTolR.value=10;
+    simMode=false; setModeLabel();
+    computeAndDraw();
+  });
+  $('#toggleSim').addEventListener('click', ()=>{ simMode=!simMode; setModeLabel(); computeAndDraw(); });
+  function setModeLabel(){ $('#modeLabel').textContent = simMode?'模擬':'設計'; }
+
+  function clamp(x,lo,hi){ x=Number(x); if(!isFinite(x)) x=lo; return Math.max(lo, Math.min(hi, x)); }
+
+  // === 幾何與剖面 ===
+  function computeProfile(){
+    const CA=clamp(inp.ca.value, 1, 1000);
+    const efl=clamp(inp.efl.value, 1, 1e6);
+    const n=clamp(inp.nidx.value, 1.01, 3.0);
+    const K=Number(inp.K.value);
+    const A4=Number(inp.A4.value)*1e-6, A6=Number(inp.A6.value)*1e-9, A8=Number(inp.A8.value)*1e-12;
+    const c=(n-1)/efl, R=1/c, rMax=CA/2;
+
+    const sag=(r)=>{
+      const cr=c*r, sq=1-(1+K)*cr*cr;
+      if(sq<=0) return NaN;
+      const base=(c*r*r)/(1+Math.sqrt(sq));
+      return base + A4*r**4 + A6*r**6 + A8*r**8;
+    };
+
+    let N=1024, samples=[], rLimit=rMax, zMin=Infinity, zMax=-Infinity;
+    for(let i=0;i<=N;i++){
+      const r=rMax*i/N, z=sag(r);
+      if(!isFinite(z)){ rLimit=rMax*(i-1)/N; break; }
+      zMin=Math.min(zMin,z); zMax=Math.max(zMax,z);
+      samples.push({r,z});
+    }
+    const zEdge = sag(rLimit);
+    let CT = (inp.thickMode.value==='ET') ? (Number(inp.et.value)+zEdge) : Number(inp.ct.value);
+    if(!isFinite(CT)) CT = zEdge + 2.0;
+    if(CT - zEdge < 0.5) CT = zEdge + 0.5; // 最小 ET
+    const ET = CT - zEdge;
+
+    return {CA, efl, n, K, A4, A6, A8, c, R, rMax:rLimit, CT, ET, zEdge, zMin, zMax, samples, sag};
+  }
+
+  // === 設計視圖 ===
+  function drawDesign(d){
+    const vb=svg.viewBox.baseVal;
+    const W=(svg.clientWidth||vb.width||1200), H=(svg.clientHeight||vb.height||700);
+    const pxPerMM=8;
+    const zMin=Math.min(0,d.zMin, d.CT), zMax=Math.max(d.CT, d.zMax);
+    const zCenter=(zMin+zMax)/2;
+    const X=z=> W/2 + (z - zCenter)*pxPerMM;
+    const Y=r=> H/2 - r*pxPerMM;
+    while(svg.firstChild) svg.removeChild(svg.firstChild);
+    svg.appendChild(line(0, H/2, W, H/2, '#3b5376', 1.5)); // 主軸
+
+    const path=document.createElementNS('http://www.w3.org/2000/svg','path');
+    let dstr='M '+X(d.samples[0].z)+' '+Y(d.samples[0].r);
+    for(let i=1;i<d.samples.length;i++){ const s=d.samples[i]; dstr += ` L ${X(s.z)} ${Y(s.r)}`; }
+    for(let i=d.samples.length-1;i>=0;i--){ const s=d.samples[i]; dstr += ` L ${X(s.z)} ${Y(-s.r)}`; }
+    dstr+=` L ${X(d.CT)} ${Y(-d.rMax)} L ${X(d.CT)} ${Y(d.rMax)} Z`;
+    path.setAttribute('d', dstr);
+    path.setAttribute('fill', '#7cc4ff22');
+    path.setAttribute('stroke', '#7cc4ff');
+    path.setAttribute('stroke-width', '2.5');
+    path.setAttribute('vector-effect','non-scaling-stroke');
+    svg.appendChild(path);
+
+    svg.appendChild(line(X(d.CT), Y(d.rMax), X(d.CT), Y(-d.rMax), '#c9ff7c', 3)); // 後平面
+    drawCA(svg, X((d.CT + d.zEdge)/2), Y, d.rMax);
+    drawET(svg, X, Y, d);
+    $('#stats').textContent = `R≈${(1/d.c).toFixed(3)} mm；zEdge=${d.zEdge.toFixed(3)} mm；ET=${d.ET.toFixed(3)} mm；CT=${d.CT.toFixed(3)} mm`;
+  }
+
+  // === 模擬視圖（薄透鏡） ===
+  const sim={ pxPerMM: 2.0, cx: 600, cy: 350, u_mm: 2000, screen_mm: 40, objH_mm: 50 };
+  let dragWhat=null;
+  function worldToScreen(z_mm, y_mm){ return {x: sim.cx + (z_mm)*sim.pxPerMM, y: sim.cy - (y_mm)*sim.pxPerMM}; }
+  function screenToWorld(x,y){ return { z_mm: (x - sim.cx)/sim.pxPerMM, y_mm: (sim.cy - y)/sim.pxPerMM }; }
+  function intersectX(P, dir, xLine){ if(Math.abs(dir.x) < 1e-6) return null; const t=(xLine-P.x)/dir.x; return {x:xLine, y:P.y + t*dir.y}; }
+
+  function drawSim(d){
+    const f=d.efl;
+    const u = Math.max(10, Math.abs(sim.u_mm));
+    const v = 1 / (1/f - 1/u);
+    const m = -v/u;
+    const imgH = m * sim.objH_mm;
+
+    while(svg.firstChild) svg.removeChild(svg.firstChild);
+    svg.appendChild(line(0, sim.cy, svg.clientWidth||1200, sim.cy, '#3b5376', 1.5)); // 主軸
+
+    // 透鏡中心面
+    const p1=worldToScreen(0, d.rMax), p2=worldToScreen(0, -d.rMax);
+    svg.appendChild(line(p1.x, p1.y, p2.x, p2.y, '#c9ff7c', 3));
+
+    // 焦點
+    const Fp = worldToScreen(+f, 0), Fn = worldToScreen(-f, 0);
+    svg.appendChild(cross(Fp.x, Fp.y, '#9bd0ff'));
+    svg.appendChild(cross(Fn.x, Fn.y, '#9bd0ff'));
+
+    // 物體
+    const objBase = worldToScreen(-u, 0), objTip  = worldToScreen(-u, sim.objH_mm);
+    svg.appendChild(line(objBase.x, objBase.y, objTip.x, objTip.y, '#e6f0ff', 3));
+    const objHandle = circ(objBase.x, objBase.y, 6, '#e6f0ff'); objHandle.classList.add('handle'); objHandle.dataset.drag='object'; svg.appendChild(objHandle);
+
+    // 屏幕
+    const scr = worldToScreen(+sim.screen_mm, 0);
+    const scr1=worldToScreen(+sim.screen_mm, d.rMax*1.2), scr2=worldToScreen(+sim.screen_mm, -d.rMax*1.2);
+    const scrLine = line(scr1.x, scr1.y, scr2.x, scr2.y, '#ffd166', 2.5); scrLine.dataset.drag='screen'; scrLine.classList.add('handle'); svg.appendChild(scrLine);
+
+    // 成像箭頭（理想位置）
+    const imgBase = worldToScreen(+v, 0), imgTip  = worldToScreen(+v, imgH);
+    svg.appendChild(line(imgBase.x, imgBase.y, imgTip.x, imgTip.y, '#7cc4ff', 3));
+
+    // 兩條示教光線
+    const ray1_A = objTip;                          // 平行主軸入射
+    const ray1_L = worldToScreen(0, sim.objH_mm);   // 到透鏡
+    const ray1_R_dir = { x:(Fp.x - ray1_L.x), y:(Fp.y - ray1_L.y) };
+    const ray1_R = intersectX(ray1_L, ray1_R_dir, scr.x);
+    svg.appendChild(polyline([ray1_A, ray1_L], '#ef476f', 2));
+    if(ray1_R) svg.appendChild(polyline([ray1_L, ray1_R], '#ef476f', 2));
+
+    const ray2_A = objTip;                          // 通過鏡心
+    const ray2_B = worldToScreen(0, 0);
+    const ray2_R_dir = { x:(ray2_B.x - ray2_A.x), y:(ray2_B.y - ray2_A.y) };
+    const ray2_R = intersectX(ray2_B, ray2_R_dir, scr.x);
+    svg.appendChild(polyline([ray2_A, ray2_B], '#ef476f', 2));
+    if(ray2_R) svg.appendChild(polyline([ray2_B, ray2_R], '#ef476f', 2));
+
+    if(ray1_R && ray2_R){ const crossY=(ray1_R.y + ray2_R.y)/2; svg.appendChild(cross(scr.x, crossY, '#ffffff')); }
+
+    addLabel(12, 24, `u=${(u/1000).toFixed(3)} m ｜ v=${v.toFixed(2)} mm ｜ f=${f.toFixed(2)} mm ｜ m=${m.toFixed(3)}`);
+
+    // 互動
+    svg.onpointerdown = (ev)=>{
+      const t=ev.target;
+      if(t.dataset && t.dataset.drag){
+        dragWhat = t.dataset.drag; svg.setPointerCapture(ev.pointerId); sim.panStart=null;
+      }else{
+        dragWhat = 'pan'; sim.panStart={x:ev.clientX, y:ev.clientY, cx:sim.cx, cy:sim.cy};
+      }
+    };
+    svg.onpointermove = (ev)=>{
+      if(!dragWhat) return;
+      if(dragWhat==='object'){ const w=screenToWorld(ev.clientX, ev.clientY); sim.u_mm=Math.max(10, -w.z_mm); }
+      else if(dragWhat==='screen'){ const w=screenToWorld(ev.clientX, ev.clientY); sim.screen_mm=Math.max(1, w.z_mm); }
+      else if(dragWhat==='pan'){ sim.cx = sim.panStart.cx + (ev.clientX - sim.panStart.x); sim.cy = sim.panStart.cy + (ev.clientY - sim.panStart.y); }
+      drawSim(d);
+    };
+    svg.onpointerup = svg.onpointercancel = ()=>{ dragWhat=null; };
+    svg.addEventListener('wheel', (ev)=>{
+      ev.preventDefault();
+      const scale=Math.exp(-ev.deltaY*0.001);
+      const mouse={x:ev.clientX, y:ev.clientY};
+      const before=screenToWorld(mouse.x, mouse.y);
+      sim.pxPerMM = Math.max(0.1, Math.min(40, sim.pxPerMM*scale));
+      const after=screenToWorld(mouse.x, mouse.y);
+      sim.cx += (mouse.x - (mouse.x + (before.z_mm-after.z_mm)*sim.pxPerMM));
+      sim.cy += (mouse.y - (mouse.y - (before.y_mm-after.y_mm)*sim.pxPerMM));
+      sim.objH_mm = Math.max(5, Math.min(500, sim.objH_mm*scale));
+      drawSim(d);
+    }, {passive:false});
+  }
+
+  // === 繪圖輔助 ===
+  function line(x1,y1,x2,y2,st,w){
+    const e=document.createElementNS('http://www.w3.org/2000/svg','line');
+    e.setAttribute('x1',x1); e.setAttribute('y1',y1); e.setAttribute('x2',x2); e.setAttribute('y2',y2);
+    e.setAttribute('stroke',st); e.setAttribute('stroke-width',w); e.setAttribute('vector-effect','non-scaling-stroke');
+    return e;
+  }
+  function cross(x,y,st){
+    const g=document.createElementNS('http://www.w3.org/2000/svg','g');
+    g.appendChild(line(x-6,y, x+6,y, st, 2));
+    g.appendChild(line(x,y-6, x,y+6, st, 2));
+    return g;
+  }
+  function circ(x,y,r,st){
+    const c=document.createElementNS('http://www.w3.org/2000/svg','circle');
+    c.setAttribute('cx',x); c.setAttribute('cy',y); c.setAttribute('r',r);
+    c.setAttribute('stroke',st); c.setAttribute('fill','none'); c.setAttribute('stroke-width','2');
+    return c;
+  }
+  function polyline(points, st, w){
+    const p=document.createElementNS('http://www.w3.org/2000/svg','polyline');
+    p.setAttribute('points', points.map(pt=>pt.x+','+pt.y).join(' '));
+    p.setAttribute('fill','none'); p.setAttribute('stroke',st); p.setAttribute('stroke-width',w); p.setAttribute('vector-effect','non-scaling-stroke');
+    return p;
+  }
+  function addLabel(x,y,text){
+    const t=document.createElementNS('http://www.w3.org/2000/svg','text');
+    t.setAttribute('x',x); t.setAttribute('y',y); t.setAttribute('fill','#cfe8ff'); t.setAttribute('font-size','12');
+    t.textContent=text; svg.appendChild(t);
+  }
+  function drawCA(svg, Xmid, Y, rMax){
+    const y1=Y(rMax), y2=Y(-rMax);
+    svg.appendChild(line(Xmid-30,y1, Xmid+30,y1, '#9bd0ff',2));
+    svg.appendChild(line(Xmid-30,y2, Xmid+30,y2, '#9bd0ff',2));
+    const txt=document.createElementNS('http://www.w3.org/2000/svg','text');
+    txt.setAttribute('x', Xmid+12); txt.setAttribute('y', (y1+y2)/2 + 4);
+    txt.setAttribute('fill', '#cfe8ff'); txt.setAttribute('font-size','12');
+    txt.textContent='CA 直徑'; svg.appendChild(txt);
+  }
+  function drawET(svg, X, Y, d){
+    const x1=X(d.zEdge), x2=X(d.CT), y=Y(d.rMax)+18;
+    svg.appendChild(line(x1, y, x2, y, '#ffd166', 2));
+    const txt=document.createElementNS('http://www.w3.org/2000/svg','text');
+    txt.setAttribute('x', (x1+x2)/2); txt.setAttribute('y', y-8);
+    txt.setAttribute('fill','#ffd166'); txt.setAttribute('font-size','12'); txt.setAttribute('text-anchor','middle');
+    txt.textContent='ET 邊緣厚度'; svg.appendChild(txt);
+  }
+
+  // === STL：實心輸出（迭代式自適應徑向細分） ===
+  function radialProfile(d, nr, tol_um){
+    const rs=[], zs=[];
+    const MAX_DEPTH=20;
+    const MAX_POINTS = Math.max(16, nr|0);
+    const tol = Math.max(0,tol_um||10)/1000; // mm
+
+    const sag=d.sag || (r=>{
+      const cr=d.c*r, sq=1-(1+d.K)*cr*cr;
+      if(sq<=0) return NaN;
+      const base=(d.c*r*r)/(1+Math.sqrt(sq));
+      return base + d.A4*r**4 + d.A6*r**6 + d.A8*r**8;
+    });
+
+    const r0=0, r1=d.rMax;
+    const z0=sag(r0), z1=sag(r1);
+    rs.push(r0); zs.push(z0);
+
+    const stack=[[r0,z0,r1,z1,0]]; // a,za,b,zb,depth
+    while(stack.length){
+      const [a,za,b,zb,depth]=stack.pop();
+      const m=0.5*(a+b); const zm=sag(m);
+      const zlin=za + (zb-za)*((m-a)/(b-a));
+      const err = Math.abs(zm - zlin);
+      const needSub = (isFinite(zm) && ((err>tol && depth<MAX_DEPTH) || (rs.length<MAX_POINTS && depth<MAX_DEPTH)));
+      if(needSub){
+        // 右段再左段，確保輸出順序遞增
+        stack.push([m,zm,b,zb,depth+1]);
+        stack.push([a,za,m,zm,depth+1]);
+      }else{
+        rs.push(b); zs.push(zb);
+      }
+      if(rs.length>65536){ break; } // 強化防護
+    }
+    return {rs,zs};
+  }
+
+  function triangulateSolid(d){
+    const q=$('#stlQuality').value;
+    const na = ({draft:72,medium:120,fine:180,ultra:360}[q]||120);
+    const nr = ({draft:64,medium:128,fine:256,ultra:512}[q]||128);
+    const prof=radialProfile(d, nr, Number($('#stlTol').value)||10);
+    let rs=prof.rs, zs=prof.zs, m=rs.length;
+    const CT=d.CT, rMax=d.rMax;
+    const dth=2*Math.PI/na;
+
+    // 至少兩個徑向環
+    if(m<2){
+      const eps = Math.min(1e-3*rMax, 1e-4);
+      rs = [0, eps]; zs = [zs[0], (d.sag?d.sag(eps):zs[0])]; m=2;
+    }
+
+    const verts=[]; const faces=[];
+    const addV=(x,y,z)=>{ verts.push([x,y,z]); return verts.length-1; };
+    const addF=(a,b,c)=>faces.push([a,b,c]);
+
+    const rings=[];
+    for(let i=0;i<m;i++){
+      const ring=[];
+      for(let j=0;j<na;j++){
+        const th=j*dth, x=rs[i]*Math.cos(th), y=rs[i]*Math.sin(th), z=zs[i];
+        ring.push(addV(x,y,z));
+      }
+      rings.push(ring);
+    }
+    const apex = addV(0,0,zs[0]);
+
+    for(let j=0;j<na;j++){ const j2=(j+1)%na; addF(rings[1][j2], rings[1][j], apex); }
+    for(let i=1;i<m-1;i++){
+      const A=rings[i], B=rings[i+1];
+      for(let j=0;j<na;j++){
+        const j2=(j+1)%na;
+        addF(B[j2], B[j], A[j]);
+        addF(B[j2], A[j], A[j2]);
+      }
+    }
+
+    const backC = addV(0,0,CT);
+    const rimBack=[];
+    for(let j=0;j<na;j++){ rimBack.push(addV(rMax*Math.cos(j*dth), rMax*Math.sin(j*dth), CT)); }
+    for(let j=0;j<na;j++){ const j2=(j+1)%na; addF(backC, rimBack[j], rimBack[j2]); }
+
+    const rimFront = rings[m-1];
+    for(let j=0;j<na;j++){
+      const j2=(j+1)%na;
+      addF(rimFront[j], rimBack[j], rimBack[j2]);
+      addF(rimFront[j], rimBack[j2], rimFront[j2]);
+    }
+    return {verts,faces};
+  }
+
+  function buildSTLASCII(d){
+    const {verts,faces}=triangulateSolid(d);
+    const nrm=(ai,bi,ci)=>{
+      const a=verts[ai], b=verts[bi], c=verts[ci];
+      const ux=b[0]-a[0], uy=b[1]-a[1], uz=b[2]-a[2];
+      const vx=c[0]-a[0], vy=c[1]-a[1], vz=c[2]-a[2];
+      const nx=uy*vz-uz*vy, ny=uz*vx-ux*vz, nz=ux*vy-uy*vx;
+      const L=Math.hypot(nx,ny,nz)||1; return [nx/L,ny/L,nz/L];
+    };
+    let out='solid lens_'+VERSION+' (mm)\n';
+    for(const [a,b,c] of faces){
+      const N=nrm(a,b,c);
+      out+=`facet normal ${N[0]} ${N[1]} ${N[2]}\n outer loop\n`+
+           `  vertex ${verts[a][0]} ${verts[a][1]} ${verts[a][2]}\n`+
+           `  vertex ${verts[b][0]} ${verts[b][1]} ${verts[b][2]}\n`+
+           `  vertex ${verts[c][0]} ${verts[c][1]} ${verts[c][2]}\n endloop\nendfacet\n`;
+    }
+    out+='endsolid\n';
+    return out;
+  }
+
+  function buildSTLBinary(d){
+    const {verts,faces}=triangulateSolid(d);
+    const buf=new ArrayBuffer(84+50*faces.length);
+    const dv=new DataView(buf); let off=0;
+    const hdr='lens_'+VERSION+'_solid';
+    for(let i=0;i<80;i++) dv.setUint8(off++, i<hdr.length?hdr.charCodeAt(i):32);
+    dv.setUint32(off, faces.length, true); off+=4;
+    const nrm=(ai,bi,ci)=>{
+      const a=verts[ai], b=verts[bi], c=verts[ci];
+      const ux=b[0]-a[0], uy=b[1]-a[1], uz=b[2]-a[2];
+      const vx=c[0]-a[0], vy=c[1]-a[1], vz=c[2]-a[2];
+      const nx=uy*vz-uz*vy, ny=uz*vx-ux*vz, nz=ux*vy-uy*vx;
+      const L=Math.hypot(nx,ny,nz)||1; return [nx/L,ny/L,nz/L];
+    };
+    for(const [a,b,c] of faces){
+      const N=nrm(a,b,c);
+      dv.setFloat32(off, N[0], true); off+=4;
+      dv.setFloat32(off, N[1], true); off+=4;
+      dv.setFloat32(off, N[2], true); off+=4;
+      dv.setFloat32(off, verts[a][0], true); off+=4;
+      dv.setFloat32(off, verts[a][1], true); off+=4;
+      dv.setFloat32(off, verts[a][2], true); off+=4;
+      dv.setFloat32(off, verts[b][0], true); off+=4;
+      dv.setFloat32(off, verts[b][1], true); off+=4;
+      dv.setFloat32(off, verts[b][2], true); off+=4;
+      dv.setFloat32(off, verts[c][0], true); off+=4;
+      dv.setFloat32(off, verts[c][1], true); off+=4;
+      dv.setFloat32(off, verts[c][2], true); off+=4;
+      dv.setUint16(off, 0, true); off+=2;
+    }
+    return new Blob([buf],{type:'model/stl'});
+  }
+
+  function estimateSTL(){
+    const q=$('#stlQuality').value;
+    const na={draft:72,medium:120,fine:180,ultra:360}[q]||120;
+    const nr={draft:64,medium:128,fine:256,ultra:512}[q]||128;
+    const tris = na + (nr-2)*na*2 + na + na*2;
+    const size = ($('#stlFormat').value==='binary') ? (84+50*tris) : (200*tris);
+    return {tris,size};
+  }
+
+  function humanBytes(n){ const u=['B','KB','MB','GB']; let i=0; while(n>=1024 && i<u.length-1){ n/=1024; i++; } return (n<10? n.toFixed(2):n.toFixed(1))+' '+u[i]; }
+  function updateSTLEstimate(){
+    try{ const est=estimateSTL(); $('#stlStats').textContent=`預估三角形 ≈ ${est.tris.toLocaleString()}，檔案 ≈ ${humanBytes(est.size)}（${$('#stlFormat').value}）`; }catch(e){ showErr(e.message); }
+  }
+
+  function downloadText(fname, text){
+    const a=document.createElement('a');
+    a.href='data:text/plain;charset=utf-8,'+encodeURIComponent(text);
+    a.download=fname; document.body.appendChild(a); a.click(); a.remove();
+  }
+  function downloadBlob(fname, blob){
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob); a.download=fname; document.body.appendChild(a); a.click();
+    setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); },0);
+  }
+
+  $('#dlCSV').addEventListener('click', ()=>{
+    try{
+      const d=computeProfile();
+      let csv='# '+VERSION+'\\nr_mm,z_mm\\n';
+      for(const s of d.samples){ csv+=s.r.toFixed(6)+','+s.z.toFixed(6)+'\\n'; }
+      downloadText('asphere_profile_'+VERSION+'.csv', csv);
+    }catch(e){ showErr(e.message); }
+  });
+  $('#dlSTL').addEventListener('click', ()=>{
+    try{
+      const d=computeProfile();
+      if($('#stlFormat').value==='binary'){
+        const blob=buildSTLBinary(d);
+        downloadBlob('lens_solid_'+VERSION+'.stl', blob);
+      }else{
+        const txt=buildSTLASCII(d);
+        downloadText('lens_solid_'+VERSION+'.stl', txt);
+      }
+    }catch(e){ showErr(e.message); }
+  });
+
+  function computeAndDraw(){
+    const d=computeProfile();
+    if(simMode) drawSim(d); else drawDesign(d);
+    updateSTLEstimate();
+  }
+
+  // 內建自測：只在載入時跑一次
+  function selfTest(){
+    try{
+      const d=computeProfile();
+      if(!(d.CT>d.zEdge)) throw new Error('CT/ET 邏輯不成立');
+      if(!(Math.abs(d.samples[0].z) < 1e-9)) throw new Error('sag(0) 非 0');
+      console.log('[selftest] ok:', d);
+    }catch(err){ showErr('自測失敗：'+err.message); }
+  }
+
+  console.log('[asphere]', VERSION, 'init');
+  computeAndDraw();
+  selfTest();
+  window.addEventListener('resize', computeAndDraw);
+})();</script>
+</body>
+</html>
