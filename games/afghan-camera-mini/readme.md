@@ -57,7 +57,7 @@
 		3. 弧面凸起面是感光面，稍微地將它反折回來、盡可能反攤平
 		4. 放入對焦屏上卡榫位
 	8. 對焦桿推回固定對焦位置
-- 拍攝時，評估測光，[決定曝光時間(https://chyijiunn.github.io/eduGame/games/light-meter/exposure.html)]需要多久
+- 拍攝時，評估測光，[決定曝光時間](https://chyijiunn.github.io/eduGame/games/light-meter/exposure.html)需要多久
 	1. 室外強光建議縮小光圈、拉長時間
 	2. 室內環境建議放大光圈、打閃燈，需多久得經驗累積，可能至少要兩秒
 - 拍攝後，鏡頭蓋上，避免再度漏光
