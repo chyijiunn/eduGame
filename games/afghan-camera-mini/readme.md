@@ -4,7 +4,7 @@
 	2. 鏡頭關閉，放入相紙
 	3. 回推對焦板到夾具位置
 	4. 曝光拍照，一秒鐘確認關閉鏡頭蓋
-3. 使用 ilford multigrade V RC 相紙進行正片拍攝，本活動以相紙 iso =  3 進行曝光測試，約略 -5 ev
+3. 使用 ilford multigrade V RC 相紙進行正片(可參考[模擬](https://chyijiunn.github.io/eduGame/games/afghan-camera/)頁面)拍攝，本活動以相紙 iso =  3 進行曝光測試，約略 -5 ev
 	1. D72，稀釋 1+3，50 + 150 ml
 	2. 過錳酸鉀 + 稀硫酸，使用 75 + 75 ml
 	3. 離箱、過水，去過錳酸鉀的粉紅色後，呈現淡黃色
