@@ -14,7 +14,7 @@
 	7. 海波
 	- 過錳酸鉀約使用五次效益降低，更換，若補充過錳酸鉀液，倒後需攪拌
 # 製作
-![](./eduGame/games/afghan-camera-mini/media/result.jpg)
+![](http://chyijiunn.github.io/eduGame/games/afghan-camera-mini/media/result.jpg)
 1. 購買透鏡，或者取透鏡後針對焦距設計結構，根據透鏡焦距設計一到兩倍可成像距離的箱體
 2. 板材厚度 15 mm  寬度 135 mm 長度 1 m
 3. 板材橫切四等份，內部建議上平光黑漆並做防水，或者使用火烤
