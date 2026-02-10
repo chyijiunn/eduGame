@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Shutter Speed Meter (Phone Camera)</title>
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; margin:16px; line-height:1.35;}
+    video{width:100%; max-width:640px; background:#000; border-radius:12px;}
+    canvas{display:none;}
+    .row{display:flex; gap:8px; flex-wrap:wrap; margin:10px 0;}
+    button,select,input{font-size:16px; padding:10px 12px;}
+    .card{max-width:720px; padding:14px; border:1px solid #ddd; border-radius:14px;}
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;}
+    .big{font-size:20px; font-weight:700;}
+    .muted{color:#666;}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="big">手機鏡頭快門速度估測（亮度法）</div>
+    <div class="muted">適合慢速快門；高速快門受限於手機幀率。</div>
+
+    <div class="row">
+      <button id="btnStart">Start</button>
+      <button id="btnStop" disabled>Stop</button>
+
+      <label>偏好幀率：
+        <select id="fpsPref">
+          <option value="60">60 fps（較穩）</option>
+          <option value="120">120 fps（看手機支援）</option>
+          <option value="240">240 fps（少數支援）</option>
+        </select>
+      </label>
+
+      <label>門檻：
+        <input id="thr" type="number" value="20" min="5" max="80" step="1" style="width:80px"/>
+      </label>
+
+      <label>平滑：
+        <input id="smooth" type="number" value="5" min="1" max="15" step="1" style="width:80px"/>
+      </label>
+    </div>
+
+    <video id="v" playsinline muted></video>
+    <canvas id="c"></canvas>
+
+    <div class="row">
+      <div>
+        <div class="muted">即時亮度（ROI 平均）</div>
+        <div class="mono" id="lumNow">-</div>
+      </div>
+      <div>
+        <div class="muted">估測開啟時間</div>
+        <div class="mono" id="dur">-</div>
+      </div>
+      <div>
+        <div class="muted">換算快門</div>
+        <div class="mono" id="spd">-</div>
+      </div>
+    </div>
+
+    <div class="muted" style="margin-top:8px">
+      建議：讓畫面中央在快門打開時「瞬間變亮」，例如鏡後放手電筒。若亮度變化不明顯，調高光源或調整門檻值。
+    </div>
+  </div>
+
+<script>
+(() => {
+  const video = document.getElementById('v');
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+  const btnStart = document.getElementById('btnStart');
+  const btnStop = document.getElementById('btnStop');
+  const fpsPref = document.getElementById('fpsPref');
+  const thrEl = document.getElementById('thr');
+  const smoothEl = document.getElementById('smooth');
+
+  const lumNowEl = document.getElementById('lumNow');
+  const durEl = document.getElementById('dur');
+  const spdEl = document.getElementById('spd');
+
+  let stream = null;
+  let rafId = null;
+
+  // Brightness tracking
+  let baseline = null;
+  let lumHist = [];
+  let timeHist = [];
+
+  // Event detection
+  let inOpen = false;
+  let tOpenStart = null;
+  let lastResultMs = null;
+
+  function meanLuma(imgData) {
+    // fast-ish luma average
+    const d = imgData.data;
+    let sum = 0;
+    // sample every 4th pixel to reduce load
+    const step = 16; // 4 pixels * RGBA
+    for (let i = 0; i < d.length; i += step) {
+      const r = d[i], g = d[i+1], b = d[i+2];
+      // Rec.709 luma approx
+      sum += 0.2126*r + 0.7152*g + 0.0722*b;
+    }
+    return sum / (d.length / step);
+  }
+
+  function formatShutter(ms) {
+    if (!ms || ms <= 0) return '-';
+    const s = ms / 1000;
+    if (s >= 1) return `${s.toFixed(3)} s`;
+    const inv = 1 / s;
+    return `1/${inv.toFixed(inv >= 100 ? 0 : 1)} s`;
+  }
+
+  function updateLoop() {
+    const w = video.videoWidth;
+    const h = video.videoHeight;
+    if (!w || !h) { rafId = requestAnimationFrame(updateLoop); return; }
+
+    // draw current frame
+    canvas.width = w;
+    canvas.height = h;
+    ctx.drawImage(video, 0, 0, w, h);
+
+    // ROI: center box 40% width/height
+    const rw = Math.floor(w * 0.4);
+    const rh = Math.floor(h * 0.4);
+    const rx = Math.floor((w - rw) / 2);
+    const ry = Math.floor((h - rh) / 2);
+
+    const img = ctx.getImageData(rx, ry, rw, rh);
+    const lum = meanLuma(img);
+    const now = performance.now();
+
+    // smoothing
+    const smoothN = Math.max(1, Math.min(15, parseInt(smoothEl.value || '5', 10)));
+    lumHist.push(lum);
+    timeHist.push(now);
+    if (lumHist.length > smoothN) { lumHist.shift(); timeHist.shift(); }
+
+    const lumSm = lumHist.reduce((a,b)=>a+b,0) / lumHist.length;
+    lumNowEl.textContent = lumSm.toFixed(2);
+
+    // baseline initialization (first ~0.5s)
+    if (baseline === null) baseline = lumSm;
+    // slowly adapt baseline when not inOpen
+    if (!inOpen) baseline = baseline*0.995 + lumSm*0.005;
+
+    const threshold = Math.max(5, Math.min(80, parseInt(thrEl.value || '20', 10)));
+    const delta = lumSm - baseline;
+
+    // detect open interval by brightness jump above threshold
+    if (!inOpen && delta > threshold) {
+      inOpen = true;
+      tOpenStart = now;
+    } else if (inOpen && delta < threshold * 0.5) {
+      inOpen = false;
+      const tOpenEnd = now;
+      const durMs = tOpenEnd - tOpenStart;
+
+      // ignore tiny glitches
+      if (durMs > 5) {
+        lastResultMs = durMs;
+        durEl.textContent = `${durMs.toFixed(1)} ms`;
+        spdEl.textContent = formatShutter(durMs);
+      }
+      tOpenStart = null;
+    }
+
+    rafId = requestAnimationFrame(updateLoop);
+  }
+
+  async function start() {
+    try {
+      const fps = parseInt(fpsPref.value, 10);
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: "environment",
+          frameRate: { ideal: fps, max: fps },
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        },
+        audio: false
+      });
+      video.srcObject = stream;
+      await video.play();
+
+      // reset state
+      baseline = null;
+      lumHist = [];
+      timeHist = [];
+      inOpen = false;
+      tOpenStart = null;
+      lastResultMs = null;
+      durEl.textContent = '-';
+      spdEl.textContent = '-';
+
+      btnStart.disabled = true;
+      btnStop.disabled = false;
+
+      rafId = requestAnimationFrame(updateLoop);
+    } catch (e) {
+      alert("無法啟動相機：\n" + e.message + "\n\niPhone 請用 Safari 且需 HTTPS。");
+    }
+  }
+
+  function stop() {
+    if (rafId) cancelAnimationFrame(rafId);
+    rafId = null;
+    if (stream) {
+      stream.getTracks().forEach(t => t.stop());
+      stream = null;
+    }
+    video.srcObject = null;
+    btnStart.disabled = false;
+    btnStop.disabled = true;
+  }
+
+  btnStart.addEventListener('click', start);
+  btnStop.addEventListener('click', stop);
+})();
+</script>
+</body>
+</html>
