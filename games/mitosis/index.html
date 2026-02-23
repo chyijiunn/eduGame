@@ -1,0 +1,586 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>3D 細胞分裂互動教學（Legacy：可 file://）</title>
+  <style>
+    html, body { height: 100%; margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, "PingFang TC", "Microsoft JhengHei"; }
+    #app { display: grid; grid-template-columns: 1.2fr 0.8fr; height: 100vh; }
+    #view { position: relative; background: #0b0f14; min-height: 360px; overflow:hidden; }
+    canvas { display:block; width:100%; height:100%; }
+    #panel {
+      background: #0f1720; color: #e5eefc; padding: 14px 14px 10px;
+      border-left: 1px solid rgba(255,255,255,0.08); overflow:auto;
+    }
+    h1 { font-size: 16px; margin: 0 0 10px; }
+    .row { display:flex; gap:10px; flex-wrap: wrap; margin: 10px 0; }
+    .card { background: rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 10px; }
+    .btn {
+      cursor: pointer; user-select:none;
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.12);
+      color: #e5eefc;
+      padding: 8px 10px; border-radius: 12px;
+      transition: transform .05s ease, background .2s ease;
+      font-size: 13px;
+    }
+    .btn:active { transform: scale(0.98); }
+    .btn.primary { background: rgba(99, 179, 237, 0.20); border-color: rgba(99,179,237,0.35); }
+    .btn.warn { background: rgba(245, 158, 11, 0.18); border-color: rgba(245,158,11,0.35); }
+    .pill { display:inline-flex; align-items:center; gap:6px; padding:6px 10px; border-radius:999px; border:1px solid rgba(255,255,255,.12); background: rgba(255,255,255,.06); font-size:12px; }
+    label { font-size: 12px; opacity:.9; }
+    input[type="range"] { width: 180px; }
+    .muted { opacity:.85; font-size: 12px; line-height: 1.5; }
+    .tag { display:inline-block; font-size: 11px; padding: 2px 8px; border-radius:999px; border: 1px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.06); margin-right: 6px; }
+    #hud {
+      position:absolute; left:10px; bottom:10px; display:flex; gap:8px; flex-wrap:wrap;
+      pointer-events:none; z-index: 3;
+    }
+    .hudItem {
+      pointer-events:none; font-size:12px; padding:6px 10px; border-radius:999px;
+      border:1px solid rgba(255,255,255,0.12); background: rgba(0,0,0,0.35); color:#e5eefc;
+    }
+    #err {
+      position:absolute; inset: 10px; z-index: 4;
+      display:none;
+      padding: 12px 14px;
+      border-radius: 14px;
+      background: rgba(255, 0, 0, 0.10);
+      border: 1px solid rgba(255, 0, 0, 0.25);
+      color: #ffe0e0;
+      white-space: pre-wrap;
+      overflow:auto;
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+<div id="app">
+  <div id="view">
+    <div id="hud"></div>
+    <div id="err"></div>
+  </div>
+
+  <div id="panel">
+    <h1>3D 細胞分裂互動教學（可直接雙擊開）</h1>
+
+    <div class="card">
+      <div class="row">
+        <div class="pill">
+          <span style="opacity:.8">模式</span>
+          <select id="modeSel" class="btn" style="padding:7px 10px">
+            <option value="mitosis">有絲分裂（Mitosis）</option>
+            <option value="meiosis">減數分裂（Meiosis）</option>
+          </select>
+        </div>
+
+        <div class="pill">
+          <span style="opacity:.8">階段</span>
+          <span id="phaseName" style="font-weight:700">-</span>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="btn" id="prevBtn">◀ 上一階</div>
+        <div class="btn primary" id="playBtn">▶ 播放</div>
+        <div class="btn" id="nextBtn">下一階 ▶</div>
+        <div class="btn warn" id="resetBtn">↺ 重置</div>
+      </div>
+
+      <div class="row" style="align-items:center">
+        <label>速度</label>
+        <input id="speed" type="range" min="0.2" max="2.5" step="0.1" value="1.0" />
+        <span class="muted" id="speedVal">1.0×</span>
+      </div>
+
+      <div class="row" style="align-items:center">
+        <label><input id="labelsChk" type="checkbox" checked /> 顯示標籤</label>
+        <label><input id="spindleChk" type="checkbox" checked /> 顯示紡錘絲</label>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:10px">
+      <div style="margin-bottom:8px">
+        <span class="tag">概念</span><span class="tag">操作</span>
+      </div>
+      <div class="muted" id="desc">右側會隨階段更新重點。</div>
+    </div>
+
+    <div class="card" style="margin-top:10px">
+      <div style="font-weight:700; margin-bottom:6px;">教師可用的互動提問</div>
+      <div class="muted" id="prompts"></div>
+    </div>
+
+    <div class="muted" style="margin-top:10px">
+      操作：滑鼠拖曳旋轉、滾輪縮放。<br/>
+      若仍空白：左側會跳出紅色錯誤框（載入/WebGL 失敗原因）。
+    </div>
+  </div>
+</div>
+
+<script>
+  // 先把錯誤框函式放最前面：就算 three 沒載到也能顯示
+  const errBox = document.getElementById('err');
+  function showErr(msg){
+    errBox.style.display = 'block';
+    errBox.textContent = msg;
+  }
+  window.addEventListener('error', (ev) => showErr(String(ev.message || ev.error || ev)));
+</script>
+
+<!-- ✅ 非 module 的 three + OrbitControls（file:// 更常成功） -->
+<script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
+<script src="https://unpkg.com/three@0.160.0/examples/js/controls/OrbitControls.js"></script>
+
+<script>
+(function(){
+  // ---- hard checks ----
+  if (!window.THREE) {
+    showErr("THREE 載入失敗：可能是網路擋 unpkg 或離線。\n解法：改用可連網環境，或我幫你做離線包（three.js 內建）。");
+    return;
+  }
+  if (!THREE.OrbitControls) {
+    showErr("OrbitControls 載入失敗：examples/js 檔案被擋或版本不相容。\n解法：我可以改成無控制器（固定視角），或做離線包。");
+    return;
+  }
+
+  // WebGL availability check
+  function webglAvailable(){
+    try{
+      const c = document.createElement('canvas');
+      return !!(window.WebGLRenderingContext && (c.getContext('webgl') || c.getContext('experimental-webgl')));
+    }catch(e){ return false; }
+  }
+  if (!webglAvailable()){
+    showErr("此瀏覽器/環境未啟用 WebGL，所以 3D 無法顯示。\n（常見於：學校電腦政策關閉、Safari 設定關閉 WebGL）");
+    return;
+  }
+
+  // ---------- helpers ----------
+  const clamp01 = (x)=>Math.max(0,Math.min(1,x));
+  const lerp = (a,b,t)=>a+(b-a)*t;
+  const ease = (t)=>t*t*(3-2*t);
+
+  // ---------- UI ----------
+  const modeSel = document.getElementById('modeSel');
+  const phaseNameEl = document.getElementById('phaseName');
+  const descEl = document.getElementById('desc');
+  const promptsEl = document.getElementById('prompts');
+  const playBtn = document.getElementById('playBtn');
+  const prevBtn = document.getElementById('prevBtn');
+  const nextBtn = document.getElementById('nextBtn');
+  const resetBtn = document.getElementById('resetBtn');
+  const speed = document.getElementById('speed');
+  const speedVal = document.getElementById('speedVal');
+  const labelsChk = document.getElementById('labelsChk');
+  const spindleChk = document.getElementById('spindleChk');
+  const hud = document.getElementById('hud');
+
+  function setHUD(items) {
+    hud.innerHTML = '';
+    items.forEach(t=>{
+      const div = document.createElement('div');
+      div.className = 'hudItem';
+      div.textContent = t;
+      hud.appendChild(div);
+    });
+  }
+
+  // ---------- Scene ----------
+  const view = document.getElementById('view');
+
+  const renderer = new THREE.WebGLRenderer({ antialias:true });
+  renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+  renderer.setClearColor(0x0b0f14, 1);
+  view.appendChild(renderer.domElement);
+
+  const scene = new THREE.Scene();
+  scene.fog = new THREE.Fog(0x0b0f14, 8, 22);
+
+  const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+  camera.position.set(0, 3.8, 11);
+
+  const controls = new THREE.OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.08;
+  controls.target.set(0, 0.8, 0);
+
+  scene.add(new THREE.AmbientLight(0xffffff, 0.55));
+  const key = new THREE.DirectionalLight(0xffffff, 0.9);
+  key.position.set(6, 8, 4);
+  scene.add(key);
+
+  const ground = new THREE.Mesh(
+    new THREE.CircleGeometry(9, 64),
+    new THREE.MeshStandardMaterial({ color: 0x0e1621, roughness: 1, metalness: 0 })
+  );
+  ground.rotation.x = -Math.PI/2;
+  ground.position.y = -0.02;
+  scene.add(ground);
+
+  const cell = new THREE.Mesh(
+    new THREE.SphereGeometry(4.1, 64, 64),
+    new THREE.MeshPhysicalMaterial({
+      color: 0x4aa3ff,
+      transparent: true,
+      opacity: 0.08,
+      roughness: 0.15,
+      transmission: 1.0,
+      thickness: 0.7
+    })
+  );
+  cell.position.y = 1.0;
+  scene.add(cell);
+
+  const nucleus = new THREE.Mesh(
+    new THREE.SphereGeometry(1.55, 40, 40),
+    new THREE.MeshStandardMaterial({ color: 0x8b5cf6, transparent:true, opacity:0.22, roughness:0.6 })
+  );
+  nucleus.position.set(0, 1.0, 0);
+  scene.add(nucleus);
+
+  const poleMat = new THREE.MeshStandardMaterial({ color: 0xffd166, roughness: 0.7 });
+  const poleGeo = new THREE.SphereGeometry(0.22, 18, 18);
+  const poleL = new THREE.Mesh(poleGeo, poleMat);
+  const poleR = new THREE.Mesh(poleGeo, poleMat);
+  scene.add(poleL, poleR);
+
+  const spindle = new THREE.Group();
+  scene.add(spindle);
+
+  function rebuildSpindle(lines=26){
+    spindle.clear();
+    const mat = new THREE.LineBasicMaterial({ color: 0x8bd3ff, transparent:true, opacity:0.35 });
+    for (let i=0;i<lines;i++){
+      const theta = (i/lines)*Math.PI*2;
+      const r = 1.0 + 0.35*Math.sin(i*1.7);
+      const mid = new THREE.Vector3(
+        r*Math.cos(theta)*0.55,
+        1.0 + 0.15*Math.sin(theta*2.2),
+        r*Math.sin(theta)*0.55
+      );
+      const geo = new THREE.BufferGeometry().setFromPoints([poleL.position.clone(), mid, poleR.position.clone()]);
+      spindle.add(new THREE.Line(geo, mat));
+    }
+  }
+  rebuildSpindle();
+
+  function makeChromosome(color){
+    const grp = new THREE.Group();
+    const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.55, metalness: 0.05 });
+    const cyl = new THREE.CylinderGeometry(0.14, 0.14, 1.7, 18);
+    const cap = new THREE.SphereGeometry(0.16, 18, 18);
+
+    function makeRod(){
+      const g = new THREE.Group();
+      g.add(new THREE.Mesh(cyl, mat));
+      const c1 = new THREE.Mesh(cap, mat); c1.position.y=0.85; g.add(c1);
+      const c2 = new THREE.Mesh(cap, mat); c2.position.y=-0.85; g.add(c2);
+      return g;
+    }
+    const a = makeRod(), b = makeRod();
+    a.position.x=-0.16; b.position.x=0.16;
+    a.rotation.z=0.12; b.rotation.z=-0.12;
+    grp.add(a,b);
+
+    const cent = new THREE.Mesh(
+      new THREE.SphereGeometry(0.17, 20, 20),
+      new THREE.MeshStandardMaterial({ color: 0xffffff, transparent:true, opacity:0.75, roughness:0.2 })
+    );
+    grp.add(cent);
+    grp.userData = {a,b,cent,split:0};
+    return grp;
+  }
+
+  const chroms = [];
+  const chromGroup = new THREE.Group();
+  chromGroup.position.y = 1.0;
+  scene.add(chromGroup);
+
+  function setSplit(chr, s){
+    const a=chr.userData.a, b=chr.userData.b;
+    a.position.x = lerp(-0.16, -0.55, s);
+    b.position.x = lerp(0.16, 0.55, s);
+    a.rotation.z = lerp(0.12, 0.02, s);
+    b.rotation.z = lerp(-0.12, -0.02, s);
+    chr.userData.cent.material.opacity = lerp(0.75, 0.35, s);
+  }
+
+  function setupChromosomesForMode(mode){
+    chromGroup.clear();
+    chroms.length = 0;
+    if (mode === "mitosis"){
+      const colors=[0xff4d6d,0x2dd4bf,0xf97316,0xa3e635];
+      for (let i=0;i<4;i++){
+        const c = makeChromosome(colors[i]);
+        c.position.set((i-1.5)*0.85, 0, (i%2?-0.55:0.55));
+        c.rotation.y = i*0.6;
+        chromGroup.add(c);
+        chroms.push(c);
+      }
+    } else {
+      const all=[makeChromosome(0xff4d6d),makeChromosome(0xff8fab),makeChromosome(0x2dd4bf),makeChromosome(0x7dd3fc)];
+      all[0].position.set(-1.3,0,0.6);
+      all[1].position.set(-0.4,0,-0.6);
+      all[2].position.set(0.5,0,0.7);
+      all[3].position.set(1.4,0,-0.4);
+      all.forEach((c,i)=>{ c.rotation.y=i*0.55; chromGroup.add(c); chroms.push(c); });
+    }
+  }
+
+  function polePositions(leftX,rightX,t){
+    const y = 1.0 + lerp(0.15,0.35,t);
+    return {L:new THREE.Vector3(leftX,y,0), R:new THREE.Vector3(rightX,y,0)};
+  }
+  function setPoles(p){
+    poleL.position.copy(p.L);
+    poleR.position.copy(p.R);
+    spindle.children.forEach(line=>{
+      const pos=line.geometry.attributes.position;
+      pos.setXYZ(0, poleL.position.x,poleL.position.y,poleL.position.z);
+      pos.setXYZ(2, poleR.position.x,poleR.position.y,poleR.position.z);
+      pos.needsUpdate=true;
+    });
+  }
+
+  const MITOSIS = [
+    {
+      name:"前期 Prophase",
+      hud:["染色體凝縮","核膜開始破裂","紡錘體形成"],
+      desc:"染色體變粗變短、紡錘絲形成。",
+      prompts:["• 染色體變粗＝DNA變多嗎？（不是，是凝縮）","• 核膜還在時能拉到染色體嗎？"],
+      pose:(t)=>{
+        setPoles(polePositions(-2.1,2.1,t));
+        nucleus.material.opacity = lerp(0.22,0.16,t);
+        chroms.forEach((c,i)=>{
+          c.position.x = lerp(c.position.x,(i-1.5)*0.7,t);
+          c.position.z = lerp(c.position.z,(i%2?-0.4:0.4),t);
+          c.rotation.y += 0.01;
+          c.scale.setScalar(lerp(0.9,1.05,t));
+          setSplit(c,0);
+        });
+      }
+    },
+    {
+      name:"中期 Metaphase",
+      hud:["赤道板排列","連到著絲點"],
+      desc:"染色體排在赤道板，準備平均分配。",
+      prompts:["• 為什麼要排在赤道板？","• 若只連到一極會怎樣？"],
+      pose:(t)=>{
+        setPoles(polePositions(-2.6,2.6,t));
+        nucleus.material.opacity = lerp(0.12,0.02,t);
+        chroms.forEach((c,i)=>{
+          c.position.x = lerp(c.position.x,(i-1.5)*0.55,t);
+          c.position.z = lerp(c.position.z,0,t);
+          c.rotation.y = lerp(c.rotation.y,0,t);
+          c.scale.setScalar(1.1);
+          setSplit(c,0);
+        });
+      }
+    },
+    {
+      name:"後期 Anaphase",
+      hud:["姐妹分離","往兩極移動"],
+      desc:"姐妹染色單體分離並被拉向兩極。",
+      prompts:["• 分開的是同源還是姐妹？"],
+      pose:(t)=>{
+        setPoles(polePositions(-3.1,3.1,t));
+        nucleus.material.opacity = 0.0;
+        chroms.forEach((c,i)=>{
+          setSplit(c,lerp(0,1,t));
+          const dir = (i<2)?-1:1;
+          c.position.x = lerp(c.position.x,dir*1.6,t);
+          c.position.z = lerp(c.position.z,(i%2?-0.35:0.35),t);
+        });
+      }
+    },
+    {
+      name:"末期 Telophase",
+      hud:["核膜重建","染色體鬆開","細胞質分裂"],
+      desc:"核膜恢復、染色體去凝縮，細胞中央收縮。",
+      prompts:["• 為何染色體看起來不見？（去凝縮）"],
+      pose:(t)=>{
+        setPoles(polePositions(-2.4,2.4,t));
+        nucleus.material.opacity = lerp(0.0,0.18,t);
+        cell.scale.x = lerp(1.0,0.92,t);
+        chroms.forEach((c,i)=>{
+          setSplit(c,lerp(1.0,0.0,t));
+          const dir=(i<2)?-1:1;
+          c.position.x = lerp(c.position.x,dir*1.85,t);
+          c.scale.setScalar(lerp(1.05,0.85,t));
+        });
+      }
+    }
+  ];
+
+  const MEIOSIS = [
+    {
+      name:"減I：前期I（同源配對）",
+      hud:["同源配對（四分體）","可延伸：互換"],
+      desc:"同源染色體靠近配對，是減數分裂關鍵差異。",
+      prompts:["• 同源染色體：基因座相同、等位基因可不同。"],
+      pose:(t)=>{
+        setPoles(polePositions(-2.2,2.2,t));
+        nucleus.material.opacity = lerp(0.22,0.12,t);
+        const targets=[
+          new THREE.Vector3(-0.9,0,0), new THREE.Vector3(-0.55,0,0),
+          new THREE.Vector3(0.55,0,0), new THREE.Vector3(0.9,0,0)
+        ];
+        chroms.forEach((c,i)=>{
+          c.position.x = lerp(c.position.x,targets[i].x,t);
+          c.position.z = lerp(c.position.z,targets[i].z,t);
+          setSplit(c,0);
+        });
+      }
+    },
+    {
+      name:"減I：中期I（同源對排列）",
+      hud:["同源對排赤道板","獨立分配"],
+      desc:"排列的是同源染色體對。",
+      prompts:["• 這裡分配的是同源，不是姐妹。"],
+      pose:(t)=>{
+        setPoles(polePositions(-2.8,2.8,t));
+        nucleus.material.opacity = lerp(0.10,0.02,t);
+        const eq=[-0.7,-0.35,0.35,0.7];
+        chroms.forEach((c,i)=>{
+          c.position.x = lerp(c.position.x,eq[i],t);
+          c.position.z = lerp(c.position.z,0,t);
+          setSplit(c,0);
+        });
+      }
+    },
+    {
+      name:"減I：後期I（同源分離）",
+      hud:["同源分離","姐妹仍相連"],
+      desc:"這一步分離的是同源染色體，姐妹仍在一起。",
+      prompts:["• 這一步讓染色體數目減半。"],
+      pose:(t)=>{
+        setPoles(polePositions(-3.2,3.2,t));
+        nucleus.material.opacity = 0.0;
+        const dirs=[-1,1,-1,1];
+        chroms.forEach((c,i)=>{
+          const dir=dirs[i];
+          c.position.x = lerp(c.position.x,dir*1.85,t);
+          c.position.z = lerp(c.position.z,(i%2?-0.35:0.35),t);
+          setSplit(c,0);
+        });
+      }
+    },
+    {
+      name:"減II：後期II（姐妹分離）",
+      hud:["第二次分裂","姐妹分離","形成4個單套細胞"],
+      desc:"減II類似有絲分裂，分離姐妹染色單體。",
+      prompts:["• 最終4個細胞不完全相同（互換＋獨立分配）。"],
+      pose:(t)=>{
+        setPoles(polePositions(-3.0,3.0,t));
+        chroms.forEach((c,i)=>{
+          setSplit(c,lerp(0,1,t));
+          const dir=(i%2===0)?-1:1;
+          c.position.z = lerp(c.position.z,dir*0.75,t);
+        });
+        cell.scale.x = lerp(1.0,0.9,t);
+      }
+    }
+  ];
+
+  // ---------- state machine ----------
+  let mode = modeSel.value;
+  let phaseIndex = 0;
+  let playing = false;
+  let phaseT = 0;
+  let phaseDur = 2.3;
+  let lastTS = performance.now();
+
+  function phases(){ return mode==="mitosis" ? MITOSIS : MEIOSIS; }
+
+  function applyUI(){
+    const p = phases()[phaseIndex];
+    phaseNameEl.textContent = p.name;
+    descEl.textContent = p.desc;
+    promptsEl.innerHTML = p.prompts.map(x=>"• "+x).join("<br/>");
+    setHUD(labelsChk.checked ? p.hud : []);
+  }
+  function resetSoft(){
+    cell.scale.set(1,1,1);
+    nucleus.scale.set(1,1,1);
+  }
+  function gotoPhase(i){
+    const arr=phases();
+    phaseIndex = (i + arr.length) % arr.length;
+    phaseT = 0;
+    resetSoft();
+    applyUI();
+  }
+  function setMode(m){
+    mode = m;
+    phaseIndex=0; phaseT=0; playing=false;
+    playBtn.textContent="▶ 播放";
+    setupChromosomesForMode(mode);
+    resetSoft();
+    applyUI();
+  }
+
+  // UI events
+  modeSel.addEventListener('change', ()=> setMode(modeSel.value));
+  prevBtn.addEventListener('click', ()=> gotoPhase(phaseIndex-1));
+  nextBtn.addEventListener('click', ()=> gotoPhase(phaseIndex+1));
+  resetBtn.addEventListener('click', ()=> { phaseT=0; resetSoft(); });
+  playBtn.addEventListener('click', ()=> { playing=!playing; playBtn.textContent=playing?"⏸ 暫停":"▶ 播放"; });
+  speed.addEventListener('input', ()=> speedVal.textContent = `${Number(speed.value).toFixed(1)}×`);
+  labelsChk.addEventListener('change', ()=> applyUI());
+  spindleChk.addEventListener('change', ()=> spindle.visible = spindleChk.checked);
+
+  // init
+  setupChromosomesForMode(mode);
+  applyUI();
+
+  // Resize (確保 grid layout 後尺寸正確)
+  function resize(){
+    const w=view.clientWidth, h=view.clientHeight;
+    if (w<=0 || h<=0) return;
+    renderer.setSize(w,h,false);
+    camera.aspect = w/h;
+    camera.updateProjectionMatrix();
+  }
+  window.addEventListener('resize', resize);
+  // 很多「一開始 clientHeight=0」的情況，延後兩次 resize 會救回
+  setTimeout(resize, 0);
+  setTimeout(resize, 50);
+
+  // animation
+  function animate(ts){
+    const dt = Math.min(0.05, (ts-lastTS)/1000);
+    lastTS = ts;
+
+    controls.update();
+    chromGroup.rotation.y += 0.002;
+
+    const p = phases()[phaseIndex];
+    const spd = Number(speed.value);
+    const dur = phaseDur / spd;
+
+    if (playing){
+      phaseT += dt / dur;
+      if (phaseT>=1){
+        phaseT=0;
+        phaseIndex = (phaseIndex+1) % phases().length;
+        resetSoft();
+        applyUI();
+      }
+    }
+
+    p.pose(ease(clamp01(phaseT)));
+    spindle.visible = spindleChk.checked;
+
+    renderer.render(scene,camera);
+    requestAnimationFrame(animate);
+  }
+  requestAnimationFrame(animate);
+
+  // 如果仍然是黑畫面，至少丟一個可見物測試
+  //（理論上你會立刻看到中央有透明球＋幾條彩色染色體）
+})();
+</script>
+</body>
+</html>
