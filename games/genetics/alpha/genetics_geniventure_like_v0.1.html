@@ -1,0 +1,1033 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
+<title>Geniventure-like 遺傳闖關 v0.1（單檔）</title>
+<style>
+  :root{
+    --bg:#0b0f17;
+    --panel:#121a28cc;
+    --panel2:#0f1624e6;
+    --txt:#e9eefc;
+    --muted:#a8b3d6;
+    --accent:#7cf3c7;
+    --warn:#ffcf5a;
+    --bad:#ff6b8b;
+    --good:#67e06f;
+    --line:#223052;
+    --btn:#1b2946;
+    --btn2:#213257;
+    --shadow: 0 10px 30px rgba(0,0,0,.35);
+  }
+  html,body{height:100%;margin:0;background:var(--bg);color:var(--txt);font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", "Noto Sans TC", Arial;}
+  #wrap{position:fixed;inset:0;overflow:hidden}
+  canvas{position:absolute;inset:0;touch-action:none;}
+  .hud{
+    position:absolute; left:12px; top:12px; right:12px;
+    display:flex; gap:10px; align-items:stretch; flex-wrap:wrap;
+    pointer-events:none;
+  }
+  .card{
+    pointer-events:auto;
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:16px;
+    box-shadow:var(--shadow);
+    padding:12px 12px;
+    backdrop-filter: blur(8px);
+  }
+  .card h1{font-size:14px;margin:0 0 6px 0; font-weight:800; letter-spacing:.2px}
+  .card p{margin:0; font-size:12px; color:var(--muted); line-height:1.35}
+  .row{display:flex; gap:8px; flex-wrap:wrap; align-items:center}
+  .btn{
+    appearance:none; border:1px solid var(--line);
+    background:linear-gradient(180deg,var(--btn),var(--btn2));
+    color:var(--txt);
+    border-radius:12px;
+    padding:9px 10px;
+    font-size:12px; font-weight:700;
+    cursor:pointer;
+    user-select:none;
+  }
+  .btn:hover{filter:brightness(1.07)}
+  .btn:active{transform:translateY(1px)}
+  .btn.primary{border-color:#2f7c66; box-shadow:0 0 0 1px rgba(124,243,199,.15) inset}
+  .btn.good{border-color:#2f6f36}
+  .btn.bad{border-color:#7c2f43}
+  .btn.warn{border-color:#6c5731}
+  .pill{
+    display:inline-flex; align-items:center; gap:6px;
+    padding:6px 8px;
+    border-radius:999px;
+    border:1px solid var(--line);
+    background:var(--panel2);
+    font-size:12px;
+    color:var(--txt);
+    user-select:none;
+  }
+  .dot{width:8px;height:8px;border-radius:999px;background:var(--accent); box-shadow:0 0 10px rgba(124,243,199,.6)}
+  .dot.bad{background:var(--bad); box-shadow:0 0 10px rgba(255,107,139,.55)}
+  .dot.good{background:var(--good); box-shadow:0 0 10px rgba(103,224,111,.55)}
+  .dot.warn{background:var(--warn); box-shadow:0 0 10px rgba(255,207,90,.55)}
+  .kbd{font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size:11px; color:#d7dfff; padding:2px 6px; border:1px solid #2b3b64; border-radius:8px; background:#0e1422}
+  .spacer{flex:1}
+  .small{font-size:11px;color:var(--muted)}
+  .select{
+    border:1px solid var(--line);
+    background:var(--panel2);
+    color:var(--txt);
+    border-radius:12px;
+    padding:8px 10px;
+    font-size:12px;
+    font-weight:700;
+    cursor:pointer;
+  }
+  .toast{
+    position:absolute; left:50%; bottom:14px; transform:translateX(-50%);
+    background:rgba(15,22,36,.92);
+    border:1px solid #2a3a63;
+    border-radius:14px;
+    padding:10px 12px;
+    box-shadow:var(--shadow);
+    font-size:12px;
+    color:var(--txt);
+    opacity:0;
+    transition:opacity .18s ease, transform .18s ease;
+    pointer-events:none;
+    max-width:min(640px, calc(100% - 20px));
+  }
+  .toast.show{opacity:1; transform:translateX(-50%) translateY(-2px)}
+  .help{
+    position:absolute; right:12px; bottom:12px;
+    pointer-events:auto;
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:16px;
+    padding:10px 12px;
+    box-shadow:var(--shadow);
+    max-width:min(430px, calc(100% - 24px));
+  }
+  .help b{color:#ffffff}
+  @media (max-width:720px){
+    .hud{left:10px; right:10px; top:10px}
+    .card{border-radius:14px}
+    .help{display:none}
+  }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="c"></canvas>
+
+  <div class="hud">
+    <div class="card" style="min-width:260px;flex:1 1 340px">
+      <h1 id="title">遺傳闖關 v0.1</h1>
+      <p id="desc">Loading…</p>
+      <div class="row" style="margin-top:10px">
+        <span class="pill"><span class="dot" id="lvDot"></span><span id="lvText">關卡 1/3</span></span>
+        <span class="pill"><span class="dot warn"></span><span class="small">操作</span>&nbsp;<span class="kbd">拖曳</span>&nbsp;<span class="kbd">滾輪/雙指</span></span>
+        <span class="spacer"></span>
+        <button class="btn warn" id="resetViewBtn" title="回到預設視角">重置視角</button>
+      </div>
+    </div>
+
+    <div class="card" style="min-width:260px;flex:0 0 auto">
+      <h1>控制台</h1>
+      <div id="controls" class="row" style="margin-top:8px"></div>
+      <div class="row" style="margin-top:10px">
+        <button class="btn" id="prevBtn">上一關</button>
+        <button class="btn primary" id="nextBtn">下一關</button>
+      </div>
+      <p class="small" style="margin-top:8px">提示：點選染色體上的等位基因可切換 A/a。</p>
+    </div>
+  </div>
+
+  <div class="help">
+    <div style="font-size:12px;line-height:1.45;color:var(--muted)">
+      <b>畫面操作</b><br/>
+      • 電腦：滑鼠左鍵拖曳平移；滾輪縮放（以游標為中心）。<br/>
+      • 手機/平板：單指拖曳平移；雙指縮放/平移；單指點選互動元件。<br/>
+      <span style="display:inline-block;margin-top:6px"><b>教學重點</b>：等位基因、顯隱性、配子、雜合、由子代反推親代。</span>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+</div>
+
+<script>
+(() => {
+  // ===== Utilities =====
+  const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
+  const lerp = (a,b,t)=>a+(b-a)*t;
+  const rnd = (a,b)=>a+Math.random()*(b-a);
+  const pick = (arr)=>arr[(Math.random()*arr.length)|0];
+
+  // ===== Canvas setup =====
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d', { alpha:false, desynchronized:true });
+
+  let W=1,H=1, DPR=1;
+  function resize(){
+    DPR = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+    W = canvas.clientWidth = window.innerWidth;
+    H = canvas.clientHeight = window.innerHeight;
+    canvas.width = Math.floor(W*DPR);
+    canvas.height = Math.floor(H*DPR);
+    ctx.setTransform(DPR,0,0,DPR,0,0);
+  }
+  window.addEventListener('resize', resize, {passive:true});
+  resize();
+
+  // ===== Viewport (pan/zoom) =====
+  const view = { x:0, y:0, s:1 }; // world-to-screen: screen = (world+view)*s + center
+  const viewTarget = { x:0, y:0, s:1 };
+  function resetView(){
+    viewTarget.x = 0;
+    viewTarget.y = 0;
+    viewTarget.s = 1;
+    toast("已重置視角");
+  }
+  document.getElementById('resetViewBtn').addEventListener('click', resetView);
+
+  function worldToScreen(wx, wy){
+    return {
+      x: (wx + view.x)*view.s + W/2,
+      y: (wy + view.y)*view.s + H/2
+    };
+  }
+  function screenToWorld(sx, sy){
+    return {
+      x: (sx - W/2)/view.s - view.x,
+      y: (sy - H/2)/view.s - view.y
+    };
+  }
+
+  // ===== Interaction / hit testing =====
+  const pointers = new Map(); // id -> {x,y,px,py}
+  let isPanning = false;
+  let panStart = null;
+
+  let pinch = null; // {d0, s0, cx0, cy0, vx0, vy0}
+
+  function onPointerDown(e){
+    canvas.setPointerCapture(e.pointerId);
+    pointers.set(e.pointerId, {x:e.clientX, y:e.clientY, px:e.clientX, py:e.clientY});
+    if(pointers.size === 1){
+      isPanning = true;
+      panStart = {sx:e.clientX, sy:e.clientY, vx:viewTarget.x, vy:viewTarget.y};
+    }else if(pointers.size === 2){
+      // init pinch
+      const pts = [...pointers.values()];
+      const dx = pts[1].x - pts[0].x;
+      const dy = pts[1].y - pts[0].y;
+      const d0 = Math.hypot(dx,dy);
+      const cx = (pts[0].x + pts[1].x)/2;
+      const cy = (pts[0].y + pts[1].y)/2;
+      pinch = { d0, s0:viewTarget.s, cx0:cx, cy0:cy, vx0:viewTarget.x, vy0:viewTarget.y };
+      isPanning = false;
+      panStart = null;
+    }
+  }
+
+  function onPointerMove(e){
+    const p = pointers.get(e.pointerId);
+    if(!p) return;
+    p.px = p.x; p.py = p.y;
+    p.x = e.clientX; p.y = e.clientY;
+
+    if(pointers.size === 1 && isPanning && panStart){
+      const dx = (p.x - panStart.sx)/viewTarget.s;
+      const dy = (p.y - panStart.sy)/viewTarget.s;
+      viewTarget.x = panStart.vx + dx;
+      viewTarget.y = panStart.vy + dy;
+    }else if(pointers.size === 2 && pinch){
+      const pts = [...pointers.values()];
+      const dx = pts[1].x - pts[0].x;
+      const dy = pts[1].y - pts[0].y;
+      const d = Math.hypot(dx,dy);
+      const scale = clamp(d / pinch.d0, 0.5, 2.5);
+      const newS = clamp(pinch.s0 * scale, 0.5, 2.8);
+
+      // zoom around pinch center: keep the world point under center stable
+      const before = screenToWorld(pinch.cx0, pinch.cy0);
+      viewTarget.s = newS;
+      const after = screenToWorld(pinch.cx0, pinch.cy0);
+      viewTarget.x += (after.x - before.x);
+      viewTarget.y += (after.y - before.y);
+
+      // also pan with moving pinch center
+      const cx = (pts[0].x + pts[1].x)/2;
+      const cy = (pts[0].y + pts[1].y)/2;
+      const pdx = (cx - pinch.cx0)/viewTarget.s;
+      const pdy = (cy - pinch.cy0)/viewTarget.s;
+      viewTarget.x += pdx;
+      viewTarget.y += pdy;
+
+      pinch.cx0 = cx; pinch.cy0 = cy;
+      pinch.d0 = d;
+      pinch.s0 = viewTarget.s;
+    }
+  }
+
+  function onPointerUp(e){
+    const p = pointers.get(e.pointerId);
+    if(!p) return;
+    pointers.delete(e.pointerId);
+    if(pointers.size === 0){
+      isPanning = false;
+      panStart = null;
+      pinch = null;
+    }else if(pointers.size === 1){
+      // remain panning with the remaining pointer
+      const pt = [...pointers.values()][0];
+      isPanning = true;
+      panStart = {sx:pt.x, sy:pt.y, vx:viewTarget.x, vy:viewTarget.y};
+      pinch = null;
+    }
+  }
+
+  canvas.addEventListener('pointerdown', onPointerDown);
+  canvas.addEventListener('pointermove', onPointerMove);
+  canvas.addEventListener('pointerup', onPointerUp);
+  canvas.addEventListener('pointercancel', onPointerUp);
+
+  // Wheel zoom (desktop)
+  canvas.addEventListener('wheel', (e)=>{
+    e.preventDefault();
+    const delta = -e.deltaY;
+    const zoomFactor = Math.exp(delta * 0.0012);
+    const newS = clamp(viewTarget.s * zoomFactor, 0.5, 2.8);
+
+    const sx = e.clientX, sy = e.clientY;
+    const before = screenToWorld(sx, sy);
+    viewTarget.s = newS;
+    const after = screenToWorld(sx, sy);
+    viewTarget.x += (after.x - before.x);
+    viewTarget.y += (after.y - before.y);
+  }, {passive:false});
+
+  // Click selection (ignore if it was a drag)
+  let clickCandidate = null;
+  canvas.addEventListener('pointerdown', (e)=>{
+    clickCandidate = {id:e.pointerId, x:e.clientX, y:e.clientY, t:performance.now()};
+  }, {passive:true});
+  canvas.addEventListener('pointerup', (e)=>{
+    if(!clickCandidate || clickCandidate.id !== e.pointerId) return;
+    const dx = e.clientX - clickCandidate.x;
+    const dy = e.clientY - clickCandidate.y;
+    const dt = performance.now() - clickCandidate.t;
+    if(Math.hypot(dx,dy) < 6 && dt < 450 && pointers.size===0){ // treat as click
+      const w = screenToWorld(e.clientX, e.clientY);
+      handleClick(w.x, w.y);
+    }
+    clickCandidate = null;
+  }, {passive:true});
+
+  // ===== Genetics model (single locus) =====
+  // Alleles are represented as "A" or "a" (we keep the same letter for simplicity).
+  function phenotypeFromGenotype(geno, dominance){
+    // dominance: "A" means A is dominant, "a" means a is dominant
+    const hasA = geno.includes("A");
+    const hasa = geno.includes("a");
+    if(dominance==="A"){
+      return hasA ? "Trait1" : "Trait2";
+    }else{
+      return hasa ? "Trait1" : "Trait2";
+    }
+  }
+
+  function prettyGeno(a1,a2){
+    // show dominant first for readability
+    if(a1==="A" && a2==="a") return "Aa";
+    if(a1==="a" && a2==="A") return "Aa";
+    return a1+a2;
+  }
+
+  // ===== Game state =====
+  const ui = {
+    title: document.getElementById('title'),
+    desc: document.getElementById('desc'),
+    lvText: document.getElementById('lvText'),
+    lvDot: document.getElementById('lvDot'),
+    controls: document.getElementById('controls'),
+    prevBtn: document.getElementById('prevBtn'),
+    nextBtn: document.getElementById('nextBtn'),
+    toast: document.getElementById('toast'),
+  };
+
+  const game = {
+    level: 1,
+    // Level 1
+    l1: {
+      dominance: "A",
+      chrom: ["A","a"], // homologous pair alleles
+      target: null, // {dominance, geno, pheno}
+      solved: false
+    },
+    // Level 2
+    l2: {
+      dominance: "A",
+      mother: {chrom:["A","a"]},
+      father: {chrom:["A","A"]},
+      chosen: null, // {mAllele, fAllele}
+      child: null
+    },
+    // Level 3
+    l3: {
+      dominance: "A",
+      mother: {chrom:["A","a"]},
+      fatherHidden: {chrom:["a","a"]},
+      history: [], // each entry: babies array (20), summary
+      guess: null,
+      revealed: false
+    }
+  };
+
+  function newTargetL1(){
+    // pick random dominance and genotype for target
+    const dominance = pick(["A","a"]);
+    const g = pick([["A","A"],["A","a"],["a","a"]]);
+    const geno = prettyGeno(g[0],g[1]);
+    const ph = phenotypeFromGenotype(geno, dominance);
+    return { dominance, geno, pheno: ph };
+  }
+  game.l1.target = newTargetL1();
+
+  function randomParentsL2(){
+    const genos = [["A","A"],["A","a"],["a","a"]];
+    const m = pick(genos);
+    const f = pick(genos);
+    game.l2.mother.chrom = [m[0], m[1]];
+    game.l2.father.chrom = [f[0], f[1]];
+    game.l2.chosen = null;
+    game.l2.child = null;
+    // keep dominance but could vary per round
+    game.l2.dominance = pick(["A","a"]);
+  }
+  randomParentsL2();
+
+  function randomHiddenFatherL3(){
+    const genos = [["A","A"],["A","a"],["a","a"]];
+    const f = pick(genos);
+    game.l3.fatherHidden.chrom = [f[0], f[1]];
+    game.l3.dominance = pick(["A","a"]);
+    game.l3.history = [];
+    game.l3.guess = null;
+    game.l3.revealed = false;
+  }
+  randomHiddenFatherL3();
+
+  function toast(msg){
+    ui.toast.textContent = msg;
+    ui.toast.classList.add('show');
+    clearTimeout(toast._t);
+    toast._t = setTimeout(()=>ui.toast.classList.remove('show'), 1300);
+  }
+
+  function setLevel(n){
+    game.level = clamp(n,1,3);
+    ui.prevBtn.disabled = (game.level===1);
+    ui.nextBtn.disabled = (game.level===3);
+    ui.lvText.textContent = `關卡 ${game.level}/3`;
+    ui.lvDot.className = 'dot ' + (game.level===1?'warn': game.level===2?'':'good');
+    buildControls();
+    resetView();
+    updateText();
+  }
+
+  ui.prevBtn.addEventListener('click', ()=>setLevel(game.level-1));
+  ui.nextBtn.addEventListener('click', ()=>setLevel(game.level+1));
+
+  function updateText(){
+    if(game.level===1){
+      const t = game.l1.target;
+      ui.title.textContent = '關卡 1：顯隱性 + 等位基因';
+      ui.desc.textContent = `目標：把「你的生物」調整成右側目標外觀。你可以切換同源染色體上的等位基因（A/a），以及選擇顯性是哪一個等位基因。`;
+      const solved = game.l1.solved;
+      if(solved) toast("過關！你可以進下一關");
+    }else if(game.level===2){
+      ui.title.textContent = '關卡 2：用配子預測子代表現';
+      ui.desc.textContent = `按「雜合」會隨機抽出一套母親染色體 + 一套父親染色體，配對成子代，並顯示子代基因型與外觀。`;
+    }else{
+      ui.title.textContent = '關卡 3：由子代反推親代';
+      ui.desc.textContent = `父親未知。每按一次「雜合」就會生成 20 個寶寶（可無限次），也可「回溯」查看上一輪。觀察子代分布，推測父親基因型/性狀。`;
+    }
+  }
+
+  // ===== UI Controls per level =====
+  function clearEl(el){ while(el.firstChild) el.removeChild(el.firstChild); }
+
+  function makeBtn(label, cls, onClick){
+    const b = document.createElement('button');
+    b.className = 'btn ' + (cls||'');
+    b.textContent = label;
+    b.addEventListener('click', onClick);
+    return b;
+  }
+  function makeSelect(options, value, onChange){
+    const s = document.createElement('select');
+    s.className = 'select';
+    for(const opt of options){
+      const o = document.createElement('option');
+      o.value = opt.value;
+      o.textContent = opt.label;
+      s.appendChild(o);
+    }
+    s.value = value;
+    s.addEventListener('change', ()=>onChange(s.value));
+    return s;
+  }
+
+  function buildControls(){
+    clearEl(ui.controls);
+
+    if(game.level===1){
+      ui.controls.appendChild(makeBtn("新題目", "", ()=>{
+        game.l1.target = newTargetL1();
+        game.l1.solved = false;
+        // reset player to random
+        game.l1.chrom = pick([["A","A"],["A","a"],["a","a"]]).slice();
+        game.l1.dominance = pick(["A","a"]);
+        toast("已換一題");
+      }));
+      ui.controls.appendChild(makeSelect([
+        {value:"A", label:"顯性：A"},
+        {value:"a", label:"顯性：a"},
+      ], game.l1.dominance, (v)=>{game.l1.dominance=v; checkL1();}));
+
+      ui.controls.appendChild(makeBtn("檢查", "primary", ()=>checkL1()));
+
+    }else if(game.level===2){
+      ui.controls.appendChild(makeBtn("重抽親代", "", ()=>{
+        randomParentsL2();
+        toast("已重抽父母");
+      }));
+      ui.controls.appendChild(makeSelect([
+        {value:"A", label:"顯性：A"},
+        {value:"a", label:"顯性：a"},
+      ], game.l2.dominance, (v)=>{game.l2.dominance=v;}));
+      ui.controls.appendChild(makeBtn("雜合", "primary", ()=>doHybridL2()));
+      ui.controls.appendChild(makeBtn("清除子代", "", ()=>{
+        game.l2.chosen=null; game.l2.child=null; toast("已清除");
+      }));
+
+    }else{
+      ui.controls.appendChild(makeBtn("新回合（換父親）", "", ()=>{
+        randomHiddenFatherL3();
+        toast("已更換未知父親");
+      }));
+      ui.controls.appendChild(makeSelect([
+        {value:"A", label:"顯性：A"},
+        {value:"a", label:"顯性：a"},
+      ], game.l3.dominance, (v)=>{game.l3.dominance=v;}));
+      ui.controls.appendChild(makeBtn("雜合 +20", "primary", ()=>hybridL3()));
+      ui.controls.appendChild(makeBtn("回溯", "", ()=>undoL3()));
+      ui.controls.appendChild(makeBtn("揭曉答案", "warn", ()=>revealL3()));
+
+      ui.controls.appendChild(makeSelect([
+        {value:"AA", label:"我猜：父親 AA"},
+        {value:"Aa", label:"我猜：父親 Aa"},
+        {value:"aa", label:"我猜：父親 aa"},
+      ], game.l3.guess||"AA", (v)=>{game.l3.guess=v; checkGuessL3();}));
+    }
+  }
+
+  function checkL1(){
+    const target = game.l1.target;
+    const playerG = prettyGeno(game.l1.chrom[0], game.l1.chrom[1]);
+    const playerP = phenotypeFromGenotype(playerG, game.l1.dominance);
+
+    const ok = (playerP === target.pheno) && (game.l1.dominance === target.dominance);
+    game.l1.solved = ok;
+
+    if(ok){
+      toast("✅ 完全匹配（顯性設定 + 外觀）");
+    }else{
+      toast("還不對：再調整等位基因或顯性設定");
+    }
+  }
+
+  function doHybridL2(){
+    const m = game.l2.mother.chrom;
+    const f = game.l2.father.chrom;
+    const mAllele = pick([m[0], m[1]]);
+    const fAllele = pick([f[0], f[1]]);
+    game.l2.chosen = {mAllele, fAllele};
+
+    const geno = prettyGeno(mAllele, fAllele);
+    const ph = phenotypeFromGenotype(geno, game.l2.dominance);
+    game.l2.child = {geno, pheno:ph};
+    toast(`產生子代：${geno}`);
+  }
+
+  function hybridL3(){
+    const m = game.l3.mother.chrom;
+    const f = game.l3.fatherHidden.chrom;
+    const babies = [];
+    for(let i=0;i<20;i++){
+      const ma = pick([m[0], m[1]]);
+      const fa = pick([f[0], f[1]]);
+      const geno = prettyGeno(ma, fa);
+      const ph = phenotypeFromGenotype(geno, game.l3.dominance);
+      babies.push({geno, pheno:ph});
+    }
+    const summary = babies.reduce((acc,b)=>{
+      acc[b.geno]=(acc[b.geno]||0)+1;
+      return acc;
+    }, {});
+    game.l3.history.push({babies, summary});
+    toast(`已生成 20 個寶寶（第 ${game.l3.history.length} 輪）`);
+  }
+
+  function undoL3(){
+    if(game.l3.history.length===0){
+      toast("沒有上一輪可回溯");
+      return;
+    }
+    game.l3.history.pop();
+    toast("已回溯上一輪");
+  }
+
+  function revealL3(){
+    game.l3.revealed = true;
+    const f = prettyGeno(game.l3.fatherHidden.chrom[0], game.l3.fatherHidden.chrom[1]);
+    toast(`答案：父親 ${f}（已揭曉）`);
+  }
+
+  function checkGuessL3(){
+    if(!game.l3.guess) return;
+    const f = prettyGeno(game.l3.fatherHidden.chrom[0], game.l3.fatherHidden.chrom[1]);
+    if(game.l3.guess === f){
+      toast("✅ 你猜對了！");
+    }else{
+      toast("還不確定：多生成幾輪看看分布");
+    }
+  }
+
+  // ===== Scene objects for hit test =====
+  const hits = []; // {x,y,w,h, onClick}
+  function addHit(x,y,w,h,onClick){
+    hits.push({x,y,w,h,onClick});
+  }
+  function handleClick(wx,wy){
+    // iterate in reverse (topmost last)
+    for(let i=hits.length-1;i>=0;i--){
+      const h = hits[i];
+      if(wx>=h.x && wx<=h.x+h.w && wy>=h.y && wy<=h.y+h.h){
+        h.onClick();
+        return;
+      }
+    }
+  }
+
+  // ===== Drawing helpers =====
+  function drawGrid(){
+    // subtle grid in world space
+    const step = 120;
+    const tl = screenToWorld(0,0);
+    const br = screenToWorld(W,H);
+    const x0 = Math.floor(tl.x/step)*step;
+    const y0 = Math.floor(tl.y/step)*step;
+
+    ctx.save();
+    ctx.globalAlpha = 0.22;
+    ctx.lineWidth = 1;
+    for(let x=x0; x<br.x+step; x+=step){
+      const s1 = worldToScreen(x, tl.y);
+      const s2 = worldToScreen(x, br.y);
+      ctx.strokeStyle = '#16213a';
+      ctx.beginPath(); ctx.moveTo(s1.x,s1.y); ctx.lineTo(s2.x,s2.y); ctx.stroke();
+    }
+    for(let y=y0; y<br.y+step; y+=step){
+      const s1 = worldToScreen(tl.x, y);
+      const s2 = worldToScreen(br.x, y);
+      ctx.strokeStyle = '#16213a';
+      ctx.beginPath(); ctx.moveTo(s1.x,s1.y); ctx.lineTo(s2.x,s2.y); ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function fillRoundedRect(sx,sy,w,h,r, fill, stroke){
+    ctx.beginPath();
+    const rr = Math.min(r, w/2, h/2);
+    ctx.moveTo(sx+rr, sy);
+    ctx.arcTo(sx+w, sy, sx+w, sy+h, rr);
+    ctx.arcTo(sx+w, sy+h, sx, sy+h, rr);
+    ctx.arcTo(sx, sy+h, sx, sy, rr);
+    ctx.arcTo(sx, sy, sx+w, sy, rr);
+    ctx.closePath();
+    if(fill){
+      ctx.fillStyle = fill;
+      ctx.fill();
+    }
+    if(stroke){
+      ctx.strokeStyle = stroke;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+  }
+
+  function drawLabel(wx,wy,text,kind="muted"){
+    const s = worldToScreen(wx,wy);
+    ctx.save();
+    ctx.font = '700 14px ui-sans-serif, system-ui, -apple-system, "Noto Sans TC"';
+    const padX=10,padY=6;
+    const w = ctx.measureText(text).width + padX*2;
+    const h = 26;
+    const x = s.x - w/2, y = s.y - h/2;
+    const fill = kind==="muted" ? 'rgba(15,22,36,.80)' : kind==="good" ? 'rgba(16,42,22,.85)' : kind==="bad" ? 'rgba(56,16,26,.85)' : 'rgba(43,34,14,.85)';
+    const stroke = kind==="muted" ? '#2a3a63' : kind==="good" ? '#2f6f36' : kind==="bad" ? '#7c2f43' : '#6c5731';
+    fillRoundedRect(x,y,w,h,12,fill,stroke);
+    ctx.fillStyle = '#e9eefc';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, x+padX, y+h/2);
+    ctx.restore();
+  }
+
+  function creatureStyle(pheno){
+    // Trait1 vs Trait2 visual mapping
+    if(pheno==="Trait1"){
+      return { body:'#7cf3c7', belly:'#e9fdf5', eye:'#0b0f17', blush:'#6fe7ff' };
+    }else{
+      return { body:'#ff6b8b', belly:'#ffe4ea', eye:'#0b0f17', blush:'#ffd66f' };
+    }
+  }
+
+  function drawCreature(wx, wy, scale, pheno, label){
+    const st = creatureStyle(pheno);
+    const s = worldToScreen(wx,wy);
+    const r = 58*scale;
+    ctx.save();
+    ctx.translate(s.x,s.y);
+    ctx.scale(view.s, view.s); // keep creature size in world units (consistent)
+    // But we're already in screen space; easiest: draw in screen and ignore view scaling:
+    ctx.restore();
+
+    // draw in world (so it scales with view)
+    ctx.save();
+    ctx.translate(s.x, s.y);
+    // scale relative to view: we want world size -> screen = world*view.s, so draw in screen size r*view.s
+    const R = r*view.s;
+
+    // shadow
+    ctx.globalAlpha = 0.25;
+    ctx.fillStyle = '#000';
+    ctx.beginPath(); ctx.ellipse(0, R*0.78, R*0.72, R*0.22, 0, 0, Math.PI*2); ctx.fill();
+    ctx.globalAlpha = 1;
+
+    // body
+    ctx.fillStyle = st.body;
+    ctx.beginPath(); ctx.ellipse(0,0, R*0.72, R*0.62, 0, 0, Math.PI*2); ctx.fill();
+
+    // belly
+    ctx.fillStyle = st.belly;
+    ctx.beginPath(); ctx.ellipse(0, R*0.10, R*0.45, R*0.36, 0, 0, Math.PI*2); ctx.fill();
+
+    // ears/horns (cute)
+    ctx.fillStyle = st.body;
+    ctx.beginPath();
+    ctx.moveTo(-R*0.42, -R*0.45);
+    ctx.quadraticCurveTo(-R*0.70, -R*0.78, -R*0.30, -R*0.66);
+    ctx.closePath(); ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(R*0.42, -R*0.45);
+    ctx.quadraticCurveTo(R*0.70, -R*0.78, R*0.30, -R*0.66);
+    ctx.closePath(); ctx.fill();
+
+    // eyes
+    ctx.fillStyle = st.eye;
+    ctx.beginPath(); ctx.arc(-R*0.22, -R*0.05, R*0.08, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(R*0.22, -R*0.05, R*0.08, 0, Math.PI*2); ctx.fill();
+    // eye sparkle
+    ctx.fillStyle = 'rgba(255,255,255,.9)';
+    ctx.beginPath(); ctx.arc(-R*0.25, -R*0.08, R*0.028, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(R*0.19, -R*0.08, R*0.028, 0, Math.PI*2); ctx.fill();
+
+    // mouth
+    ctx.strokeStyle = 'rgba(11,15,23,.85)';
+    ctx.lineWidth = Math.max(2, R*0.03);
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(-R*0.08, R*0.15);
+    ctx.quadraticCurveTo(0, R*0.22, R*0.08, R*0.15);
+    ctx.stroke();
+
+    // blush
+    ctx.fillStyle = st.blush;
+    ctx.globalAlpha = 0.35;
+    ctx.beginPath(); ctx.arc(-R*0.36, R*0.08, R*0.10, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(R*0.36, R*0.08, R*0.10, 0, Math.PI*2); ctx.fill();
+    ctx.globalAlpha = 1;
+
+    ctx.restore();
+
+    if(label) drawLabel(wx, wy + 95*scale, label, "muted");
+  }
+
+  function drawChromosomePair(wx, wy, alleles, title, dominance, hitKeyPrefix){
+    // alleles: [a1,a2]
+    const s = worldToScreen(wx,wy);
+    const baseW = 240, baseH = 160;
+    const w = baseW*view.s, h = baseH*view.s;
+
+    // panel
+    ctx.save();
+    fillRoundedRect(s.x-w/2, s.y-h/2, w, h, 18, 'rgba(18,26,40,.70)', '#223052');
+    ctx.restore();
+
+    // title
+    ctx.save();
+    ctx.fillStyle = '#e9eefc';
+    ctx.font = '800 ' + (14*view.s) + 'px ui-sans-serif, system-ui, -apple-system, "Noto Sans TC"';
+    ctx.textBaseline = 'top';
+    ctx.fillText(title, s.x-w/2 + 14*view.s, s.y-h/2 + 10*view.s);
+    ctx.restore();
+
+    // two "chromosomes"
+    const cx1 = wx - 62, cx2 = wx + 62;
+    drawChromosome(cx1, wy+10, alleles[0], dominance, hitKeyPrefix+"0");
+    drawChromosome(cx2, wy+10, alleles[1], dominance, hitKeyPrefix+"1");
+
+    // genotype label
+    const geno = prettyGeno(alleles[0], alleles[1]);
+    drawLabel(wx, wy + 62, "基因型："+geno, "muted");
+  }
+
+  function drawChromosome(wx, wy, allele, dominance, hitId){
+    const s = worldToScreen(wx,wy);
+    const h = 94*view.s;
+    const w = 44*view.s;
+    const r = 18*view.s;
+
+    // chromosome body
+    ctx.save();
+    const fill = 'rgba(35,50,87,.55)';
+    fillRoundedRect(s.x-w/2, s.y-h/2, w, h, r, fill, '#2a3a63');
+
+    // centromere
+    ctx.fillStyle = 'rgba(124,243,199,.20)';
+    ctx.beginPath();
+    ctx.ellipse(s.x, s.y, w*0.40, h*0.09, 0, 0, Math.PI*2);
+    ctx.fill();
+
+    // allele "badge"
+    const badgeW = 32*view.s, badgeH = 30*view.s;
+    const bx = s.x-badgeW/2, by = s.y - h*0.10;
+    const isDominantAllele = (allele===dominance);
+    const stroke = isDominantAllele ? '#2f7c66' : '#6c5731';
+    const fill2 = isDominantAllele ? 'rgba(124,243,199,.18)' : 'rgba(255,207,90,.12)';
+    fillRoundedRect(bx,by,badgeW,badgeH,12*view.s,fill2, stroke);
+
+    ctx.fillStyle = '#e9eefc';
+    ctx.font = '900 ' + (16*view.s) + 'px ui-sans-serif, system-ui, -apple-system, "Noto Sans TC"';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(allele, s.x - (allele==='A'?5:4)*view.s, by+badgeH/2);
+
+    // clickable area in WORLD coords
+    const hitW = 70, hitH = 120;
+    addHit(wx-hitW/2, wy-hitH/2, hitW, hitH, ()=>{
+      toggleAllele(hitId);
+    });
+
+    ctx.restore();
+  }
+
+  function toggleAllele(hitId){
+    if(game.level===1){
+      const idx = hitId.endsWith("0") ? 0 : 1;
+      game.l1.chrom[idx] = (game.l1.chrom[idx]==="A") ? "a" : "A";
+      checkL1();
+    }else if(game.level===2){
+      // allow editing parents alleles by clicking their chromosome to explore
+      // We'll map hitId with prefixes: "m0","m1","f0","f1"
+      const key = hitId;
+      const who = key[0]; // 'm' or 'f'
+      const idx = key.endsWith("0") ? 0 : 1;
+      if(who==='m'){
+        game.l2.mother.chrom[idx] = (game.l2.mother.chrom[idx]==="A") ? "a" : "A";
+      }else if(who==='f'){
+        game.l2.father.chrom[idx] = (game.l2.father.chrom[idx]==="A") ? "a" : "A";
+      }
+      game.l2.chosen=null; game.l2.child=null;
+      toast("已調整親代表現（點雜合生成子代）");
+    }else if(game.level===3){
+      const key = hitId;
+      if(key[0]==='m'){
+        const idx = key.endsWith("0") ? 0 : 1;
+        game.l3.mother.chrom[idx] = (game.l3.mother.chrom[idx]==="A") ? "a" : "A";
+        game.l3.history=[];
+        toast("已調整母親（清空既有寶寶）");
+      }
+    }
+  }
+
+  // ===== Rendering per level =====
+  function renderLevel1(){
+    const target = game.l1.target;
+    const playerG = prettyGeno(game.l1.chrom[0], game.l1.chrom[1]);
+    const playerP = phenotypeFromGenotype(playerG, game.l1.dominance);
+
+    // Left: player
+    drawLabel(-330,-270,"你的操作區（可點選等位基因切換）","muted");
+    drawChromosomePair(-330, -140, game.l1.chrom, "你的同源染色體", game.l1.dominance, "p");
+    drawCreature(-330, 140, 1.0, playerP, "你的生物（外觀）");
+
+    // Right: target
+    drawLabel(330,-270,"目標（請匹配：顯性設定 + 外觀）", game.l1.solved?"good":"warn");
+    const tDominance = target.dominance;
+    const tG = target.geno;
+    const tP = target.pheno;
+    // show target genotype as hint (you can later hide if you want)
+    drawChromosomePair(330, -140, [tG[0], tG[1]], "目標染色體（提示）", tDominance, "t");
+    drawCreature(330, 140, 1.0, tP, "目標生物（外觀）");
+
+    // Middle: rule box
+    drawLabel(0, -10, `顯性設定：${game.l1.dominance==='A'?'A 顯性':'a 顯性'}（在控制台切換）`, "muted");
+    drawLabel(0, 34, `你的基因型：${playerG} → 表現型：${playerP==='Trait1'?'青綠系':'粉紅系'}`, game.l1.solved?"good":"muted");
+  }
+
+  function renderLevel2(){
+    const dom = game.l2.dominance;
+    const mG = prettyGeno(game.l2.mother.chrom[0], game.l2.mother.chrom[1]);
+    const fG = prettyGeno(game.l2.father.chrom[0], game.l2.father.chrom[1]);
+    const mP = phenotypeFromGenotype(mG, dom);
+    const fP = phenotypeFromGenotype(fG, dom);
+
+    drawLabel(-330,-270,"母親（點選等位基因可調整）","muted");
+    drawChromosomePair(-330, -140, game.l2.mother.chrom, "母親染色體", dom, "m");
+    drawCreature(-330, 140, 1.0, mP, "母親（外觀）");
+
+    drawLabel(330,-270,"父親（點選等位基因可調整）","muted");
+    drawChromosomePair(330, -140, game.l2.father.chrom, "父親染色體", dom, "f");
+    drawCreature(330, 140, 1.0, fP, "父親（外觀）");
+
+    // Middle
+    drawLabel(0,-220,"按「雜合」：隨機抽配子 → 子代","muted");
+
+    // show selected gametes
+    if(game.l2.chosen){
+      drawLabel(-120,-140,"母親配子："+game.l2.chosen.mAllele, "muted");
+      drawLabel(120,-140,"父親配子："+game.l2.chosen.fAllele, "muted");
+      // child
+      const child = game.l2.child;
+      drawCreature(0, 120, 1.05, child.pheno, "子代（外觀）");
+      drawLabel(0, 240, `子代基因型：${child.geno} / 表現型：${child.pheno==='Trait1'?'青綠系':'粉紅系'}`, "good");
+    }else{
+      drawCreature(0, 120, 1.05, "Trait2", "子代（等待雜合）");
+      drawLabel(0, 240, "尚未雜合：按下控制台的「雜合」", "warn");
+    }
+    drawLabel(0, -40, `顯性設定：${dom==='A'?'A 顯性':'a 顯性'}`, "muted");
+  }
+
+  function renderLevel3(){
+    const dom = game.l3.dominance;
+    const mG = prettyGeno(game.l3.mother.chrom[0], game.l3.mother.chrom[1]);
+    const mP = phenotypeFromGenotype(mG, dom);
+
+    drawLabel(-330,-270,"母親（已知）","muted");
+    drawChromosomePair(-330, -140, game.l3.mother.chrom, "母親染色體", dom, "m");
+    drawCreature(-330, 140, 1.0, mP, "母親（外觀）");
+
+    drawLabel(330,-270,"父親（未知）","warn");
+    // draw unknown father panel (no allele editing)
+    const s = worldToScreen(330,-140);
+    const w = 240*view.s, h = 160*view.s;
+    fillRoundedRect(s.x-w/2, s.y-h/2, w, h, 18, 'rgba(18,26,40,.70)', '#223052');
+    ctx.save();
+    ctx.fillStyle = '#e9eefc';
+    ctx.font = '800 ' + (14*view.s) + 'px ui-sans-serif, system-ui, -apple-system, "Noto Sans TC"';
+    ctx.textBaseline = 'top';
+    ctx.fillText("父親染色體（？）", s.x-w/2 + 14*view.s, s.y-h/2 + 10*view.s);
+    ctx.restore();
+    // question marks
+    drawLabel(330, -140, "？？", "warn");
+    drawCreature(330, 140, 1.0, "Trait1", game.l3.revealed ? ("父親："+prettyGeno(game.l3.fatherHidden.chrom[0], game.l3.fatherHidden.chrom[1])) : "父親（未知）");
+
+    // Middle info
+    drawLabel(0,-240, `第 ${game.l3.history.length} 輪（每輪 20 個）`, "muted");
+    drawLabel(0,-205, `顯性設定：${dom==='A'?'A 顯性':'a 顯性'}`, "muted");
+
+    // Babies grid
+    const rounds = game.l3.history;
+    if(rounds.length===0){
+      drawLabel(0, -20, "按「雜合 +20」生成寶寶，觀察分布後推測父親", "warn");
+      return;
+    }
+    const current = rounds[rounds.length-1];
+    const babies = current.babies;
+
+    // Summary counts
+    const AA = current.summary["AA"]||0;
+    const Aa = current.summary["Aa"]||0;
+    const aa = current.summary["aa"]||0;
+    drawLabel(0, -160, `本輪基因型：AA ${AA} / Aa ${Aa} / aa ${aa}`, "muted");
+
+    const cols = 5, rows = 4;
+    const startX = -200, startY = -80;
+    let idx=0;
+    for(let r=0;r<rows;r++){
+      for(let c=0;c<cols;c++){
+        const b = babies[idx++];
+        const x = startX + c*100;
+        const y = startY + r*90;
+        const ph = b.pheno;
+        // tiny creature
+        drawCreature(x, y, 0.55, ph, null);
+        // tiny label
+        drawLabel(x, y+52, b.geno, "muted");
+      }
+    }
+    drawLabel(0, 260, "你可以一直按「雜合 +20」疊加新一輪，或「回溯」回上一輪", "muted");
+
+    if(game.l3.revealed){
+      const ans = prettyGeno(game.l3.fatherHidden.chrom[0], game.l3.fatherHidden.chrom[1]);
+      drawLabel(0, 300, `答案：父親 ${ans}`, "good");
+    }else if(game.l3.guess){
+      drawLabel(0, 300, `你的猜測：父親 ${game.l3.guess}`, "warn");
+    }
+  }
+
+  // ===== Animation loop =====
+  let last = performance.now();
+  function tick(now){
+    const dt = Math.min(0.05, (now-last)/1000);
+    last = now;
+
+    // smooth view
+    view.x = lerp(view.x, viewTarget.x, 1-Math.pow(0.0006, dt*60));
+    view.y = lerp(view.y, viewTarget.y, 1-Math.pow(0.0006, dt*60));
+    view.s = lerp(view.s, viewTarget.s, 1-Math.pow(0.0006, dt*60));
+
+    // clear
+    ctx.fillStyle = '#0b0f17';
+    ctx.fillRect(0,0,W,H);
+
+    hits.length = 0;
+
+    drawGrid();
+
+    // per level content
+    if(game.level===1) renderLevel1();
+    else if(game.level===2) renderLevel2();
+    else renderLevel3();
+
+    // footer hint
+    ctx.save();
+    ctx.globalAlpha = 0.75;
+    ctx.fillStyle = '#a8b3d6';
+    ctx.font = '12px ui-sans-serif, system-ui, -apple-system, "Noto Sans TC"';
+    ctx.fillText('v0.1 | 單檔離線可用 | 點選等位基因切換 A/a', 14, H-14);
+    ctx.restore();
+
+    requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+
+  // init
+  setLevel(1);
+
+})();
+</script>
+</body>
+</html>

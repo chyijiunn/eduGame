@@ -1,0 +1,588 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>演化生存模擬器 v0.1（單檔離線）</title>
+  <style>
+    :root { color-scheme: dark; }
+    body{
+      margin:0; font-family: ui-sans-serif, system-ui, -apple-system, "PingFang TC", "Noto Sans TC", Arial;
+      background:#0b0f14; color:#e8eef7;
+    }
+    header{
+      padding:14px 16px; border-bottom:1px solid #1f2a36;
+      display:flex; gap:12px; align-items:baseline; flex-wrap:wrap;
+    }
+    header h1{ font-size:16px; margin:0; font-weight:700; }
+    header .sub{ opacity:.75; font-size:12px; }
+    .wrap{ display:grid; grid-template-columns: 360px 1fr; gap:14px; padding:14px; }
+    @media (max-width: 960px){ .wrap{ grid-template-columns:1fr; } }
+    .card{
+      background:#0f1722; border:1px solid #1f2a36; border-radius:14px;
+      padding:12px; box-shadow: 0 6px 20px rgba(0,0,0,.25);
+    }
+    .row{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+    .row > *{ flex: 1 1 auto; }
+    .btn{
+      background:#1a2634; border:1px solid #2a3a4c; color:#e8eef7;
+      padding:10px 12px; border-radius:12px; cursor:pointer; font-weight:600;
+    }
+    .btn:hover{ filter:brightness(1.06); }
+    .btn:active{ transform: translateY(1px); }
+    .btn.primary{ background:#20344a; border-color:#35506a; }
+    .btn.danger{ background:#3a1f2a; border-color:#6a3550; }
+    .pill{
+      display:inline-flex; align-items:center; gap:8px;
+      padding:6px 10px; border-radius:999px;
+      border:1px solid #263445; background:#0c1420;
+      font-size:12px; opacity:.95;
+    }
+    .grid2{ display:grid; grid-template-columns: 1fr 1fr; gap:10px; }
+    @media (max-width: 960px){ .grid2{ grid-template-columns:1fr; } }
+    label{ font-size:12px; opacity:.85; display:flex; justify-content:space-between; gap:10px; }
+    input[type="range"]{ width:100%; }
+    .tiny{ font-size:12px; opacity:.75; line-height:1.4; }
+    .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New"; }
+    canvas{ width:100%; height:240px; display:block; background:#0b111a; border:1px solid #1f2a36; border-radius:12px; }
+    .log{
+      max-height: 260px; overflow:auto; padding:10px; border-radius:12px;
+      background:#0b111a; border:1px solid #1f2a36; font-size:12px; line-height:1.45;
+    }
+    .log .e{ margin:0 0 8px 0; }
+    .k{ opacity:.7; }
+    .sep{ height:1px; background:#1f2a36; margin:10px 0; }
+    .stat{
+      display:grid; grid-template-columns: 1fr 1fr; gap:10px;
+      font-size:12px;
+    }
+    .stat .box{
+      padding:10px; border:1px solid #1f2a36; border-radius:12px; background:#0b111a;
+    }
+    .stat b{ font-size:13px; }
+  </style>
+</head>
+<body>
+<header>
+  <h1>演化生存模擬器 v0.1</h1>
+  <div class="sub">接近「Who Wants to Live a Million Years?」的玩法：選性狀 → 遇到環境壓力 → 淘汰 → 繁殖突變</div>
+</header>
+
+<div class="wrap">
+  <!-- 左側：控制面板 -->
+  <section class="card">
+    <div class="row" style="justify-content:space-between">
+      <span class="pill">代數：<b id="gen">0</b></span>
+      <span class="pill">族群：<b id="pop">0</b></span>
+      <span class="pill">環境：<b id="envName">—</b></span>
+    </div>
+
+    <div class="sep"></div>
+
+    <div class="grid2">
+      <div>
+        <label>毛量（抗寒） <span class="mono" id="valFur">50</span></label>
+        <input id="fur" type="range" min="0" max="100" value="50" />
+        <div class="tiny">毛量高 → 寒冷更有利；炎熱更不利。</div>
+      </div>
+      <div>
+        <label>體型（能量庫） <span class="mono" id="valSize">50</span></label>
+        <input id="size" type="range" min="0" max="100" value="50" />
+        <div class="tiny">體型大 → 抗飢餓更有利；但需要更多食物。</div>
+      </div>
+      <div>
+        <label>速度（逃跑/覓食） <span class="mono" id="valSpeed">50</span></label>
+        <input id="speed" type="range" min="0" max="100" value="50" />
+        <div class="tiny">速度快 → 掠食者壓力下有利；洪水/冰雪不一定。</div>
+      </div>
+      <div>
+        <label>偽裝（隱蔽） <span class="mono" id="valCamo">50</span></label>
+        <input id="camo" type="range" min="0" max="100" value="50" />
+        <div class="tiny">偽裝高 → 掠食者事件更有利；但也可能降低交配成功（輕微）。</div>
+      </div>
+    </div>
+
+    <div class="sep"></div>
+
+    <div class="grid2">
+      <div>
+        <label>初始族群大小 <span class="mono" id="valInitPop">60</span></label>
+        <input id="initPop" type="range" min="20" max="200" value="60" />
+      </div>
+      <div>
+        <label>突變強度（每代） <span class="mono" id="valMut">8</span></label>
+        <input id="mut" type="range" min="1" max="25" value="8" />
+      </div>
+      <div>
+        <label>環境嚴苛度 <span class="mono" id="valHarsh">60</span></label>
+        <input id="harsh" type="range" min="20" max="90" value="60" />
+        <div class="tiny">越高 → 淘汰越狠。</div>
+      </div>
+      <div>
+        <label>事件頻率（每代） <span class="mono" id="valEvents">2</span></label>
+        <input id="events" type="range" min="1" max="4" value="2" />
+      </div>
+    </div>
+
+    <div class="sep"></div>
+
+    <div class="row">
+      <button class="btn primary" id="btnStart">建立族群 / 重新開始</button>
+      <button class="btn" id="btnNext" disabled>下一代</button>
+      <button class="btn" id="btnAuto" disabled>自動跑</button>
+      <button class="btn danger" id="btnStop" disabled>停止</button>
+    </div>
+
+    <div class="sep"></div>
+
+    <div class="stat">
+      <div class="box">
+        <div class="k">平均性狀（目前族群）</div>
+        <div class="mono" id="avgTraits">—</div>
+      </div>
+      <div class="box">
+        <div class="k">存活率（上一代）</div>
+        <div class="mono" id="surviveRate">—</div>
+      </div>
+    </div>
+
+    <div class="sep"></div>
+    <div class="tiny">
+      小提醒：想看到「自然選擇」效果更明顯，通常把<strong>突變強度</strong>調到 10~15、<strong>環境嚴苛度</strong>調到 65~80，然後連跑 20 代以上。
+    </div>
+  </section>
+
+  <!-- 右側：圖表與事件記錄 -->
+  <section class="card">
+    <div class="row" style="justify-content:space-between">
+      <span class="pill">族群曲線</span>
+      <span class="pill">性狀趨勢（平均）</span>
+      <span class="pill">事件紀錄</span>
+    </div>
+    <div class="sep"></div>
+    <canvas id="chart" width="1200" height="400"></canvas>
+    <div class="sep"></div>
+    <div class="log" id="log"></div>
+  </section>
+</div>
+
+<script>
+(() => {
+  // --- UI ---
+  const ui = {
+    gen: qs("#gen"), pop: qs("#pop"), envName: qs("#envName"),
+    avgTraits: qs("#avgTraits"), surviveRate: qs("#surviveRate"),
+    log: qs("#log"), canvas: qs("#chart"),
+    fur: qs("#fur"), size: qs("#size"), speed: qs("#speed"), camo: qs("#camo"),
+    initPop: qs("#initPop"), mut: qs("#mut"), harsh: qs("#harsh"), events: qs("#events"),
+    valFur: qs("#valFur"), valSize: qs("#valSize"), valSpeed: qs("#valSpeed"), valCamo: qs("#valCamo"),
+    valInitPop: qs("#valInitPop"), valMut: qs("#valMut"), valHarsh: qs("#valHarsh"), valEvents: qs("#valEvents"),
+    btnStart: qs("#btnStart"), btnNext: qs("#btnNext"), btnAuto: qs("#btnAuto"), btnStop: qs("#btnStop")
+  };
+
+  function qs(s){ return document.querySelector(s); }
+  function clamp(x,a,b){ return Math.max(a, Math.min(b, x)); }
+  function rnd(n=1){ return Math.random()*n; }
+  function rndi(a,b){ return Math.floor(a + Math.random()*(b-a+1)); }
+  function lerp(a,b,t){ return a + (b-a)*t; }
+  function fmt(n){ return (Math.round(n*10)/10).toFixed(1); }
+
+  // --- Simulation state ---
+  let generation = 0;
+  let population = []; // individuals: {fur,size,speed,camo}
+  let history = [];    // {gen, pop, avg, env, events}
+  let lastSurviveRate = null;
+  let autoTimer = null;
+
+  // --- Environments / events ---
+  // 每個事件對 trait 的偏好：越接近 target 越好（高斯式），或線性加權。
+  const EVENTS = [
+    {
+      name:"寒冬", type:"temp_cold",
+      desc:"溫度下降：毛量高者更容易存活。",
+      score(ind){ return gaussPref(ind.fur, 85, 22) * 1.0 + gaussPref(ind.size, 60, 35) * 0.3; }
+    },
+    {
+      name:"熱浪", type:"temp_hot",
+      desc:"高溫：毛量太高反而不利。",
+      score(ind){ return gaussPref(ind.fur, 20, 22) * 1.0 + gaussPref(ind.speed, 55, 35) * 0.2; }
+    },
+    {
+      name:"乾旱", type:"drought",
+      desc:"食物/水變少：體型太大成本高，小～中體型較有利。",
+      score(ind){ return gaussPref(ind.size, 35, 20) * 1.0 + gaussPref(ind.speed, 55, 35) * 0.2; }
+    },
+    {
+      name:"食物豐收", type:"boom",
+      desc:"資源多：大體型、速度快較容易擴張。",
+      score(ind){ return gaussPref(ind.size, 75, 25) * 0.9 + gaussPref(ind.speed, 70, 25) * 0.7; }
+    },
+    {
+      name:"掠食者來襲", type:"predator",
+      desc:"天敵增加：速度快、偽裝高者較有利。",
+      score(ind){ return gaussPref(ind.speed, 80, 20) * 0.9 + gaussPref(ind.camo, 80, 20) * 0.9; }
+    },
+    {
+      name:"洪水", type:"flood",
+      desc:"洪水：速度快可逃離；體型太大不利。",
+      score(ind){ return gaussPref(ind.speed, 70, 25) * 0.8 + gaussPref(ind.size, 35, 25) * 0.7; }
+    },
+    {
+      name:"林地變暗", type:"dark_forest",
+      desc:"環境變暗：偽裝偏高較有利。",
+      score(ind){ return gaussPref(ind.camo, 75, 20) * 1.0; }
+    },
+    {
+      name:"草原變亮", type:"bright_plains",
+      desc:"環境明亮：偽裝中等偏低較有利（太黑反而顯眼）。",
+      score(ind){ return gaussPref(ind.camo, 40, 22) * 1.0; }
+    }
+  ];
+
+  // 偏好函數：回傳 0..1
+  function gaussPref(x, mu, sigma){
+    const z = (x - mu) / sigma;
+    return Math.exp(-0.5 * z * z);
+  }
+
+  // --- UI bindings ---
+  bindRange(ui.fur, ui.valFur);
+  bindRange(ui.size, ui.valSize);
+  bindRange(ui.speed, ui.valSpeed);
+  bindRange(ui.camo, ui.valCamo);
+  bindRange(ui.initPop, ui.valInitPop);
+  bindRange(ui.mut, ui.valMut);
+  bindRange(ui.harsh, ui.valHarsh);
+  bindRange(ui.events, ui.valEvents);
+
+  function bindRange(input, out){
+    const f = () => out.textContent = input.value;
+    input.addEventListener("input", f);
+    f();
+  }
+
+  ui.btnStart.addEventListener("click", () => {
+    stopAuto();
+    startNewPopulation();
+    ui.btnNext.disabled = false;
+    ui.btnAuto.disabled = false;
+    ui.btnStop.disabled = true;
+  });
+
+  ui.btnNext.addEventListener("click", () => {
+    stepGeneration();
+  });
+
+  ui.btnAuto.addEventListener("click", () => {
+    ui.btnStop.disabled = false;
+    ui.btnAuto.disabled = true;
+    ui.btnNext.disabled = true;
+    autoTimer = setInterval(() => {
+      stepGeneration();
+      // 若滅絕，自動停
+      if(population.length === 0) stopAuto(true);
+    }, 650);
+  });
+
+  ui.btnStop.addEventListener("click", () => stopAuto());
+
+  function stopAuto(fromExtinction=false){
+    if(autoTimer){ clearInterval(autoTimer); autoTimer = null; }
+    ui.btnStop.disabled = true;
+    ui.btnAuto.disabled = population.length === 0;
+    ui.btnNext.disabled = population.length === 0;
+    if(fromExtinction){
+      logEvent(`⚠️ 族群滅絕：停止自動跑。請調整性狀或降低嚴苛度再重新開始。`);
+    }
+  }
+
+  // --- Initialize / restart ---
+  function startNewPopulation(){
+    generation = 0;
+    history = [];
+    lastSurviveRate = null;
+    ui.log.innerHTML = "";
+    const n = parseInt(ui.initPop.value,10);
+    const base = {
+      fur: +ui.fur.value, size: +ui.size.value,
+      speed: +ui.speed.value, camo: +ui.camo.value
+    };
+    const mut = Math.max(2, Math.round(+ui.mut.value * 0.6));
+    population = new Array(n).fill(0).map(() => ({
+      fur: clamp(base.fur + randn()*mut, 0, 100),
+      size: clamp(base.size + randn()*mut, 0, 100),
+      speed: clamp(base.speed + randn()*mut, 0, 100),
+      camo: clamp(base.camo + randn()*mut, 0, 100),
+    }));
+    ui.envName.textContent = "—";
+    syncUI();
+    draw();
+    logEvent(`✅ 建立新族群：${n} 隻（初始性狀以你的設定為中心，帶少量變異）`);
+  }
+
+  // Box-Muller 常態亂數
+  function randn(){
+    let u = 0, v = 0;
+    while(u === 0) u = Math.random();
+    while(v === 0) v = Math.random();
+    return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+  }
+
+  // --- One generation step ---
+  function stepGeneration(){
+    if(population.length === 0) return;
+
+    generation++;
+
+    const k = parseInt(ui.events.value,10);       // 1..4 events
+    const harsh = +ui.harsh.value / 100;          // 0.2..0.9
+    const mutStrength = +ui.mut.value;            // 1..25
+
+    // 抽事件（不重複）
+    const picked = pickEvents(k);
+    ui.envName.textContent = picked.map(e=>e.name).join(" + ");
+
+    // 計算每隻個體在當代的分數（0..1 的乘積 + 小噪音）
+    const scores = population.map(ind => {
+      let s = 1.0;
+      for(const ev of picked){
+        // 每個事件產生 0..1 的生存相容度
+        const p = clamp(ev.score(ind), 0, 1);
+        s *= lerp(0.4, 1.0, p); // 不要太極端，維持可玩性
+      }
+      // 偽裝的「交配代價」：太高偽裝稍微降低繁殖成功（很輕微）
+      const matingPenalty = lerp(1.0, 0.92, (ind.camo/100));
+      s *= matingPenalty;
+
+      // 小隨機（意外）
+      s *= lerp(0.92, 1.08, Math.random());
+      return clamp(s, 0, 2);
+    });
+
+    // 依 harsh 決定淘汰門檻：越 harsh → 需要更高分才能活
+    // 用分位數做門檻
+    const survivalFraction = clamp(1.0 - harsh, 0.10, 0.75); // 最少 10% 仍可能活
+    const survivorsTarget = Math.max(1, Math.floor(population.length * survivalFraction));
+    const idx = scores.map((s,i)=>({s,i})).sort((a,b)=>b.s-a.s).slice(0, survivorsTarget).map(o=>o.i);
+    const survivors = idx.map(i=>population[i]);
+
+    lastSurviveRate = survivors.length / population.length;
+
+    // 如果快滅絕，給一點保底（可關掉但 v0.1 先保留可玩）
+    const minKeep = Math.min(6, population.length);
+    if(survivors.length < minKeep){
+      const extra = scores.map((s,i)=>({s,i})).sort((a,b)=>b.s-a.s).slice(0, minKeep).map(o=>o.i);
+      const set = new Set(extra);
+      const rescued = [...set].map(i=>population[i]);
+      survivors.splice(0, survivors.length, ...rescued);
+    }
+
+    // 繁殖：存活者補回到「接近上一代規模」，但受事件影響
+    // 若遇到「食物豐收」會成長，若遇到「乾旱/寒冬/洪水」會降低
+    const growth = growthFactorFromEvents(picked);
+    const targetPop = clamp(Math.round(survivors.length * lerp(1.4, 2.2, growth)), 0, 260);
+
+    // 產生下一代
+    population = reproduce(survivors, targetPop, mutStrength);
+
+    // 記錄 & UI
+    const avg = calcAvg(population);
+    history.push({ gen:generation, pop:population.length, avg, env:picked.map(e=>e.name), events:picked });
+
+    syncUI();
+    draw();
+
+    // Log
+    const envText = picked.map(e => `「${e.name}」`).join("、");
+    logEvent(
+      `第 <b>${generation}</b> 代：環境事件 ${envText}<br>` +
+      `存活：<span class="mono">${Math.round(lastSurviveRate*100)}%</span> → ` +
+      `繁殖後族群：<span class="mono">${population.length}</span><br>` +
+      `<span class="k">${picked.map(e=>e.desc).join(" ")}</span>`
+    );
+
+    // 滅絕檢查
+    if(population.length === 0){
+      ui.envName.textContent = "—";
+      syncUI();
+      draw();
+      logEvent(`💀 族群滅絕（第 ${generation} 代）。建議：降低嚴苛度、提高突變、或把性狀調到更適合目前常見環境。`);
+    }
+  }
+
+  function pickEvents(k){
+    const pool = [...EVENTS];
+    const picked = [];
+    for(let i=0;i<k;i++){
+      const j = Math.floor(Math.random()*pool.length);
+      picked.push(pool.splice(j,1)[0]);
+    }
+    return picked;
+  }
+
+  function growthFactorFromEvents(events){
+    // 0..1
+    let g = 0.5;
+    for(const ev of events){
+      if(ev.type === "boom") g += 0.25;
+      if(ev.type === "drought") g -= 0.18;
+      if(ev.type === "temp_cold") g -= 0.08;
+      if(ev.type === "flood") g -= 0.10;
+      if(ev.type === "predator") g -= 0.05;
+    }
+    return clamp(g, 0.05, 0.95);
+  }
+
+  function reproduce(parents, targetN, mutStrength){
+    if(parents.length === 0 || targetN === 0) return [];
+    const kids = [];
+    const m = mutStrength;
+    for(let i=0;i<targetN;i++){
+      const a = parents[rndi(0, parents.length-1)];
+      const b = parents[rndi(0, parents.length-1)];
+      // 交配：取平均 + 小偏移
+      const child = {
+        fur: clamp((a.fur+b.fur)/2 + randn()*m, 0, 100),
+        size: clamp((a.size+b.size)/2 + randn()*m, 0, 100),
+        speed: clamp((a.speed+b.speed)/2 + randn()*m, 0, 100),
+        camo: clamp((a.camo+b.camo)/2 + randn()*m, 0, 100),
+      };
+      kids.push(child);
+    }
+    return kids;
+  }
+
+  function calcAvg(arr){
+    if(arr.length === 0) return {fur:0,size:0,speed:0,camo:0};
+    let fur=0,size=0,speed=0,camo=0;
+    for(const x of arr){ fur+=x.fur; size+=x.size; speed+=x.speed; camo+=x.camo; }
+    const n = arr.length;
+    return { fur:fur/n, size:size/n, speed:speed/n, camo:camo/n };
+  }
+
+  function syncUI(){
+    ui.gen.textContent = generation;
+    ui.pop.textContent = population.length;
+
+    const avg = calcAvg(population);
+    ui.avgTraits.textContent =
+      `fur ${fmt(avg.fur)} | size ${fmt(avg.size)} | speed ${fmt(avg.speed)} | camo ${fmt(avg.camo)}`;
+
+    ui.surviveRate.textContent = (lastSurviveRate==null)
+      ? "—"
+      : `${Math.round(lastSurviveRate*100)}%`;
+
+    // 按鈕狀態
+    const alive = population.length > 0;
+    ui.btnNext.disabled = !alive || !!autoTimer;
+    ui.btnAuto.disabled = !alive || !!autoTimer;
+    ui.btnStop.disabled = !autoTimer;
+  }
+
+  function logEvent(html){
+    const p = document.createElement("div");
+    p.className = "e";
+    p.innerHTML = html;
+    ui.log.prepend(p);
+  }
+
+  // --- Chart drawing ---
+  function draw(){
+    const ctx = ui.canvas.getContext("2d");
+    const W = ui.canvas.width, H = ui.canvas.height;
+    ctx.clearRect(0,0,W,H);
+
+    // frame
+    ctx.globalAlpha = 1;
+    // 背景格線
+    ctx.strokeStyle = "rgba(255,255,255,0.08)";
+    ctx.lineWidth = 1;
+    for(let i=0;i<=10;i++){
+      const y = Math.round(lerp(18, H-26, i/10));
+      ctx.beginPath(); ctx.moveTo(40,y); ctx.lineTo(W-18,y); ctx.stroke();
+    }
+    for(let i=0;i<=12;i++){
+      const x = Math.round(lerp(40, W-18, i/12));
+      ctx.beginPath(); ctx.moveTo(x,18); ctx.lineTo(x,H-26); ctx.stroke();
+    }
+
+    // axes labels
+    ctx.fillStyle = "rgba(255,255,255,0.72)";
+    ctx.font = "14px ui-monospace, Menlo, Consolas, monospace";
+    ctx.fillText("pop", 6, 30);
+
+    // data
+    const data = history.length ? history : [{gen:0,pop:population.length,avg:calcAvg(population)}];
+    const maxPop = Math.max(50, ...data.map(d=>d.pop));
+    const maxGen = Math.max(1, ...data.map(d=>d.gen));
+
+    const x0=40, y0=18, x1=W-18, y1=H-26;
+
+    function xScale(gen){ return lerp(x0, x1, gen/maxGen); }
+    function yPop(pop){ return lerp(y1, y0, pop/maxPop); }
+
+    // pop line
+    ctx.strokeStyle = "rgba(120,200,255,0.9)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    data.forEach((d, i) => {
+      const x = xScale(d.gen), y = yPop(d.pop);
+      if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    });
+    ctx.stroke();
+
+    // trait lines (avg) scaled 0..100 to chart band
+    const traitToY = (v) => lerp(y1, y0, v/100);
+
+    const traits = ["fur","size","speed","camo"];
+    const colors = [
+      "rgba(255,180,120,0.85)",
+      "rgba(180,255,160,0.75)",
+      "rgba(240,240,255,0.70)",
+      "rgba(255,140,220,0.70)"
+    ];
+
+    ctx.lineWidth = 2;
+    traits.forEach((t, ti) => {
+      ctx.strokeStyle = colors[ti];
+      ctx.beginPath();
+      data.forEach((d, i) => {
+        const x = xScale(d.gen);
+        const y = traitToY(d.avg[t]);
+        if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+      });
+      ctx.stroke();
+    });
+
+    // legend
+    ctx.font = "12px ui-sans-serif, system-ui, -apple-system, Arial";
+    const legend = [
+      {name:"pop", c:"rgba(120,200,255,0.9)"},
+      {name:"fur", c:colors[0]},
+      {name:"size", c:colors[1]},
+      {name:"speed", c:colors[2]},
+      {name:"camo", c:colors[3]},
+    ];
+    let lx = 44, ly = H-8;
+    legend.forEach(item => {
+      ctx.fillStyle = item.c;
+      ctx.fillRect(lx, ly-9, 10, 3);
+      ctx.fillStyle = "rgba(255,255,255,0.75)";
+      ctx.fillText(item.name, lx+14, ly-2);
+      lx += 72;
+    });
+
+    // gen label
+    ctx.fillStyle = "rgba(255,255,255,0.55)";
+    ctx.font = "12px ui-monospace, Menlo, Consolas, monospace";
+    ctx.fillText(`gen ${generation}`, W-110, 30);
+  }
+
+  // 初始提示（未開始）
+  syncUI();
+  draw();
+  logEvent(`👋 請先按「建立族群 / 重新開始」。然後連按「下一代」觀察性狀如何被環境選擇。`);
+})();
+</script>
+</body>
+</html>

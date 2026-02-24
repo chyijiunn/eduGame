@@ -1,0 +1,1396 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<title>3D 細胞分裂 / 減數分裂互動教學（v0.17）</title>
+<style>
+  :root{
+    --bg:#0b1020; --panel:#111a33;
+    --fg:#e9eefc; --muted:#a9b4d6; --accent:#7aa7ff;
+    --good:#62d2a2; --warn:#ffcc66; --bad:#ff6b6b;
+    --radius:18px;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%; margin:0; font-family: system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif; background:var(--bg); color:var(--fg); overflow:hidden}
+  #app{position:fixed; inset:0; display:flex; flex-direction:column}
+  header{
+    padding:10px 12px;
+    display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+    background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,0));
+    border-bottom:1px solid rgba(255,255,255,.08);
+  }
+  .badge{font-size:12px; padding:3px 8px; border-radius:999px; background:rgba(122,167,255,.18); border:1px solid rgba(122,167,255,.35); color:var(--fg)}
+  .title{font-weight:800; letter-spacing:.2px}
+  .spacer{flex:1}
+  .controls{display:flex; gap:8px; align-items:center; flex-wrap:wrap}
+  select,button{
+    appearance:none;
+    background:rgba(255,255,255,.06);
+    border:1px solid rgba(255,255,255,.12);
+    color:var(--fg);
+    border-radius:12px;
+    padding:8px 10px;
+    font-size:14px;
+    outline:none;
+  }
+  button{cursor:pointer}
+  button:active{transform:translateY(1px)}
+  button.primary{background:rgba(122,167,255,.18); border-color:rgba(122,167,255,.35)}
+  button.good{background:rgba(98,210,162,.16); border-color:rgba(98,210,162,.32)}
+  button.warn{background:rgba(255,204,102,.16); border-color:rgba(255,204,102,.32)}
+  .hint{font-size:12px; color:var(--muted)}
+  main{position:relative; flex:1; min-height:0}
+  #gl{position:absolute; inset:0; width:100%; height:100%; display:block; touch-action:none}
+  #overlay{position:absolute; inset:0; pointer-events:none; display:flex; flex-direction:column}
+  #panel{
+    pointer-events:auto;
+    margin:12px;
+    padding:10px 12px;
+    width:min(880px, calc(100% - 24px));
+    border-radius:var(--radius);
+    background:rgba(17,26,51,.66);
+    border:1px solid rgba(255,255,255,.10);
+    backdrop-filter: blur(8px);
+    box-shadow: 0 12px 30px rgba(0,0,0,.35);
+  }
+  #panel .row{display:flex; gap:10px; flex-wrap:wrap; align-items:center}
+  .chip{display:inline-flex; align-items:center; gap:8px; padding:6px 10px; border-radius:999px; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.10); font-size:12px; color:var(--muted)}
+  .dot{width:10px; height:10px; border-radius:999px; display:inline-block}
+  #status{margin-top:6px; color:var(--muted); font-size:12px; line-height:1.5}
+  #tip{
+    position:absolute; left:12px; bottom:12px;
+    padding:10px 12px;
+    max-width:min(760px, calc(100% - 24px));
+    border-radius:var(--radius);
+    background:rgba(17,26,51,.66);
+    border:1px solid rgba(255,255,255,.10);
+    backdrop-filter: blur(8px);
+    box-shadow: 0 12px 30px rgba(0,0,0,.35);
+    pointer-events:none;
+    opacity:0; transform:translateY(8px);
+    transition: opacity .18s ease, transform .18s ease;
+  }
+  #tip.show{opacity:1; transform:translateY(0)}
+  #tip b{color:var(--fg)}
+  #tip .small{color:var(--muted); font-size:12px; margin-top:4px}
+  @media (max-width: 720px){
+    header{gap:8px}
+    .title{font-size:14px}
+    select,button{font-size:13px; padding:7px 9px}
+    #panel{margin:10px; width:calc(100% - 20px)}
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <span class="badge">v0.17</span>
+    <span class="title">3D 互動教學：細胞分裂 / 減數分裂（流程修正 + 連續動畫）</span>
+    <span class="spacer"></span>
+    <div class="controls">
+      <label class="hint">主題</label>
+      <select id="topic">
+        <option value="mitosis">細胞分裂（有絲分裂）</option>
+        <option value="meiosis">減數分裂（Meiosis）</option>
+      </select>
+      <button id="step" class="primary">下一步 ▶</button>
+      <button id="auto" class="good">自動分裂：關</button>
+      <button id="reset" class="warn">重置視角</button>
+      <button id="restart">重來</button>
+    </div>
+  </header>
+  <main>
+    <canvas id="gl"></canvas>
+    <div id="overlay">
+      <div id="panel">
+        <div class="row">
+          <span class="chip"><span class="dot" style="background:#7aa7ff"></span>同源染色體 A（示範 1 對）</span>
+          <span class="chip"><span class="dot" style="background:#ffcc66"></span>同源染色體 B（示範 1 對）</span>
+          <span class="chip"><span class="dot" style="background:#62d2a2"></span>著絲點（centromere）</span>
+          <span class="chip">v0.17：有絲分裂=姐妹分離；減數分裂=兩次分裂、同源分到兩邊</span>
+        </div>
+        <div id="status"></div>
+        <div class="hint" style="margin-top:6px">
+          操作：電腦左鍵拖曳旋轉、滾輪縮放；手機/平板單指拖曳旋轉、雙指縮放與平移；點選細胞/染色體看提示。
+        </div>
+      </div>
+      <div id="tip"></div>
+    </div>
+  </main>
+</div>
+
+<script>
+/* =========================
+   Minimal "THREE-like" core
+   ========================= */
+const THREE = (() => {
+  function createMat4() {
+    return new Float32Array([1,0,0,0,  0,1,0,0,  0,0,1,0,  0,0,0,1]);
+  }
+  function mat4Identity(m){
+    m.set([1,0,0,0,  0,1,0,0,  0,0,1,0,  0,0,0,1]); return m;
+  }
+  function mat4Mul(out, a, b){
+    const a00=a[0],a01=a[1],a02=a[2],a03=a[3];
+    const a10=a[4],a11=a[5],a12=a[6],a13=a[7];
+    const a20=a[8],a21=a[9],a22=a[10],a23=a[11];
+    const a30=a[12],a31=a[13],a32=a[14],a33=a[15];
+
+    const b00=b[0],b01=b[1],b02=b[2],b03=b[3];
+    const b10=b[4],b11=b[5],b12=b[6],b13=b[7];
+    const b20=b[8],b21=b[9],b22=b[10],b23=b[11];
+    const b30=b[12],b31=b[13],b32=b[14],b33=b[15];
+
+    out[0]=a00*b00+a10*b01+a20*b02+a30*b03;
+    out[1]=a01*b00+a11*b01+a21*b02+a31*b03;
+    out[2]=a02*b00+a12*b01+a22*b02+a32*b03;
+    out[3]=a03*b00+a13*b01+a23*b02+a33*b03;
+
+    out[4]=a00*b10+a10*b11+a20*b12+a30*b13;
+    out[5]=a01*b10+a11*b11+a21*b12+a31*b13;
+    out[6]=a02*b10+a12*b11+a22*b12+a32*b13;
+    out[7]=a03*b10+a13*b11+a23*b12+a33*b13;
+
+    out[8]=a00*b20+a10*b21+a20*b22+a30*b23;
+    out[9]=a01*b20+a11*b21+a21*b22+a31*b23;
+    out[10]=a02*b20+a12*b21+a22*b22+a32*b23;
+    out[11]=a03*b20+a13*b21+a23*b22+a33*b23;
+
+    out[12]=a00*b30+a10*b31+a20*b32+a30*b33;
+    out[13]=a01*b30+a11*b31+a21*b32+a31*b33;
+    out[14]=a02*b30+a12*b31+a22*b32+a32*b33;
+    out[15]=a03*b30+a13*b31+a23*b32+a33*b33;
+    return out;
+  }
+  function mat4Translate(out, a, v){
+    const x=v[0], y=v[1], z=v[2];
+    if(out!==a) out.set(a);
+    out[12]=a[0]*x+a[4]*y+a[8]*z+a[12];
+    out[13]=a[1]*x+a[5]*y+a[9]*z+a[13];
+    out[14]=a[2]*x+a[6]*y+a[10]*z+a[14];
+    out[15]=a[3]*x+a[7]*y+a[11]*z+a[15];
+    return out;
+  }
+  function mat4Scale(out, a, v){
+    const x=v[0], y=v[1], z=v[2];
+    out[0]=a[0]*x; out[1]=a[1]*x; out[2]=a[2]*x; out[3]=a[3]*x;
+    out[4]=a[4]*y; out[5]=a[5]*y; out[6]=a[6]*y; out[7]=a[7]*y;
+    out[8]=a[8]*z; out[9]=a[9]*z; out[10]=a[10]*z; out[11]=a[11]*z;
+    out[12]=a[12]; out[13]=a[13]; out[14]=a[14]; out[15]=a[15];
+    return out;
+  }
+  function mat4RotateX(out, a, rad){
+    const s=Math.sin(rad), c=Math.cos(rad);
+    const a10=a[4],a11=a[5],a12=a[6],a13=a[7];
+    const a20=a[8],a21=a[9],a22=a[10],a23=a[11];
+    out.set(a);
+    out[4]=a10*c+a20*s; out[5]=a11*c+a21*s; out[6]=a12*c+a22*s; out[7]=a13*c+a23*s;
+    out[8]=a20*c-a10*s; out[9]=a21*c-a11*s; out[10]=a22*c-a12*s; out[11]=a23*c-a13*s;
+    return out;
+  }
+  function mat4RotateY(out, a, rad){
+    const s=Math.sin(rad), c=Math.cos(rad);
+    const a00=a[0],a01=a[1],a02=a[2],a03=a[3];
+    const a20=a[8],a21=a[9],a22=a[10],a23=a[11];
+    out.set(a);
+    out[0]=a00*c-a20*s; out[1]=a01*c-a21*s; out[2]=a02*c-a22*s; out[3]=a03*c-a23*s;
+    out[8]=a00*s+a20*c; out[9]=a01*s+a21*c; out[10]=a02*s+a22*c; out[11]=a03*s+a23*c;
+    return out;
+  }
+  function mat4RotateZ(out, a, rad){
+    const s=Math.sin(rad), c=Math.cos(rad);
+    const a00=a[0],a01=a[1],a02=a[2],a03=a[3];
+    const a10=a[4],a11=a[5],a12=a[6],a13=a[7];
+    out.set(a);
+    out[0]=a00*c+a10*s; out[1]=a01*c+a11*s; out[2]=a02*c+a12*s; out[3]=a03*c+a13*s;
+    out[4]=a10*c-a00*s; out[5]=a11*c-a01*s; out[6]=a12*c-a02*s; out[7]=a13*c-a03*s;
+    return out;
+  }
+  function mat4Perspective(out, fovy, aspect, near, far){
+    const f=1.0/Math.tan(fovy/2), nf=1/(near-far);
+    out[0]=f/aspect; out[1]=0; out[2]=0; out[3]=0;
+    out[4]=0; out[5]=f; out[6]=0; out[7]=0;
+    out[8]=0; out[9]=0; out[10]=(far+near)*nf; out[11]=-1;
+    out[12]=0; out[13]=0; out[14]=2*far*near*nf; out[15]=0;
+    return out;
+  }
+  function vec3(x=0,y=0,z=0){ return new Float32Array([x,y,z]); }
+  function vec3Len(a){ return Math.hypot(a[0],a[1],a[2]); }
+  function vec3Normalize(out,a){
+    const l=vec3Len(a)||1;
+    out[0]=a[0]/l; out[1]=a[1]/l; out[2]=a[2]/l; return out;
+  }
+  function vec3Sub(out,a,b){ out[0]=a[0]-b[0]; out[1]=a[1]-b[1]; out[2]=a[2]-b[2]; return out; }
+  function vec3Cross(out,a,b){
+    const ax=a[0],ay=a[1],az=a[2], bx=b[0],by=b[1],bz=b[2];
+    out[0]=ay*bz-az*by; out[1]=az*bx-ax*bz; out[2]=ax*by-ay*bx; return out;
+  }
+  function mat4LookAt(out, eye, target, up){
+    const z=vec3Normalize(vec3(), vec3Sub(vec3(), eye, target));
+    const x=vec3Normalize(vec3(), vec3Cross(vec3(), up, z));
+    const y=vec3Cross(vec3(), z, x);
+    out[0]=x[0]; out[1]=y[0]; out[2]=z[0]; out[3]=0;
+    out[4]=x[1]; out[5]=y[1]; out[6]=z[1]; out[7]=0;
+    out[8]=x[2]; out[9]=y[2]; out[10]=z[2]; out[11]=0;
+    out[12]=-(x[0]*eye[0]+x[1]*eye[1]+x[2]*eye[2]);
+    out[13]=-(y[0]*eye[0]+y[1]*eye[1]+y[2]*eye[2]);
+    out[14]=-(z[0]*eye[0]+z[1]*eye[1]+z[2]*eye[2]);
+    out[15]=1;
+    return out;
+  }
+
+  class Object3D{
+    constructor(){
+      this.position=vec3(0,0,0);
+      this.rotation=vec3(0,0,0);
+      this.scale=vec3(1,1,1);
+      this.children=[];
+      this.parent=null;
+      this.matrix=createMat4();
+      this.worldMatrix=createMat4();
+      this.visible=true;
+      this.userData={};
+      this.id=Object3D._id++;
+    }
+    add(o){ o.parent=this; this.children.push(o); return this; }
+    updateMatrix(){
+      let m=mat4Identity(createMat4());
+      mat4Translate(m,m,this.position);
+      mat4RotateX(m,m,this.rotation[0]);
+      mat4RotateY(m,m,this.rotation[1]);
+      mat4RotateZ(m,m,this.rotation[2]);
+      mat4Scale(m,m,this.scale);
+      this.matrix=m;
+    }
+    updateWorldMatrix(parentWorld){
+      this.updateMatrix();
+      if(parentWorld) mat4Mul(this.worldMatrix, parentWorld, this.matrix);
+      else this.worldMatrix.set(this.matrix);
+      for(const c of this.children) c.updateWorldMatrix(this.worldMatrix);
+    }
+  }
+  Object3D._id=1;
+
+  class Scene extends Object3D{ constructor(){ super(); } }
+  class PerspectiveCamera extends Object3D{
+    constructor(fov=50, aspect=1, near=0.1, far=160){
+      super();
+      this.fov=fov; this.aspect=aspect; this.near=near; this.far=far;
+      this.projectionMatrix=createMat4();
+      this.viewMatrix=createMat4();
+      this.up=vec3(0,1,0);
+      this.target=vec3(0,0,0);
+      this.updateProjectionMatrix();
+    }
+    updateProjectionMatrix(){
+      mat4Perspective(this.projectionMatrix, this.fov*Math.PI/180, this.aspect, this.near, this.far);
+    }
+    lookAt(x,y,z){ this.target[0]=x; this.target[1]=y; this.target[2]=z; }
+    updateViewMatrix(){ mat4LookAt(this.viewMatrix, this.position, this.target, this.up); }
+  }
+  class BufferGeometry{
+    constructor(){ this.attributes={}; this.indices=null; }
+    setAttribute(name, array, itemSize){ this.attributes[name]={array, itemSize}; return this; }
+    setIndex(indices){ this.indices=indices; return this; }
+  }
+  class Material{
+    constructor(params={}){
+      this.color=params.color||[1,1,1];
+      this.opacity=(params.opacity==null)?1:params.opacity;
+      this.transparent=!!params.transparent;
+      this.emissive=params.emissive||[0,0,0];
+      this.id=Material._id++;
+      this.userData={};
+    }
+  }
+  Material._id=1;
+  class Mesh extends Object3D{ constructor(geometry, material){ super(); this.geometry=geometry; this.material=material; } }
+  class Group extends Object3D{ constructor(){ super(); } }
+
+  function SphereGeometry(r=1, w=22, h=16){
+    const TAU=Math.PI*2;
+    const positions=[]; const normals=[]; const indices=[];
+    for(let y=0;y<=h;y++){
+      const v=y/h; const phi=v*Math.PI;
+      for(let x=0;x<=w;x++){
+        const u=x/w; const theta=u*TAU;
+        const sx=Math.cos(theta)*Math.sin(phi);
+        const sy=Math.cos(phi);
+        const sz=Math.sin(theta)*Math.sin(phi);
+        positions.push(r*sx, r*sy, r*sz);
+        normals.push(sx,sy,sz);
+      }
+    }
+    for(let y=0;y<h;y++){
+      for(let x=0;x<w;x++){
+        const a=y*(w+1)+x;
+        const b=a+w+1;
+        indices.push(a,b,a+1,  b,b+1,a+1);
+      }
+    }
+    const g=new BufferGeometry();
+    g.setAttribute("position", new Float32Array(positions), 3);
+    g.setAttribute("normal", new Float32Array(normals), 3);
+    g.setIndex(new Uint16Array(indices));
+    return g;
+  }
+
+  function CylinderGeometry(r=0.08, h=1.0, radial=14){
+    const TAU=Math.PI*2;
+    const positions=[]; const normals=[]; const indices=[];
+    const half=h/2;
+    for(let y=0;y<=1;y++){
+      const py=(y?half:-half);
+      for(let i=0;i<=radial;i++){
+        const u=i/radial; const th=u*TAU;
+        const cx=Math.cos(th), cz=Math.sin(th);
+        positions.push(r*cx, py, r*cz);
+        normals.push(cx,0,cz);
+      }
+    }
+    const ring=radial+1;
+    for(let i=0;i<radial;i++){
+      const a=i; const b=i+ring;
+      indices.push(a,b,a+1,  b,b+1,a+1);
+    }
+    const g=new BufferGeometry();
+    g.setAttribute("position", new Float32Array(positions), 3);
+    g.setAttribute("normal", new Float32Array(normals), 3);
+    g.setIndex(new Uint16Array(indices));
+    return g;
+  }
+
+  class WebGLRenderer{
+    constructor({canvas, antialias=true}){
+      this.canvas=canvas;
+      this.gl=canvas.getContext("webgl", {antialias, alpha:false, depth:true});
+      if(!this.gl) throw new Error("WebGL not supported");
+      const gl=this.gl;
+      gl.enable(gl.DEPTH_TEST);
+      gl.enable(gl.CULL_FACE);
+      gl.cullFace(gl.BACK);
+      gl.clearColor(0.043,0.063,0.125,1);
+
+      this.program=this._createProgram();
+      this.loc={
+        aPos: gl.getAttribLocation(this.program,"a_position"),
+        aNor: gl.getAttribLocation(this.program,"a_normal"),
+        uProj: gl.getUniformLocation(this.program,"u_proj"),
+        uView: gl.getUniformLocation(this.program,"u_view"),
+        uModel: gl.getUniformLocation(this.program,"u_model"),
+        uColor: gl.getUniformLocation(this.program,"u_color"),
+        uEmi: gl.getUniformLocation(this.program,"u_emissive"),
+        uOpacity: gl.getUniformLocation(this.program,"u_opacity"),
+        uLightDir: gl.getUniformLocation(this.program,"u_lightDir"),
+      };
+      this._vaoCache=new Map();
+      this.setSize(canvas.clientWidth, canvas.clientHeight);
+    }
+    setSize(w,h){
+      this.canvas.width=Math.max(2, Math.floor(w*devicePixelRatio));
+      this.canvas.height=Math.max(2, Math.floor(h*devicePixelRatio));
+      this.gl.viewport(0,0,this.canvas.width,this.canvas.height);
+    }
+    _compile(type, src){
+      const gl=this.gl;
+      const s=gl.createShader(type);
+      gl.shaderSource(s,src);
+      gl.compileShader(s);
+      if(!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s));
+      return s;
+    }
+    _createProgram(){
+      const gl=this.gl;
+      const vsSrc = `
+        attribute vec3 a_position;
+        attribute vec3 a_normal;
+        uniform mat4 u_proj;
+        uniform mat4 u_view;
+        uniform mat4 u_model;
+        varying vec3 v_normal;
+        void main(){
+          v_normal = mat3(u_model) * a_normal;
+          gl_Position = u_proj * u_view * u_model * vec4(a_position, 1.0);
+        }
+      `;
+      const fsSrc = `
+        precision mediump float;
+        varying vec3 v_normal;
+        uniform vec3 u_color;
+        uniform vec3 u_emissive;
+        uniform float u_opacity;
+        uniform vec3 u_lightDir;
+        void main(){
+          vec3 n = normalize(v_normal);
+          float diff = max(dot(n, normalize(u_lightDir)), 0.0);
+          vec3 col = u_color * (0.25 + 0.75*diff) + u_emissive;
+          gl_FragColor = vec4(col, u_opacity);
+        }
+      `;
+      const vs=this._compile(gl.VERTEX_SHADER, vsSrc);
+      const fs=this._compile(gl.FRAGMENT_SHADER, fsSrc);
+      const p=gl.createProgram();
+      gl.attachShader(p,vs); gl.attachShader(p,fs);
+      gl.linkProgram(p);
+      if(!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
+      gl.useProgram(p);
+      gl.uniform3f(gl.getUniformLocation(p,"u_lightDir"), -0.35, 0.85, 0.4);
+      return p;
+    }
+    _getVAO(geometry){
+      const gl=this.gl;
+      if(this._vaoCache.has(geometry)) return this._vaoCache.get(geometry);
+      const vao={vboPos:gl.createBuffer(), vboNor:gl.createBuffer(), ibo:gl.createBuffer(), count:0, indexed:false};
+      gl.bindBuffer(gl.ARRAY_BUFFER, vao.vboPos);
+      gl.bufferData(gl.ARRAY_BUFFER, geometry.attributes.position.array, gl.STATIC_DRAW);
+      gl.bindBuffer(gl.ARRAY_BUFFER, vao.vboNor);
+      gl.bufferData(gl.ARRAY_BUFFER, geometry.attributes.normal.array, gl.STATIC_DRAW);
+      if(geometry.indices){
+        vao.indexed=true;
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, vao.ibo);
+        gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, geometry.indices, gl.STATIC_DRAW);
+        vao.count=geometry.indices.length;
+      }else{
+        vao.count=geometry.attributes.position.array.length/3;
+      }
+      this._vaoCache.set(geometry, vao);
+      return vao;
+    }
+    render(scene, camera){
+      const gl=this.gl;
+      scene.updateWorldMatrix(null);
+      camera.updateViewMatrix();
+      gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+      gl.useProgram(this.program);
+      gl.uniformMatrix4fv(this.loc.uProj,false,camera.projectionMatrix);
+      gl.uniformMatrix4fv(this.loc.uView,false,camera.viewMatrix);
+
+      const draw=(obj)=>{
+        if(!obj.visible) return;
+        if(obj instanceof Mesh){
+          const g=obj.geometry, m=obj.material;
+          const vao=this._getVAO(g);
+          gl.bindBuffer(gl.ARRAY_BUFFER, vao.vboPos);
+          gl.enableVertexAttribArray(this.loc.aPos);
+          gl.vertexAttribPointer(this.loc.aPos,3,gl.FLOAT,false,0,0);
+          gl.bindBuffer(gl.ARRAY_BUFFER, vao.vboNor);
+          gl.enableVertexAttribArray(this.loc.aNor);
+          gl.vertexAttribPointer(this.loc.aNor,3,gl.FLOAT,false,0,0);
+          if(vao.indexed) gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, vao.ibo);
+
+          gl.uniformMatrix4fv(this.loc.uModel,false,obj.worldMatrix);
+          gl.uniform3f(this.loc.uColor, m.color[0],m.color[1],m.color[2]);
+          gl.uniform3f(this.loc.uEmi, m.emissive[0],m.emissive[1],m.emissive[2]);
+          gl.uniform1f(this.loc.uOpacity, m.opacity);
+
+          if(m.transparent){
+            gl.enable(gl.BLEND);
+            gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+            gl.depthMask(false);
+          }else{
+            gl.disable(gl.BLEND);
+            gl.depthMask(true);
+          }
+
+          if(vao.indexed) gl.drawElements(gl.TRIANGLES, vao.count, gl.UNSIGNED_SHORT, 0);
+          else gl.drawArrays(gl.TRIANGLES, 0, vao.count);
+        }
+        for(const c of obj.children) draw(c);
+      };
+      draw(scene);
+      gl.depthMask(true);
+    }
+  }
+
+  return {
+    Scene, PerspectiveCamera, WebGLRenderer,
+    BufferGeometry, Material, Mesh, Group,
+    SphereGeometry, CylinderGeometry,
+    _math:{mat4Mul}
+  };
+})();
+
+/* =========================
+   Controls
+   ========================= */
+class OrbitControlsLite{
+  constructor(canvas, camera){
+    this.canvas=canvas;
+    this.camera=camera;
+    this.target=new Float32Array([0,0,0]);
+    this.distance=8.8;
+    this.minDistance=3.2;
+    this.maxDistance=120.0;
+    this.rotX=0.55;
+    this.rotY=-0.60;
+    this.panX=0;
+    this.panY=0;
+    this._pointer=new Map();
+    this.onTap=null;
+    this._lastTapTime=0;
+    this._bind();
+    this.updateCamera();
+  }
+  reset(){
+    this.distance=8.8;
+    this.rotX=0.55;
+    this.rotY=-0.60;
+    this.panX=0; this.panY=0;
+    this.updateCamera();
+  }
+  setDistance(d){
+    this.distance=Math.min(this.maxDistance, Math.max(this.minDistance, d));
+    this.updateCamera();
+  }
+  updateCamera(){
+    const cx=this.target[0]+this.panX;
+    const cy=this.target[1]+this.panY;
+    const cz=this.target[2];
+    const dx=this.distance*Math.cos(this.rotX)*Math.sin(this.rotY);
+    const dy=this.distance*Math.sin(this.rotX);
+    const dz=this.distance*Math.cos(this.rotX)*Math.cos(this.rotY);
+    this.camera.position[0]=cx+dx;
+    this.camera.position[1]=cy+dy;
+    this.camera.position[2]=cz+dz;
+    this.camera.lookAt(cx,cy,cz);
+  }
+  _bind(){
+    const c=this.canvas;
+    const getPos=(e)=>{ const r=c.getBoundingClientRect(); return {x:e.clientX-r.left,y:e.clientY-r.top,w:r.width,h:r.height}; };
+
+    c.addEventListener("wheel",(e)=>{
+      e.preventDefault();
+      const delta=Math.sign(e.deltaY);
+      this.setDistance(this.distance*((delta>0)?1.10:0.90));
+    },{passive:false});
+
+    c.addEventListener("pointerdown",(e)=>{
+      c.setPointerCapture(e.pointerId);
+      const p=getPos(e);
+      this._pointer.set(e.pointerId,{x:p.x,y:p.y,sx:p.x,sy:p.y,dx:0,dy:0});
+    });
+
+    c.addEventListener("pointermove",(e)=>{
+      if(!this._pointer.has(e.pointerId)) return;
+      const p=getPos(e);
+      const pt=this._pointer.get(e.pointerId);
+      pt.dx=p.x-pt.x; pt.dy=p.y-pt.y;
+      pt.x=p.x; pt.y=p.y;
+
+      const pts=[...this._pointer.values()];
+      if(pts.length===1){
+        const s=0.010;
+        this.rotY -= pt.dx*s;
+        this.rotX -= pt.dy*s;
+        this.rotX = Math.max(-1.35, Math.min(1.35, this.rotX));
+        this.updateCamera();
+      }else if(pts.length>=2){
+        const a=pts[0], b=pts[1];
+        const prevDist=Math.hypot((a.x-a.dx)-(b.x-b.dx),(a.y-a.dy)-(b.y-b.dy));
+        const dist=Math.hypot(a.x-b.x,a.y-b.y);
+        if(prevDist>0) this.setDistance(this.distance*(prevDist/dist));
+        const prevMx=((a.x-a.dx)+(b.x-b.dx))/2;
+        const prevMy=((a.y-a.dy)+(b.y-b.dy))/2;
+        const mx=(a.x+b.x)/2, my=(a.y+b.y)/2;
+        const mdx=mx-prevMx, mdy=my-prevMy;
+        const panScale=this.distance/900;
+        this.panX -= mdx*panScale;
+        this.panY += mdy*panScale;
+        this.panX=Math.max(-80,Math.min(80,this.panX));
+        this.panY=Math.max(-80,Math.min(80,this.panY));
+        this.updateCamera();
+      }
+    });
+
+    const end=(e)=>{
+      if(!this._pointer.has(e.pointerId)) return;
+      const pt=this._pointer.get(e.pointerId);
+      this._pointer.delete(e.pointerId);
+      const moved=Math.hypot(pt.x-pt.sx, pt.y-pt.sy);
+      if(moved<10){
+        const now=performance.now();
+        if(now-this._lastTapTime>220){
+          const p=getPos(e);
+          this.onTap && this.onTap(p.x,p.y,p.w,p.h);
+        }
+        this._lastTapTime=now;
+      }
+    };
+    c.addEventListener("pointerup", end);
+    c.addEventListener("pointercancel", end);
+  }
+}
+
+/* =========================
+   Helpers
+   ========================= */
+const lerp=(a,b,t)=>a+(b-a)*t;
+const clamp=(x,a,b)=>Math.max(a,Math.min(b,x));
+function easeInOut(t){ t=clamp(t,0,1); return t*t*(3-2*t); }
+function lerp3(out,a,b,t){ out[0]=lerp(a[0],b[0],t); out[1]=lerp(a[1],b[1],t); out[2]=lerp(a[2],b[2],t); return out; }
+
+/* =========================
+   UI refs
+   ========================= */
+const canvas=document.getElementById("gl");
+const topicSel=document.getElementById("topic");
+const stepBtn=document.getElementById("step");
+const autoBtn=document.getElementById("auto");
+const resetBtn=document.getElementById("reset");
+const restartBtn=document.getElementById("restart");
+const statusEl=document.getElementById("status");
+const tipEl=document.getElementById("tip");
+
+function showTip(html, ms=2400){
+  tipEl.innerHTML=html;
+  tipEl.classList.add("show");
+  clearTimeout(showTip._to);
+  showTip._to=setTimeout(()=>tipEl.classList.remove("show"), ms);
+}
+
+let renderer, scene, camera, controls;
+
+let topic="mitosis";
+let cells=[];
+let stage=0;
+let generation=0;
+
+let autoOn=false;
+let autoTimer=0;
+
+let transition=null; // {t,dur,apply,done}
+let busy=false;
+
+const COLORS={
+  A:[0.48,0.66,1.0],
+  B:[1.0,0.80,0.40],
+  cent:[0.38,0.82,0.64],
+  membrane:[0.65,0.78,1.0],
+  spindle:[0.75,0.80,0.95],
+  nuc:[0.95,0.98,1.0]
+};
+
+function makeMaterial(rgb,{opacity=1,transparent=false,emissive=[0,0,0]}={}){
+  return new THREE.Material({color:rgb, opacity, transparent, emissive});
+}
+
+// shared geometries
+const G_SPH = THREE.SphereGeometry(1, 22, 16);
+const G_ROD = THREE.CylinderGeometry(0.08, 1.0, 14);
+const G_BEAD = THREE.SphereGeometry(0.12, 16, 12);
+
+function makeCellBoundary(radius=1.05){
+  const m=makeMaterial(COLORS.membrane,{opacity:0.10,transparent:true,emissive:[0.05,0.06,0.10]});
+  const s=new THREE.Mesh(G_SPH,m);
+  s.scale[0]=radius; s.scale[1]=radius; s.scale[2]=radius;
+  s.userData.pickable=true;
+  s.userData.kind="cellBoundary";
+  return s;
+}
+function makeNucleus(radius=0.58){
+  const m=makeMaterial(COLORS.nuc,{opacity:0.12,transparent:true,emissive:[0.03,0.03,0.04]});
+  const s=new THREE.Mesh(G_SPH,m);
+  s.scale[0]=radius; s.scale[1]=radius; s.scale[2]=radius;
+  s.userData.pickable=false;
+  return s;
+}
+function makeSpindle(len=2.2){
+  const m=makeMaterial(COLORS.spindle,{opacity:0.45,transparent:true,emissive:[0.06,0.06,0.08]});
+  const rod=new THREE.Mesh(G_ROD,m);
+  rod.scale[0]=0.32; rod.scale[2]=0.32;
+  rod.scale[1]=len;
+  rod.rotation[2]=Math.PI/2;
+  rod.userData.pickable=false;
+  rod.visible=false;
+  rod.userData.kind="spindle";
+  return rod;
+}
+
+function makeChromosome(color, label){
+  const g=new THREE.Group();
+  const mat1=makeMaterial(color,{opacity:1,transparent:false,emissive:[0.02,0.02,0.03]});
+  const mat2=makeMaterial(color,{opacity:0.0,transparent:true,emissive:[0.03,0.03,0.05]}); // sister tint
+  const r1=new THREE.Mesh(G_ROD,mat1);
+  const r2=new THREE.Mesh(G_ROD,mat2);
+  r1.scale[1]=0.72; r2.scale[1]=0.72;
+
+  r1.rotation[2]=0;
+  r2.rotation[2]=0;
+  r1.position[1]=0;
+  r2.position[1]=0;
+
+  const bead=new THREE.Mesh(G_BEAD, makeMaterial(COLORS.cent,{emissive:[0.05,0.08,0.06]}));
+  bead.userData.pickable=false;
+
+  g.add(r1); g.add(r2); g.add(bead);
+
+  g.scale[0]=0.44; g.scale[1]=0.44; g.scale[2]=0.44; // small
+
+  g.userData.pickable=true;
+  g.userData.kind="chromosome";
+  g.userData.label=label;
+  g.userData.r1=r1; g.userData.r2=r2;
+  g.userData.rep=0.0;
+  g.userData.split=0.0;
+  return g;
+}
+
+function setChromRep(ch, rep){
+  rep=clamp(rep,0,1);
+  ch.userData.rep=rep;
+  const r1=ch.userData.r1, r2=ch.userData.r2;
+  const a = rep * (Math.PI/4);
+  r1.rotation[2] =  a;
+  r2.rotation[2] = -a;
+  r2.material.opacity = rep;
+  r2.material.transparent = rep < 0.999;
+}
+
+function setChromSplit(ch, split){
+  split=clamp(split,0,1);
+  ch.userData.split=split;
+  const r1=ch.userData.r1, r2=ch.userData.r2;
+  const d = 1.25 * split;
+  r1.position[1]= d;
+  r2.position[1]=-d;
+}
+
+function createCell(){
+  const cell=new THREE.Group();
+  cell.userData.kind="cell";
+  cell.userData.grow={mode:"none", t:0};
+
+  const boundary=makeCellBoundary(1.05);
+  const nucleus=makeNucleus(0.58);
+  const spindle=makeSpindle(2.2);
+
+  const A1=makeChromosome(COLORS.A,"A1");
+  const A2=makeChromosome(COLORS.A,"A2");
+  const B1=makeChromosome(COLORS.B,"B1");
+  const B2=makeChromosome(COLORS.B,"B2");
+
+  const spread=0.34;
+  A1.position[0]=-spread; A1.position[1]= 0.18;
+  A2.position[0]= spread; A2.position[1]= 0.15;
+  B1.position[0]=-0.10;   B1.position[1]=-0.22;
+  B2.position[0]= 0.32;   B2.position[1]=-0.25;
+
+  cell.add(boundary); cell.add(nucleus); cell.add(spindle);
+  cell.add(A1); cell.add(A2); cell.add(B1); cell.add(B2);
+
+  cell.userData.boundary=boundary;
+  cell.userData.nucleus=nucleus;
+  cell.userData.spindle=spindle;
+  cell.userData.chromosomes=[A1,A2,B1,B2];
+
+  for(const ch of cell.userData.chromosomes){ setChromRep(ch, 0); setChromSplit(ch, 0); }
+
+  return cell;
+}
+
+function clearScene(){ scene.children.length=0; }
+function replaceCells(newCells){
+  cells=newCells;
+  clearScene();
+  for(const c of cells) scene.add(c);
+  layoutCells();
+}
+
+/* =========================
+   Stages (biology-fixed)
+   ========================= */
+const MITOSIS = [
+  {name:"起始（單染色單體）", expl:"一開始維持單染色單體（尚未複製）。"},
+  {name:"核膜消失（連續）", expl:"核膜慢慢消失（以透明度漸退示意）。"},
+  {name:"DNA 複製（連續）", expl:"姐妹染色單體漸進形成（r2 漸顯，逐步成 X）。"},
+  {name:"中期", expl:"染色體排列在赤道板。"},
+  {name:"後期（姐妹分離）", expl:"姐妹染色單體分離，分別往兩極移動（不是同源染色體分離）。"},
+  {name:"末期 → 胞質分裂（2 秒連續）", expl:"形成兩個子細胞；核膜回復；子細胞先縮小為半體積，5 秒後再長回。"}
+];
+
+const MEIOSIS = [
+  {name:"起始（單染色單體）", expl:"一開始維持單染色單體（尚未複製）。"},
+  {name:"DNA 複製（連續）", expl:"先完成複製，形成姐妹染色單體。"},
+  {name:"前期 I（聯會示意）", expl:"同源染色體配對（示意靠近）。"},
+  {name:"中期 I", expl:"同源染色體成對排列。"},
+  {name:"後期 I（同源分到兩邊）", expl:"同源染色體分離：每對同源各分到相反兩極（不會同一邊）。"},
+  {name:"胞質分裂 I（2 秒連續）", expl:"第一次分裂：1→2 個細胞（n，但仍是雙單體）。"},
+  {name:"中期 II", expl:"第二次分裂準備：染色體再次排列。"},
+  {name:"後期 II（姐妹分離）", expl:"姐妹染色單體分離。"},
+  {name:"胞質分裂 II（2 秒連續）", expl:"第二次分裂：2→4 個子細胞（n），組合不同。"},
+];
+
+function stageList(){ return (topic==="mitosis") ? MITOSIS : MEIOSIS; }
+
+function setStatus(){
+  const list=stageList();
+  const s=list[stage] || list[list.length-1];
+  const extra=(topic==="mitosis")
+    ? `｜細胞數：<b>${cells.length}</b>｜輪次：<b>${generation}</b>（可無限制增加）`
+    : `｜細胞數：<b>${cells.length}</b>（完成後應為 4）`;
+  statusEl.innerHTML=`<b>${s.name}</b>${extra}<br>${s.expl}`;
+}
+
+/* =========================
+   Layout + camera fit
+   ========================= */
+function autoFitCamera(cols, rows, spacing){
+  const halfW=(cols-1)*spacing/2 + 1.25;
+  const halfH=(rows-1)*spacing/2 + 1.25;
+  const radius=Math.max(halfW, halfH, 1.6);
+  controls.target[0]=0; controls.target[1]=0; controls.target[2]=0;
+  const desired=Math.min(controls.maxDistance, Math.max(controls.minDistance, 3.8 + radius*2.2));
+  controls.distance = controls.distance*0.7 + desired*0.3;
+  controls.updateCamera();
+}
+
+function layoutCells(){
+  const n=cells.length;
+  if(n<=0) return;
+  const cols=Math.ceil(Math.sqrt(n));
+  const rows=Math.ceil(n/cols);
+  const spacing=2.65;
+  const w=(cols-1)*spacing;
+  const h=(rows-1)*spacing;
+  for(let i=0;i<n;i++){
+    const r=Math.floor(i/cols);
+    const c=i%cols;
+    cells[i].position[0]=c*spacing - w/2;
+    cells[i].position[1]=-(r*spacing) + h/2;
+    cells[i].position[2]=0;
+  }
+  autoFitCamera(cols, rows, spacing);
+}
+
+/* =========================
+   Stage targets
+   ========================= */
+function baseChromPos(){
+  return [
+    [-0.34,  0.18, 0],
+    [ 0.34,  0.15, 0],
+    [-0.10, -0.22, 0],
+    [ 0.32, -0.25, 0],
+  ];
+}
+
+function applyTargetsToCell(cell, tar){
+  const nucleus=cell.userData.nucleus;
+  const spindle=cell.userData.spindle;
+  nucleus.visible=true;
+  spindle.visible=false;
+
+  if(tar.nucleusOpacity!=null){
+    nucleus.material.opacity=tar.nucleusOpacity;
+    nucleus.material.transparent=true;
+  }else{
+    nucleus.material.opacity=0.12;
+    nucleus.material.transparent=true;
+  }
+  nucleus.visible = (nucleus.material.opacity>0.002);
+  spindle.visible = !!tar.spindle;
+
+  const chr=cell.userData.chromosomes;
+  for(let i=0;i<chr.length;i++){
+    const c=chr[i];
+    const t=tar.chr[i];
+    c.position[0]=t.pos[0]; c.position[1]=t.pos[1]; c.position[2]=t.pos[2]||0;
+    c.rotation[2]=t.rotZ||0;
+    setChromRep(c, t.rep);
+    setChromSplit(c, t.split);
+  }
+}
+
+function targetsForStage(st){
+  const bp=baseChromPos();
+  const tar = {
+    nucleusOpacity: 0.12,
+    spindle:false,
+    chr: [
+      {pos:bp[0], rotZ:0.0, rep:0, split:0},
+      {pos:bp[1], rotZ:0.0, rep:0, split:0},
+      {pos:bp[2], rotZ:0.0, rep:0, split:0},
+      {pos:bp[3], rotZ:0.0, rep:0, split:0},
+    ]
+  };
+
+  if(topic==="mitosis"){
+    if(st===0){
+      tar.nucleusOpacity=0.12; tar.spindle=false;
+      tar.chr.forEach(c=>{ c.rep=0; c.split=0; c.rotZ=0; });
+      return tar;
+    }
+    if(st===1){
+      tar.nucleusOpacity=0.00; tar.spindle=false;
+      tar.chr.forEach(c=>{ c.rep=0; c.split=0; });
+      return tar;
+    }
+    if(st===2){
+      tar.nucleusOpacity=0.00; tar.spindle=false;
+      tar.chr.forEach(c=>{ c.rep=1; c.split=0; c.rotZ=0.25; });
+      return tar;
+    }
+    if(st===3){
+      tar.nucleusOpacity=0.00; tar.spindle=true;
+      const xs=[-0.45,-0.15,0.15,0.45];
+      for(let i=0;i<4;i++){ tar.chr[i].pos=[xs[i],0,0]; tar.chr[i].rep=1; tar.chr[i].split=0; tar.chr[i].rotZ=Math.PI/2; }
+      return tar;
+    }
+    if(st===4){
+      tar.nucleusOpacity=0.00; tar.spindle=true;
+      const xs=[-0.45,-0.15,0.15,0.45];
+      for(let i=0;i<4;i++){
+        tar.chr[i].pos=[xs[i],0,0];
+        tar.chr[i].rep=1;
+        tar.chr[i].split=1; // sisters separate
+        tar.chr[i].rotZ=1.05;
+      }
+      return tar;
+    }
+    // end state: ready next cycle
+    tar.nucleusOpacity=0.12; tar.spindle=false;
+    tar.chr.forEach((c,i)=>{ c.pos=bp[i]; c.rep=0; c.split=0; c.rotZ=0; });
+    return tar;
+  }
+
+  // meiosis
+  if(st===0){
+    tar.nucleusOpacity=0.12; tar.spindle=false;
+    tar.chr.forEach(c=>{ c.rep=0; c.split=0; c.rotZ=0; });
+    return tar;
+  }
+  if(st===1){
+    tar.nucleusOpacity=0.12; tar.spindle=false;
+    tar.chr.forEach(c=>{ c.rep=1; c.split=0; c.rotZ=0.25; });
+    return tar;
+  }
+  if(st===2){
+    tar.nucleusOpacity=0.12; tar.spindle=true;
+    tar.chr[0].pos=[-0.18, 0.08,0]; tar.chr[1].pos=[-0.02, 0.08,0];
+    tar.chr[2].pos=[ 0.18,-0.08,0]; tar.chr[3].pos=[ 0.36,-0.08,0];
+    tar.chr.forEach(c=>{ c.rep=1; c.split=0; });
+    tar.chr[0].rotZ=0.65; tar.chr[1].rotZ=0.65;
+    tar.chr[2].rotZ=-0.45; tar.chr[3].rotZ=-0.45;
+    return tar;
+  }
+  if(st===3){
+    tar.nucleusOpacity=0.00; tar.spindle=true;
+    tar.chr[0].pos=[-0.20,0,0]; tar.chr[1].pos=[-0.02,0,0];
+    tar.chr[2].pos=[ 0.18,0,0]; tar.chr[3].pos=[ 0.36,0,0];
+    tar.chr.forEach(c=>{ c.rep=1; c.split=0; c.rotZ=Math.PI/2; });
+    return tar;
+  }
+  if(st===4){
+    tar.nucleusOpacity=0.00; tar.spindle=true;
+    // correct: each homologous pair splits to opposite poles
+    tar.chr[0].pos=[-0.20, +0.55,0]; // A1 up
+    tar.chr[1].pos=[-0.02, -0.55,0]; // A2 down
+    tar.chr[2].pos=[ 0.18, +0.55,0]; // B1 up
+    tar.chr[3].pos=[ 0.36, -0.55,0]; // B2 down
+    tar.chr.forEach(c=>{ c.rep=1; c.split=0; c.rotZ=1.05; });
+    return tar;
+  }
+  if(st===5){
+    tar.nucleusOpacity=0.12; tar.spindle=false;
+    tar.chr.forEach(c=>{ c.rep=1; c.split=0; });
+    return tar;
+  }
+  if(st===6){
+    tar.nucleusOpacity=0.00; tar.spindle=true;
+    const xs=[-0.30,-0.10,0.10,0.30];
+    for(let i=0;i<4;i++){ tar.chr[i].pos=[xs[i],0,0]; tar.chr[i].rep=1; tar.chr[i].split=0; tar.chr[i].rotZ=Math.PI/2; }
+    return tar;
+  }
+  if(st===7){
+    tar.nucleusOpacity=0.00; tar.spindle=true;
+    const xs=[-0.30,-0.10,0.10,0.30];
+    for(let i=0;i<4;i++){ tar.chr[i].pos=[xs[i],0,0]; tar.chr[i].rep=1; tar.chr[i].split=1; tar.chr[i].rotZ=1.05; }
+    return tar;
+  }
+  // end state: 4 cells, rep=0
+  tar.nucleusOpacity=0.12; tar.spindle=false;
+  tar.chr.forEach((c,i)=>{ c.pos=bp[i]; c.rep=0; c.split=0; c.rotZ=0; });
+  return tar;
+}
+
+/* =========================
+   Tween runner
+   ========================= */
+function runTween(dur, apply, done){
+  transition = {t:0, dur, apply, done};
+  busy=true;
+}
+function updateTween(dt){
+  if(!transition) return;
+  transition.t += dt;
+  const u = easeInOut(transition.t/transition.dur);
+  transition.apply(u);
+  if(transition.t >= transition.dur){
+    const d=transition.done;
+    transition=null;
+    busy=false;
+    d && d();
+  }
+}
+
+/* =========================
+   Smooth stage transition
+   ========================= */
+function captureCellState(cell){
+  const chr=cell.userData.chromosomes;
+  return {
+    nucleusOpacity: cell.userData.nucleus.material.opacity,
+    spindle: cell.userData.spindle.visible,
+    chr: chr.map(c=>({
+      pos:[c.position[0],c.position[1],c.position[2]],
+      rotZ:c.rotation[2]||0,
+      rep:c.userData.rep||0,
+      split:c.userData.split||0
+    }))
+  };
+}
+
+function transitionToStage(nextStage, dur=0.95){
+  const from = cells.map(c=>captureCellState(c));
+  const toTar = targetsForStage(nextStage);
+
+  runTween(dur, (u)=>{
+    for(let i=0;i<cells.length;i++){
+      const cell=cells[i];
+      const a=from[i];
+      const b=toTar;
+      const no=lerp(a.nucleusOpacity, b.nucleusOpacity, u);
+      const spindle=(u<0.5)?a.spindle:b.spindle;
+
+      const cur={ nucleusOpacity:no, spindle:spindle, chr:[] };
+      for(let k=0;k<4;k++){
+        const ac=a.chr[k], bc=b.chr[k];
+        const p=[0,0,0];
+        lerp3(p, ac.pos, bc.pos, u);
+        cur.chr.push({
+          pos:p,
+          rotZ:lerp(ac.rotZ, bc.rotZ, u),
+          rep:lerp(ac.rep, bc.rep, u),
+          split:lerp(ac.split, bc.split, u)
+        });
+      }
+      applyTargetsToCell(cell, cur);
+    }
+  }, ()=>{
+    stage=nextStage;
+    setStatus();
+  });
+}
+
+/* =========================
+   Cytokinesis + growth
+   ========================= */
+const HALF_VOLUME_SCALE = Math.cbrt(0.5); // ~0.7937
+
+function startGrowthCycle(cell){
+  cell.userData.grow = {mode:"holdSmall", t:0};
+}
+
+function updateGrowth(cell, dt){
+  const g=cell.userData.grow;
+  if(!g || g.mode==="none") return;
+
+  if(g.mode==="holdSmall"){
+    g.t += dt;
+    if(g.t >= 5.0){
+      g.mode="growing";
+      g.t=0;
+      g.start=cell.scale[0];
+    }
+  }else if(g.mode==="growing"){
+    g.t += dt;
+    const u = easeInOut(g.t/1.2);
+    const s = lerp(g.start, 1.0, u);
+    cell.scale[0]=s; cell.scale[1]=s; cell.scale[2]=s;
+    if(g.t>=1.2){
+      cell.scale[0]=1; cell.scale[1]=1; cell.scale[2]=1;
+      g.mode="none"; g.t=0;
+    }
+  }
+}
+
+function cytokinesisSplit(multiplier, resetToStage0){
+  const parents=cells.slice();
+  const newCells=[];
+  for(const p of parents){
+    for(let i=0;i<multiplier;i++){
+      const child=createCell();
+      child.position[0]=p.position[0];
+      child.position[1]=p.position[1];
+      child.position[2]=p.position[2];
+      child.scale[0]=1; child.scale[1]=1; child.scale[2]=1;
+      child.userData.boundary.material.opacity=0.02;
+      child.userData.boundary.material.transparent=true;
+      child.userData.nucleus.material.opacity=0.12;
+      newCells.push(child);
+    }
+  }
+
+  clearScene();
+  for(const p of parents) scene.add(p);
+  for(const c of newCells) scene.add(c);
+
+  const offsets = (multiplier===2) ? [-1.2, +1.2] : [-1.0, 0, +1.0];
+
+  runTween(2.0, (u)=>{
+    const t=easeInOut(u);
+    for(const p of parents){
+      p.userData.boundary.material.opacity = lerp(0.10, 0.0, t);
+      p.userData.nucleus.material.opacity = lerp(p.userData.nucleus.material.opacity, 0.0, t);
+    }
+    let idx=0;
+    for(let pi=0; pi<parents.length; pi++){
+      const p=parents[pi];
+      for(let k=0;k<multiplier;k++){
+        const c=newCells[idx++];
+        const ox=offsets[k]||0;
+        c.position[0]=lerp(p.position[0], p.position[0]+ox, t);
+        c.position[1]=p.position[1];
+        const s=lerp(1.0, HALF_VOLUME_SCALE, t);
+        c.scale[0]=s; c.scale[1]=s; c.scale[2]=s;
+        c.userData.boundary.material.opacity = lerp(0.02, 0.10, t);
+      }
+    }
+  }, ()=>{
+    replaceCells(newCells);
+
+    if(resetToStage0) stage=0;
+
+    const tar=targetsForStage(0);
+    for(const c of cells){
+      applyTargetsToCell(c, tar);
+      c.scale[0]=HALF_VOLUME_SCALE; c.scale[1]=HALF_VOLUME_SCALE; c.scale[2]=HALF_VOLUME_SCALE;
+      startGrowthCycle(c);
+    }
+    layoutCells();
+    setStatus();
+  });
+}
+
+/* =========================
+   Step logic
+   ========================= */
+function stepOnce(){
+  if(busy) return;
+
+  if(topic==="mitosis"){
+    const next = stage + 1;
+    if(next < MITOSIS.length-1){
+      transitionToStage(next, 0.95);
+      showTip(`<b>${MITOSIS[next].name}</b><div class="small">${MITOSIS[next].expl}</div>`, 2000);
+      return;
+    }
+
+    showTip(`<b>${MITOSIS[MITOSIS.length-1].name}</b><div class="small">${MITOSIS[MITOSIS.length-1].expl}</div>`, 2400);
+
+    if(stage !== 4){
+      transitionToStage(4, 0.6);
+      runTween(0.6, ()=>{}, ()=>{
+        generation++;
+        cytokinesisSplit(2, true);
+      });
+    }else{
+      generation++;
+      cytokinesisSplit(2, true);
+    }
+    return;
+  }
+
+  // meiosis
+  const next = stage + 1;
+
+  if(next < MEIOSIS.length){
+    if(next === 5){
+      transitionToStage(4, 0.7);
+      runTween(0.7, ()=>{}, ()=>{
+        showTip(`<b>${MEIOSIS[next].name}</b><div class="small">${MEIOSIS[next].expl}</div>`, 2400);
+        cytokinesisSplit(2, false);
+        stage=5;
+        setStatus();
+      });
+      return;
+    }
+    if(next === 8){
+      transitionToStage(7, 0.7);
+      runTween(0.7, ()=>{}, ()=>{
+        showTip(`<b>${MEIOSIS[next].name}</b><div class="small">${MEIOSIS[next].expl}</div>`, 2400);
+        // randomize chromatid direction a bit so four outcomes differ
+        for(const cell of cells){
+          for(const ch of cell.userData.chromosomes){
+            if(Math.random()<0.5){
+              const r1=ch.userData.r1, r2=ch.userData.r2;
+              const y=r1.position[1];
+              r1.position[1]=-y;
+              r2.position[1]= y;
+            }
+          }
+        }
+        cytokinesisSplit(2, false);
+        stage=8;
+        setStatus();
+      });
+      return;
+    }
+
+    transitionToStage(next, 0.95);
+    showTip(`<b>${MEIOSIS[next].name}</b><div class="small">${MEIOSIS[next].expl}</div>`, 2000);
+    return;
+  }
+
+  autoOn=false;
+  autoBtn.textContent="自動分裂：關";
+  showTip(`<b>已完成減數分裂</b><div class="small">結果為 4 個子細胞（n）。</div>`, 2400);
+}
+
+function restartSimulation(){
+  generation=0;
+  stage=0;
+  transition=null;
+  busy=false;
+
+  replaceCells([createCell()]);
+  controls.reset();
+
+  const tar=targetsForStage(0);
+  for(const c of cells) applyTargetsToCell(c, tar);
+  layoutCells();
+  setStatus();
+
+  const name=(topic==="mitosis")?"有絲分裂":"減數分裂";
+  showTip(`<b>已重來</b><div class="small">主題：${name}；從「${stageList()[0].name}」開始。</div>`, 1600);
+}
+
+function switchTopic(t){
+  topic=t;
+  autoOn=false;
+  autoBtn.textContent="自動分裂：關";
+  restartSimulation();
+}
+
+/* =========================
+   Picking (screen-distance heuristic)
+   ========================= */
+function projectToScreen(worldPos, w, h){
+  const tmp=new Float32Array(16);
+  THREE._math.mat4Mul(tmp, camera.projectionMatrix, camera.viewMatrix);
+  const x=worldPos[0],y=worldPos[1],z=worldPos[2];
+  const cx=tmp[0]*x+tmp[4]*y+tmp[8]*z+tmp[12];
+  const cy=tmp[1]*x+tmp[5]*y+tmp[9]*z+tmp[13];
+  const cw=tmp[3]*x+tmp[7]*y+tmp[11]*z+tmp[15];
+  if(cw<=1e-5) return null;
+  const ndcX=cx/cw, ndcY=cy/cw;
+  return {sx:(ndcX*0.5+0.5)*w, sy:(-ndcY*0.5+0.5)*h};
+}
+function worldCenter(obj){ return [obj.worldMatrix[12], obj.worldMatrix[13], obj.worldMatrix[14]]; }
+function pick(px,py,w,h){
+  scene.updateWorldMatrix(null);
+  camera.updateViewMatrix();
+  let best=null;
+  const threshold=54;
+  const scan=(obj, idx)=>{
+    if(obj.userData && obj.userData.pickable){
+      const p=projectToScreen(worldCenter(obj), w, h);
+      if(!p) return;
+      const d=Math.hypot(p.sx-px,p.sy-py);
+      if(d<threshold && (!best || d<best.d)) best={d,obj,idx};
+    }
+    for(const ch of obj.children) scan(ch, idx);
+  };
+  for(let i=0;i<cells.length;i++) scan(cells[i], i+1);
+  return best;
+}
+
+/* =========================
+   Init / Loop
+   ========================= */
+function init(){
+  renderer=new THREE.WebGLRenderer({canvas, antialias:true});
+  scene=new THREE.Scene();
+  camera=new THREE.PerspectiveCamera(46,1,0.1,160);
+  controls=new OrbitControlsLite(canvas, camera);
+
+  const resize=()=>{
+    const r=canvas.getBoundingClientRect();
+    renderer.setSize(r.width, r.height);
+    camera.aspect=r.width/Math.max(1,r.height);
+    camera.updateProjectionMatrix();
+  };
+  window.addEventListener("resize", resize, {passive:true});
+  resize();
+
+  controls.onTap=(x,y,w,h)=>{
+    const hit=pick(x,y,w,h);
+    if(!hit){
+      showTip(`<b>提示</b><div class="small">v0.17：有絲分裂後期是「姐妹分離」；減數分裂 I 是「同源分到兩邊」且要分裂兩次。</div>`, 2200);
+      return;
+    }
+    const k=hit.obj.userData.kind;
+    if(k==="chromosome"){
+      showTip(`<b>染色體：${hit.obj.userData.label}</b><div class="small">r1/r2 為姐妹染色單體；後期會看到 r1 與 r2 分開（姐妹分離）。</div>`, 2600);
+    }else if(k==="cellBoundary"){
+      const s=stageList()[stage];
+      showTip(`<b>第 ${hit.idx} 個細胞</b><div class="small">目前階段：${s.name}</div>`, 2000);
+    }
+  };
+
+  topicSel.addEventListener("change", ()=>switchTopic(topicSel.value));
+  stepBtn.addEventListener("click", ()=>stepOnce());
+  autoBtn.addEventListener("click", ()=>{
+    autoOn=!autoOn;
+    autoBtn.textContent=`自動分裂：${autoOn?"開":"關"}`;
+    if(autoOn){
+      showTip(`<b>自動分裂已開</b><div class="small">${topic==="mitosis"?"將持續循環分裂（含 2 秒胞質分裂 + 生長回復）":"將依序完成兩次分裂直到 4 個子細胞"}</div>`, 2400);
+    }
+  });
+  resetBtn.addEventListener("click", ()=>{
+    controls.reset();
+    layoutCells();
+    showTip(`<b>視角已重置</b><div class="small">會自動取景，確保 1 或 4 個細胞清楚可見。</div>`, 1800);
+  });
+  restartBtn.addEventListener("click", ()=>restartSimulation());
+
+  switchTopic("mitosis");
+  requestAnimationFrame(loop);
+}
+
+let last=performance.now();
+function loop(now){
+  const dt=(now-last)/1000;
+  last=now;
+
+  updateTween(dt);
+
+  if(autoOn && !busy){
+    autoTimer+=dt;
+    const interval=(topic==="mitosis")?1.4:1.35;
+    if(autoTimer>=interval){
+      autoTimer=0;
+      stepOnce();
+    }
+  }
+
+  for(const cell of cells) updateGrowth(cell, dt);
+
+  const t=now/1000;
+  for(const cell of cells){
+    cell.rotation[1]=0.018*Math.sin(t*0.6 + cell.id*0.2);
+    for(const ch of cell.userData.chromosomes){
+      ch.rotation[1]=0.08*Math.sin(t*0.9 + ch.id*0.3);
+      ch.rotation[0]=0.05*Math.sin(t*0.7 + ch.id*0.5);
+    }
+  }
+
+  renderer.render(scene, camera);
+  requestAnimationFrame(loop);
+}
+
+init();
+</script>
+</body>
+</html>
