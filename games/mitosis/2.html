@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Cell Division 3D Test</title>
+<style>
+html,body{margin:0;height:100%;overflow:hidden;background:#0b0f14;}
+#err{
+ position:absolute;inset:10px;display:none;
+ background:rgba(255,0,0,.1);
+ border:1px solid rgba(255,0,0,.4);
+ padding:10px;color:#fff;font-size:13px;
+ white-space:pre-wrap;z-index:10;
+}
+</style>
+</head>
+<body>
+<div id="err"></div>
+
+<script type="module">
+
+import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js";
+import { OrbitControls } from "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/controls/OrbitControls.js";
+
+const errBox = document.getElementById("err");
+function showErr(e){
+  errBox.style.display="block";
+  errBox.textContent = e?.stack || e?.message || e;
+}
+window.addEventListener("error",e=>showErr(e.error||e.message));
+window.addEventListener("unhandledrejection",e=>showErr(e.reason));
+
+try{
+
+// ---------- Renderer ----------
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(window.innerWidth,window.innerHeight);
+renderer.setPixelRatio(Math.min(2,window.devicePixelRatio));
+renderer.setClearColor(0x0b0f14);
+document.body.appendChild(renderer.domElement);
+
+// ---------- Scene ----------
+const scene = new THREE.Scene();
+scene.fog = new THREE.Fog(0x0b0f14,8,25);
+
+// ---------- Camera ----------
+const camera = new THREE.PerspectiveCamera(45,window.innerWidth/window.innerHeight,0.1,100);
+camera.position.set(0,3,10);
+
+// ---------- Controls ----------
+const controls = new OrbitControls(camera,renderer.domElement);
+controls.enableDamping=true;
+
+// ---------- Lights ----------
+scene.add(new THREE.AmbientLight(0xffffff,0.6));
+const light=new THREE.DirectionalLight(0xffffff,1);
+light.position.set(5,10,5);
+scene.add(light);
+
+// ---------- Test Objects ----------
+
+// 細胞外膜
+const cell = new THREE.Mesh(
+  new THREE.SphereGeometry(4,64,64),
+  new THREE.MeshPhysicalMaterial({
+    color:0x4aa3ff,
+    transparent:true,
+    opacity:0.08,
+    transmission:1,
+    thickness:0.7
+  })
+);
+scene.add(cell);
+
+// 染色體
+function makeChromosome(color){
+  const g=new THREE.Group();
+  const mat=new THREE.MeshStandardMaterial({color});
+  const cyl=new THREE.CylinderGeometry(0.15,0.15,2,20);
+  const a=new THREE.Mesh(cyl,mat);
+  const b=new THREE.Mesh(cyl,mat);
+  a.position.x=-0.3;
+  b.position.x=0.3;
+  g.add(a,b);
+  return g;
+}
+
+const c1=makeChromosome(0xff4d6d);
+const c2=makeChromosome(0x2dd4bf);
+c1.position.x=-1;
+c2.position.x=1;
+scene.add(c1,c2);
+
+// ---------- Resize ----------
+window.addEventListener("resize",()=>{
+  camera.aspect=window.innerWidth/window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth,window.innerHeight);
+});
+
+// ---------- Animation ----------
+function animate(){
+  requestAnimationFrame(animate);
+  c1.rotation.y+=0.01;
+  c2.rotation.y-=0.01;
+  controls.update();
+  renderer.render(scene,camera);
+}
+animate();
+
+}catch(e){ showErr(e); }
+
+</script>
+</body>
+</html>
