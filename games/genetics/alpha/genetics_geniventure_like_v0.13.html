@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
-<title>遺傳闖關 v0.14（單檔）</title>
+<title>遺傳闖關 v0.13（單檔）</title>
 <style>
   :root{
     --bg:#0b0f17;
@@ -80,6 +80,7 @@
     user-select:none;
   }
   .dot{width:8px;height:8px;border-radius:999px;background:var(--accent); box-shadow:0 0 10px rgba(124,243,199,.6)}
+  .dot.bad{background:var(--bad); box-shadow:0 0 10px rgba(255,107,139,.55)}
   .dot.good{background:var(--good); box-shadow:0 0 10px rgba(103,224,111,.55)}
   .dot.warn{background:var(--warn); box-shadow:0 0 10px rgba(255,207,90,.55)}
   .toast{
@@ -185,7 +186,6 @@
     return { x: (sx - W/2)/view.s - view.x, y: (sy - H/2)/view.s - view.y };
   }
 
-  // Pan/zoom (desktop + touch)
   const pointers = new Map();
   let isPanning = false;
   let panStart = null;
@@ -267,7 +267,6 @@
     viewTarget.y += (after.y - before.y);
   }, {passive:false});
 
-  // Click to toggle alleles
   let clickCandidate = null;
   canvas.addEventListener('pointerdown', (e)=>{
     clickCandidate = {id:e.pointerId, x:e.clientX, y:e.clientY, t:performance.now()};
@@ -286,14 +285,15 @@
 
   // Dominance fixed: uppercase = dominant
   function phenotype1_fromGeno(geno){
-    return geno.includes("A") ? "Trait1" : "Trait2";
+    const hasA = geno.includes("A");
+    return hasA ? "Trait1" : "Trait2";
   }
   function prettyGeno(a1,a2){
     if((a1==="A"&&a2==="a")||(a1==="a"&&a2==="A")) return "Aa";
     return a1+a2;
   }
 
-  // Big 2 (two loci, linked), only TWO traits now (ear + tail)
+  // Big 2 (two loci, linked) dominance fixed: E and T dominant
   function prettyGeno2(h1, h2){
     const g1 = (h1.E===h2.E) ? (h1.E+h2.E) : "Ee";
     const g2 = (h1.T===h2.T) ? (h1.T+h2.T) : "Tt";
@@ -302,7 +302,11 @@
   function phenotype2(h1,h2){
     const hasE = (h1.E==="E" || h2.E==="E");
     const hasT = (h1.T==="T" || h2.T==="T");
-    return {ear: hasE ? "floppy" : "pointy", tail: hasT ? "curly" : "straight"};
+
+    const ear = hasE ? "floppy" : "pointy";
+    const tail = hasT ? "curly" : "straight";
+    const sparkle = (hasE && hasT) ? "star" : (hasE && !hasT) ? "heart" : (!hasE && hasT) ? "dot" : "none";
+    return {ear, tail, sparkle};
   }
 
   const ui = {
@@ -319,7 +323,7 @@
     ui.toast.textContent = msg;
     ui.toast.classList.add('show');
     clearTimeout(toast._t);
-    toast._t = setTimeout(()=>ui.toast.classList.remove('show'), 1200);
+    toast._t = setTimeout(()=>ui.toast.classList.remove('show'), 1300);
   }
 
   const stages = [
@@ -336,7 +340,7 @@
     big1: {
       l11:{ player:["A","a"], target:null, solved:false },
       l12:{ mother:{chrom:["A","a"]}, father:{chrom:["A","A"]}, chosen:null, child:null },
-      l13:{ mother:{chrom:["A","a"]}, fatherHidden:{chrom:["a","a"]}, history:[], guess:"AA", revealed:false, solved:false }
+      l13:{ mother:{chrom:["A","a"]}, fatherHidden:{chrom:["a","a"]}, history:[], guess:"AA", revealed:false }
     },
     big2: {
       l21:{ player:[{E:"E",T:"T"},{E:"e",T:"t"}], target:null, solved:false },
@@ -346,7 +350,7 @@
       },
       l23:{ mother:{chrom:[{E:"E",T:"t"},{E:"e",T:"t"}]},
             fatherHidden:{chrom:[{E:"E",T:"T"},{E:"e",T:"t"}]},
-            history:[], guess:"EE;TT", revealed:false, solved:false
+            history:[], guess:"EE;TT", revealed:false
       }
     }
   };
@@ -368,7 +372,7 @@
     const genos = [["A","A"],["A","a"],["a","a"]];
     const f = pick(genos);
     game.big1.l13.fatherHidden.chrom = [f[0],f[1]];
-    game.big1.l13.history=[]; game.big1.l13.guess="AA"; game.big1.l13.revealed=false; game.big1.l13.solved=false;
+    game.big1.l13.history=[]; game.big1.l13.guess="AA"; game.big1.l13.revealed=false;
   }
 
   function newTarget21(){
@@ -393,7 +397,7 @@
       {E:"E",T:"T"},{E:"E",T:"t"},{E:"e",T:"T"},{E:"e",T:"t"}
     ];
     game.big2.l23.fatherHidden.chrom = [structuredClone(pick(haplos)), structuredClone(pick(haplos))];
-    game.big2.l23.history=[]; game.big2.l23.guess="EE;TT"; game.big2.l23.revealed=false; game.big2.l23.solved=false;
+    game.big2.l23.history=[]; game.big2.l23.guess="EE;TT"; game.big2.l23.revealed=false;
   }
 
   game.big1.l11.target = newTarget11();
@@ -465,6 +469,7 @@
     clearEl(ui.controls);
     const id = stage().id;
 
+    // 1-1: bigger buttons, no right hint, no dominance select (fixed)
     if(id==="1-1"){
       const row = document.createElement('div');
       row.className = 'row';
@@ -476,7 +481,9 @@
       }));
       row.appendChild(makeBtn("檢查", "big primary", ()=>check11()));
       ui.controls.appendChild(row);
-    }else if(id==="1-2"){
+    }
+    // 1-2: move hybrid button under hint (within control panel as note + big button)
+    else if(id==="1-2"){
       const col = document.createElement('div');
       col.className = 'col';
       col.appendChild(makeNote("按『雜合』產生子代"));
@@ -486,7 +493,9 @@
       row.appendChild(makeBtn("清除子代", "", ()=>{ game.big1.l12.chosen=null; game.big1.l12.child=null; toast("已清除"); }));
       col.appendChild(row);
       ui.controls.appendChild(col);
-    }else if(id==="1-3"){
+    }
+    // 1-3: hybrid like 1-2
+    else if(id==="1-3"){
       const col = document.createElement('div');
       col.className = 'col';
       col.appendChild(makeNote("按『雜合 +20』生成寶寶"));
@@ -502,7 +511,9 @@
       ], game.big1.l13.guess, (v)=>{game.big1.l13.guess=v; checkGuess13();}));
       col.appendChild(row);
       ui.controls.appendChild(col);
-    }else if(id==="2-1"){
+    }
+    // 2-1: same pattern as 1-1
+    else if(id==="2-1"){
       const row = document.createElement('div');
       row.className = 'row';
       row.appendChild(makeBtn("新題目", "big", ()=>{
@@ -514,7 +525,9 @@
       }));
       row.appendChild(makeBtn("檢查", "big primary", ()=>check21()));
       ui.controls.appendChild(row);
-    }else if(id==="2-2"){
+    }
+    // 2-2: same as 1-2
+    else if(id==="2-2"){
       const col = document.createElement('div');
       col.className = 'col';
       col.appendChild(makeNote("按『雜合』產生子代"));
@@ -524,7 +537,9 @@
       row.appendChild(makeBtn("清除子代", "", ()=>{ game.big2.l22.chosen=null; game.big2.l22.child=null; toast("已清除"); }));
       col.appendChild(row);
       ui.controls.appendChild(col);
-    }else{
+    }
+    // 2-3: same as 1-3
+    else{
       const col = document.createElement('div');
       col.className = 'col';
       col.appendChild(makeNote("按『雜合 +20』生成寶寶"));
@@ -549,16 +564,14 @@
     }
   }
 
-  // Logic
   function check11(){
     const t = game.big1.l11.target;
     const playerG = prettyGeno(game.big1.l11.player[0], game.big1.l11.player[1]);
     const playerP = phenotype1_fromGeno(playerG);
     const ok = (playerP===t.pheno);
     game.big1.l11.solved = ok;
-    toast(ok ? "✅ 答對" : "再試一次");
+    toast(ok ? "✅ 匹配目標外觀" : "還不對");
   }
-
   function hybrid12(){
     const l = game.big1.l12;
     const mAllele = pick([l.mother.chrom[0], l.mother.chrom[1]]);
@@ -566,9 +579,8 @@
     l.chosen = {mAllele, fAllele};
     const geno = prettyGeno(mAllele, fAllele);
     l.child = {geno, pheno: phenotype1_fromGeno(geno)};
-    toast("已產生子代");
+    toast("子代："+geno);
   }
-
   function hybrid13(){
     const l = game.big1.l13;
     const m = l.mother.chrom, f = l.fatherHidden.chrom;
@@ -580,46 +592,38 @@
     const summary = babies.reduce((acc,b)=>(acc[b.geno]=(acc[b.geno]||0)+1,acc),{});
     l.history.push({babies, summary});
     toast(`已生成 20（第 ${l.history.length} 輪）`);
-    // reset solved when new data comes in
-    l.solved = false;
   }
   function undo13(){
     const l = game.big1.l13;
     if(l.history.length===0){ toast("沒有上一輪"); return; }
-    l.history.pop();
-    toast("已回溯");
-    l.solved = false;
+    l.history.pop(); toast("已回溯");
   }
   function reveal13(){
     const l = game.big1.l13;
     l.revealed = true;
-    toast("已揭曉");
+    toast("父親："+prettyGeno(l.fatherHidden.chrom[0], l.fatherHidden.chrom[1]));
   }
   function checkGuess13(){
     const l = game.big1.l13;
     const ans = prettyGeno(l.fatherHidden.chrom[0], l.fatherHidden.chrom[1]);
-    const ok = (l.guess===ans);
-    l.solved = ok;
-    toast(ok ? "✅ 答對" : "再觀察分布");
+    toast(l.guess===ans ? "✅ 猜對了" : "再觀察分布");
   }
 
   function check21(){
     const l = game.big2.l21, t = l.target;
     const phP = phenotype2(l.player[0], l.player[1]);
-    const ok = (phP.ear===t.ph.ear) && (phP.tail===t.ph.tail);
+    const ok = (phP.ear===t.ph.ear) && (phP.tail===t.ph.tail) && (phP.sparkle===t.ph.sparkle);
     l.solved = ok;
-    toast(ok ? "✅ 答對" : "再試一次");
+    toast(ok ? "✅ 匹配目標外觀" : "還不對");
   }
-
   function hybrid22(){
     const l = game.big2.l22;
     const mH = pick([l.mother.chrom[0], l.mother.chrom[1]]);
     const fH = pick([l.father.chrom[0], l.father.chrom[1]]);
     l.chosen = {mIdx: (mH===l.mother.chrom[0]?1:2), fIdx:(fH===l.father.chrom[0]?1:2), mH, fH};
     l.child = {ph: phenotype2(mH,fH), g: prettyGeno2(mH,fH)};
-    toast("已產生子代");
+    toast(`子代（母${l.chosen.mIdx}/父${l.chosen.fIdx}）`);
   }
-
   function hybrid23(){
     const l = game.big2.l23;
     const m = l.mother.chrom, f = l.fatherHidden.chrom;
@@ -629,34 +633,29 @@
       const fH = pick([f[0],f[1]]);
       babies.push({ph: phenotype2(mH,fH), g: prettyGeno2(mH,fH)});
     }
-    const keyOf = (b)=>`${b.ph.ear}|${b.ph.tail}`;
+    const keyOf = (b)=>`${b.ph.ear}|${b.ph.tail}|${b.ph.sparkle}`;
     const summary = babies.reduce((acc,b)=>(acc[keyOf(b)]=(acc[keyOf(b)]||0)+1,acc),{});
     l.history.push({babies, summary});
     toast(`已生成 20（第 ${l.history.length} 輪）`);
-    l.solved = false;
   }
   function undo23(){
     const l = game.big2.l23;
     if(l.history.length===0){ toast("沒有上一輪"); return; }
-    l.history.pop();
-    toast("已回溯");
-    l.solved = false;
+    l.history.pop(); toast("已回溯");
   }
   function reveal23(){
     const l = game.big2.l23;
     l.revealed = true;
-    toast("已揭曉");
+    const g = prettyGeno2(l.fatherHidden.chrom[0], l.fatherHidden.chrom[1]);
+    toast(`父親：${g.g1}；${g.g2}`);
   }
   function checkGuess23(){
     const l = game.big2.l23;
     const ans = prettyGeno2(l.fatherHidden.chrom[0], l.fatherHidden.chrom[1]);
     const want = `${ans.g1};${ans.g2}`;
-    const ok = (l.guess===want);
-    l.solved = ok;
-    toast(ok ? "✅ 答對" : "再觀察分布");
+    toast(l.guess===want ? "✅ 猜對了" : "再觀察分布");
   }
 
-  // Hit testing
   const hits = [];
   function addHit(x,y,w,h,onClick){ hits.push({x,y,w,h,onClick}); }
   function handleClick(wx,wy){
@@ -666,7 +665,6 @@
     }
   }
 
-  // Drawing utils
   function drawGrid(){
     const step = 140;
     const tl = screenToWorld(0,0);
@@ -718,61 +716,17 @@
     ctx.fillText(text, x+padX, y+h/2);
     ctx.restore();
   }
-  function drawBigCorrect(){
-    // Very large "答對" overlay in world center
-    ctx.save();
-    ctx.globalAlpha = 0.95;
-    const s = worldToScreen(0, -40);
-    const txt = "答對";
-    ctx.font = '900 110px ui-sans-serif, system-ui, -apple-system, "Noto Sans TC"';
-    const w = ctx.measureText(txt).width;
-    const pad = 26;
-    fillRoundedRect(s.x - w/2 - pad, s.y - 90, w + pad*2, 140, 28,
-      'rgba(16,42,22,.88)', '#2f6f36');
-    ctx.fillStyle = '#e9eefc';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(txt, s.x - w/2, s.y - 20);
-    ctx.restore();
-  }
-  function drawQuestionCreature(wx, wy, label){
-    // Neutral blob with big "?"
-    const s = worldToScreen(wx,wy);
-    const R = 120*view.s;
-    ctx.save();
-    ctx.translate(s.x,s.y);
-
-    ctx.globalAlpha = 0.22;
-    ctx.fillStyle = '#000';
-    ctx.beginPath(); ctx.ellipse(0, R*0.82, R*0.78, R*0.22, 0, 0, Math.PI*2); ctx.fill();
-    ctx.globalAlpha = 1;
-
-    ctx.fillStyle = 'rgba(233,238,252,.10)';
-    ctx.beginPath(); ctx.ellipse(0,0, R*0.74, R*0.64, 0, 0, Math.PI*2); ctx.fill();
-    ctx.strokeStyle = 'rgba(233,238,252,.20)';
-    ctx.lineWidth = Math.max(2, R*0.03);
-    ctx.beginPath(); ctx.ellipse(0,0, R*0.74, R*0.64, 0, 0, Math.PI*2); ctx.stroke();
-
-    ctx.fillStyle = 'rgba(233,238,252,.95)';
-    ctx.font = '900 ' + Math.round(R*0.95) + 'px ui-sans-serif, system-ui, -apple-system, "Noto Sans TC"';
-    ctx.textBaseline = 'middle';
-    const q = "？";
-    const qW = ctx.measureText(q).width;
-    ctx.fillText(q, -qW/2, 10);
-
-    ctx.restore();
-    if(label) drawLabel(wx, wy + 210, label, "muted");
-  }
 
   function basePalette(seed){
     if(seed==="mint") return {body:'#7cf3c7', belly:'#e9fdf5', eye:'#0b0f17', blush:'#6fe7ff'};
     return {body:'#ff6b8b', belly:'#ffe4ea', eye:'#0b0f17', blush:'#ffd66f'};
   }
 
-  // Creatures (already 2x)
+  // Creatures enlarged x2: increase internal R and keep external scale at calls
   function drawCreature1(wx, wy, scale, pheno, label, t=0){
     const st = (pheno==="Trait1") ? basePalette("mint") : basePalette("pink");
     const s = worldToScreen(wx,wy);
-    const R = 116*scale*view.s;
+    const R = 116*scale*view.s; // doubled from ~58
 
     ctx.save();
     ctx.translate(s.x,s.y);
@@ -830,13 +784,13 @@
     ctx.globalAlpha = 1;
 
     ctx.restore();
-    if(label) drawLabel(wx, wy + 190*scale, label, "muted");
+    if(label) drawLabel(wx, wy + 190*scale, label, "muted"); // doubled spacing
   }
 
   function drawCreature2(wx, wy, scale, ph, label, t=0){
     const pal = (ph.ear==="floppy") ? basePalette("mint") : basePalette("pink");
     const s = worldToScreen(wx,wy);
-    const R = 120*scale*view.s;
+    const R = 120*scale*view.s; // doubled from ~60
 
     ctx.save();
     ctx.translate(s.x,s.y);
@@ -916,6 +870,23 @@
     ctx.beginPath(); ctx.arc(-R*0.25, -R*0.08, R*0.028, 0, Math.PI*2); ctx.fill();
     ctx.beginPath(); ctx.arc(R*0.19, -R*0.08, R*0.028, 0, Math.PI*2); ctx.fill();
 
+    if(ph.sparkle!=="none"){
+      ctx.save();
+      ctx.translate(0, -R*0.08);
+      ctx.globalAlpha = 0.8;
+      if(ph.sparkle==="star"){
+        ctx.fillStyle = '#fff6b6';
+        star(0,0,R*0.18,R*0.08,5);
+      }else if(ph.sparkle==="heart"){
+        ctx.fillStyle = '#ffd1e0';
+        heart(0,0,R*0.16);
+      }else{
+        ctx.fillStyle = '#d7e6ff';
+        ctx.beginPath(); ctx.arc(0,0,R*0.11,0,Math.PI*2); ctx.fill();
+      }
+      ctx.restore();
+    }
+
     ctx.strokeStyle = 'rgba(11,15,23,.85)';
     ctx.lineWidth = Math.max(2, R*0.03);
     ctx.lineCap = 'round';
@@ -932,6 +903,23 @@
 
     ctx.restore();
     if(label) drawLabel(wx, wy + 196*scale, label, "muted");
+
+    function star(x,y,outer,inner,points){
+      ctx.beginPath();
+      for(let i=0;i<points*2;i++){
+        const ang = i*Math.PI/points - Math.PI/2;
+        const rad = (i%2===0)?outer:inner;
+        ctx.lineTo(x+Math.cos(ang)*rad, y+Math.sin(ang)*rad);
+      }
+      ctx.closePath(); ctx.fill();
+    }
+    function heart(x,y,sz){
+      ctx.beginPath();
+      ctx.moveTo(x, y+sz*0.18);
+      ctx.bezierCurveTo(x-sz*0.60, y-sz*0.25, x-sz*0.35, y-sz*0.85, x, y-sz*0.45);
+      ctx.bezierCurveTo(x+sz*0.35, y-sz*0.85, x+sz*0.60, y-sz*0.25, x, y+sz*0.18);
+      ctx.closePath(); ctx.fill();
+    }
   }
 
   function drawChromosomePanel(wx, wy, title){
@@ -1001,7 +989,6 @@
     if(id==="1-1"){
       const idx = hitId.endsWith("0") ? 0 : 1;
       game.big1.l11.player[idx] = (game.big1.l11.player[idx]==="A") ? "a" : "A";
-      game.big1.l11.solved = false;
       return;
     }
     if(id==="1-2"){
@@ -1019,7 +1006,7 @@
         const idx = hitId.endsWith("0") ? 0 : 1;
         const l = game.big1.l13;
         l.mother.chrom[idx] = (l.mother.chrom[idx]==="A") ? "a" : "A";
-        l.history=[]; l.solved=false;
+        l.history=[];
       }
       return;
     }
@@ -1030,7 +1017,6 @@
       const h = game.big2.l21.player[idx];
       if(locus==="E") h.E = (h.E==="E") ? "e" : "E";
       if(locus==="T") h.T = (h.T==="T") ? "t" : "T";
-      game.big2.l21.solved = false;
       return;
     }
     if(id==="2-2"){
@@ -1053,12 +1039,11 @@
       const h = l.mother.chrom[idx];
       if(locus==="E") h.E = (h.E==="E") ? "e" : "E";
       if(locus==="T") h.T = (h.T==="T") ? "t" : "T";
-      l.history=[]; l.solved=false;
+      l.history=[];
       return;
     }
   }
 
-  // Stage renders
   function render_1_1(t){
     const l = game.big1.l11;
     const playerG = prettyGeno(l.player[0], l.player[1]);
@@ -1067,15 +1052,14 @@
     drawChromosomePanel(-360,-210,"你的染色體");
     drawChromosome1(-430,-195,l.player[0], "p0");
     drawChromosome1(-290,-195,l.player[1], "p1");
+    drawLabel(-360, -130, "你的基因型："+playerG, "muted");
     drawCreature1(-360, 150, 1.0, playerP, "你", t);
 
-    if(l.solved){
-      drawBigCorrect();
-    }else{
-      const target = l.target;
-      drawLabel(360, -210, "目標外觀", "muted");
-      drawCreature1(360, 150, 1.0, target.pheno, "目標", t);
-    }
+    const target = l.target;
+    drawLabel(360, -210, "目標外觀", "muted");
+    drawCreature1(360, 150, 1.0, target.pheno, "目標", t);
+
+    drawLabel(0, -20, `表現：${playerP==="Trait1"?"薄荷":"草莓"}`, l.solved?"good":"muted");
   }
 
   function render_1_2(t){
@@ -1088,17 +1072,19 @@
     drawChromosomePanel(-360,-210,"母親");
     drawChromosome1(-430,-195,l.mother.chrom[0], "m0");
     drawChromosome1(-290,-195,l.mother.chrom[1], "m1");
+    drawLabel(-360, -130, "基因型："+mG, "muted");
     drawCreature1(-360, 150, 1.0, mP, "母", t);
 
     drawChromosomePanel(360,-210,"父親");
     drawChromosome1(290,-195,l.father.chrom[0], "f0");
     drawChromosome1(430,-195,l.father.chrom[1], "f1");
+    drawLabel(360, -130, "基因型："+fG, "muted");
     drawCreature1(360, 150, 1.0, fP, "父", t);
 
     if(l.chosen){
       drawLabel(0, -290, `母配子：${l.chosen.mAllele}　父配子：${l.chosen.fAllele}`, "muted");
       drawCreature1(0, 170, 1.05, l.child.pheno, "子代", t);
-      drawLabel(0, 380, `子代：${l.child.geno}`, "good");
+      drawLabel(0, 380, `子代：${l.child.geno}（${l.child.pheno==="Trait1"?"薄荷":"草莓"}）`, "good");
     }else{
       drawLabel(0, -290, "按下下方『雜合』按鈕產生子代", "warn");
       drawCreature1(0, 170, 1.05, "Trait2", "子代", t);
@@ -1113,20 +1099,15 @@
     drawChromosomePanel(-360,-210,"母親");
     drawChromosome1(-430,-195,l.mother.chrom[0], "m0");
     drawChromosome1(-290,-195,l.mother.chrom[1], "m1");
+    drawLabel(-360, -130, "基因型："+mG, "muted");
     drawCreature1(-360, 150, 1.0, mP, "母", t);
 
     drawLabel(360, -210, "父親（？）", "warn");
-    if(l.revealed){
-      const fG = prettyGeno(l.fatherHidden.chrom[0], l.fatherHidden.chrom[1]);
-      const fP = phenotype1_fromGeno(fG);
-      drawCreature1(360, 150, 1.0, fP, "父", t);
-    }else{
-      drawQuestionCreature(360, 150, "父（未知）");
-    }
-
-    if(l.solved){ drawBigCorrect(); }
+    drawCreature1(360, 150, 1.0, "Trait1",
+      l.revealed ? ("父："+prettyGeno(l.fatherHidden.chrom[0], l.fatherHidden.chrom[1])) : "父（未知）", t);
 
     drawLabel(0,-320, `第 ${l.history.length} 輪`, "muted");
+
     if(l.history.length===0){
       drawLabel(0, -285, "按下下方『雜合 +20』按鈕生成寶寶", "warn");
       return;
@@ -1148,79 +1129,88 @@
         drawLabel(x, y+75, b.geno, "muted");
       }
     }
+
+    drawLabel(0, 430, l.revealed ? "答案已揭曉" : ("你的猜測："+l.guess), l.revealed?"good":"warn");
   }
 
   function render_2_1(t){
     const l = game.big2.l21;
     const phP = phenotype2(l.player[0], l.player[1]);
+    const gP = prettyGeno2(l.player[0], l.player[1]);
 
     drawChromosomePanel(-360,-210,"你的染色體");
     drawChromosome2(-430,-195,l.player[0], "p0");
     drawChromosome2(-290,-195,l.player[1], "p1");
+    drawLabel(-360, -130, `基因型：${gP.g1}；${gP.g2}`, "muted");
     drawCreature2(-360, 150, 1.0, phP, "你", t);
 
-    if(l.solved){
-      drawBigCorrect();
-    }else{
-      const target = l.target;
-      drawLabel(360, -210, "目標外觀", "muted");
-      drawCreature2(360, 150, 1.0, target.ph, "目標", t);
+    const target = l.target;
+    drawLabel(360, -210, "目標外觀", "muted");
+    drawCreature2(360, 150, 1.0, target.ph, "目標", t);
+
+    drawLabel(0,-20, `耳：${phP.ear==="floppy"?"垂":"尖"}　尾：${phP.tail==="curly"?"捲":"直"}　標記：${markName(phP.sparkle)}`, l.solved?"good":"muted");
+
+    function markName(s){
+      if(s==="star") return "★";
+      if(s==="heart") return "♥";
+      if(s==="dot") return "●";
+      return "–";
     }
   }
 
   function render_2_2(t){
     const l = game.big2.l22;
+
     const mPh = phenotype2(l.mother.chrom[0], l.mother.chrom[1]);
     const fPh = phenotype2(l.father.chrom[0], l.father.chrom[1]);
+    const mG = prettyGeno2(l.mother.chrom[0], l.mother.chrom[1]);
+    const fG = prettyGeno2(l.father.chrom[0], l.father.chrom[1]);
 
     drawChromosomePanel(-360,-210,"母親");
     drawChromosome2(-430,-195,l.mother.chrom[0], "m0");
     drawChromosome2(-290,-195,l.mother.chrom[1], "m1");
+    drawLabel(-360, -130, `基因型：${mG.g1}；${mG.g2}`, "muted");
     drawCreature2(-360, 150, 1.0, mPh, "母", t);
 
     drawChromosomePanel(360,-210,"父親");
     drawChromosome2(290,-195,l.father.chrom[0], "f0");
     drawChromosome2(430,-195,l.father.chrom[1], "f1");
+    drawLabel(360, -130, `基因型：${fG.g1}；${fG.g2}`, "muted");
     drawCreature2(360, 150, 1.0, fPh, "父", t);
 
     if(l.chosen){
-      drawLabel(0, -290, `母取第${l.chosen.mIdx}條｜父取第${l.chosen.fIdx}條`, "muted");
+      drawLabel(0, -290, `母取第${l.chosen.mIdx}條（${l.chosen.mH.E}${l.chosen.mH.T}）｜父取第${l.chosen.fIdx}條（${l.chosen.fH.E}${l.chosen.fH.T}）`, "muted");
       drawCreature2(0, 170, 1.05, l.child.ph, "子代", t);
       drawLabel(0, 380, `子代：${l.child.g.g1}；${l.child.g.g2}`, "good");
     }else{
       drawLabel(0, -290, "按下下方『雜合』按鈕產生子代", "warn");
-      drawCreature2(0, 170, 1.05, {ear:"pointy", tail:"straight"}, "子代", t);
+      drawCreature2(0, 170, 1.05, {ear:"pointy", tail:"straight", sparkle:"none"}, "子代", t);
     }
   }
 
   function render_2_3(t){
     const l = game.big2.l23;
     const mPh = phenotype2(l.mother.chrom[0], l.mother.chrom[1]);
+    const mG = prettyGeno2(l.mother.chrom[0], l.mother.chrom[1]);
 
     drawChromosomePanel(-360,-210,"母親");
     drawChromosome2(-430,-195,l.mother.chrom[0], "m0");
     drawChromosome2(-290,-195,l.mother.chrom[1], "m1");
+    drawLabel(-360, -130, `基因型：${mG.g1}；${mG.g2}`, "muted");
     drawCreature2(-360, 150, 1.0, mPh, "母", t);
 
     drawLabel(360, -210, "父親（？）", "warn");
-    if(l.revealed){
-      const fG = prettyGeno2(l.fatherHidden.chrom[0], l.fatherHidden.chrom[1]);
-      const fPh = phenotype2(l.fatherHidden.chrom[0], l.fatherHidden.chrom[1]);
-      drawCreature2(360, 150, 1.0, fPh, "父", t);
-      drawLabel(360, 390, `父：${fG.g1}；${fG.g2}`, "muted");
-    }else{
-      drawQuestionCreature(360, 150, "父（未知）");
-    }
-
-    if(l.solved){ drawBigCorrect(); }
+    drawCreature2(360, 150, 1.0, {ear:"floppy", tail:"curly", sparkle:"star"},
+      l.revealed ? (()=>{const g=prettyGeno2(l.fatherHidden.chrom[0],l.fatherHidden.chrom[1]); return "父："+g.g1+"；"+g.g2;})() : "父（未知）", t);
 
     drawLabel(0,-320, `第 ${l.history.length} 輪`, "muted");
+
     if(l.history.length===0){
       drawLabel(0, -285, "按下下方『雜合 +20』按鈕生成寶寶", "warn");
       return;
     }
     const cur = l.history[l.history.length-1];
-    drawLabel(0, -285, `本輪：${top2(cur.summary)}`, "muted");
+    drawLabel(0, -285, `本輪：${top3(cur.summary)}`, "muted");
 
     const babies = cur.babies;
     const cols = 5, rows = 4;
@@ -1236,22 +1226,24 @@
       }
     }
 
-    function top2(map){
-      const arr = Object.entries(map).sort((a,b)=>b[1]-a[1]).slice(0,2);
+    drawLabel(0, 430, l.revealed ? "答案已揭曉" : ("你的猜測："+l.guess.replace(';','；')), l.revealed?"good":"warn");
+
+    function top3(map){
+      const arr = Object.entries(map).sort((a,b)=>b[1]-a[1]).slice(0,3);
       return arr.map(([k,v])=>`${shortKey(k)}=${v}`).join("  ");
     }
     function shortKey(k){
-      const [e,t] = k.split("|");
-      return (e==="floppy"?"垂":"尖") + (t==="curly"?"捲":"直");
+      const [e,t,m] = k.split("|");
+      return (e==="floppy"?"垂":"尖") + (t==="curly"?"捲":"直") + (m==="star"?"★":m==="heart"?"♥":m==="dot"?"●":"–");
     }
     function shortPh(ph){
       const e = (ph.ear==="floppy")?"垂":"尖";
       const ta = (ph.tail==="curly")?"捲":"直";
-      return `${e}${ta}`;
+      const m = ph.sparkle==="star"?"★":ph.sparkle==="heart"?"♥":ph.sparkle==="dot"?"●":"–";
+      return `${e}${ta}${m}`;
     }
   }
 
-  // Animation loop
   let last = performance.now();
   let timeAcc = 0;
   function tick(now){
@@ -1280,7 +1272,7 @@
     ctx.globalAlpha = 0.75;
     ctx.fillStyle = '#a8b3d6';
     ctx.font = '12px ui-sans-serif, system-ui, -apple-system, "Noto Sans TC"';
-    ctx.fillText('v0.14', 14, H-14);
+    ctx.fillText('v0.13', 14, H-14);
     ctx.restore();
 
     requestAnimationFrame(tick);
