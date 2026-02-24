@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>可愛演化生存模擬器 v0.4（兩階段＋突變卡下方同列＋族群折線圖）</title>
+  <title>演化生存之道</title>
   <style>
     :root{ color-scheme: dark; }
     body{
@@ -22,18 +22,11 @@
       background:#0f1722; border:1px solid #1f2a36; border-radius:14px;
       padding:12px; box-shadow: 0 6px 20px rgba(0,0,0,.25);
     }
-
     .hidden{ display:none !important; }
 
     /* stage 1 setup */
-    .setupWrap{
-      display:grid;
-      grid-template-columns: 1fr;
-      gap:12px;
-    }
-    .setupTop{
-      display:flex; gap:10px; align-items:center; flex-wrap:wrap; justify-content:space-between;
-    }
+    .setupWrap{ display:grid; grid-template-columns: 1fr; gap:12px; }
+    .setupTop{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; justify-content:space-between; }
     .btn{
       background:#1a2634; border:1px solid #2a3a4c; color:#e8eef7;
       padding:10px 12px; border-radius:12px; cursor:pointer; font-weight:900;
@@ -89,11 +82,7 @@
     }
 
     /* stage 2 game */
-    .gameWrap{
-      display:grid;
-      grid-template-columns: 1fr;
-      gap:12px;
-    }
+    .gameWrap{ display:grid; grid-template-columns: 1fr; gap:12px; position:relative; }
     canvas#view{
       width:100%;
       height:560px;
@@ -105,15 +94,12 @@
     @media (max-width: 980px){
       canvas#view{ height:520px; }
     }
+    .row{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
 
-    .row{
-      display:flex; gap:10px; flex-wrap:wrap; align-items:center;
-    }
-
-    /* mutation row: 3 cards in same row */
+    /* 4 mutation cards in one row */
     .mutRow{
       display:grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-template-columns: repeat(4, minmax(0, 1fr));
       gap:10px;
     }
     @media (max-width: 980px){
@@ -126,11 +112,16 @@
       padding:10px;
       cursor:pointer;
       transition: transform .12s ease, filter .12s ease;
-      min-height: 86px;
+      min-height: 92px;
+      text-align:center;              /* ✅ 卡片文字置中 */
+      display:flex;                   /* ✅ 更穩定置中 */
+      flex-direction:column;
+      justify-content:center;
+      align-items:center;
     }
     .mcard:hover{ transform: translateY(-1px); filter:brightness(1.06); }
     .mcard.selected{ outline:2px solid rgba(120,200,255,.75); }
-    .mcard .t{ font-weight:900; font-size:13px; }
+    .mcard .t{ font-weight:1000; font-size:13px; }
     .mcard .d{ font-size:12px; opacity:.82; margin-top:6px; line-height:1.35; }
     .mcard .tag{
       display:inline-flex; margin-top:8px;
@@ -150,7 +141,6 @@
     @media (max-width: 980px){
       .bottomGrid{ grid-template-columns: 1fr; }
     }
-
     .panel{
       border:1px solid #1f2a36;
       background:#0b111a;
@@ -158,7 +148,8 @@
       padding:10px;
     }
 
-    .grid4{
+    /* ✅ 下方只保留 代數/族群（同列帶突變次數） */
+    .grid2{
       display:grid;
       grid-template-columns: 1fr 1fr;
       gap:8px;
@@ -189,7 +180,6 @@
       border:1px solid #1f2a36;
       background:#0f1722;
     }
-
     .log{
       max-height: 190px;
       overflow:auto;
@@ -210,19 +200,116 @@
       border-radius:14px;
       background:#0f1722;
     }
+
+    /* FAIL overlay + grayscale fade */
+    .gameDead{
+      filter: grayscale(1) brightness(0.8);
+      opacity: 0.35;
+      transition: filter 900ms ease, opacity 1200ms ease;
+    }
+    .failOverlay{
+      position:absolute;
+      left:0; right:0;
+      top:0;
+      height: 560px;
+      pointer-events:none;
+      display:flex;
+      align-items:flex-start;
+      justify-content:center;
+      overflow:hidden;
+      z-index: 20;
+    }
+    @media (max-width: 980px){
+      .failOverlay{ height:520px; }
+    }
+    .failText{
+      margin-top:-180px;
+      font-weight: 1000;
+      letter-spacing: 6px;
+      font-size: clamp(64px, 10vw, 120px);
+      color: rgba(255,255,255,0.92);
+      text-shadow: 0 12px 40px rgba(0,0,0,0.65);
+      transform: rotate(-6deg);
+      animation: drop 780ms cubic-bezier(.2,.9,.18,1.05) forwards;
+    }
+    @keyframes drop{
+      0%{ transform: translateY(-260px) rotate(-8deg); opacity:0; }
+      65%{ transform: translateY(120px) rotate(-6deg); opacity:1; }
+      82%{ transform: translateY(95px) rotate(-6deg); }
+      100%{ transform: translateY(110px) rotate(-6deg); }
+    }
+    .failDim{
+      position:absolute; inset:0;
+      background: linear-gradient(to bottom, rgba(0,0,0,0.55), rgba(0,0,0,0.15));
+      opacity: 0;
+      transition: opacity 650ms ease;
+    }
+    .failOn .failDim{ opacity: 1; }
+
+    /* ✅ 右上浮動：場景＋事件（最大顯示） */
+    .hudTopRight{
+      position:absolute;
+      right: 14px;
+      top: 14px;
+      z-index: 15;
+      pointer-events:none;
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+      align-items:flex-end;
+    }
+    .hudBox{
+      background: rgba(10,16,24,0.65);
+      border: 1px solid rgba(40,60,80,0.65);
+      backdrop-filter: blur(6px);
+      border-radius: 16px;
+      padding: 10px 12px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+      text-align:right;
+      min-width: 230px;
+    }
+    .hudBig{
+      display:flex;
+      align-items:center;
+      justify-content:flex-end;
+      gap:10px;
+    }
+    .hudIcon{
+      font-size: 36px;   /* ✅ 最大顯示 */
+      line-height: 1;
+      filter: drop-shadow(0 6px 14px rgba(0,0,0,0.4));
+    }
+    .hudTitle{
+      font-size: 12px;
+      opacity: .72;
+      font-weight: 900;
+      letter-spacing: .5px;
+      margin-bottom: 4px;
+    }
+    .hudName{
+      font-size: 22px;   /* ✅ 最大顯示 */
+      font-weight: 1000;
+      letter-spacing: 1px;
+      line-height: 1.1;
+    }
+    .hudDesc{
+      font-size: 12px;
+      opacity: .72;
+      margin-top: 6px;
+      max-width: 340px;
+    }
   </style>
 </head>
 
 <body>
 <header>
-  <h1>可愛演化生存模擬器 v0.4</h1>
-  <div class="sub">兩階段（先設定 → 再遊戲）｜突變卡下方同列｜代數×族群折線圖｜資訊全部在下方不遮擋</div>
+  <h1>演化生存之道</h1>
+  <div class="sub">右上浮動事件/場景｜4突變卡含「不突變」｜突變次數｜上限1600｜災難更痛</div>
 </header>
 
 <div class="page">
   <div class="card">
-
-    <!-- STAGE 1: SETUP -->
+    <!-- STAGE 1 -->
     <section id="setupStage" class="setupWrap">
       <div class="setupTop">
         <div class="row">
@@ -233,17 +320,38 @@
           <button class="btn primary" id="btnEnter">進入遊戲</button>
         </div>
       </div>
-
       <div class="settings" id="settings"></div>
-
-      <div class="tiny">
-        小提醒：想要更容易看到「自然選擇」的差異，可以把 <b>嚴苛</b> 或 <b>事件</b> 設成 3。
-      </div>
+      <div class="tiny">提示：你想要災難更痛，就把「嚴苛」或「事件」調到 3（已加重事件損傷）。</div>
     </section>
 
-    <!-- STAGE 2: GAME -->
+    <!-- STAGE 2 -->
     <section id="gameStage" class="gameWrap hidden">
       <canvas id="view" width="1400" height="900"></canvas>
+
+      <!-- ✅ right-top floating HUD -->
+      <div class="hudTopRight" id="hud">
+        <div class="hudBox">
+          <div class="hudTitle">場景</div>
+          <div class="hudBig">
+            <div class="hudName" id="hudSceneName">—</div>
+            <div class="hudIcon" id="hudSceneIcon">🗺️</div>
+          </div>
+        </div>
+        <div class="hudBox">
+          <div class="hudTitle">事件</div>
+          <div class="hudBig">
+            <div class="hudName" id="hudEventName">—</div>
+            <div class="hudIcon" id="hudEventIcon">🎲</div>
+          </div>
+          <div class="hudDesc" id="hudEventDesc">—</div>
+        </div>
+      </div>
+
+      <!-- fail overlay -->
+      <div id="failOverlay" class="failOverlay hidden">
+        <div class="failDim"></div>
+        <div class="failText">失敗</div>
+      </div>
 
       <div class="row">
         <button class="btn" id="btnBack">返回設定</button>
@@ -251,7 +359,7 @@
         <button class="btn" id="btnNext" disabled>下一代</button>
         <button class="btn" id="btnAuto" disabled>自動</button>
         <button class="btn danger" id="btnStop" disabled>停止</button>
-        <span class="pill">🃏 每代先選 1 張突變卡</span>
+        <span class="pill">🃏 每代先選 1 張卡</span>
       </div>
 
       <div>
@@ -260,13 +368,14 @@
       </div>
 
       <div class="bottomGrid">
-        <!-- Info / Log -->
         <div class="panel">
-          <div class="grid4">
-            <div class="ic"><span><span class="emo" id="sceneIcon">🗺️</span> 場景</span><b id="sceneName">—</b></div>
-            <div class="ic"><span><span class="emo" id="eventIcon">🎲</span> 事件</span><b id="eventName">—</b></div>
+          <div class="grid2">
             <div class="ic"><span><span class="emo">🧬</span> 代數</span><b id="gen">0</b></div>
-            <div class="ic"><span><span class="emo">👥</span> 族群</span><b id="pop">0</b></div>
+            <!-- ✅ 族群後面同列顯示突變次數 -->
+            <div class="ic">
+              <span><span class="emo">👥</span> 族群</span>
+              <b class="mono"><span id="pop">0</span>　｜　突變 <span id="mutUsed">0</span></b>
+            </div>
           </div>
 
           <div class="meta">
@@ -282,28 +391,25 @@
 
           <div class="log" id="log"></div>
           <div class="tiny" style="margin-top:8px;">
-            流程：建立族群 →（選突變卡）→ 下一代 / 自動。<br>
-            若你要「更像教學模式」，我也可以加上：每代淘汰原因排名（例如「毛量太低」）。
+            族群 ≤ 1 視為絕種（顯示「失敗」＋灰階淡出）。<br>
+            「突變」次數：只計算你選到會改變性狀的卡（不突變不算）。
           </div>
         </div>
 
-        <!-- Chart -->
         <div class="panel">
           <div class="tiny" style="margin:0 0 8px 0;"><b>族群折線圖（X=代數，Y=族群）</b></div>
           <canvas id="chart" width="800" height="400"></canvas>
           <div class="tiny" style="margin-top:8px;">
-            代數越往右，族群越高代表「這組突變在當下事件/場景更吃香」。
+            災難更痛時，折線會更有「暴跌」感；選對突變才拉得回來。
           </div>
         </div>
       </div>
     </section>
-
   </div>
 </div>
 
 <script>
 (() => {
-  // helpers
   const qs = s => document.querySelector(s);
   const clamp = (x,a,b)=>Math.max(a,Math.min(b,x));
   const lerp = (a,b,t)=>a+(b-a)*t;
@@ -319,7 +425,6 @@
     return Math.exp(-0.5*z*z);
   }
 
-  // UI refs
   const ui = {
     setupStage: qs("#setupStage"),
     gameStage: qs("#gameStage"),
@@ -327,7 +432,6 @@
 
     btnEnter: qs("#btnEnter"),
     btnBack: qs("#btnBack"),
-
     btnStart: qs("#btnStart"),
     btnNext: qs("#btnNext"),
     btnAuto: qs("#btnAuto"),
@@ -336,31 +440,37 @@
     mutCards: qs("#mutCards"),
     log: qs("#log"),
 
-    sceneIcon: qs("#sceneIcon"),
-    eventIcon: qs("#eventIcon"),
-    sceneName: qs("#sceneName"),
-    eventName: qs("#eventName"),
     gen: qs("#gen"),
     pop: qs("#pop"),
+    mutUsed: qs("#mutUsed"),
     avgTraits: qs("#avgTraits"),
     surviveRate: qs("#surviveRate"),
 
     canvas: qs("#view"),
     chart: qs("#chart"),
+
+    failOverlay: qs("#failOverlay"),
+
+    // HUD
+    hudSceneName: qs("#hudSceneName"),
+    hudSceneIcon: qs("#hudSceneIcon"),
+    hudEventName: qs("#hudEventName"),
+    hudEventIcon: qs("#hudEventIcon"),
+    hudEventDesc: qs("#hudEventDesc"),
   };
 
-  // 3-level settings (8)
+  // setup (keep your pop higher)
   const SETUP = [
     { key:"fur",   label:"毛量", levels:[25, 55, 85], icon:"🧥" },
     { key:"size",  label:"體型", levels:[30, 55, 80], icon:"🍔" },
     { key:"speed", label:"速度", levels:[30, 55, 85], icon:"🏃" },
     { key:"camo",  label:"偽裝", levels:[25, 55, 85], icon:"🎭" },
-    { key:"popN",  label:"族群", levels:[50, 80, 120], icon:"👥" },
+    { key:"popN",  label:"族群", levels:[140, 220, 320], icon:"👥" },   // 小幅再上修起始
     { key:"mut",   label:"突變", levels:[6, 10, 15], icon:"🧬" },
-    { key:"harsh", label:"嚴苛", levels:[0.50, 0.65, 0.80], icon:"⚠️" },
-    { key:"evPow", label:"事件", levels:[0.55, 0.70, 0.85], icon:"🎲" },
+    { key:"harsh", label:"嚴苛", levels:[0.25, 0.35, 0.45], icon:"⚠️" },
+    { key:"evPow", label:"事件", levels:[0.60, 0.78, 0.92], icon:"🎲" }, // ✅ 事件更有破壞性
   ];
-  const settingLevel = Object.fromEntries(SETUP.map(s => [s.key, 2])); // default 2
+  const settingLevel = Object.fromEntries(SETUP.map(s => [s.key, 2]));
 
   function renderSettings(){
     ui.settings.innerHTML="";
@@ -404,7 +514,6 @@
     return s.levels[lv-1];
   }
 
-  // scenes
   const SCENES = [
     { key:"ice",    name:"冰原", icon:"❄️", base:[140,190,230], accent:[220,240,255] },
     { key:"plains", name:"草原", icon:"🌾", base:[160,190,120], accent:[235,220,170] },
@@ -413,66 +522,63 @@
   ];
   function rgb(a, alpha=1){ return `rgba(${a[0]},${a[1]},${a[2]},${alpha})`; }
 
-  // events
   const EVENTS = [
     { key:"blizzard", name:"暴風雪", icon:"🌨️", sceneBias:["ice"],
-      desc:"很冷：毛量高更容易活。",
-      score(ind){ return gauss(ind.fur, 85, 20); }
-    },
+      desc:"很冷：毛量高更容易活。", score(ind){ return gauss(ind.fur, 85, 20); } },
     { key:"heatwave", name:"熱浪", icon:"🥵", sceneBias:["desert","plains"],
-      desc:"很熱：毛量太高吃虧。",
-      score(ind){ return gauss(ind.fur, 20, 22); }
-    },
+      desc:"很熱：毛量太高吃虧。", score(ind){ return gauss(ind.fur, 20, 22); } },
     { key:"drought", name:"乾旱", icon:"🌵", sceneBias:["desert","plains"],
-      desc:"缺水：體型小～中較省資源。",
-      score(ind){ return gauss(ind.size, 35, 20); }
-    },
+      desc:"缺水：體型小～中較省資源。", score(ind){ return gauss(ind.size, 35, 20); } },
     { key:"flood", name:"洪水", icon:"🌊", sceneBias:["forest","plains"],
       desc:"水淹：速度快較能逃、體型太大不利。",
-      score(ind){ return 0.55*gauss(ind.speed, 75, 20) + 0.45*gauss(ind.size, 35, 25); }
-    },
+      score(ind){ return 0.55*gauss(ind.speed, 75, 20) + 0.45*gauss(ind.size, 35, 25); } },
     { key:"predator", name:"掠食者", icon:"🦊", sceneBias:["forest","plains"],
       desc:"天敵：速度快＋偽裝高更安全。",
-      score(ind){ return 0.52*gauss(ind.speed, 80, 20) + 0.48*gauss(ind.camo, 80, 20); }
-    },
+      score(ind){ return 0.52*gauss(ind.speed, 80, 20) + 0.48*gauss(ind.camo, 80, 20); } },
     { key:"boom", name:"豐收", icon:"✨", sceneBias:["plains","forest"],
-      desc:"資源多：族群更容易成長。",
-      score(ind){ return 0.6*gauss(ind.size, 75, 24) + 0.4*gauss(ind.speed, 65, 28); }
-    },
+      desc:"資源多：族群更容易成長。", score(ind){ return 0.6*gauss(ind.size, 75, 24) + 0.4*gauss(ind.speed, 65, 28); } },
   ];
   function pickEventForScene(sc){
     const prefer = EVENTS.filter(e=>e.sceneBias.includes(sc.key));
     const pool = (prefer.length && Math.random()<0.65) ? prefer : EVENTS;
-    return pool[rndi(0,pool.length-1)];
+    return pool[Math.floor(Math.random()*pool.length)];
   }
   function maybeShiftScene(sc){
     if(Math.random()>0.38) return sc;
-    const map = {
-      ice:["plains","forest"],
-      plains:["forest","desert","ice"],
-      forest:["plains","ice"],
-      desert:["plains"]
-    };
+    const map = { ice:["plains","forest"], plains:["forest","desert","ice"], forest:["plains","ice"], desert:["plains"] };
     const choices = map[sc.key].map(k=>SCENES.find(s=>s.key===k)).filter(Boolean);
-    return choices.length ? choices[rndi(0,choices.length-1)] : sc;
+    return choices.length ? choices[Math.floor(Math.random()*choices.length)] : sc;
   }
 
-  // mutation cards
+  // ✅ 4 cards + add "不突變"
   const MUT_CARDS = [
-    { title:"🧥 毛毛變厚", delta:{fur:+14}, tag:"抗寒↑ 熱浪↓", desc:"毛量上升：冰原更穩，但遇熱浪更痛。" },
-    { title:"🪶 毛毛變薄", delta:{fur:-14}, tag:"抗熱↑ 寒冬↓", desc:"毛量下降：熱浪更穩，但暴風雪更痛。" },
-    { title:"🍔 體型變大", delta:{size:+14}, tag:"抗餓↑ 乾旱↓", desc:"更能撐餓，但乾旱成本高。" },
-    { title:"🥦 體型變小", delta:{size:-14}, tag:"乾旱↑ 抗餓↓", desc:"更省資源，但連災害更脆。" },
-    { title:"🏃 速度提升", delta:{speed:+14}, tag:"逃跑↑ 洪水↑", desc:"天敵/洪水更安全，但耗能。" },
-    { title:"🐢 速度下降", delta:{speed:-14}, tag:"省能↑ 逃跑↓", desc:"比較省能，但天敵很危險。" },
-    { title:"🎭 偽裝更強", delta:{camo:+14}, tag:"隱蔽↑", desc:"更不容易被看見（含天敵）。" },
-    { title:"✨ 偽裝變弱", delta:{camo:-14}, tag:"顯眼↑", desc:"更容易被看見。" },
-    { title:"🧬 平衡調整", delta:{fur:+6,size:+6,speed:+6,camo:+6}, tag:"全面小幅↑", desc:"穩健但不極端。" },
-    { title:"🎲 風險突變", delta:{random:true}, tag:"可能大好/大壞", desc:"隨機大幅變動兩個性狀。" },
+    { id:"thick", title:"🧥 毛毛變厚", delta:{fur:+14}, tag:"抗寒↑ 熱浪↓", desc:"毛量上升：冰原更穩，但遇熱浪更痛。" },
+    { id:"thin",  title:"🪶 毛毛變薄", delta:{fur:-14}, tag:"抗熱↑ 寒冬↓", desc:"毛量下降：熱浪更穩，但暴風雪更痛。" },
+    { id:"big",   title:"🍔 體型變大", delta:{size:+14}, tag:"抗餓↑ 乾旱↓", desc:"更能撐餓，但乾旱成本高。" },
+    { id:"small", title:"🥦 體型變小", delta:{size:-14}, tag:"乾旱↑ 抗餓↓", desc:"更省資源，但連災害更脆。" },
+    { id:"fast",  title:"🏃 速度提升", delta:{speed:+14}, tag:"逃跑↑ 洪水↑", desc:"天敵/洪水更安全，但耗能。" },
+    { id:"slow",  title:"🐢 速度下降", delta:{speed:-14}, tag:"省能↑ 逃跑↓", desc:"比較省能，但天敵很危險。" },
+    { id:"camo+", title:"🎭 偽裝更強", delta:{camo:+14}, tag:"隱蔽↑", desc:"更不容易被看見（含天敵）。" },
+    { id:"camo-", title:"✨ 偽裝變弱", delta:{camo:-14}, tag:"顯眼↑", desc:"更容易被看見。" },
+    { id:"bal",   title:"🧬 平衡調整", delta:{fur:+6,size:+6,speed:+6,camo:+6}, tag:"全面小幅↑", desc:"穩健但不極端。" },
+    { id:"risk",  title:"🎲 風險突變", delta:{random:true}, tag:"可能大好/大壞", desc:"隨機大幅變動兩個性狀。" },
+
+    // ✅ new
+    { id:"none",  title:"⏸️ 不突變", delta:{none:true}, tag:"保持穩定", desc:"這一代不做任何突變（不計入突變次數）。" },
   ];
-  function pick3Cards(){
-    const pool=[...MUT_CARDS], out=[];
-    for(let i=0;i<3;i++) out.push(pool.splice(rndi(0,pool.length-1),1)[0]);
+  function pick4Cards(){
+    // 保證一定會有「不突變」+ 另外三張隨機
+    const pool = MUT_CARDS.filter(c=>c.id!=="none");
+    const out = [];
+    for(let i=0;i<3;i++){
+      out.push(pool.splice(Math.floor(Math.random()*pool.length),1)[0]);
+    }
+    out.push(MUT_CARDS.find(c=>c.id==="none"));
+    // shuffle 4
+    for(let i=out.length-1;i>0;i--){
+      const j=Math.floor(Math.random()*(i+1));
+      [out[i],out[j]]=[out[j],out[i]];
+    }
     return out;
   }
 
@@ -481,56 +587,48 @@
   let population=[];
   let lastSurvive=null;
   let autoTimer=null;
-
   let scene = SCENES[1];
   let event = EVENTS[0];
-
   let currentCards=[];
   let selectedCardIndex=null;
 
-  // chart data
-  let popHistory = []; // [{gen, pop}]
-  function resetHistory(){
-    popHistory = [{gen:0, pop:0}];
-    drawChart();
-  }
+  // ✅ mutation counter
+  let mutationUsedCount = 0;
+
+  // chart history
+  let popHistory = [];
+  function resetHistory(){ popHistory = [{gen:0, pop:0}]; drawChart(); }
   function pushHistory(){
     popHistory.push({gen:generation, pop:population.length});
-    if(popHistory.length>200) popHistory.shift();
+    if(popHistory.length>220) popHistory.shift();
     drawChart();
   }
 
-  // fx & per-creature emotes
   const fx = { snow: [], predatorSweep:0, heat:0, flood:0, boom:0 };
 
   function makeInd(fur,size,speed,camo){
-    return {
-      fur,size,speed,camo,
-      phase:rnd(10), seed:rnd(9999),
-      scared:0, sweat:0, star:0, float:0,
-      runDx:0
-    };
+    return { fur,size,speed,camo, phase:rnd(10), seed:rnd(9999),
+      scared:0, sweat:0, star:0, float:0, runDx:0 };
   }
 
-  // UI actions: stage switch
+  // stage switching
   ui.btnEnter.addEventListener("click", ()=>{
     ui.setupStage.classList.add("hidden");
     ui.gameStage.classList.remove("hidden");
   });
   ui.btnBack.addEventListener("click", ()=>{
     stopAuto();
+    clearFail();
     ui.gameStage.classList.add("hidden");
     ui.setupStage.classList.remove("hidden");
   });
 
-  // log
   function log(html){
     const div=document.createElement("div");
     div.className="e";
     div.innerHTML=html;
     ui.log.prepend(div);
   }
-
   function calcAvg(arr){
     if(arr.length===0) return {fur:0,size:0,speed:0,camo:0};
     let fur=0,size=0,speed=0,camo=0;
@@ -539,28 +637,57 @@
     return {fur:fur/n,size:size/n,speed:speed/n,camo:camo/n};
   }
 
+  function syncHUD(){
+    ui.hudSceneName.textContent = scene?.name ?? "—";
+    ui.hudSceneIcon.textContent = scene?.icon ?? "🗺️";
+    ui.hudEventName.textContent = event?.name ?? "—";
+    ui.hudEventIcon.textContent = event?.icon ?? "🎲";
+    ui.hudEventDesc.textContent = event?.desc ?? "—";
+  }
+
   function syncUI(){
     ui.gen.textContent = generation;
     ui.pop.textContent = population.length;
-
-    ui.sceneName.textContent = scene ? scene.name : "—";
-    ui.eventName.textContent = event ? event.name : "—";
-    ui.sceneIcon.textContent = scene ? scene.icon : "🗺️";
-    ui.eventIcon.textContent = event ? event.icon : "🎲";
+    ui.mutUsed.textContent = mutationUsedCount;
 
     const avg = calcAvg(population);
     ui.avgTraits.textContent = `毛 ${fmt(avg.fur)}｜體 ${fmt(avg.size)}｜速 ${fmt(avg.speed)}｜偽 ${fmt(avg.camo)}`;
     ui.surviveRate.textContent = (lastSurvive==null) ? "—" : `${Math.round(lastSurvive*100)}%`;
 
-    const alive = population.length>0;
+    const alive = population.length>1; // ≤1 絕種
     ui.btnNext.disabled = !alive || !!autoTimer;
     ui.btnAuto.disabled = !alive || !!autoTimer;
     ui.btnStop.disabled = !autoTimer;
+
+    syncHUD();
+  }
+
+  // FAIL handling
+  function showFail(){
+    stopAuto();
+    ui.gameStage.classList.add("gameDead");
+    ui.failOverlay.classList.remove("hidden");
+    ui.failOverlay.classList.add("failOn");
+    ui.btnNext.disabled = true;
+    ui.btnAuto.disabled = true;
+  }
+  function clearFail(){
+    ui.gameStage.classList.remove("gameDead");
+    ui.failOverlay.classList.add("hidden");
+    ui.failOverlay.classList.remove("failOn");
+  }
+  function checkExtinct(){
+    if(population.length <= 1){
+      log(`💀 族群剩 <b>${population.length}</b>（≤1 視為絕種）`);
+      showFail();
+      return true;
+    }
+    return false;
   }
 
   // cards
   function nextCards(){
-    currentCards = pick3Cards();
+    currentCards = pick4Cards();
     selectedCardIndex = null;
     renderCards();
   }
@@ -581,10 +708,12 @@
 
   // start / step
   function startNew(){
+    clearFail();
     generation=0;
     population=[];
     lastSurvive=null;
     ui.log.innerHTML="";
+    mutationUsedCount = 0;
 
     scene = SCENES[rndi(0,SCENES.length-1)];
     event = pickEventForScene(scene);
@@ -597,7 +726,7 @@
       camo: getSettingValue("camo"),
     };
     const mut = getSettingValue("mut");
-    const spread = Math.max(2, Math.round(mut*0.55));
+    const spread = Math.max(2, Math.round(mut*0.50));
 
     for(let i=0;i<n;i++){
       population.push(makeInd(
@@ -609,24 +738,27 @@
     }
 
     nextCards();
-    syncUI();
     resetHistory();
     popHistory[0].pop = population.length;
     drawChart();
 
-    log(`✅ 建立族群：<b>${n}</b> 隻。請先選 1 張突變卡，再按「下一代」。`);
-    ui.btnNext.disabled=false;
-    ui.btnAuto.disabled=false;
+    log(`✅ 建立族群：<b>${n}</b> 隻。請先選 1 張卡，再按「下一代」。`);
+    syncUI();
   }
 
   function step(){
-    if(population.length===0) return;
+    if(population.length<=1) { checkExtinct(); return; }
     if(selectedCardIndex===null){
-      log(`🃏 你還沒選突變卡。先選 1 張再進入下一代。`);
+      log(`🃏 你還沒選卡。先選 1 張再進入下一代。`);
       return;
     }
 
     const chosen = currentCards[selectedCardIndex];
+
+    // ✅ 計數：只有不是「不突變」才算突變
+    const didMutate = !(chosen?.delta?.none === true);
+    if(didMutate) mutationUsedCount++;
+
     const mutStrength = getSettingValue("mut");
     const harsh = getSettingValue("harsh");
     const evPow = getSettingValue("evPow");
@@ -634,31 +766,44 @@
     scene = maybeShiftScene(scene);
     event = pickEventForScene(scene);
 
+    // ✅ 災難損傷增加：事件效應更兇、低適應更慘
     const scores = population.map(ind => {
       const affinity = clamp(event.score(ind), 0, 1);
-      const pressure = lerp(0.50, 1.0, affinity);
-      const evEffect = lerp(1.0-0.58*evPow, 1.0, pressure);
-      const camoEffect = lerp(0.78, 1.06, ind.camo/100);
-      const speedCost = lerp(1.02, 0.92, ind.speed/100);
-      const luck = lerp(0.92, 1.08, Math.random());
+
+      // 把低適應區壓得更低：0.35~1.0
+      const pressure = lerp(0.35, 1.0, affinity);
+
+      // 事件強度加大（最低更低）
+      const evEffect = lerp(1.0 - 0.78*evPow, 1.0, pressure);
+
+      // 偽裝/速度的修正更保守（讓事件主導）
+      const camoEffect = lerp(0.86, 1.04, ind.camo/100);
+      const speedCost  = lerp(1.02, 0.92, ind.speed/100);
+
+      const luck = lerp(0.92, 1.06, Math.random());
       return clamp(evEffect*camoEffect*speedCost*luck, 0, 2);
     });
 
-    const surviveFrac = clamp(1.0 - harsh, 0.12, 0.78);
-    const targetSurvivors = Math.max(1, Math.floor(population.length * surviveFrac));
+    // 存活率：仍保留每代至少 2 隻避免「卡住」，
+    // 但 lower bound 拉低，讓災難真的痛（尤其 harsh=3 時）
+    const surviveFrac = clamp(1.0 - harsh, 0.22, 0.86);
+    let targetSurvivors = Math.floor(population.length * surviveFrac);
+    targetSurvivors = Math.max(2, targetSurvivors);
+
     const order = scores.map((s,i)=>({s,i})).sort((a,b)=>b.s-a.s);
-    const survivors = order.slice(0,targetSurvivors).map(o=>population[o.i]);
+    const survivors = order.slice(0, Math.min(targetSurvivors, population.length)).map(o=>population[o.i]);
     lastSurvive = survivors.length / population.length;
 
-    let growth = 1.7;
-    if(event.key==="boom") growth = 2.2;
-    if(event.key==="drought") growth = 1.25;
-    if(event.key==="blizzard") growth = 1.35;
-    if(event.key==="heatwave") growth = 1.35;
-    if(event.key==="predator") growth = 1.45;
-    if(event.key==="flood") growth = 1.35;
+    // 成長：提高上限但災難時成長較保守（更容易形成暴跌）
+    let growth = 1.85;
+    if(event.key==="boom") growth = 2.85;
+    if(event.key==="drought") growth = 1.35;
+    if(event.key==="blizzard") growth = 1.45;
+    if(event.key==="heatwave") growth = 1.45;
+    if(event.key==="predator") growth = 1.55;
+    if(event.key==="flood") growth = 1.45;
 
-    const nextN = clamp(Math.round(survivors.length * growth), 0, 260);
+    const nextN = clamp(Math.round(survivors.length * growth), 0, 1600); // ✅ 上限 1600
 
     generation++;
     population = reproduce(survivors, nextN, mutStrength, chosen);
@@ -671,14 +816,13 @@
 
     log(
       `第 <b>${generation}</b> 代｜${scene.icon} <b>${scene.name}</b>｜${event.icon} <b>${event.name}</b><br>`+
-      `存活率：<span class="mono">${Math.round(lastSurvive*100)}%</span> → 族群：<span class="mono">${population.length}</span><br>`+
-      `<span style="opacity:.82">${event.desc}</span>｜你選：<b>${chosen.title}</b>`
+      `存活率：<span class="mono">${Math.round(lastSurvive*100)}%</span> → 族群：<span class="mono">${population.length}</span>`+
+      `　｜　突變次數：<span class="mono">${mutationUsedCount}</span><br>`+
+      `<span style="opacity:.82">${event.desc}</span>｜你選：<b>${chosen.title}</b>`+
+      `${didMutate ? "" : "（不突變）"}`
     );
 
-    if(population.length===0){
-      log(`💀 族群滅絕。建議：把「嚴苛」或「事件」調低一級。`);
-      stopAuto(true);
-    }
+    checkExtinct();
   }
 
   function reproduce(parents, n, mutStrength, chosen){
@@ -690,7 +834,9 @@
       let fur=(a.fur+b.fur)/2, size=(a.size+b.size)/2, speed=(a.speed+b.speed)/2, camo=(a.camo+b.camo)/2;
 
       const d=chosen.delta||{};
-      if(d.random){
+      if(d.none){
+        // 不突變：不加任何突變卡效果
+      } else if(d.random){
         const traits=["fur","size","speed","camo"];
         for(let k=0;k<2;k++){
           const t=traits.splice(rndi(0,traits.length-1),1)[0];
@@ -700,29 +846,32 @@
           if(t==="speed") speed+=bump;
           if(t==="camo") camo+=bump;
         }
-      }else{
+      } else {
         fur += (d.fur||0);
         size += (d.size||0);
         speed += (d.speed||0);
         camo += (d.camo||0);
       }
 
+      // 自發突變（仍保留，讓演化有變異）
       fur += randn()*mutStrength;
       size += randn()*mutStrength;
       speed += randn()*mutStrength;
       camo += randn()*mutStrength;
 
-      kids.push(makeInd(
-        clamp(fur,0,100),
-        clamp(size,0,100),
-        clamp(speed,0,100),
-        clamp(camo,0,100)
-      ));
+      kids.push({
+        fur: clamp(fur,0,100),
+        size: clamp(size,0,100),
+        speed: clamp(speed,0,100),
+        camo: clamp(camo,0,100),
+        phase:rnd(10), seed:rnd(9999),
+        scared:0, sweat:0, star:0, float:0, runDx:0
+      });
     }
     return kids;
   }
 
-  // event effects
+  // event effects (kept)
   function triggerEventEffects(key){
     if(key==="blizzard"){
       fx.snow = new Array(220).fill(0).map(()=>({
@@ -774,25 +923,21 @@
   ui.btnStart.addEventListener("click", ()=>{ stopAuto(); startNew(); });
   ui.btnNext.addEventListener("click", ()=> step());
   ui.btnAuto.addEventListener("click", ()=>{
+    if(population.length<=1){ checkExtinct(); return; }
     ui.btnAuto.disabled=true;
     ui.btnNext.disabled=true;
     ui.btnStop.disabled=false;
-    autoTimer=setInterval(()=>{
-      step();
-      if(population.length===0) stopAuto(true);
-    }, 850);
+    autoTimer=setInterval(()=> step(), 850);
   });
   ui.btnStop.addEventListener("click", ()=> stopAuto());
-
-  function stopAuto(fromExt=false){
+  function stopAuto(){
     if(autoTimer){ clearInterval(autoTimer); autoTimer=null; }
     ui.btnStop.disabled=true;
-    ui.btnAuto.disabled = population.length===0;
-    ui.btnNext.disabled = population.length===0;
-    if(fromExt) log(`⚠️ 自動停止（族群滅絕）。`);
+    ui.btnAuto.disabled = population.length<=1;
+    ui.btnNext.disabled = population.length<=1;
   }
 
-  // ---------- main render ----------
+  // render
   const ctx = ui.canvas.getContext("2d");
   const W = ui.canvas.width, H = ui.canvas.height;
   const SAMPLE_MAX = 36;
@@ -969,13 +1114,11 @@
     const x = cx + sway;
     const y = cy + hop*0.35;
 
-    // shadow
     ctx.globalAlpha=0.22;
     ctx.fillStyle="rgba(0,0,0,0.9)";
     ctx.beginPath(); ctx.ellipse(x, cy+size*0.62, size*0.65, size*0.22, 0, 0, Math.PI*2); ctx.fill();
     ctx.globalAlpha=1;
 
-    // fur ring
     if(fur>0.06){
       ctx.strokeStyle = `rgba(255,255,255,${lerp(0.08,0.22,fur)})`;
       ctx.lineWidth=2;
@@ -991,18 +1134,15 @@
       }
     }
 
-    // body
     ctx.fillStyle=rgb(body, 0.96);
     ctx.beginPath(); ctx.ellipse(x, y, size, size*0.92, Math.sin(ind.phase)*0.03, 0, Math.PI*2); ctx.fill();
 
-    // cheeks
     ctx.globalAlpha=0.35;
     ctx.fillStyle="rgba(255,120,160,1)";
     ctx.beginPath(); ctx.ellipse(x-size*0.45, y+size*0.10, size*0.18, size*0.12, 0,0,Math.PI*2); ctx.fill();
     ctx.beginPath(); ctx.ellipse(x+size*0.45, y+size*0.10, size*0.18, size*0.12, 0,0,Math.PI*2); ctx.fill();
     ctx.globalAlpha=1;
 
-    // eyes blink
     const blink = (Math.sin(t*0.006 + ind.phase*2.2) > 0.97) ? 0.12 : 1.0;
     const eyeY=y-size*0.18, eyeX=size*0.36;
 
@@ -1015,14 +1155,12 @@
     ctx.beginPath(); ctx.ellipse(x-eyeX + pupJ*size, eyeY, size*0.10, size*0.10*blink, 0,0,Math.PI*2); ctx.fill();
     ctx.beginPath(); ctx.ellipse(x+eyeX + pupJ*size, eyeY, size*0.10, size*0.10*blink, 0,0,Math.PI*2); ctx.fill();
 
-    // mouth
     ctx.strokeStyle="rgba(30,30,35,0.65)";
     ctx.lineWidth=2;
     ctx.beginPath();
     ctx.arc(x, y+size*0.18, size*0.35, 0.15*Math.PI, 0.85*Math.PI);
     ctx.stroke();
 
-    // legs
     const legAmp=lerp(2,10,speed);
     const legPh=t*0.02+ind.phase;
     const legY=y+size*0.70;
@@ -1032,40 +1170,6 @@
     ctx.lineWidth=4; ctx.lineCap="round";
     ctx.beginPath(); ctx.moveTo(x-size*0.35, legY); ctx.lineTo(x-size*0.35 + l1*0.25, legY + legAmp*0.25); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(x+size*0.35, legY); ctx.lineTo(x+size*0.35 + l2*0.25, legY + legAmp*0.25); ctx.stroke();
-
-    // emotes
-    if(ind.sweat>0){
-      ind.sweat--;
-      ctx.globalAlpha=0.85;
-      ctx.fillStyle="rgba(180,220,255,0.95)";
-      const dropY = y - size*0.95 - (ind.sweat%20)*0.8;
-      ctx.beginPath();
-      ctx.ellipse(x+size*0.65, dropY, 4, 7, 0.2, 0, Math.PI*2);
-      ctx.fill();
-      ctx.globalAlpha=1;
-    }
-    if(ind.star>0){
-      ind.star--;
-      ctx.globalAlpha=0.9;
-      ctx.fillStyle="rgba(255,255,220,0.98)";
-      const sy = y - size*1.05 + Math.sin(t*0.02 + ind.phase)*6;
-      drawStar(x-size*0.70, sy, 7);
-      drawStar(x+size*0.70, sy+8, 6);
-      ctx.globalAlpha=1;
-    }
-  }
-
-  function drawStar(x,y,r){
-    ctx.beginPath();
-    for(let i=0;i<10;i++){
-      const a=(i/10)*Math.PI*2;
-      const rr=(i%2===0)?r:r*0.45;
-      const px=x+Math.cos(a)*rr;
-      const py=y+Math.sin(a)*rr;
-      if(i===0) ctx.moveTo(px,py); else ctx.lineTo(px,py);
-    }
-    ctx.closePath();
-    ctx.fill();
   }
 
   function render(t){
@@ -1075,38 +1179,30 @@
     const n=population.length;
     const sampleCount=Math.min(SAMPLE_MAX, n);
     const step = sampleCount ? Math.max(1, Math.floor(n/sampleCount)) : 1;
-
     const sample=[];
     for(let i=0,k=0;i<n && k<sampleCount;i+=step,k++) sample.push(population[i]);
     sample.sort((a,b)=>a.size-b.size);
-
     for(let i=0;i<sample.length;i++) drawCreature(sample[i], t, i, sample.length);
 
     drawFX(t);
     requestAnimationFrame(render);
   }
 
-  // ---------- chart render ----------
+  // chart
   const cctx = ui.chart.getContext("2d");
   const CW = ui.chart.width, CH = ui.chart.height;
-
   function drawChart(){
     cctx.clearRect(0,0,CW,CH);
-
-    // background
     cctx.fillStyle = "rgba(0,0,0,0.18)";
     cctx.fillRect(0,0,CW,CH);
 
-    // axes padding
     const padL=44, padR=14, padT=16, padB=34;
     const x0=padL, x1=CW-padR, y0=CH-padB, y1=padT;
 
-    // data range
     const maxGen = Math.max(1, ...popHistory.map(p=>p.gen));
     const maxPop = Math.max(10, ...popHistory.map(p=>p.pop));
-    const minGen = Math.max(0, maxGen - 30); // show last 30 gens window
+    const minGen = Math.max(0, maxGen - 30);
 
-    // grid
     cctx.strokeStyle = "rgba(255,255,255,0.08)";
     cctx.lineWidth = 1;
     for(let i=0;i<=5;i++){
@@ -1118,7 +1214,6 @@
       cctx.beginPath(); cctx.moveTo(xx,y0); cctx.lineTo(xx,y1); cctx.stroke();
     }
 
-    // axes
     cctx.strokeStyle = "rgba(255,255,255,0.18)";
     cctx.lineWidth = 2;
     cctx.beginPath();
@@ -1126,7 +1221,6 @@
     cctx.moveTo(x0,y0); cctx.lineTo(x0,y1);
     cctx.stroke();
 
-    // labels
     cctx.fillStyle = "rgba(255,255,255,0.75)";
     cctx.font = "700 12px ui-sans-serif, system-ui";
     cctx.fillText("代數", x1-28, CH-10);
@@ -1136,7 +1230,6 @@
     cctx.fillText("族群", 0, 0);
     cctx.restore();
 
-    // ticks
     cctx.fillStyle = "rgba(255,255,255,0.55)";
     cctx.font = "600 11px ui-sans-serif, system-ui";
     cctx.fillText(String(minGen), x0, y0+22);
@@ -1144,7 +1237,6 @@
     cctx.fillText(String(maxPop), 6, y1+4);
     cctx.fillText("0", 18, y0+4);
 
-    // line
     const pts = popHistory.filter(p=>p.gen>=minGen);
     if(pts.length>=1){
       cctx.strokeStyle = "rgba(120,200,255,0.9)";
@@ -1159,7 +1251,6 @@
       });
       cctx.stroke();
 
-      // last dot
       const last = pts[pts.length-1];
       const tx = (last.gen - minGen) / Math.max(1,(maxGen-minGen));
       const ty = last.pop / Math.max(1,maxPop);
@@ -1170,14 +1261,30 @@
     }
   }
 
+  // wire buttons
+  ui.btnStart.addEventListener("click", ()=>{ stopAuto(); startNew(); });
+  ui.btnNext.addEventListener("click", ()=> step());
+  ui.btnAuto.addEventListener("click", ()=>{
+    if(population.length<=1){ checkExtinct(); return; }
+    ui.btnAuto.disabled=true;
+    ui.btnNext.disabled=true;
+    ui.btnStop.disabled=false;
+    autoTimer=setInterval(()=> step(), 850);
+  });
+  ui.btnStop.addEventListener("click", ()=> stopAuto());
+  function stopAuto(){
+    if(autoTimer){ clearInterval(autoTimer); autoTimer=null; }
+    ui.btnStop.disabled=true;
+    ui.btnAuto.disabled = population.length<=1;
+    ui.btnNext.disabled = population.length<=1;
+  }
+
   // init
   renderSettings();
   nextCards();
-  syncUI();
   resetHistory();
-  log(`👋 先按「建立族群」。每代記得先選 1 張突變卡。`);
-
-  // start render loop
+  syncUI();
+  log(`👋 先按「建立族群」。每代記得先選 1 張卡。`);
   requestAnimationFrame(render);
 
 })();
