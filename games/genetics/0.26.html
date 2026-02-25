@@ -1,0 +1,1311 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
+<title>遺傳闖關 v0.26（單檔）</title>
+<script src="/eduGame/ga4.js"></script>
+<style>
+  :root{
+    --bg:#0b0f17;
+    --txt:#e9eefc;
+    --muted:#a8b3d6;
+    --accent:#7cf3c7;
+    --warn:#ffcf5a;
+    --good:#67e06f;
+  }
+  html,body{height:100%;margin:0;background:var(--bg);color:var(--txt);font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", "Noto Sans TC", Arial;}
+  #wrap{position:fixed;inset:0;overflow:hidden;width:100vw;height:100vh;}
+  canvas{position:absolute;inset:0;width:100vw;height:100vh;touch-action:none;display:block;}
+
+  .topBar{
+    position:absolute; left:12px; right:12px;
+    top: calc(10px + env(safe-area-inset-top));
+    z-index:8;
+    pointer-events:none;
+  }
+  .topRow{
+    pointer-events:auto;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:10px;
+    position:relative;
+  }
+  .leftBtns,.rightBtns{
+    position:absolute; top:0;
+    display:flex; align-items:center; gap:10px;
+  }
+  .leftBtns{left:0;}
+  .rightBtns{right:0;}
+
+  .btn{
+    appearance:none;
+    border:none;
+    background:transparent;
+    color:var(--txt);
+    padding:8px 10px;
+    font-size:13px;
+    font-weight:900;
+    cursor:pointer;
+    user-select:none;
+  }
+  .btn:hover{ text-decoration:underline; }
+  .btn:active{ opacity:.85; }
+  .btn.warn{ color:var(--warn); }
+  .btn.good{ color:var(--good); }
+
+  .select{
+    border:none;
+    background:transparent;
+    color:var(--txt);
+    font-size:14px;
+    font-weight:900;
+    padding:6px 10px;
+    outline:none;
+    text-align-last:center;
+    max-width:min(72vw, 560px);
+  }
+
+  .bottomBar{
+    position:absolute;
+    left:12px; right:12px;
+    bottom: calc(12px + env(safe-area-inset-bottom));
+    z-index:7;
+    display:flex;
+    justify-content:center;
+    pointer-events:none;
+  }
+  #controls{
+    pointer-events:auto;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:10px;
+    width:100%;
+  }
+  .ctlRow{display:flex; gap:10px; flex-wrap:wrap; justify-content:center; align-items:center}
+  .ctlNote{
+    color:var(--muted);
+    font-weight:900;
+    text-align:center;
+  }
+  .hyb{
+    font-size:18px;
+    padding:10px 18px;
+    font-weight:1000;
+    letter-spacing:.5px;
+  }
+
+  #bigCorrect{
+    position:absolute;
+    inset:0;
+    display:none;
+    z-index:9999;
+    pointer-events:none;
+    align-items:flex-start;
+    justify-content:center;
+    padding-top: calc(18px + env(safe-area-inset-top));
+  }
+  #bigCorrect .txt{
+    font-size:min(92px, 18vw);
+    font-weight:1000;
+    color:var(--good);
+    text-shadow:0 6px 22px rgba(0,0,0,.55);
+  }
+
+  #toast{
+    position:absolute;
+    left:50%;
+    bottom: calc(140px + env(safe-area-inset-bottom));
+    transform:translateX(-50%);
+    font-size:12px;
+    font-weight:900;
+    color:var(--muted);
+    opacity:0;
+    transition:opacity .18s ease, transform .18s ease;
+    pointer-events:none;
+    z-index:9;
+    text-align:center;
+    max-width:min(860px, calc(100% - 24px));
+  }
+  #toast.show{opacity:1; transform:translateX(-50%) translateY(-2px);}
+
+  #modalBack{
+    position:absolute; inset:0;
+    background:rgba(0,0,0,.55);
+    display:none;
+    z-index:500;
+  }
+  #modal{
+    position:absolute;
+    left:50%; top:50%;
+    transform:translate(-50%,-50%);
+    width:min(860px, calc(100% - 22px));
+    max-height:min(78vh, 720px);
+    overflow:auto;
+    background:rgba(12,16,26,.94);
+    border-radius:16px;
+    padding:16px 18px;
+    color:var(--txt);
+  }
+  #modalClose{
+    position:sticky;
+    top:0;
+    float:right;
+    border:none;
+    background:transparent;
+    color:var(--txt);
+    font-size:22px;
+    font-weight:1000;
+    cursor:pointer;
+  }
+  #md{ font-size:14px; line-height:1.55; }
+  #md h1,#md h2,#md h3{ margin:14px 0 8px; }
+  #md h1{ font-size:22px; }
+  #md h2{ font-size:18px; }
+  #md h3{ font-size:16px; }
+  #md p{ margin:8px 0; }
+  #md ul{ margin:8px 0 8px 18px; }
+  #md li{ margin:4px 0; }
+  #md code{ background:rgba(124,243,199,.10); padding:2px 6px; border-radius:8px; }
+  #md pre{ background:rgba(255,255,255,.06); padding:10px 12px; border-radius:12px; overflow:auto; }
+
+  @media (max-width:720px){
+    .topBar{left:10px; right:10px;}
+    .bottomBar{left:10px; right:10px;}
+    #toast{bottom: calc(165px + env(safe-area-inset-bottom));}
+  }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="c"></canvas>
+
+  <div id="bigCorrect"><div class="txt">答對</div></div>
+
+  <div class="topBar" id="topBar">
+    <div class="topRow">
+      <div class="leftBtns">
+        <button class="btn" id="prevBtn">&lt; 上一關</button>
+      </div>
+
+      <select class="select" id="stageSelect" aria-label="選擇關卡"></select>
+
+      <div class="rightBtns">
+        <button class="btn" id="helpBtn">說明</button>
+        <button class="btn warn" id="resetViewBtn">重置視角</button>
+        <button class="btn good" id="nextBtn">下一關 &gt;</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="bottomBar">
+    <div id="controls"></div>
+  </div>
+
+  <div id="modalBack" aria-hidden="true">
+    <div id="modal" role="dialog" aria-modal="true" aria-label="說明">
+      <button id="modalClose" title="關閉">×</button>
+      <div id="md">載入中…</div>
+    </div>
+  </div>
+
+  <div id="toast"></div>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  // Polyfill: older Safari may lack structuredClone (would crash and leave blank canvas)
+  const clone = (obj)=>{
+    try{
+      if(typeof structuredClone === "function") return clone(obj);
+    }catch(e){}
+    return JSON.parse(JSON.stringify(obj));
+  };
+
+  // Global error overlay (catch init-time errors before render loop starts)
+  function fatal(msg){
+    try{
+      const c = document.getElementById("c");
+      const ctx2 = c.getContext("2d");
+      const w = c.clientWidth || window.innerWidth;
+      const h = c.clientHeight || window.innerHeight;
+      c.width = Math.max(1, Math.floor(w*(window.devicePixelRatio||1)));
+      c.height = Math.max(1, Math.floor(h*(window.devicePixelRatio||1)));
+      ctx2.setTransform(window.devicePixelRatio||1,0,0,window.devicePixelRatio||1,0,0);
+      ctx2.fillStyle="rgba(0,0,0,.8)"; ctx2.fillRect(0,0,w,h);
+      ctx2.fillStyle="#ffcf5a"; ctx2.font="900 16px ui-sans-serif, system-ui, -apple-system, Noto Sans TC";
+      ctx2.fillText("初始化錯誤（請回報）:", 14, 30);
+      ctx2.fillStyle="#e9eefc"; ctx2.font="900 13px ui-sans-serif, system-ui, -apple-system, Noto Sans TC";
+      const lines=String(msg).split(/\n/);
+      let y=54;
+      for(const line of lines){
+        ctx2.fillText(line.slice(0,160), 14, y);
+        y+=18;
+        if(y>h-18) break;
+      }
+    }catch(e){}
+  }
+  window.addEventListener("error", (e)=>{ fatal(e.message || e.error || "unknown"); });
+  window.addEventListener("unhandledrejection", (e)=>{ fatal(e.reason && e.reason.message ? e.reason.message : String(e.reason)); });
+
+
+  const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
+  const lerp  = (a,b,t)=>a+(b-a)*t;
+  const pick  = (arr)=>arr[(Math.random()*arr.length)|0];
+
+  const canvas = document.getElementById("c");
+  const ctx = canvas.getContext("2d", { alpha:false, desynchronized:true });
+
+  let W=1,H=1,DPR=1;
+
+  const controls = document.getElementById("controls");
+  const stageSelect = document.getElementById("stageSelect");
+  const prevBtn = document.getElementById("prevBtn");
+  const nextBtn = document.getElementById("nextBtn");
+  const resetViewBtn = document.getElementById("resetViewBtn");
+  const toastEl = document.getElementById("toast");
+  const bigCorrectEl = document.getElementById("bigCorrect");
+
+  function toast(msg){
+    toastEl.textContent = msg;
+    toastEl.classList.add("show");
+    clearTimeout(toast._t);
+    toast._t = setTimeout(()=>toastEl.classList.remove("show"), 1100);
+  }
+
+  // README modal
+  const modalBack = document.getElementById('modalBack');
+  const modalClose = document.getElementById('modalClose');
+  const mdHost = document.getElementById('md');
+  const helpBtn = document.getElementById('helpBtn');
+
+  function escapeHtml(s){
+    return s.replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+  }
+  function renderMarkdown(md){
+    md = md.replace(/\r\n/g, "\n");
+    const codeBlocks = [];
+    md = md.replace(/```([\s\S]*?)```/g, (_, code) => {
+      codeBlocks.push(code);
+      return `@@CODEBLOCK_${codeBlocks.length-1}@@`;
+    });
+    md = escapeHtml(md);
+    md = md.replace(/@@CODEBLOCK_(\d+)@@/g, (_, i) => {
+      const code = escapeHtml(codeBlocks[+i]);
+      return `<pre><code>${code}</code></pre>`;
+    });
+    md = md.replace(/(^|\n)###\s+(.*?)(?=\n|$)/g, (_, p, t) => `${p}<h3>${t}</h3>`);
+    md = md.replace(/(^|\n)##\s+(.*?)(?=\n|$)/g,  (_, p, t) => `${p}<h2>${t}</h2>`);
+    md = md.replace(/(^|\n)#\s+(.*?)(?=\n|$)/g,   (_, p, t) => `${p}<h1>${t}</h1>`);
+    md = md.replace(/\[([^\]]+)\]\(([^)]+)\)/g, `<a href="$2" target="_blank" rel="noopener">$1</a>`);
+    md = md.replace(/`([^`]+)`/g, `<code>$1</code>`);
+    md = md.replace(/\*\*([^*]+)\*\*/g, `<strong>$1</strong>`);
+    md = md.replace(/\*([^*]+)\*/g, `<em>$1</em>`);
+    md = md.replace(/(^|\n)(?:-\s.*(?:\n|$))+?/g, (block) => {
+      const lines = block.trim().split("\n").filter(Boolean);
+      if(!lines.every(l => l.startsWith("- "))) return block;
+      const items = lines.map(l => `<li>${l.slice(2)}</li>`).join("");
+      return `\n<ul>${items}</ul>\n`;
+    });
+    const parts = md.split(/\n{2,}/).map(p => p.trim()).filter(p=>p.length);
+    return parts.map(p => {
+      if(/^<h\d|^<ul|^<pre/.test(p)) return p;
+      return `<p>${p.replace(/\n/g,"<br/>")}</p>`;
+    }).join("\n");
+  }
+  async function openHelp(){
+    modalBack.style.display = "block";
+    modalBack.setAttribute("aria-hidden","false");
+    mdHost.innerHTML = "載入中…";
+    try{
+      const res = await fetch("./readme.md", {cache:"no-store"});
+      if(!res.ok) throw new Error("讀取失敗");
+      const txt = await res.text();
+      mdHost.innerHTML = renderMarkdown(txt);
+    }catch(e){
+      mdHost.innerHTML = `<p>無法讀取 <code>readme.md</code>。請確認此 HTML 與 <code>readme.md</code> 在同一個資料夾。</p>`;
+    }
+  }
+  function closeHelp(){
+    modalBack.style.display = "none";
+    modalBack.setAttribute("aria-hidden","true");
+  }
+  modalBack.addEventListener("click", (e)=>{ if(e.target===modalBack) closeHelp(); });
+  modalClose.addEventListener("click", closeHelp);
+  helpBtn.addEventListener("click", openHelp);
+  window.addEventListener("keydown", (e)=>{ if(e.key==="Escape" && modalBack.style.display==="block") closeHelp(); });
+
+  // View
+  const view = {x:0,y:0,s:1};
+  const target = {x:0,y:0,s:1};
+
+  function bottomReservedH(){ return (Math.min(W,H) < 760) ? 170 : 140; }
+  function topReservedH(){ return 60; }
+
+  function resize(){
+    DPR = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+    const vv = window.visualViewport;
+    const w = Math.max(1, Math.floor(vv ? vv.width : window.innerWidth));
+    const h = Math.max(1, Math.floor(vv ? vv.height : window.innerHeight));
+    W = w; H = h;
+    canvas.style.width = W+"px";
+    canvas.style.height = H+"px";
+    canvas.width = Math.floor(W*DPR);
+    canvas.height = Math.floor(H*DPR);
+    ctx.setTransform(DPR,0,0,DPR,0,0);
+    autoFit(true);
+  }
+  window.addEventListener("resize", resize, {passive:true});
+  window.addEventListener("orientationchange", ()=>setTimeout(resize, 80), {passive:true});
+  if(window.visualViewport){
+    window.visualViewport.addEventListener("resize", ()=>setTimeout(resize, 0), {passive:true});
+    window.visualViewport.addEventListener("scroll", ()=>setTimeout(resize, 0), {passive:true});
+  }
+  resize();
+
+  function worldToScreen(wx,wy){ return { x:(wx+view.x)*view.s + W/2, y:(wy+view.y)*view.s + H/2 }; }
+  function screenToWorld(sx,sy){ return { x:(sx-W/2)/view.s - view.x, y:(sy-H/2)/view.s - view.y }; }
+
+  // Interactions
+  const pointers = new Map();
+  let panStart=null;
+  let pinch=null;
+  let clickCandidate=null;
+
+  canvas.addEventListener("pointerdown",(e)=>{
+    canvas.setPointerCapture(e.pointerId);
+    pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    clickCandidate = {id:e.pointerId, x:e.clientX, y:e.clientY, t:performance.now()};
+    if(pointers.size===1){
+      panStart = {sx:e.clientX, sy:e.clientY, vx:target.x, vy:target.y};
+      pinch=null;
+    }else if(pointers.size===2){
+      const pts=[...pointers.values()];
+      const dx=pts[1].x-pts[0].x, dy=pts[1].y-pts[0].y;
+      pinch = {d0:Math.hypot(dx,dy), s0:target.s, cx:(pts[0].x+pts[1].x)/2, cy:(pts[0].y+pts[1].y)/2};
+      panStart=null;
+    }
+  });
+
+  canvas.addEventListener("pointermove",(e)=>{
+    const p=pointers.get(e.pointerId); if(!p) return;
+    p.x=e.clientX; p.y=e.clientY;
+    if(pointers.size===1 && panStart){
+      const dx=(e.clientX-panStart.sx)/target.s;
+      const dy=(e.clientY-panStart.sy)/target.s;
+      target.x = panStart.vx + dx;
+      target.y = panStart.vy + dy;
+    }else if(pointers.size===2 && pinch){
+      const pts=[...pointers.values()];
+      const dx=pts[1].x-pts[0].x, dy=pts[1].y-pts[0].y;
+      const d=Math.hypot(dx,dy);
+      const scale = clamp(d/pinch.d0, 0.5, 2.5);
+      const newS = clamp(pinch.s0*scale, 0.35, 2.8);
+      const before = screenToWorld(pinch.cx, pinch.cy);
+      target.s = newS;
+      const after  = screenToWorld(pinch.cx, pinch.cy);
+      target.x += (after.x-before.x);
+      target.y += (after.y-before.y);
+      pinch.d0=d; pinch.s0=target.s;
+      pinch.cx=(pts[0].x+pts[1].x)/2; pinch.cy=(pts[0].y+pts[1].y)/2;
+    }
+  });
+
+  function pointerUp(e){
+    pointers.delete(e.pointerId);
+    if(pointers.size===1){
+      const pt=[...pointers.values()][0];
+      panStart = {sx:pt.x, sy:pt.y, vx:target.x, vy:target.y};
+      pinch=null;
+    }else if(pointers.size===0){
+      panStart=null; pinch=null;
+    }
+  }
+  canvas.addEventListener("pointerup", pointerUp);
+  canvas.addEventListener("pointercancel", pointerUp);
+
+  canvas.addEventListener("wheel",(e)=>{
+    e.preventDefault();
+    const delta=-e.deltaY;
+    const zoomFactor=Math.exp(delta*0.0012);
+    const newS = clamp(target.s*zoomFactor, 0.35, 2.8);
+    const before = screenToWorld(e.clientX,e.clientY);
+    target.s = newS;
+    const after  = screenToWorld(e.clientX,e.clientY);
+    target.x += (after.x-before.x);
+    target.y += (after.y-before.y);
+  }, {passive:false});
+
+  canvas.addEventListener("pointerup",(e)=>{
+    if(!clickCandidate || clickCandidate.id!==e.pointerId) return;
+    const dx=e.clientX-clickCandidate.x, dy=e.clientY-clickCandidate.y;
+    const dt=performance.now()-clickCandidate.t;
+    if(Math.hypot(dx,dy)<7 && dt<450){
+      const w = screenToWorld(e.clientX,e.clientY);
+      handleClick(w.x,w.y);
+    }
+    clickCandidate=null;
+  }, {passive:true});
+
+  resetViewBtn.addEventListener("click", ()=>{ autoFit(false); });
+
+  // Stages
+  const stages = [
+    {id:"1-1", label:"1-1 基本概念"},
+    {id:"1-2", label:"1-2 單性狀：雜合出子代"},
+    {id:"1-3", label:"1-3 單性狀：反推父親"},
+    {id:"2-1", label:"2-1 兩性狀：連鎖配對"},
+    {id:"2-2", label:"2-2 兩性狀：雜合出子代"},
+    {id:"2-3", label:"2-3 兩性狀：反推父親"},
+  ];
+
+  const game = {
+    stageIndex:0,
+    big1:{
+      l11:{ player:["A","a"], target:null, solved:false },
+      l12:{ mother:{chrom:["A","a"]}, father:{chrom:["A","A"]}, chosen:null, child:null },
+      l13:{ mother:{chrom:["A","a"]}, fatherHidden:{chrom:["a","a"]}, history:[], guess:"AA", revealed:false, solved:false },
+    },
+    big2:{
+      l21:{ player:[{E:"E",T:"T"},{E:"e",T:"t"}], target:null, solved:false },
+      l22:{ mother:{chrom:[{E:"E",T:"t"},{E:"e",T:"T"}]}, father:{chrom:[{E:"E",T:"T"},{E:"e",T:"t"}]}, chosen:null, child:null },
+      l23:{ mother:{chrom:[{E:"E",T:"t"},{E:"e",T:"t"}]}, fatherHidden:{chrom:[{E:"E",T:"T"},{E:"e",T:"t"}]}, history:[], guess:"EE;TT", revealed:false, solved:false },
+    }
+  };
+
+  function stage(){ return stages[game.stageIndex]; }
+  function prettyGeno(a1,a2){
+    if((a1==="A"&&a2==="a")||(a1==="a"&&a2==="A")) return "Aa";
+    return a1+a2;
+  }
+  function phenotype1(geno){ return geno.includes("A") ? "dom" : "rec"; }
+  function prettyGeno2(h1,h2){
+    const g1 = (h1.E===h2.E)? (h1.E+h2.E) : "Ee";
+    const g2 = (h1.T===h2.T)? (h1.T+h2.T) : "Tt";
+    return {g1,g2};
+  }
+  function phenotype2(h1,h2){
+    const hasE = (h1.E==="E" || h2.E==="E");
+    const hasT = (h1.T==="T" || h2.T==="T");
+    return {ear: hasE ? "floppy" : "pointy", tail: hasT ? "curly" : "straight"};
+  }
+
+  function newTarget11(){
+    const g = pick([["A","A"],["A","a"],["a","a"]]);
+    const geno = prettyGeno(g[0],g[1]);
+    return {geno, ph: phenotype1(geno)};
+  }
+  function newTarget21(){
+    const hap = [{E:"E",T:"T"},{E:"E",T:"t"},{E:"e",T:"T"},{E:"e",T:"t"}];
+    const h1=clone(pick(hap)), h2=clone(pick(hap));
+    return {h1,h2, ph: phenotype2(h1,h2), g: prettyGeno2(h1,h2)};
+  }
+  function randomParents12(){
+    const genos=[["A","A"],["A","a"],["a","a"]];
+    const m=pick(genos), f=pick(genos);
+    game.big1.l12.mother.chrom=[m[0],m[1]];
+    game.big1.l12.father.chrom=[f[0],f[1]];
+    game.big1.l12.chosen=null; game.big1.l12.child=null;
+  }
+  function randomHiddenFather13(){
+    const genos=[["A","A"],["A","a"],["a","a"]];
+    const f=pick(genos);
+    game.big1.l13.fatherHidden.chrom=[f[0],f[1]];
+    game.big1.l13.history=[]; game.big1.l13.guess="AA"; game.big1.l13.revealed=false; game.big1.l13.solved=false;
+  }
+  function randomParents22(){
+    const hap = [{E:"E",T:"T"},{E:"E",T:"t"},{E:"e",T:"T"},{E:"e",T:"t"}];
+    game.big2.l22.mother.chrom=[clone(pick(hap)), clone(pick(hap))];
+    game.big2.l22.father.chrom=[clone(pick(hap)), clone(pick(hap))];
+    game.big2.l22.chosen=null; game.big2.l22.child=null;
+  }
+  function randomHiddenFather23(){
+    const hap = [{E:"E",T:"T"},{E:"E",T:"t"},{E:"e",T:"T"},{E:"e",T:"t"}];
+    game.big2.l23.fatherHidden.chrom=[clone(pick(hap)), clone(pick(hap))];
+    game.big2.l23.history=[]; game.big2.l23.guess="EE;TT"; game.big2.l23.revealed=false; game.big2.l23.solved=false;
+  }
+
+  game.big1.l11.target=newTarget11();
+  randomParents12();
+  randomHiddenFather13();
+  game.big2.l21.target=newTarget21();
+  randomParents22();
+  randomHiddenFather23();
+
+  // Hit test
+  const hits=[];
+  function addHit(x,y,w,h,onClick){ hits.push({x,y,w,h,onClick}); }
+  function handleClick(wx,wy){
+    for(let i=hits.length-1;i>=0;i--){
+      const h=hits[i];
+      if(wx>=h.x && wx<=h.x+h.w && wy>=h.y && wy<=h.y+h.h){ h.onClick(); return; }
+    }
+  }
+
+  function flipAllele(ch){ return (ch===ch.toUpperCase()) ? ch.toLowerCase() : ch.toUpperCase(); }
+  function toggleAllele(hitId){
+    const id=stage().id;
+    if(id==="1-1"){
+      const l=game.big1.l11;
+      if(hitId==="p0") l.player[0]=flipAllele(l.player[0]);
+      if(hitId==="p1") l.player[1]=flipAllele(l.player[1]);
+      l.solved=false; bigCorrectEl.style.display="none";
+      return;
+    }
+    if(id==="1-2"){
+      const l=game.big1.l12;
+      if(hitId==="m0") l.mother.chrom[0]=flipAllele(l.mother.chrom[0]);
+      if(hitId==="m1") l.mother.chrom[1]=flipAllele(l.mother.chrom[1]);
+      if(hitId==="f0") l.father.chrom[0]=flipAllele(l.father.chrom[0]);
+      if(hitId==="f1") l.father.chrom[1]=flipAllele(l.father.chrom[1]);
+      l.chosen=null; l.child=null; bigCorrectEl.style.display="none";
+      return;
+    }
+    if(id==="1-3"){
+      const l=game.big1.l13;
+      if(hitId==="m0") l.mother.chrom[0]=flipAllele(l.mother.chrom[0]);
+      if(hitId==="m1") l.mother.chrom[1]=flipAllele(l.mother.chrom[1]);
+      l.history=[]; l.solved=false; bigCorrectEl.style.display="none";
+      return;
+    }
+    if(id==="2-1"){
+      const l=game.big2.l21;
+      const [p,gene]=hitId.split(":");
+      const idx=(p==="p0")?0:(p==="p1")?1:-1;
+      if(idx<0) return;
+      if(gene==="E") l.player[idx].E=flipAllele(l.player[idx].E);
+      if(gene==="T") l.player[idx].T=flipAllele(l.player[idx].T);
+      l.solved=false; bigCorrectEl.style.display="none";
+      return;
+    }
+    if(id==="2-2"){
+      const l=game.big2.l22;
+      const [who,gene]=hitId.split(":");
+      const idx=who.endsWith("0")?0:1;
+      if(who.startsWith("m")){
+        if(gene==="E") l.mother.chrom[idx].E=flipAllele(l.mother.chrom[idx].E);
+        if(gene==="T") l.mother.chrom[idx].T=flipAllele(l.mother.chrom[idx].T);
+      }else if(who.startsWith("f")){
+        if(gene==="E") l.father.chrom[idx].E=flipAllele(l.father.chrom[idx].E);
+        if(gene==="T") l.father.chrom[idx].T=flipAllele(l.father.chrom[idx].T);
+      }
+      l.chosen=null; l.child=null; bigCorrectEl.style.display="none";
+      return;
+    }
+    if(id==="2-3"){
+      const l=game.big2.l23;
+      const [who,gene]=hitId.split(":");
+      if(!who.startsWith("m")) return;
+      const idx=who.endsWith("0")?0:1;
+      if(gene==="E") l.mother.chrom[idx].E=flipAllele(l.mother.chrom[idx].E);
+      if(gene==="T") l.mother.chrom[idx].T=flipAllele(l.mother.chrom[idx].T);
+      l.history=[]; l.solved=false; bigCorrectEl.style.display="none";
+    }
+  }
+
+  // Controls
+  function clearEl(el){ while(el.firstChild) el.removeChild(el.firstChild); }
+  function btn(text, cls, onClick){
+    const b=document.createElement("button");
+    b.className="btn "+(cls||"");
+    b.textContent=text;
+    b.addEventListener("click", onClick);
+    return b;
+  }
+  function note(text){
+    const d=document.createElement("div");
+    d.className="ctlNote";
+    d.textContent=text;
+    return d;
+  }
+  function selectCtl(options, value, onChange){
+    const s=document.createElement("select");
+    s.className="select";
+    options.forEach(o=>{
+      const op=document.createElement("option");
+      op.value=o.value; op.textContent=o.label;
+      s.appendChild(op);
+    });
+    s.value=value;
+    s.addEventListener("change", ()=>onChange(s.value));
+    return s;
+  }
+
+  function buildControls(){
+    clearEl(controls);
+    const id=stage().id;
+    bigCorrectEl.style.display="none";
+
+    if(id==="1-1"){
+      const row=document.createElement("div"); row.className="ctlRow";
+      row.appendChild(btn("新題目","",()=>{
+        game.big1.l11.target=newTarget11();
+        game.big1.l11.solved=false;
+        game.big1.l11.player=pick([["A","A"],["A","a"],["a","a"]]).slice();
+        toast("已換一題");
+        autoFit(true);
+      }));
+      row.appendChild(btn("檢查","good",()=>check11()));
+      controls.appendChild(row);
+      return;
+    }
+    if(id==="1-2"){
+      controls.appendChild(note("按『雜合』產生子代"));
+      controls.appendChild(btn("雜合","hyb good",()=>hybrid12()));
+      const row=document.createElement("div"); row.className="ctlRow";
+      row.appendChild(btn("重抽親代","",()=>{ randomParents12(); toast("已重抽父母"); autoFit(true);} ));
+      row.appendChild(btn("清除子代","",()=>{ game.big1.l12.chosen=null; game.big1.l12.child=null; toast("已清除"); }));
+      controls.appendChild(row);
+      return;
+    }
+    if(id==="1-3"){
+      controls.appendChild(note("按『雜合 +20』生成寶寶"));
+      controls.appendChild(btn("雜合 +20","hyb good",()=>hybrid13()));
+      const row=document.createElement("div"); row.className="ctlRow";
+      row.appendChild(btn("新回合","",()=>{ randomHiddenFather13(); toast("已更換未知父親"); autoFit(true);} ));
+      row.appendChild(btn("回溯","",()=>undo13()));
+      row.appendChild(btn("揭曉","warn",()=>{game.big1.l13.revealed=true; toast("已揭曉");}));
+      row.appendChild(selectCtl([
+        {value:"AA", label:"猜：AA"},
+        {value:"Aa", label:"猜：Aa"},
+        {value:"aa", label:"猜：aa"},
+      ], game.big1.l13.guess, (v)=>{game.big1.l13.guess=v; checkGuess13();}));
+      controls.appendChild(row);
+      return;
+    }
+    if(id==="2-1"){
+      const row=document.createElement("div"); row.className="ctlRow";
+      row.appendChild(btn("新題目","",()=>{
+        game.big2.l21.target=newTarget21();
+        game.big2.l21.solved=false;
+        const hap=[{E:"E",T:"T"},{E:"E",T:"t"},{E:"e",T:"T"},{E:"e",T:"t"}];
+        game.big2.l21.player=[clone(pick(hap)), clone(pick(hap))];
+        toast("已換一題");
+        autoFit(true);
+      }));
+      row.appendChild(btn("檢查","good",()=>check21()));
+      controls.appendChild(row);
+      return;
+    }
+    if(id==="2-2"){
+      controls.appendChild(note("按『雜合』產生子代"));
+      controls.appendChild(btn("雜合","hyb good",()=>hybrid22()));
+      const row=document.createElement("div"); row.className="ctlRow";
+      row.appendChild(btn("重抽親代","",()=>{ randomParents22(); toast("已重抽父母"); autoFit(true);} ));
+      row.appendChild(btn("清除子代","",()=>{ game.big2.l22.chosen=null; game.big2.l22.child=null; toast("已清除"); }));
+      controls.appendChild(row);
+      return;
+    }
+    // 2-3
+    controls.appendChild(note("按『雜合 +20』生成寶寶"));
+    controls.appendChild(btn("雜合 +20","hyb good",()=>hybrid23()));
+    const row=document.createElement("div"); row.className="ctlRow";
+    row.appendChild(btn("新回合","",()=>{ randomHiddenFather23(); toast("已更換未知父親"); autoFit(true);} ));
+    row.appendChild(btn("回溯","",()=>undo23()));
+    row.appendChild(btn("揭曉","warn",()=>{game.big2.l23.revealed=true; toast("已揭曉");}));
+    row.appendChild(selectCtl([
+      {value:"EE;TT", label:"猜：EE；TT"},
+      {value:"EE;Tt", label:"猜：EE；Tt"},
+      {value:"EE;tt", label:"猜：EE；tt"},
+      {value:"Ee;TT", label:"猜：Ee；TT"},
+      {value:"Ee;Tt", label:"猜：Ee；Tt"},
+      {value:"Ee;tt", label:"猜：Ee；tt"},
+      {value:"ee;TT", label:"猜：ee；TT"},
+      {value:"ee;Tt", label:"猜：ee；Tt"},
+      {value:"ee;tt", label:"猜：ee；tt"},
+    ], game.big2.l23.guess, (v)=>{game.big2.l23.guess=v; checkGuess23();}));
+    controls.appendChild(row);
+  }
+
+  // Stage select + navigation
+  function initStageSelect(){
+    stageSelect.innerHTML="";
+    stages.forEach((s,i)=>{
+      const o=document.createElement("option");
+      o.value=String(i);
+      o.textContent=s.label;
+      stageSelect.appendChild(o);
+    });
+    stageSelect.addEventListener("change", ()=>setStage(parseInt(stageSelect.value,10)));
+  }
+  initStageSelect();
+
+  function setStage(idx){
+    game.stageIndex = clamp(idx,0,stages.length-1);
+    stageSelect.value = String(game.stageIndex);
+    prevBtn.disabled = (game.stageIndex===0);
+    nextBtn.disabled = (game.stageIndex===stages.length-1);
+    buildControls();
+    autoFit(true);
+    toast(stages[game.stageIndex].label);
+  }
+  prevBtn.addEventListener("click", ()=>setStage(game.stageIndex-1));
+  nextBtn.addEventListener("click", ()=>setStage(game.stageIndex+1));
+
+  function boundsFor(id){
+    if(id==="1-3"||id==="2-3") return {minX:-520,maxX:520,minY:-360,maxY:560};
+    if(id==="1-2"||id==="2-2") return {minX:-520,maxX:520,minY:-340,maxY:520};
+    return {minX:-520,maxX:520,minY:-320,maxY:480};
+  }
+  function autoFit(silent){
+    const b=boundsFor(stage().id);
+    const pad=20;
+    const availW=Math.max(320, W - pad*2);
+    const availH=Math.max(360, H - pad*2 - topReservedH() - bottomReservedH());
+    const bw=b.maxX-b.minX, bh=b.maxY-b.minY;
+    let s=Math.min(availW/bw, availH/bh);
+    s = clamp(s, 0.35, 1.25);
+    const cx=(b.minX+b.maxX)/2;
+    const cy=(b.minY+b.maxY)/2;
+    const centerY=(topReservedH() + (H - bottomReservedH()))/2;
+    const ty=(centerY - H/2)/s - cy;
+    target.s=s;
+    target.x=-cx;
+    target.y=ty;
+    if(!silent) toast("已自動置中");
+  }
+
+  // Genetics actions
+  function check11(){
+    const l=game.big1.l11, t=l.target;
+    const g=prettyGeno(l.player[0], l.player[1]);
+    l.solved = (phenotype1(g)===t.ph);
+    bigCorrectEl.style.display = l.solved ? "flex" : "none";
+    toast(l.solved ? "✅ 答對" : "再試一次");
+  }
+  function hybrid12(){
+    const l=game.big1.l12;
+    const m=pick([l.mother.chrom[0], l.mother.chrom[1]]);
+    const f=pick([l.father.chrom[0], l.father.chrom[1]]);
+    l.chosen={mAllele:m, fAllele:f};
+    const geno=prettyGeno(m,f);
+    l.child={geno, ph: phenotype1(geno)};
+    toast("已產生子代");
+  }
+  function hybrid13(){
+    const l=game.big1.l13;
+    const m=l.mother.chrom, f=l.fatherHidden.chrom;
+    const babies=[];
+    for(let i=0;i<20;i++){
+      const geno=prettyGeno(pick([m[0],m[1]]), pick([f[0],f[1]]));
+      babies.push({geno, ph: phenotype1(geno)});
+    }
+    const summary=babies.reduce((acc,b)=>(acc[b.geno]=(acc[b.geno]||0)+1,acc),{});
+    l.history.push({babies, summary});
+    l.solved=false;
+    bigCorrectEl.style.display="none";
+    toast(`已生成 20（第 ${l.history.length} 輪）`);
+  }
+  function undo13(){
+    const l=game.big1.l13;
+    if(l.history.length===0){ toast("沒有上一輪"); return; }
+    l.history.pop(); l.solved=false; bigCorrectEl.style.display="none"; toast("已回溯");
+  }
+  function checkGuess13(){
+    const l=game.big1.l13;
+    const ans=prettyGeno(l.fatherHidden.chrom[0], l.fatherHidden.chrom[1]);
+    l.solved = (l.guess===ans);
+    bigCorrectEl.style.display = l.solved ? "flex" : "none";
+    toast(l.solved ? "✅ 答對" : "再觀察分布");
+  }
+
+  function check21(){
+    const l=game.big2.l21, t=l.target;
+    const ph=phenotype2(l.player[0], l.player[1]);
+    l.solved = (ph.ear===t.ph.ear && ph.tail===t.ph.tail);
+    bigCorrectEl.style.display = l.solved ? "flex" : "none";
+    toast(l.solved ? "✅ 答對" : "再試一次");
+  }
+  function hybrid22(){
+    const l=game.big2.l22;
+    const m=pick([l.mother.chrom[0], l.mother.chrom[1]]);
+    const f=pick([l.father.chrom[0], l.father.chrom[1]]);
+    l.chosen={mH:m,fH:f};
+    l.child={ph: phenotype2(m,f), g: prettyGeno2(m,f)};
+    toast("已產生子代");
+  }
+  function hybrid23(){
+    const l=game.big2.l23;
+    const m=l.mother.chrom, f=l.fatherHidden.chrom;
+    const babies=[];
+    for(let i=0;i<20;i++){
+      const mH=pick([m[0],m[1]]);
+      const fH=pick([f[0],f[1]]);
+      babies.push({ph: phenotype2(mH,fH), g: prettyGeno2(mH,fH)});
+    }
+    const keyOf=(b)=>`${b.ph.ear}|${b.ph.tail}`;
+    const summary=babies.reduce((acc,b)=>(acc[keyOf(b)]=(acc[keyOf(b)]||0)+1,acc),{});
+    l.history.push({babies, summary});
+    l.solved=false;
+    bigCorrectEl.style.display="none";
+    toast(`已生成 20（第 ${l.history.length} 輪）`);
+  }
+  function undo23(){
+    const l=game.big2.l23;
+    if(l.history.length===0){ toast("沒有上一輪"); return; }
+    l.history.pop(); l.solved=false; bigCorrectEl.style.display="none"; toast("已回溯");
+  }
+  function checkGuess23(){
+    const l=game.big2.l23;
+    const ans=prettyGeno2(l.fatherHidden.chrom[0], l.fatherHidden.chrom[1]);
+    const want=`${ans.g1};${ans.g2}`;
+    l.solved = (l.guess===want);
+    bigCorrectEl.style.display = l.solved ? "flex" : "none";
+    toast(l.solved ? "✅ 答對" : "再觀察分布");
+  }
+
+  // Drawing helpers
+  function rr(x,y,w,h,r){
+    const rr=Math.min(r,w/2,h/2);
+    ctx.beginPath();
+    ctx.moveTo(x+rr,y);
+    ctx.arcTo(x+w,y,x+w,y+h,rr);
+    ctx.arcTo(x+w,y+h,x,y+h,rr);
+    ctx.arcTo(x,y+h,x,y,rr);
+    ctx.arcTo(x,y,x+w,y,rr);
+    ctx.closePath();
+  }
+  function label(wx,wy,text,color){
+    const s=worldToScreen(wx,wy);
+    ctx.save();
+    ctx.font="900 14px ui-sans-serif, system-ui, -apple-system, Noto Sans TC";
+    const pad=10;
+    const tw=ctx.measureText(text).width;
+    const w=tw+pad*2, h=26;
+    const x=s.x-w/2, y=s.y-h/2;
+    ctx.globalAlpha=0.85;
+    ctx.fillStyle="rgba(15,22,36,.7)";
+    rr(x,y,w,h,12); ctx.fill();
+    ctx.globalAlpha=1;
+    ctx.fillStyle=color||"#e9eefc";
+    ctx.textBaseline="middle";
+    ctx.fillText(text, x+pad, y+h/2+0.5);
+    ctx.restore();
+  }
+
+  function pal(kind){
+    if(kind==="mint") return {body:"#7cf3c7", belly:"#e9fdf5", eye:"#0b0f17", blush:"#6fe7ff"};
+    return {body:"#ff6b8b", belly:"#ffe4ea", eye:"#0b0f17", blush:"#ffd66f"};
+  }
+  function drawCreatureSingle(wx,wy,scale,ph,t){
+    const p = (ph==="dom") ? pal("mint") : pal("pink");
+    const s=worldToScreen(wx,wy);
+    const R=150*scale*view.s;
+    ctx.save();
+    ctx.translate(s.x,s.y);
+    const bob=Math.sin(t*2.2 + wx*0.01)*R*0.03;
+    ctx.translate(0,bob);
+    ctx.globalAlpha=0.22;
+    ctx.fillStyle="#000";
+    ctx.beginPath(); ctx.ellipse(0,R*0.86,R*0.78,R*0.22,0,0,Math.PI*2); ctx.fill();
+    ctx.globalAlpha=1;
+    ctx.fillStyle=p.body;
+    ctx.beginPath(); ctx.ellipse(0,0,R*0.72,R*0.62,0,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle=p.belly;
+    ctx.beginPath(); ctx.ellipse(0,R*0.12,R*0.45,R*0.36,0,0,Math.PI*2); ctx.fill();
+    const wig=Math.sin(t*3 + wx*0.02)*0.18;
+    ctx.fillStyle=p.body;
+    ctx.save(); ctx.rotate(-wig);
+    ctx.beginPath(); ctx.moveTo(-R*0.42,-R*0.48); ctx.quadraticCurveTo(-R*0.74,-R*0.92,-R*0.26,-R*0.68); ctx.closePath(); ctx.fill();
+    ctx.restore();
+    ctx.save(); ctx.rotate(wig);
+    ctx.beginPath(); ctx.moveTo(R*0.42,-R*0.48); ctx.quadraticCurveTo(R*0.74,-R*0.92,R*0.26,-R*0.68); ctx.closePath(); ctx.fill();
+    ctx.restore();
+    ctx.fillStyle=p.eye;
+    ctx.beginPath(); ctx.arc(-R*0.22,-R*0.05,R*0.085,0,Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(R*0.22,-R*0.05,R*0.085,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle="rgba(255,255,255,.9)";
+    ctx.beginPath(); ctx.arc(-R*0.25,-R*0.08,R*0.028,0,Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(R*0.19,-R*0.08,R*0.028,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle="rgba(11,15,23,.85)";
+    ctx.lineWidth=Math.max(2,R*0.03);
+    ctx.lineCap="round";
+    ctx.beginPath(); ctx.moveTo(-R*0.08,R*0.17); ctx.quadraticCurveTo(0,R*0.24,R*0.08,R*0.17); ctx.stroke();
+    ctx.fillStyle=p.blush;
+    ctx.globalAlpha=0.33;
+    ctx.beginPath(); ctx.arc(-R*0.36,R*0.09,R*0.10,0,Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(R*0.36,R*0.09,R*0.10,0,Math.PI*2); ctx.fill();
+    ctx.globalAlpha=1;
+    ctx.restore();
+  }
+
+  function drawCreatureDouble(wx,wy,scale,ph,t){
+    const p = (ph.ear==="floppy") ? pal("mint") : pal("pink");
+    const s=worldToScreen(wx,wy);
+    const R=150*scale*view.s;
+    ctx.save();
+    ctx.translate(s.x,s.y);
+    const bob=Math.sin(t*2.0 + wx*0.01)*R*0.03;
+    ctx.translate(0,bob);
+    ctx.globalAlpha=0.22;
+    ctx.fillStyle="#000";
+    ctx.beginPath(); ctx.ellipse(0,R*0.86,R*0.78,R*0.22,0,0,Math.PI*2); ctx.fill();
+    ctx.globalAlpha=1;
+    const wag=Math.sin(t*4 + wx*0.02)*0.35;
+    ctx.save();
+    ctx.translate(R*0.62,R*0.18);
+    ctx.rotate(wag);
+    ctx.strokeStyle=p.body;
+    ctx.lineWidth=Math.max(6,R*0.10);
+    ctx.lineCap="round";
+    ctx.beginPath();
+    if(ph.tail==="curly"){
+      ctx.moveTo(0,0);
+      ctx.bezierCurveTo(R*0.35,-R*0.10,R*0.35,R*0.30,0,R*0.28);
+      ctx.bezierCurveTo(-R*0.22,R*0.25,-R*0.15,R*0.08,R*0.06,R*0.10);
+    }else{
+      ctx.moveTo(0,0);
+      ctx.quadraticCurveTo(R*0.45,R*0.05,R*0.55,R*0.26);
+    }
+    ctx.stroke();
+    ctx.restore();
+
+    ctx.fillStyle=p.body;
+    ctx.beginPath(); ctx.ellipse(0,0,R*0.72,R*0.62,0,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle=p.belly;
+    ctx.beginPath(); ctx.ellipse(0,R*0.12,R*0.46,R*0.36,0,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle=p.body;
+    if(ph.ear==="floppy"){
+      ctx.save(); ctx.rotate(-0.15);
+      ctx.beginPath();
+      ctx.moveTo(-R*0.45,-R*0.42);
+      ctx.quadraticCurveTo(-R*0.70,-R*0.35,-R*0.58,-R*0.10);
+      ctx.quadraticCurveTo(-R*0.52,R*0.05,-R*0.38,-R*0.05);
+      ctx.closePath(); ctx.fill();
+      ctx.restore();
+      ctx.save(); ctx.rotate(0.15);
+      ctx.beginPath();
+      ctx.moveTo(R*0.45,-R*0.42);
+      ctx.quadraticCurveTo(R*0.70,-R*0.35,R*0.58,-R*0.10);
+      ctx.quadraticCurveTo(R*0.52,R*0.05,R*0.38,-R*0.05);
+      ctx.closePath(); ctx.fill();
+      ctx.restore();
+    }else{
+      const wig=Math.sin(t*2.8 + wx*0.02)*0.18;
+      ctx.save(); ctx.rotate(-wig);
+      ctx.beginPath(); ctx.moveTo(-R*0.42,-R*0.48); ctx.quadraticCurveTo(-R*0.74,-R*0.92,-R*0.26,-R*0.68); ctx.closePath(); ctx.fill();
+      ctx.restore();
+      ctx.save(); ctx.rotate(wig);
+      ctx.beginPath(); ctx.moveTo(R*0.42,-R*0.48); ctx.quadraticCurveTo(R*0.74,-R*0.92,R*0.26,-R*0.68); ctx.closePath(); ctx.fill();
+      ctx.restore();
+    }
+    ctx.fillStyle=p.eye;
+    ctx.beginPath(); ctx.arc(-R*0.22,-R*0.05,R*0.085,0,Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(R*0.22,-R*0.05,R*0.085,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle="rgba(255,255,255,.9)";
+    ctx.beginPath(); ctx.arc(-R*0.25,-R*0.08,R*0.028,0,Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(R*0.19,-R*0.08,R*0.028,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle="rgba(11,15,23,.85)";
+    ctx.lineWidth=Math.max(2,R*0.03);
+    ctx.lineCap="round";
+    ctx.beginPath(); ctx.moveTo(-R*0.08,R*0.17); ctx.quadraticCurveTo(0,R*0.24,R*0.08,R*0.17); ctx.stroke();
+    ctx.fillStyle=p.blush;
+    ctx.globalAlpha=0.33;
+    ctx.beginPath(); ctx.arc(-R*0.36,R*0.09,R*0.10,0,Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(R*0.36,R*0.09,R*0.10,0,Math.PI*2); ctx.fill();
+    ctx.globalAlpha=1;
+    ctx.restore();
+  }
+
+  function drawChromosomeBox(wx,wy,w,h){
+    const s=worldToScreen(wx,wy);
+    ctx.save();
+    ctx.globalAlpha=0.55;
+    ctx.fillStyle="rgba(35,50,87,.55)";
+    rr(s.x-w/2,s.y-h/2,w,h,18*view.s); ctx.fill();
+    ctx.globalAlpha=0.8;
+    ctx.fillStyle="rgba(124,243,199,.20)";
+    ctx.beginPath(); ctx.ellipse(s.x,s.y,w*0.40,h*0.09,0,0,Math.PI*2); ctx.fill();
+    ctx.restore();
+  }
+  function drawAlleleBadge(sx,sy,allele){
+    const badgeW=44*view.s, badgeH=40*view.s;
+    const x=sx-badgeW/2, y=sy-badgeH/2;
+    ctx.save();
+    ctx.globalAlpha=0.9;
+    ctx.fillStyle="rgba(15,22,36,.55)";
+    rr(x,y,badgeW,badgeH,12*view.s); ctx.fill();
+    ctx.globalAlpha=1;
+    ctx.fillStyle="#e9eefc";
+    ctx.font=`1000 ${Math.round(26*view.s)}px ui-sans-serif, system-ui, -apple-system, Noto Sans TC`;
+    ctx.textBaseline="middle";
+    const tw=ctx.measureText(allele).width;
+    ctx.fillText(allele, sx-tw/2, sy+1*view.s);
+    ctx.restore();
+  }
+  function drawChromosome1(wx,wy,allele,hitId){
+    const s=worldToScreen(wx,wy);
+    const h=110*view.s, w=56*view.s;
+    drawChromosomeBox(wx,wy,w,h);
+    drawAlleleBadge(s.x, s.y-h*0.10, allele);
+    addHit(wx-55, wy-70, 110, 140, ()=>toggleAllele(hitId));
+  }
+  function drawChromosome2(wx,wy,hap,hitPrefix){
+    const s=worldToScreen(wx,wy);
+    const h=120*view.s, w=56*view.s;
+    drawChromosomeBox(wx,wy,w,h);
+    drawAlleleBadge(s.x, s.y-h*0.25, hap.E);
+    drawAlleleBadge(s.x, s.y+h*0.12, hap.T);
+    addHit(wx-55, wy-74, 110, 74, ()=>toggleAllele(hitPrefix+":E"));
+    addHit(wx-55, wy-0, 110, 74, ()=>toggleAllele(hitPrefix+":T"));
+  }
+
+  function drawQuestionCreature(wx,wy){
+    const s=worldToScreen(wx,wy);
+    const R=160*view.s;
+    ctx.save();
+    ctx.translate(s.x,s.y);
+    ctx.globalAlpha=0.20;
+    ctx.fillStyle="#000";
+    ctx.beginPath(); ctx.ellipse(0,R*0.86,R*0.80,R*0.22,0,0,Math.PI*2); ctx.fill();
+    ctx.globalAlpha=1;
+    ctx.fillStyle="rgba(233,238,252,.10)";
+    ctx.beginPath(); ctx.ellipse(0,0,R*0.74,R*0.64,0,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle="rgba(233,238,252,.20)";
+    ctx.lineWidth=Math.max(2,R*0.03);
+    ctx.beginPath(); ctx.ellipse(0,0,R*0.74,R*0.64,0,0,Math.PI*2); ctx.stroke();
+    ctx.fillStyle="rgba(233,238,252,.95)";
+    ctx.font=`1000 ${Math.round(R*0.95)}px ui-sans-serif, system-ui, -apple-system, Noto Sans TC`;
+    ctx.textBaseline="middle";
+    const q="？";
+    const tw=ctx.measureText(q).width;
+    ctx.fillText(q,-tw/2,10);
+    ctx.restore();
+  }
+
+  function render(t){
+    const id=stage().id;
+    const L=-300, R=300, PANEL_Y=-210, CHR_Y=-195, CRE_Y=150, MID_Y=170;
+
+    if(id==="1-1"){
+      const l=game.big1.l11;
+      const g=prettyGeno(l.player[0],l.player[1]);
+      const ph=phenotype1(g);
+      drawChromosome1(L-80, CHR_Y, l.player[0], "p0");
+      drawChromosome1(L+80, CHR_Y, l.player[1], "p1");
+      drawCreatureSingle(L, CRE_Y, 1.0, ph, t);
+      if(!l.solved) drawCreatureSingle(R, CRE_Y, 1.0, l.target.ph, t);
+      return;
+    }
+
+    if(id==="1-2"){
+      const l=game.big1.l12;
+      const mPh=phenotype1(prettyGeno(l.mother.chrom[0],l.mother.chrom[1]));
+      const fPh=phenotype1(prettyGeno(l.father.chrom[0],l.father.chrom[1]));
+      label(L, PANEL_Y-20, "母親", "#a8b3d6");
+      drawChromosome1(L-80, CHR_Y, l.mother.chrom[0], "m0");
+      drawChromosome1(L+80, CHR_Y, l.mother.chrom[1], "m1");
+      drawCreatureSingle(L, CRE_Y, 1.0, mPh, t);
+
+      label(R, PANEL_Y-20, "父親", "#a8b3d6");
+      drawChromosome1(R-80, CHR_Y, l.father.chrom[0], "f0");
+      drawChromosome1(R+80, CHR_Y, l.father.chrom[1], "f1");
+      drawCreatureSingle(R, CRE_Y, 1.0, fPh, t);
+
+      if(l.child){
+        label(0, -290, `母配子：${l.chosen.mAllele}　父配子：${l.chosen.fAllele}`, "#a8b3d6");
+        drawCreatureSingle(0, MID_Y, 1.05, l.child.ph, t);
+        label(0, 380, `子代：${l.child.geno}`, "#67e06f");
+      }else{
+        label(0, -290, "按下下方『雜合』按鈕產生子代", "#ffcf5a");
+        drawCreatureSingle(0, MID_Y, 1.05, "rec", t);
+      }
+      return;
+    }
+
+    if(id==="1-3"){
+      const l=game.big1.l13;
+      const mPh=phenotype1(prettyGeno(l.mother.chrom[0],l.mother.chrom[1]));
+      label(L, PANEL_Y-20, "母親", "#a8b3d6");
+      drawChromosome1(L-80, CHR_Y, l.mother.chrom[0], "m0");
+      drawChromosome1(L+80, CHR_Y, l.mother.chrom[1], "m1");
+      drawCreatureSingle(L, CRE_Y, 1.0, mPh, t);
+
+      label(R, PANEL_Y-20, "父親（？）", "#ffcf5a");
+      if(l.revealed){
+        const fPh=phenotype1(prettyGeno(l.fatherHidden.chrom[0],l.fatherHidden.chrom[1]));
+        drawCreatureSingle(R, CRE_Y, 1.0, fPh, t);
+      }else{
+        drawQuestionCreature(R, CRE_Y);
+      }
+
+      label(0, -320, `第 ${l.history.length} 輪`, "#a8b3d6");
+      if(l.history.length===0){
+        label(0, -285, "按下下方『雜合 +20』按鈕生成寶寶", "#ffcf5a");
+        return;
+      }
+      const cur=l.history[l.history.length-1];
+      const AA=cur.summary["AA"]||0, Aa=cur.summary["Aa"]||0, aa=cur.summary["aa"]||0;
+      label(0, -285, `AA ${AA} / Aa ${Aa} / aa ${aa}`, "#a8b3d6");
+
+      const babies=cur.babies;
+      const cols=5, rows=4;
+      const startX=-210, startY=-120;
+      let idx=0;
+      for(let r=0;r<rows;r++){
+        for(let c=0;c<cols;c++){
+          const b=babies[idx++];
+          const x=startX + c*105;
+          const y=startY + r*105;
+          drawCreatureSingle(x, y, 0.28, b.ph, t);
+          label(x, y+62, b.geno, "#a8b3d6");
+        }
+      }
+      return;
+    }
+
+    if(id==="2-1"){
+      const l=game.big2.l21;
+      const ph=phenotype2(l.player[0],l.player[1]);
+      drawChromosome2(L-80, CHR_Y, l.player[0], "p0");
+      drawChromosome2(L+80, CHR_Y, l.player[1], "p1");
+      drawCreatureDouble(L, CRE_Y, 1.0, ph, t);
+      if(!l.solved) drawCreatureDouble(R, CRE_Y, 1.0, l.target.ph, t);
+      return;
+    }
+
+    if(id==="2-2"){
+      const l=game.big2.l22;
+      const mPh=phenotype2(l.mother.chrom[0],l.mother.chrom[1]);
+      const fPh=phenotype2(l.father.chrom[0],l.father.chrom[1]);
+
+      label(L, PANEL_Y-20, "母親", "#a8b3d6");
+      drawChromosome2(L-80, CHR_Y, l.mother.chrom[0], "m0");
+      drawChromosome2(L+80, CHR_Y, l.mother.chrom[1], "m1");
+      drawCreatureDouble(L, CRE_Y, 1.0, mPh, t);
+
+      label(R, PANEL_Y-20, "父親", "#a8b3d6");
+      drawChromosome2(R-80, CHR_Y, l.father.chrom[0], "f0");
+      drawChromosome2(R+80, CHR_Y, l.father.chrom[1], "f1");
+      drawCreatureDouble(R, CRE_Y, 1.0, fPh, t);
+
+      if(l.child){
+        const gg=l.child.g;
+        drawCreatureDouble(0, MID_Y, 1.05, l.child.ph, t);
+        label(0, 380, `子代：${gg.g1}；${gg.g2}`, "#67e06f");
+      }else{
+        label(0, -290, "按下下方『雜合』按鈕產生子代", "#ffcf5a");
+        drawCreatureDouble(0, MID_Y, 1.05, {ear:"pointy",tail:"straight"}, t);
+      }
+      return;
+    }
+
+    // 2-3
+    const l=game.big2.l23;
+    const mPh=phenotype2(l.mother.chrom[0],l.mother.chrom[1]);
+
+    label(L, PANEL_Y-20, "母親", "#a8b3d6");
+    drawChromosome2(L-80, CHR_Y, l.mother.chrom[0], "m0");
+    drawChromosome2(L+80, CHR_Y, l.mother.chrom[1], "m1");
+    drawCreatureDouble(L, CRE_Y, 1.0, mPh, t);
+
+    label(R, PANEL_Y-20, "父親（？）", "#ffcf5a");
+    if(l.revealed){
+      const fPh=phenotype2(l.fatherHidden.chrom[0],l.fatherHidden.chrom[1]);
+      drawCreatureDouble(R, CRE_Y, 1.0, fPh, t);
+    }else{
+      drawQuestionCreature(R, CRE_Y);
+    }
+
+    label(0, -320, `第 ${l.history.length} 輪`, "#a8b3d6");
+    if(l.history.length===0){
+      label(0, -285, "按下下方『雜合 +20』按鈕生成寶寶", "#ffcf5a");
+      return;
+    }
+    const cur=l.history[l.history.length-1];
+    label(0, -285, `本輪：${top2(cur.summary)}`, "#a8b3d6");
+
+    const babies=cur.babies;
+    const cols=5, rows=4;
+    const startX=-210, startY=-120;
+    let idx=0;
+    for(let r=0;r<rows;r++){
+      for(let c=0;c<cols;c++){
+        const b=babies[idx++];
+        const x=startX + c*105;
+        const y=startY + r*105;
+        drawCreatureDouble(x, y, 0.26, b.ph, t);
+        label(x, y+62, shortPh(b.ph), "#a8b3d6");
+      }
+    }
+
+    function shortPh(ph){
+      const e=(ph.ear==="floppy")?"垂":"尖";
+      const ta=(ph.tail==="curly")?"捲":"直";
+      return e+ta;
+    }
+    function top2(map){
+      const arr=Object.entries(map).sort((a,b)=>b[1]-a[1]).slice(0,2);
+      return arr.map(([k,v])=>`${shortKey(k)}=${v}`).join("  ");
+    }
+    function shortKey(k){
+      const [e,t]=k.split("|");
+      return (e==="floppy"?"垂":"尖")+(t==="curly"?"捲":"直");
+    }
+  }
+
+  // Tick
+  let last=performance.now();
+  let timeAcc=0;
+
+  function tick(now){
+    const dt=Math.min(0.05,(now-last)/1000);
+    last=now;
+    timeAcc+=dt;
+
+    const k = 1-Math.pow(0.0006, dt*60);
+    view.x = lerp(view.x, target.x, k);
+    view.y = lerp(view.y, target.y, k);
+    view.s = lerp(view.s, target.s, k);
+
+    ctx.fillStyle="#0b0f17";
+    ctx.fillRect(0,0,W,H);
+    hits.length=0;
+
+    try{
+      render(timeAcc);
+    }catch(err){
+      ctx.save();
+      ctx.fillStyle="rgba(0,0,0,.75)";
+      ctx.fillRect(0,0,W,H);
+      ctx.fillStyle="#ffcf5a";
+      ctx.font="900 14px ui-sans-serif, system-ui, -apple-system, Noto Sans TC";
+      ctx.fillText("渲染錯誤（請回報此訊息）:", 14, 26);
+      ctx.fillStyle="#e9eefc";
+      const msg = String(err && err.message ? err.message : err);
+      wrapText(msg, 14, 48, W-28, 18);
+      ctx.restore();
+    }
+
+    requestAnimationFrame(tick);
+  }
+
+  function wrapText(text, x, y, maxWidth, lineHeight){
+    const words = text.split(/\s+/);
+    let line = "";
+    for(let n=0;n<words.length;n++){
+      const testLine = line + words[n] + " ";
+      const testWidth = ctx.measureText(testLine).width;
+      if(testWidth > maxWidth && n > 0){
+        ctx.fillText(line, x, y);
+        line = words[n] + " ";
+        y += lineHeight;
+      }else{
+        line = testLine;
+      }
+    }
+    ctx.fillText(line, x, y);
+  }
+
+  buildControls();
+  setStage(0);
+  setTimeout(()=>autoFit(true), 0);
+  requestAnimationFrame(tick);
+})();
+</script>
+</body>
+</html>
