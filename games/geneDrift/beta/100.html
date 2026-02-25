@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <title>genGrift 1.0 - 孟德爾演化競賽</title>
+    <style>
+        :root { --bg: #050505; --accent: #00ffcc; --text: #eee; }
+        body { background: var(--bg); color: var(--text); font-family: 'Consolas', monospace; margin: 0; overflow: hidden; display: flex; flex-direction: column; height: 100vh; }
+        #top-hud { background: #111; padding: 10px 25px; display: flex; justify-content: space-between; border-bottom: 2px solid #333; align-items: center; z-index: 100; }
+        .biomass-val { color: #ffd700; font-size: 1.5em; font-weight: bold; }
+        #stage { flex-grow: 1; position: relative; background: #080808; overflow: hidden; }
+        #ui-bottom { height: 220px; background: #0a0a0a; border-top: 2px solid #333; display: flex; }
+        .control-panel { width: 240px; padding: 15px; border-right: 1px solid #333; font-size: 11px; color: #888; }
+        .chart-panel { flex-grow: 1; padding: 10px; position: relative; }
+        #game-over { display: none; position: absolute; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.9); z-index: 2000; flex-direction: column; align-items: center; justify-content: center; }
+        .btn { background: var(--accent); color: #000; border: none; padding: 10px 20px; font-weight: bold; cursor: pointer; border-radius: 4px; }
+        canvas { display: block; }
+    </style>
+</head>
+<body>
+
+<div id="top-hud">
+    <div>YEAR: <span id="y-val">0</span> | POP: <span id="p-val">0</span></div>
+    <div id="disaster-msg" style="color:var(--accent); font-weight:bold;">生態系運行中</div>
+    <div class="biomass-val">ENERGY: <span id="b-val">3000</span></div>
+</div>
+
+<div id="stage">
+    <canvas id="mainCanvas"></canvas>
+    <div id="game-over">
+        <h1 style="color:#ff3333; font-size: 4em; margin:0;">族群滅絕</h1>
+        <p style="font-size: 1.5em; color:#ffd700;">存活紀錄：<span id="final-year">0</span> 年</p>
+        <button class="btn" onclick="location.reload()">重新啟動演化</button>
+    </div>
+</div>
+
+<div id="ui-bottom">
+    <div class="control-panel">
+        <h3 style="color:var(--accent); margin:0 0 10px 0;">性狀紅利說明</h3>
+        ● <b>毛皮(F)</b>：寒流時代謝不增長<br>
+        ● <b>斑點(C)</b>：提供基礎代謝抵消(0.05/s)<br>
+        ● <b>速度(S)</b>：唯一可捕獲藍色高能食物<br>
+        ● <b>體型(R)</b>：唯一可粉碎紅色硬殼食物<br>
+        <br>
+        <span style="color:#ffd700;">※ 碰撞將依孟德爾法則隨機分配等位基因</span>
+    </div>
+    <div class="chart-panel">
+        <canvas id="chartCanvas"></canvas>
+    </div>
+</div>
+
+<script>
+/** 孟德爾演化模擬器 1.0 **/
+const GENES = {
+    f: { name: '毛皮(F)', dom: 'F', rec: 'f', col: '#ff5555' },
+    c: { name: '斑點(C)', dom: 'C', rec: 'c', col: '#55ff55' },
+    s: { name: '速度(S)', dom: 'S', rec: 's', col: '#5555ff' },
+    r: { name: '體型(R)', dom: 'R', rec: 'r', col: '#ffff55' }
+};
+
+let state = {
+    year: 0, biomass: 3000, population: [], foods: [],
+    history: [], isDead: false, disaster: null
+};
+
+class Food {
+    constructor() {
+        this.x = Math.random() * window.innerWidth;
+        this.y = Math.random() * (window.innerHeight - 250);
+        let r = Math.random();
+        this.type = r > 0.85 ? 'R' : (r > 0.7 ? 'S' : 'N');
+        this.vx = this.type === 'S' ? (Math.random()-0.5)*8 : 0;
+        this.vy = this.type === 'S' ? (Math.random()-0.5)*8 : 0;
+    }
+    update(w, h) {
+        this.x += this.vx; this.y += this.vy;
+        if(this.x<0 || this.x>w) this.vx *= -1;
+        if(this.y<0 || this.y>h) this.vy *= -1;
+    }
+    draw(ctx) {
+        ctx.fillStyle = this.type==='R'?'#ff4444':(this.type==='S'?'#00ccff':'#44ff44');
+        ctx.beginPath(); ctx.arc(this.x, this.y, 4, 0, Math.PI*2); ctx.fill();
+    }
+}
+
+class Creature {
+    constructor(x, y, genes, gender) {
+        this.x = x; this.y = y;
+        this.genes = genes; // 格式: {f:['F','f'], ...}
+        this.gender = gender || (Math.random() > 0.5 ? 'M' : 'F');
+        this.reproCooldown = 300; // 出生後冷卻
+        this.age = 0;
+        this.angle = Math.random() * Math.PI * 2;
+        
+        // 表現型 (顯性遺傳)
+        this.hasFur = genes.f.includes('F');
+        this.hasCamo = genes.c.includes('C');
+        this.isFast = genes.s.includes('S');
+        this.isBig = genes.r.includes('R');
+        
+        this.radius = this.isBig ? 18 : 9;
+        this.speed = this.isFast ? 4.0 : 1.5;
+    }
+
+    update(w, h) {
+        this.age++; if(this.reproCooldown > 0) this.reproCooldown--;
+        this.x += Math.cos(this.angle) * this.speed;
+        this.y += Math.sin(this.angle) * this.speed;
+        if(this.x<0 || this.x>w) this.angle = Math.PI - this.angle;
+        if(this.y<0 || this.y>h) this.angle = -this.angle;
+        if(Math.random()<0.02) this.angle += (Math.random()-0.5);
+
+        // 代謝公式
+        let cost = 0.1 + (this.isBig ? 0.08 : 0.02) + (this.isFast ? 0.05 : 0);
+        if (this.hasCamo) cost -= 0.06; // 斑點光合作用補貼
+        state.biomass -= cost;
+
+        // 覓食
+        state.foods.forEach((f, i) => {
+            if (Math.hypot(this.x-f.x, this.y-f.y) < this.radius + 5) {
+                if(f.type === 'N' || (f.type==='S' && this.isFast) || (f.type==='R' && this.isBig)) {
+                    state.biomass += (f.type==='N' ? 20 : 80);
+                    state.foods.splice(i, 1);
+                }
+            }
+        });
+    }
+
+    draw(ctx) {
+        ctx.save(); ctx.translate(this.x, this.y);
+        ctx.fillStyle = this.gender==='M' ? '#1a3a5a' : '#5a1a3a';
+        ctx.beginPath(); ctx.arc(0,0,this.radius,0,Math.PI*2); ctx.fill();
+        if(this.hasFur) { ctx.strokeStyle = '#444'; for(let i=0;i<8;i++){ ctx.rotate(Math.PI/4); ctx.strokeRect(this.radius, -1, 6, 2); }}
+        if(this.hasCamo) { ctx.fillStyle = this.gender==='M'?'#0cf':'#f0a'; ctx.beginPath(); ctx.arc(0,0,this.radius/2,0,Math.PI*2); ctx.fill(); }
+        ctx.restore();
+    }
+}
+
+function handleReproduction() {
+    for (let i=0; i<state.population.length; i++) {
+        for (let j=i+1; j<state.population.length; j++) {
+            let a = state.population[i], b = state.population[j];
+            if (Math.hypot(a.x-b.x, a.y-b.y) < a.radius+b.radius && a.gender !== b.gender && a.reproCooldown===0 && b.reproCooldown===0) {
+                if (state.biomass > 200) {
+                    let childGenes = {};
+                    ['f','c','s','r'].forEach(k => {
+                        childGenes[k] = [a.genes[k][Math.floor(Math.random()*2)], b.genes[k][Math.floor(Math.random()*2)]];
+                    });
+                    state.population.push(new Creature(a.x, a.y, childGenes));
+                    a.reproCooldown = 600; b.reproCooldown = 600;
+                    state.biomass -= 100;
+                }
+            }
+        }
+    }
+}
+
+const mainCanvas = document.getElementById('mainCanvas');
+const mainCtx = mainCanvas.getContext('2d');
+
+function loop() {
+    mainCanvas.width = window.innerWidth; mainCanvas.height = window.innerHeight - 220;
+    if(state.isDead) return;
+
+    if(state.foods.length < 50) state.foods.push(new Food());
+    state.foods.forEach(f => { f.update(mainCanvas.width, mainCanvas.height); f.draw(mainCtx); });
+    state.population.forEach((p, i) => {
+        p.update(mainCanvas.width, mainCanvas.height); p.draw(mainCtx);
+        if(p.age > 3000) state.population.splice(i, 1); // 壽命限制
+    });
+    
+    handleReproduction();
+    if(Date.now()%1000 < 20) { state.year++; recordHistory(); }
+    if(state.biomass <= 0 || state.population.length === 0) {
+        state.isDead = true; document.getElementById('game-over').style.display='flex';
+        document.getElementById('final-year').innerText = state.year;
+    }
+
+    document.getElementById('y-val').innerText = state.year;
+    document.getElementById('p-val').innerText = state.population.length;
+    document.getElementById('b-val').innerText = Math.floor(state.biomass);
+    drawChart();
+    requestAnimationFrame(loop);
+}
+
+function recordHistory() {
+    let snap = { pop: state.population.length };
+    ['f','c','s','r'].forEach(k => {
+        let doms = state.population.filter(p => p.genes[k].includes(k.toUpperCase())).length;
+        snap[k] = doms / (state.population.length || 1);
+    });
+    state.history.push(snap); if(state.history.length > 100) state.history.shift();
+}
+
+function drawChart() {
+    const c = document.getElementById('chartCanvas'); const cx = c.getContext('2d');
+    c.width = c.offsetWidth; c.height = 180;
+    cx.strokeStyle = '#333'; cx.strokeRect(0,0,c.width,c.height);
+    state.history.forEach((d, i) => {
+        let x = (i/100)*c.width;
+        ['f','c','s','r'].forEach(k => {
+            cx.fillStyle = GENES[k].col; cx.fillRect(x, c.height - d[k]*140 - 20, 3, 3);
+        });
+    });
+}
+
+// 初始：建立 30 隻純隱性(ffccssrr)的祖先個體
+for(let i=0; i<30; i++) {
+    state.population.push(new Creature(Math.random()*800, 200, {f:['f','f'], c:['c','c'], s:['s','s'], r:['r','r']}));
+}
+loop();
+</script>
+</body>
+</html>

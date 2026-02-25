@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <title>genGrift 0.98 - 多樣性生態平衡</title>
+    <style>
+        :root { --bg: #050505; --accent: #00ffcc; --text: #eee; }
+        body { background: var(--bg); color: var(--text); font-family: 'Consolas', monospace; margin: 0; overflow: hidden; display: flex; flex-direction: column; height: 100vh; }
+        
+        #top-hud { background: #111; padding: 10px 25px; display: flex; justify-content: space-between; border-bottom: 2px solid #333; align-items: center; }
+        .biomass-val { color: #ffd700; font-size: 1.5em; font-weight: bold; text-shadow: 0 0 10px rgba(255,215,0,0.5); }
+
+        #stage { flex-grow: 1; position: relative; background: #080808; overflow: hidden; }
+        #env-effect { position: absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; transition: 1s; z-index: 5; }
+
+        #ui-bottom { height: 220px; background: #0a0a0a; border-top: 2px solid #333; display: flex; }
+        .control-panel { width: 220px; padding: 15px; border-right: 1px solid #333; }
+        .chart-panel { flex-grow: 1; padding: 10px; position: relative; display: flex; }
+        
+        #game-over { display: none; position: absolute; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.9); 
+                     z-index: 2000; flex-direction: column; align-items: center; justify-content: center; }
+        
+        .allele { width: 35px; height: 35px; line-height: 35px; text-align: center; border: 1px solid #444; cursor: pointer; background: #111; font-weight: bold; }
+        .allele.active { border-color: var(--accent); color: var(--accent); box-shadow: 0 0 8px var(--accent); }
+        .btn { background: var(--accent); color: #000; border: none; padding: 10px 20px; font-weight: bold; cursor: pointer; border-radius: 4px; }
+        
+        .diversity-tag { background: #222; padding: 2px 8px; border-radius: 10px; font-size: 12px; color: #aaa; border: 1px solid #444; }
+    </style>
+</head>
+<body>
+
+<div id="top-hud">
+    <div>YEAR: <span id="y-val">0</span> | POP: <span id="p-val">0</span> <span class="diversity-tag" id="div-tag">多樣性: 1/16</span></div>
+    <div id="disaster-msg" style="color:var(--accent); font-weight:bold;">觀測中...</div>
+    <div class="biomass-val">ENERGY: <span id="b-val">3000</span></div>
+</div>
+
+<div id="stage">
+    <div id="env-effect"></div>
+    <canvas id="mainCanvas"></canvas>
+    <div id="game-over">
+        <h1 style="color:#ff3333; font-size: 4em; margin:0;">族群滅絕</h1>
+        <p style="font-size: 1.5em; color:#ffd700;">存活紀錄：<span id="final-year">0</span> 年</p>
+        <button class="btn" onclick="location.reload()">重新挑戰</button>
+    </div>
+</div>
+
+<div id="ui-bottom">
+    <div class="control-panel">
+        <button class="btn" style="width:100%" onclick="openBreedModal()">人擇基因編輯</button>
+        <div style="font-size: 11px; color:#666; margin-top:10px; line-height:1.4">
+            ● 毛皮(F)：寒流保溫，熱浪易死<br>
+            ● 花紋(C)：光合作用獲得能量<br>
+            ● 組合多樣性越高，能量加成越多
+        </div>
+    </div>
+    <div class="chart-panel">
+        <canvas id="chartCanvas"></canvas>
+        <div id="legend" style="width:120px; font-size:11px; padding-left:10px;"></div>
+    </div>
+</div>
+
+<div id="breed-modal" style="display:none; position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); width:800px; background:#1a1a1a; border:2px solid var(--accent); padding:25px; z-index:1000;">
+    <h3 style="text-align:center; color:var(--accent);">人工基因配對</h3>
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+        <canvas id="male-pre" width="120" height="120" style="background:#000; border-radius:8px;"></canvas>
+        <div id="chromo-rows" style="flex-grow:1; padding:0 20px;"></div>
+        <canvas id="female-pre" width="120" height="120" style="background:#000; border-radius:8px;"></canvas>
+    </div>
+    <div style="text-align:center; margin-top:20px;">
+        <button class="btn" onclick="doMassBreed()">繁育 50 隻 (1000 能量)</button>
+        <button class="btn" style="background:#444; color:#ccc" onclick="document.getElementById('breed-modal').style.display='none'">關閉</button>
+    </div>
+</div>
+
+<script>
+/** 核心系統 **/
+const GENES = {
+    f: { name: '毛皮 (F)', dom: 'F', rec: 'f', col: '#ff5555' },
+    c: { name: '花紋 (C)', dom: 'C', rec: 'c', col: '#55ff55' },
+    s: { name: '速度 (S)', dom: 'S', rec: 's', col: '#5555ff' },
+    r: { name: '體型 (R)', dom: 'R', rec: 'r', col: '#ffff55' }
+};
+
+let state = {
+    year: 0, biomass: 3000, population: [],
+    history: [], chartMode: 'pop', disasterType: null, isDead: false,
+    selected: { male: { f:'F', c:'c', s:'S', r:'r' }, female: { f:'f', c:'C', s:'s', r:'r' } }
+};
+
+class Creature {
+    constructor(x, y, genes, gender) {
+        this.x = x; this.y = y;
+        this.genes = genes; 
+        this.gender = gender || (Math.random() > 0.5 ? 'M' : 'F');
+        this.angle = Math.random() * Math.PI * 2;
+        this.turnSpeed = (Math.random() - 0.5) * 0.1;
+        this.isBig = genes.r.some(a => a === 'R');
+        this.isFast = genes.s.some(a => a === 'S');
+        this.hasFur = genes.f.some(a => a === 'F');
+        this.hasCamo = genes.c.some(a => a === 'C');
+        this.radius = this.isBig ? 18 : 9;
+        this.speedBase = this.isFast ? 3.0 : 1.2;
+    }
+
+    update(w, h) {
+        this.angle += this.turnSpeed;
+        this.x += Math.cos(this.angle) * this.speedBase;
+        this.y += Math.sin(this.angle) * this.speedBase;
+        if (this.x < 0 || this.x > w) this.angle = Math.PI - this.angle;
+        if (this.y < 0 || this.y > h) this.angle = -this.angle;
+
+        // --- 代謝與保溫機制 ---
+        let baseCost = 0.05 + (Math.pow(this.speedBase, 2) * (this.isBig ? 0.03 : 0.01));
+        
+        if (state.disasterType === 'cold') {
+            if (!this.hasFur) baseCost *= 4; // 沒毛皮的人在寒流中消耗極大
+        } else if (state.disasterType === 'heat') {
+            if (this.hasFur) baseCost *= 3; // 有毛皮的人在熱浪中過熱消耗變大
+        }
+
+        state.biomass -= baseCost;
+
+        // --- 花紋(C) 能量獲取 ---
+        if (this.hasCamo) {
+            state.biomass += 0.06; // 斑點進行微弱能量補給
+        }
+    }
+
+    draw(ctx, scale=1) {
+        ctx.save(); ctx.translate(this.x, this.y);
+        const s = scale, r = this.radius * s;
+        // 繪製腳
+        ctx.strokeStyle = '#444'; ctx.lineWidth = 3*s;
+        let legL = (this.isFast ? 18 : 6) * s;
+        ctx.beginPath(); ctx.moveTo(-r/2, 0); ctx.lineTo(-r/2, legL); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(r/2, 0); ctx.lineTo(r/2, legL); ctx.stroke();
+        // 身體
+        ctx.fillStyle = this.gender === 'M' ? '#1a3a5a' : '#5a1a3a';
+        ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI*2); ctx.fill();
+        // 毛皮
+        if (this.hasFur) {
+            ctx.strokeStyle = ctx.fillStyle; ctx.lineWidth = 2*s;
+            for(let i=0; i<12; i++) {
+                let a = (i/12)*Math.PI*2;
+                ctx.beginPath(); ctx.moveTo(Math.cos(a)*r, Math.sin(a)*r);
+                ctx.lineTo(Math.cos(a)*(r+10*s), Math.sin(a)*(r+10*s)); ctx.stroke();
+            }
+        }
+        // 斑點
+        if (this.hasCamo) {
+            ctx.fillStyle = this.gender === 'M' ? '#00ccff' : '#ff00aa';
+            for(let i=0; i<3; i++) {
+                ctx.beginPath(); ctx.arc((i-1)*r*0.4, 0, 3*s, 0, Math.PI*2); ctx.fill();
+            }
+        }
+        ctx.fillStyle = 'white'; ctx.beginPath(); ctx.arc(-r/3,-r/4,2*s,0,Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(r/3,-r/4,2*s,0,Math.PI*2); ctx.fill();
+        ctx.restore();
+    }
+}
+
+/** 災難與多樣性紅利 **/
+function handleEcology() {
+    if (state.year % 25 === 0 && !state.disasterType) {
+        const d = [
+            { id: 'cold', n: '⚠️ 極地寒流 (ff 耗能劇增)', c: 'rgba(0,100,255,0.2)' },
+            { id: 'heat', n: '⚠️ 酷暑熱浪 (F- 過熱消耗)', c: 'rgba(255,100,0,0.2)' }
+        ][Math.floor(Math.random()*2)];
+        state.disasterType = d.id;
+        document.getElementById('disaster-msg').innerText = d.n;
+        document.getElementById('env-effect').style.background = d.c;
+        setTimeout(() => {
+            state.disasterType = null;
+            document.getElementById('disaster-msg').innerText = "環境穩定";
+            document.getElementById('env-effect').style.background = "transparent";
+        }, 8000);
+    }
+
+    // 計算多樣性紅利
+    let combos = new Set();
+    state.population.forEach(p => {
+        let code = (p.hasFur?1:0) + (p.hasCamo?2:0) + (p.isFast?4:0) + (p.isBig?8:0);
+        combos.add(code);
+    });
+    
+    let bonus = combos.size * 1.5; // 每多一種組合，每秒回饋 1.5 能量
+    state.biomass += bonus / 60; // loop 每秒跑 60 次
+    document.getElementById('div-tag').innerText = `多樣性組合: ${combos.size}/16 | 紅利: +${bonus.toFixed(1)}/s`;
+}
+
+/** 繪圖與 UI 邏輯 **/
+const mainCanvas = document.getElementById('mainCanvas');
+const mainCtx = mainCanvas.getContext('2d');
+
+function loop() {
+    mainCanvas.width = window.innerWidth;
+    mainCanvas.height = window.innerHeight - 220;
+    
+    if(!state.isDead) {
+        state.population.forEach(p => { p.update(mainCanvas.width, mainCanvas.height); p.draw(mainCtx); });
+        handleEcology();
+        if (Date.now() % 1000 < 20) {
+            state.year++;
+            recordHistory();
+        }
+        if(state.biomass <= 0 || state.population.length === 0) {
+            state.isDead = true;
+            document.getElementById('game-over').style.display = 'flex';
+            document.getElementById('final-year').innerText = state.year;
+        }
+    }
+    drawChart();
+    document.getElementById('y-val').innerText = state.year;
+    document.getElementById('p-val').innerText = state.population.length;
+    document.getElementById('b-val').innerText = Math.max(0, Math.floor(state.biomass));
+    requestAnimationFrame(loop);
+}
+
+// 數據紀錄邏輯同前版 (recordHistory, drawChart)
+function recordHistory() {
+    let snap = { y: state.year, pop: state.population.length };
+    for(let k in GENES) {
+        let domCount = state.population.filter(p => p.genes[k].includes(GENES[k].dom)).length;
+        snap['p_'+k] = domCount / (state.population.length || 1);
+    }
+    state.history.push(snap);
+    if(state.history.length > 100) state.history.shift();
+}
+
+function drawChart() {
+    const canvas = document.getElementById('chartCanvas');
+    const ctx = canvas.getContext('2d');
+    canvas.width = canvas.offsetWidth; canvas.height = 180;
+    ctx.clearRect(0,0,canvas.width, canvas.height);
+    if(state.history.length < 2) return;
+    for(let k in GENES) {
+        ctx.strokeStyle = GENES[k].col; ctx.lineWidth = 2;
+        ctx.beginPath();
+        state.history.forEach((d, i) => {
+            let x = (i / 100) * canvas.width;
+            let y = canvas.height - 20 - (d['p_'+k] * (canvas.height - 40));
+            if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+        });
+        ctx.stroke();
+    }
+}
+
+function openBreedModal() {
+    const container = document.getElementById('chromo-rows');
+    container.innerHTML = '';
+    for (let k in GENES) {
+        const g = GENES[k];
+        const row = document.createElement('div');
+        row.style = "display:flex; align-items:center; justify-content:space-between; margin:8px 0; background:#222; padding:8px; border-radius:4px;";
+        row.innerHTML = `
+            <div style="display:flex; gap:10px"><div class="allele ${state.selected.male[k]===g.dom?'active':''}" onclick="setG('male','${k}','${g.dom}')">${g.dom}</div><div class="allele ${state.selected.male[k]===g.rec?'active':''}" onclick="setG('male','${k}','${g.rec}')">${g.rec}</div></div>
+            <span style="color:var(--accent); font-weight:bold">${g.name}</span>
+            <div style="display:flex; gap:10px"><div class="allele ${state.selected.female[k]===g.dom?'active':''}" onclick="setG('female','${k}','${g.dom}')">${g.dom}</div><div class="allele ${state.selected.female[k]===g.rec?'active':''}" onclick="setG('female','${k}','${g.rec}')">${g.rec}</div></div>
+        `;
+        container.appendChild(row);
+    }
+    updatePre();
+    document.getElementById('breed-modal').style.display = 'block';
+}
+function setG(g, k, v) { state.selected[g][k] = v; openBreedModal(); }
+function updatePre() {
+    ['male','female'].forEach(s => {
+        const ctx = document.getElementById(s+'-pre').getContext('2d');
+        ctx.clearRect(0,0,120,120);
+        let genes = {}; for(let k in state.selected[s]) genes[k] = [state.selected[s][k], state.selected[s][k]];
+        new Creature(60, 60, genes, s==='male'?'M':'F').draw(ctx, 0.8);
+    });
+}
+function doMassBreed() {
+    if(state.biomass < 1000) return alert("能量不足 1000");
+    state.biomass -= 1000;
+    for(let i=0; i<50; i++) {
+        let g = {}; for(let k in GENES) g[k] = [state.selected.male[k], state.selected.female[k]];
+        state.population.push(new Creature(Math.random()*window.innerWidth, Math.random()*window.innerHeight*0.5, g));
+    }
+    document.getElementById('breed-modal').style.display='none';
+}
+
+// 初始
+const leg = document.getElementById('legend');
+for(let k in GENES) leg.innerHTML += `<div style="display:flex;align-items:center;margin-bottom:4px;"><div style="width:10px;height:10px;background:${GENES[k].col};margin-right:5px;"></div>${GENES[k].name}</div>`;
+for(let i=0; i<30; i++) state.population.push(new Creature(Math.random()*600, Math.random()*300, {f:['f','f'], c:['c','c'], s:['s','s'], r:['r','r']}));
+loop();
+</script>
+</body>
+</html>
