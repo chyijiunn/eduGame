@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <title>genGrift 0.95 - 生存演化競賽</title>
+    <style>
+        :root { --bg: #050505; --accent: #00ffcc; --girl: #ff00aa; --boy: #00ccff; --text: #eee; }
+        body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', 'Consolas', monospace; margin: 0; overflow: hidden; display: flex; flex-direction: column; height: 100vh; }
+        
+        /* 頂部狀態 */
+        #top-hud { background: #111; padding: 10px 25px; display: flex; justify-content: space-between; border-bottom: 2px solid #333; align-items: center; z-index: 10; }
+        .biomass-val { color: #ffd700; font-size: 1.5em; font-weight: bold; text-shadow: 0 0 10px rgba(255,215,0,0.3); }
+
+        /* 主舞台 */
+        #stage { flex-grow: 1; position: relative; background: radial-gradient(circle, #1a1a1a 0%, #050505 100%); overflow: hidden; }
+        #env-effect { position: absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; transition: 1s; z-index: 5; }
+
+        /* 遊戲結束畫面 */
+        #game-over { display: none; position: absolute; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.85); 
+                     z-index: 2000; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+        
+        /* 下方圖表區 */
+        #ui-bottom { height: 200px; background: #111; border-top: 2px solid #333; display: flex; }
+        .control-panel { width: 220px; padding: 15px; border-right: 1px solid #333; }
+        .chart-panel { flex-grow: 1; padding: 10px; position: relative; }
+        
+        /* 育種視窗 */
+        #breed-modal { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); 
+                       width: 850px; background: #1a1a1a; border: 2px solid var(--accent); padding: 25px; z-index: 1000; box-shadow: 0 0 100px #000; }
+        .modal-layout { display: flex; gap: 20px; align-items: center; }
+        .preview-box { width: 150px; height: 150px; background: #000; border: 1px solid #333; border-radius: 8px; display: flex; align-items: center; justify-content: center; }
+        .allele { width: 40px; height: 40px; line-height: 40px; text-align: center; border: 1px solid #444; cursor: pointer; background: #111; border-radius: 4px; font-weight: bold; }
+        .allele.active { border-color: var(--accent); color: var(--accent); box-shadow: 0 0 10px var(--accent); }
+
+        .btn { background: var(--accent); color: #000; border: none; padding: 10px 20px; font-weight: bold; cursor: pointer; border-radius: 4px; }
+        .tab-btn { background: #222; color: #777; border: none; padding: 5px 12px; cursor: pointer; font-size: 11px; margin-left: 5px; border-radius: 3px; }
+        .tab-btn.active { background: var(--accent); color: #000; }
+    </style>
+</head>
+<body>
+
+<div id="top-hud">
+    <div>YEAR: <span id="y-val">0</span> | GEN: <span id="g-val">0</span> | POP: <span id="p-val">0</span></div>
+    <div id="disaster-msg" style="color:var(--accent); font-weight:bold; letter-spacing:1px;">環境觀測中...</div>
+    <div class="biomass-val">ENERGY: <span id="b-val">50000</span></div>
+</div>
+
+<div id="stage">
+    <div id="env-effect"></div>
+    <canvas id="mainCanvas"></canvas>
+    
+    <div id="game-over">
+        <h1 style="color:var(--danger); font-size: 4em; margin-bottom: 0;">族群滅絕</h1>
+        <p style="font-size: 1.5em; color: #ffd700;">您的族群共存活了 <span id="final-year">0</span> 年</p>
+        <button class="btn" onclick="location.reload()">重新開始挑戰</button>
+    </div>
+</div>
+
+<div id="ui-bottom">
+    <div class="control-panel">
+        <button class="btn" style="width:100%" onclick="openBreedModal()">啟動人擇編輯器</button>
+        <p style="font-size: 11px; color:#555; margin-top:15px; line-height: 1.5;">
+            能量隨移動與體型消耗。<br>
+            活過越多年份代表演化越成功。
+        </p>
+    </div>
+    <div class="chart-panel">
+        <div style="position:absolute; top:10px; right:20px; z-index:5;">
+            <button class="tab-btn active" onclick="setChart('pop')">人口</button>
+            <button class="tab-btn" onclick="setChart('freq')">基因(p)</button>
+            <button class="tab-btn" onclick="setChart('pheno')">性狀比例</button>
+        </div>
+        <canvas id="chartCanvas"></canvas>
+    </div>
+</div>
+
+<div id="breed-modal">
+    <h3 style="margin:0 0 20px 0; color:var(--accent); text-align:center;">人工染色體選擇</h3>
+    <div class="modal-layout">
+        <div class="preview-box">
+            <div style="text-align:center">
+                <span style="color:var(--boy); font-size: 12px;">FATHER</span><br>
+                <canvas id="male-pre" width="120" height="120"></canvas>
+            </div>
+        </div>
+        <div style="flex-grow:1" id="chromo-rows"></div>
+        <div class="preview-box">
+            <div style="text-align:center">
+                <span style="color:var(--girl); font-size: 12px;">MOTHER</span><br>
+                <canvas id="female-pre" width="120" height="120"></canvas>
+            </div>
+        </div>
+    </div>
+    <div style="margin-top:25px; display:flex; justify-content:center; gap:20px;">
+        <button class="btn" onclick="doMassBreed()" style="padding: 12px 40px; font-size: 1.1em;">執行大量繁育 (消耗 1000 能量)</button>
+        <button class="btn" style="background:#444; color:#ccc" onclick="document.getElementById('breed-modal').style.display='none'">返回觀測</button>
+    </div>
+</div>
+
+<script>
+/** 核心定義與視覺系統 (回歸 0.85 版本畫風) **/
+const GENES = {
+    f: { name: '毛皮', dom: 'F', rec: 'f', col: '#ff5555' },
+    c: { name: '花紋', dom: 'C', rec: 'c', col: '#55ff55' },
+    s: { name: '速度', dom: 'S', rec: 's', col: '#5555ff' },
+    r: { name: '體型', dom: 'R', rec: 'r', col: '#ffff55' }
+};
+
+let state = {
+    year: 0, gen: 0, biomass: 50000, population: [],
+    history: [], chartMode: 'pop', disaster: null, isDead: false,
+    selected: {
+        male: { f:'F', c:'c', s:'S', r:'r' },
+        female: { f:'f', c:'C', s:'s', r:'r' }
+    }
+};
+
+class Creature {
+    constructor(x, y, genes, gender) {
+        this.x = x; this.y = y;
+        this.genes = genes; 
+        this.gender = gender || (Math.random() > 0.5 ? 'M' : 'F');
+        this.age = 0;
+        this.angle = Math.random() * Math.PI * 2;
+        this.turnSpeed = (Math.random() - 0.5) * 0.1;
+        
+        // 表現型判定
+        this.isBig = genes.r.some(a => a === 'R');
+        this.isFast = genes.s.some(a => a === 'S');
+        this.hasFur = genes.f.some(a => a === 'F');
+        this.hasCamo = genes.c.some(a => a === 'C');
+        
+        this.radius = this.isBig ? 18 : 9;
+        this.speedBase = this.isFast ? 3.0 : 1.2;
+    }
+
+    update(width, height) {
+        if (state.isDead) return;
+        if (Math.random() < 0.03) this.turnSpeed = (Math.random() - 0.5) * 0.15;
+        this.angle += this.turnSpeed;
+        
+        this.x += Math.cos(this.angle) * this.speedBase;
+        this.y += Math.sin(this.angle) * this.speedBase;
+
+        if (this.x < 0 || this.x > width) this.angle = Math.PI - this.angle;
+        if (this.y < 0 || this.y > height) this.angle = -this.angle;
+
+        // 代謝損耗
+        let cost = 0.02 + (Math.pow(this.speedBase, 1.5) * (this.isBig ? 0.04 : 0.01));
+        state.biomass -= cost;
+    }
+
+    draw(ctx, scale=1) {
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        const s = scale;
+        const r = this.radius * s;
+
+        // 1. 腳 (0.85 畫風)
+        ctx.strokeStyle = '#444';
+        ctx.lineWidth = 3 * s;
+        let legL = (this.isFast ? 18 : 6) * s;
+        ctx.beginPath(); ctx.moveTo(-r/2, 0); ctx.lineTo(-r/2, legL); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(r/2, 0); ctx.lineTo(r/2, legL); ctx.stroke();
+
+        // 2. 身體
+        ctx.fillStyle = this.gender === 'M' ? '#1a3a5a' : '#5a1a3a';
+        ctx.beginPath();
+        ctx.arc(0, 0, r, 0, Math.PI*2);
+        ctx.fill();
+
+        // 3. 毛皮 (放射狀線條)
+        if (this.hasFur) {
+            ctx.strokeStyle = ctx.fillStyle;
+            ctx.lineWidth = 2 * s;
+            for(let i=0; i<12; i++) {
+                let a = (i/12)*Math.PI*2;
+                ctx.beginPath();
+                ctx.moveTo(Math.cos(a)*r, Math.sin(a)*r);
+                ctx.lineTo(Math.cos(a)*(r + 10*s), Math.sin(a)*(r + 10*s));
+                ctx.stroke();
+            }
+        }
+
+        // 4. 花紋 (對比斑點)
+        if (this.hasCamo) {
+            ctx.fillStyle = this.gender === 'M' ? '#00ccff' : '#ff00aa';
+            for(let i=0; i<3; i++) {
+                ctx.beginPath();
+                ctx.arc((i-1)*r*0.4, Math.sin(i)*r*0.2, 3*s, 0, Math.PI*2);
+                ctx.fill();
+            }
+        }
+
+        // 5. 眼睛
+        ctx.fillStyle = 'white';
+        ctx.beginPath(); ctx.arc(-r/3, -r/4, 3*s, 0, Math.PI*2); ctx.fill();
+        ctx.beginPath(); ctx.arc(r/3, -r/4, 3*s, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = 'black';
+        ctx.fillRect(-r/3-1, -r/4-1, 2, 2); ctx.fillRect(r/3-1, -r/4-1, 2, 2);
+
+        ctx.restore();
+    }
+}
+
+/** 災難與環境邏輯 **/
+function triggerDisaster() {
+    if (state.year % 20 === 0 && !state.disaster) {
+        const d = [
+            { n: '極地寒流 (ff淘汰)', k: 'f', type: 'rec', c: 'rgba(0,150,255,0.2)' },
+            { n: '酷暑熱浪 (F-淘汰)', k: 'f', type: 'dom', c: 'rgba(255,100,0,0.2)' },
+            { n: '資源匱乏 (R-高耗能)', k: 'r', type: 'dom', c: 'rgba(30,30,30,0.6)' },
+            { n: '掠食者 (ss低速淘汰)', k: 's', type: 'rec', c: 'rgba(255,0,0,0.15)' }
+        ][Math.floor(Math.random()*4)];
+        
+        state.disaster = d;
+        document.getElementById('disaster-msg').innerText = "ALERT: " + d.n;
+        document.getElementById('env-effect').style.background = d.c;
+        
+        // 淘汰
+        state.population = state.population.filter(p => {
+            let isVul = d.type === 'dom' ? p['has'+d.k.toUpperCase()] : !p['has'+d.k.toUpperCase()];
+            return isVul ? Math.random() > 0.7 : true;
+        });
+
+        setTimeout(() => {
+            state.disaster = null;
+            document.getElementById('disaster-msg').innerText = "環境穩定";
+            document.getElementById('env-effect').style.background = "transparent";
+        }, 6000);
+    }
+}
+
+/** 育種介面與大量繁育 **/
+function openBreedModal() {
+    const container = document.getElementById('chromo-rows');
+    container.innerHTML = '';
+    for (let k in GENES) {
+        const g = GENES[k];
+        const row = document.createElement('div');
+        row.style = "display:flex; align-items:center; justify-content:space-between; margin:10px 0; background:#222; padding:8px; border-radius:5px;";
+        row.innerHTML = `
+            <div style="display:flex; gap:8px">
+                <div class="allele ${state.selected.male[k]===g.dom?'active':''}" onclick="setG('male','${k}','${g.dom}')">${g.dom}</div>
+                <div class="allele ${state.selected.male[k]===g.rec?'active':''}" onclick="setG('male','${k}','${g.rec}')">${g.rec}</div>
+            </div>
+            <span style="font-size:13px; color:var(--accent); font-weight:bold;">${g.name}</span>
+            <div style="display:flex; gap:8px">
+                <div class="allele ${state.selected.female[k]===g.dom?'active':''}" onclick="setG('female','${k}','${g.dom}')">${g.dom}</div>
+                <div class="allele ${state.selected.female[k]===g.rec?'active':''}" onclick="setG('female','${k}','${g.rec}')">${g.rec}</div>
+            </div>
+        `;
+        container.appendChild(row);
+    }
+    updatePre();
+    document.getElementById('breed-modal').style.display = 'block';
+}
+
+function setG(gender, k, v) { state.selected[gender][k] = v; openBreedModal(); }
+
+function updatePre() {
+    drawPre('male-pre', state.selected.male, 'M');
+    drawPre('female-pre', state.selected.female, 'F');
+}
+
+function drawPre(id, gObj, gender) {
+    const canvas = document.getElementById(id);
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0,0,120,120);
+    let pair = {}; for(let k in gObj) pair[k] = [gObj[k], gObj[k]];
+    let temp = new Creature(60, 60, pair, gender);
+    temp.draw(ctx, 0.8);
+}
+
+function doMassBreed() {
+    if(state.biomass < 1000) return alert("ENERGY 不足 1000");
+    state.biomass -= 1000;
+    for(let i=0; i<50; i++) {
+        let genes = {};
+        for(let k in GENES) genes[k] = [state.selected.male[k], state.selected.female[k]];
+        state.population.push(new Creature(Math.random()*window.innerWidth, Math.random()*window.innerHeight*0.5, genes));
+    }
+    document.getElementById('breed-modal').style.display='none';
+}
+
+/** 遊戲主循環與圖表 **/
+const mainCanvas = document.getElementById('mainCanvas');
+const mainCtx = mainCanvas.getContext('2d');
+const chartCanvas = document.getElementById('chartCanvas');
+const chartCtx = chartCanvas.getContext('2d');
+
+function loop() {
+    mainCanvas.width = window.innerWidth;
+    mainCanvas.height = window.innerHeight - 200;
+    mainCtx.clearRect(0,0,mainCanvas.width, mainCanvas.height);
+    
+    if(!state.isDead) {
+        state.population.forEach(p => { p.update(mainCanvas.width, mainCanvas.height); p.draw(mainCtx); });
+        
+        // 年份推進
+        if (Date.now() % 1000 < 20) {
+            state.year++;
+            if(state.year % 10 === 0) state.gen++;
+            triggerDisaster();
+            recordHistory();
+        }
+
+        // 結束判定
+        if(state.biomass <= 0 || state.population.length === 0) {
+            state.isDead = true;
+            document.getElementById('game-over').style.display = 'flex';
+            document.getElementById('final-year').innerText = state.year;
+        }
+    }
+
+    drawChart();
+    document.getElementById('y-val').innerText = state.year;
+    document.getElementById('p-val').innerText = state.population.length;
+    document.getElementById('b-val').innerText = Math.max(0, Math.floor(state.biomass));
+    document.getElementById('g-val').innerText = state.gen;
+
+    requestAnimationFrame(loop);
+}
+
+function recordHistory() {
+    let snap = { y: state.year, pop: state.population.length };
+    for(let k in GENES) {
+        let doms = state.population.filter(p => p['has'+k.toUpperCase()]).length;
+        snap['p_'+k] = doms / (state.population.length || 1);
+    }
+    state.history.push(snap);
+    if(state.history.length > 100) state.history.shift();
+}
+
+function drawChart() {
+    chartCanvas.width = chartCanvas.offsetWidth;
+    chartCanvas.height = 160;
+    chartCtx.clearRect(0,0,chartCanvas.width, chartCanvas.height);
+    if(state.history.length < 2) return;
+
+    for(let k in GENES) {
+        chartCtx.strokeStyle = GENES[k].col;
+        chartCtx.lineWidth = 2;
+        chartCtx.beginPath();
+        state.history.forEach((d, i) => {
+            let x = (i / 100) * chartCanvas.width;
+            let val = state.chartMode === 'pop' ? d.pop / 300 : d['p_'+k];
+            let y = chartCanvas.height - (val * (chartCanvas.height - 20)) - 10;
+            if(i===0) chartCtx.moveTo(x,y); else chartCtx.lineTo(x,y);
+        });
+        chartCtx.stroke();
+    }
+}
+
+function setChart(m) {
+    state.chartMode = m;
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    event.target.classList.add('active');
+}
+
+// 初始人口
+for(let i=0; i<30; i++) {
+    state.population.push(new Creature(Math.random()*600, Math.random()*300, {f:['f','f'], c:['c','c'], s:['s','s'], r:['r','r']}));
+}
+loop();
+</script>
+</body>
+</html>
