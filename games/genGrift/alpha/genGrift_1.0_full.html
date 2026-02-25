@@ -1,0 +1,802 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>genGrift 1.0 – Population Genetics Simulator</title>
+<style>
+:root{color-scheme:dark; --bg:#0b0f14; --panel:#111a25; --panel2:#0f1722; --line:#1f2a36; --text:#e8eef7; --muted:rgba(232,238,247,.62);}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans TC","PingFang TC","Heiti TC",sans-serif}
+header{position:sticky;top:0;z-index:10;background:linear-gradient(180deg,rgba(11,15,20,.96),rgba(11,15,20,.86));backdrop-filter:blur(8px);border-bottom:1px solid var(--line);}
+header .wrap{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;gap:12px}
+h1{margin:0;font-size:18px;letter-spacing:.3px}
+.sub{font-size:12px;color:var(--muted);line-height:1.35}
+.container{display:grid;grid-template-columns:330px 1fr;gap:16px;padding:16px;max-width:1280px;margin:0 auto}
+@media (max-width: 980px){.container{grid-template-columns:1fr}}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:14px;box-shadow:0 10px 30px rgba(0,0,0,.25)}
+.section{padding:10px 10px 2px;border-radius:12px}
+.section h3{margin:0 0 10px;font-size:13px;color:var(--muted);letter-spacing:.2px}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.btn{background:#1a2634;border:1px solid #2a3a4c;color:var(--text);padding:9px 11px;border-radius:12px;cursor:pointer}
+.btn:hover{filter:brightness(1.08)}
+.btn.primary{background:#243449;border-color:#2f4763}
+.btn.ghost{background:transparent}
+.btn.active{outline:2px solid rgba(255,255,255,.22)}
+.badge{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;border:1px solid #2a3a4c;background:#132033;color:var(--muted);font-size:12px}
+.card{background:var(--panel2);border:1px solid var(--line);border-radius:14px;padding:12px}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace}
+.small{font-size:12px;color:var(--muted)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.geneRow{display:grid;grid-template-columns:22px 1fr 54px;gap:10px;align-items:center;margin:10px 0}
+input[type=range]{width:100%}
+hr{border:0;border-top:1px solid var(--line);margin:12px 0;opacity:.6}
+canvas{width:100%;height:auto;border-radius:14px;border:1px solid var(--line);background:linear-gradient(180deg,#0f1722,#0c1219)}
+.kpi{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.kpi .val{font-weight:900;font-size:18px}
+.ok{color:#b8ffce}
+.warn{color:#ffd9a8}
+.err{color:#ffb3c4}
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <div>
+      <h1>genGrift 1.0</h1>
+      <div class="sub">Population Genetics Simulator · B 模擬器 UI（無卡牌、無 Modal）</div>
+    </div>
+    <div class="badge" id="badgeRun">Ready</div>
+  </div>
+</header>
+
+<div class="container">
+  <!-- Left: Init + Intervention -->
+  <div class="panel" id="leftPanel">
+    <div class="section">
+      <h3>🌍 初始化</h3>
+      <div class="card">
+        <div class="row" style="justify-content:space-between;gap:8px">
+          <div class="badge">Step 1 · 世界</div>
+          <div class="mono" style="opacity:.6" id="sceneKey">plains</div>
+        </div>
+        <div class="row" style="margin-top:10px" id="sceneBtns">
+          <button class="btn primary active" data-sc="plains">草原</button>
+          <button class="btn primary" data-sc="forest">森林</button>
+          <button class="btn primary" data-sc="tundra">冰原</button>
+          <button class="btn primary" data-sc="desert">沙漠</button>
+          <button class="btn primary" data-sc="island">海島</button>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:10px">
+        <div class="row" style="justify-content:space-between;gap:8px">
+          <div class="badge">Step 2 · 初始 allele 頻率</div>
+          <div class="mono" style="opacity:.6">p</div>
+        </div>
+
+        <div class="geneRow"><div class="mono">F</div><input id="initPF" type="range" min="0" max="1" step="0.01" value="0.50"/><div class="mono" id="initPFv">0.50</div></div>
+        <div class="geneRow"><div class="mono">C</div><input id="initPC" type="range" min="0" max="1" step="0.01" value="0.50"/><div class="mono" id="initPCv">0.50</div></div>
+        <div class="geneRow"><div class="mono">S</div><input id="initPS" type="range" min="0" max="1" step="0.01" value="0.50"/><div class="mono" id="initPSv">0.50</div></div>
+        <div class="geneRow"><div class="mono">R</div><input id="initPR" type="range" min="0" max="1" step="0.01" value="0.50"/><div class="mono" id="initPRv">0.50</div></div>
+
+        <div class="row" style="margin-top:8px">
+          <button class="btn" id="btnInitDefault">預設 0.50</button>
+          <button class="btn" id="btnInitRandom">隨機</button>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:10px">
+        <div class="row" style="justify-content:space-between;gap:8px">
+          <div class="badge">Step 3 · 建立族群</div>
+          <div class="mono" style="opacity:.6">N0</div>
+        </div>
+        <div class="row" style="margin-top:10px">
+          <button class="btn primary" id="btnStart" style="flex:1">建立族群</button>
+        </div>
+        <div class="small" style="margin-top:10px">初始化以基因頻率為唯一來源：初代性狀會圍繞 μ(p) 分布。</div>
+      </div>
+    </div>
+
+    <div class="section" id="interveneSec" style="display:none">
+      <h3>🧬 本代介入（Δp ≤ 0.05）</h3>
+      <div class="card">
+        <div class="row" style="justify-content:space-between;gap:8px">
+          <div class="badge" id="recBadge">推薦：—</div>
+          <div class="badge" id="costBadge">成本：—</div>
+        </div>
+
+        <div class="small" style="margin:10px 0 8px">
+          先按「啟用」，再拖動<strong>一個</strong>基因座（其餘自動鎖定）。按「套用」後本代鎖定。
+        </div>
+
+        <div class="grid2">
+          <button class="btn primary" id="btnEnable">啟用</button>
+          <button class="btn" id="btnNoIntervene">不干預</button>
+        </div>
+
+        <hr/>
+
+        <div class="geneRow"><div class="mono">F</div><input id="adjPF" type="range" min="-0.05" max="0.05" step="0.01" value="0.00" disabled/><div class="mono" id="adjPFv">+0.00</div></div>
+        <div class="geneRow"><div class="mono">C</div><input id="adjPC" type="range" min="-0.05" max="0.05" step="0.01" value="0.00" disabled/><div class="mono" id="adjPCv">+0.00</div></div>
+        <div class="geneRow"><div class="mono">S</div><input id="adjPS" type="range" min="-0.05" max="0.05" step="0.01" value="0.00" disabled/><div class="mono" id="adjPSv">+0.00</div></div>
+        <div class="geneRow"><div class="mono">R</div><input id="adjPR" type="range" min="-0.05" max="0.05" step="0.01" value="0.00" disabled/><div class="mono" id="adjPRv">+0.00</div></div>
+
+        <div class="row" style="margin-top:8px">
+          <button class="btn primary" id="btnApply" style="flex:1" disabled>套用本代調整</button>
+        </div>
+
+        <div class="small" style="margin-top:10px">
+          成本機制：事件越強（evPow 越高），介入越貴；逆推薦方向更貴。
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right: Status + Charts + Next -->
+  <div class="panel">
+    <div class="section">
+      <h3>🧭 本代狀態</h3>
+      <div class="card" id="eventCard">
+        <div class="row" style="justify-content:space-between;gap:8px;align-items:flex-start">
+          <div>
+            <div style="font-weight:900" id="eventTitle">—</div>
+            <div class="small" id="eventDesc">—</div>
+            <div class="small" style="margin-top:6px" id="eventRecLine">推薦：—</div>
+          </div>
+          <div class="badge mono" id="genBadge">Gen 0</div>
+        </div>
+      </div>
+
+      <div class="kpi" style="margin-top:10px">
+        <div class="card"><div class="small">族群 N</div><div class="val" id="kpiN">—</div></div>
+        <div class="card"><div class="small">事件強度 evPow</div><div class="val" id="kpiPow">—</div></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h3>📊 族群動態</h3>
+      <div class="row" style="margin-bottom:10px">
+        <button class="btn active" id="btnModeOverlay">疊圖</button>
+        <button class="btn" id="btnModePop">人口</button>
+        <button class="btn" id="btnModeGene">基因</button>
+      </div>
+      <canvas id="chart" width="860" height="360"></canvas>
+      <div class="small" style="margin-top:10px" id="pReadout">pF=— · pC=— · pS=— · pR=—</div>
+    </div>
+
+    <div class="section">
+      <h3>▶ 模擬</h3>
+      <div class="card">
+        <div class="row">
+          <button class="btn primary" id="btnNext" disabled style="flex:1">進入下一代</button>
+          <button class="btn" id="btnReset">重設</button>
+        </div>
+        <div class="small" style="margin-top:10px" id="logLine">建立族群後開始。</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  // ---------- utils ----------
+  const qs = s => document.querySelector(s);
+  const qsa = s => Array.from(document.querySelectorAll(s));
+  const clamp = (v,a,b)=> Math.max(a, Math.min(b, v));
+  const lerp = (a,b,t)=> a + (b-a)*t;
+  const rand = (a,b)=> a + Math.random()*(b-a);
+  const choice = arr => arr[Math.floor(Math.random()*arr.length)];
+  function fmt(v){ return (v>=0?"+":"") + v.toFixed(2); }
+
+  // ---------- model ----------
+  const TRAIT_ENDS = {
+    F: { low:20, high:90, key:"fur",  label:"毛（F）" },
+    C: { low:20, high:90, key:"camo", label:"偽裝（C）" },
+    S: { low:20, high:90, key:"speed",label:"速度（S）" },
+    R: { low:35, high:85, key:"size", label:"抗病（R，暫用 size 代理）" },
+  };
+
+  const SCENES = [
+    { key:"plains", name:"草原", icon:"🌾" },
+    { key:"forest", name:"森林", icon:"🌲" },
+    { key:"tundra", name:"冰原", icon:"❄️" },
+    { key:"desert", name:"沙漠", icon:"🏜️" },
+    { key:"island", name:"海島", icon:"🏝️" },
+  ];
+
+  const EVENTS = [
+    { key:"predator", icon:"🦊", name:"掠食者增多", sceneBias:["plains","forest","tundra","desert","island"],
+      desc:"掠食壓力升高；更快或更會偽裝更容易活下來。",
+      score(ind){
+        const s = ind.speed/100, c = ind.camo/100;
+        return clamp(0.12 + 0.62*s + 0.26*c, 0, 1);
+      }
+    },
+    { key:"blizzard", icon:"🌨️", name:"暴風雪", sceneBias:["tundra","plains"],
+      desc:"低溫致死；毛更厚者更容易存活。",
+      score(ind){
+        const f = ind.fur/100;
+        return clamp(0.10 + 0.90*f, 0, 1);
+      }
+    },
+    { key:"heatwave", icon:"🔥", name:"熱浪", sceneBias:["desert","plains","island"],
+      desc:"高溫壓力；毛越少越容易存活（散熱）。",
+      score(ind){
+        const f = ind.fur/100;
+        return clamp(0.18 + 0.82*(1-f), 0, 1);
+      }
+    },
+    { key:"drought", icon:"🏜️", name:"乾旱", sceneBias:["desert","plains"],
+      desc:"資源稀缺；更會偽裝/更有效率者較有利（以偽裝 proxy）。",
+      score(ind){
+        const c = ind.camo/100;
+        return clamp(0.20 + 0.80*c, 0, 1);
+      }
+    },
+    { key:"flood", icon:"🌊", name:"洪水", sceneBias:["forest","island","plains"],
+      desc:"地形破壞；移動能力越好越能逃離。",
+      score(ind){
+        const s = ind.speed/100;
+        return clamp(0.22 + 0.78*s, 0, 1);
+      }
+    },
+    { key:"disease", icon:"🦠", name:"疾病流行", sceneBias:["plains","forest","tundra","desert","island"],
+      desc:"病原流行；體質越好越容易撐過去（R 暫用 size 代理）。",
+      score(ind){
+        const t = ind.size/100;
+        return clamp(0.20 + 0.80*t, 0, 1);
+      }
+    },
+  ];
+
+  // recommended direction by event and locus
+  function recSignForEventLocus(evKey, locus){
+    if(!evKey) return 0;
+    if(locus==="F"){
+      if(evKey==="blizzard") return +1;
+      if(evKey==="heatwave") return -1;
+      return 0;
+    }
+    if(locus==="S"){
+      if(evKey==="predator") return +1;
+      if(evKey==="flood") return +1;
+      return 0;
+    }
+    if(locus==="C"){
+      if(evKey==="drought") return +1;
+      if(evKey==="predator") return +1;
+      return 0;
+    }
+    if(locus==="R"){
+      if(evKey==="disease") return +1;
+      return 0;
+    }
+    return 0;
+  }
+
+  // ---------- state ----------
+  let sceneKey = "plains";
+  let gen = 0;
+  let evPow = 0.65;             // event strength 0..1
+  let harsh = 0.50;             // additional harshness factor 0..1
+  let pState = {F:.5,C:.5,S:.5,R:.5};
+  let appliedThisGen = false;
+  let enabled = false;
+  let activeLocus = null;       // which slider is being adjusted this gen
+  let costFactor = 0.0;         // birth penalty from intervention
+
+  let population = [];
+  let curEvent = null;
+
+  const popHist = [];           // {gen,pop}
+  const pHist = {F:[],C:[],S:[],R:[]};
+
+  // ---------- UI ----------
+  const ui = {
+    badgeRun: qs("#badgeRun"),
+    sceneKey: qs("#sceneKey"),
+    sceneBtns: qs("#sceneBtns"),
+    initPF: qs("#initPF"), initPC: qs("#initPC"), initPS: qs("#initPS"), initPR: qs("#initPR"),
+    initPFv: qs("#initPFv"), initPCv: qs("#initPCv"), initPSv: qs("#initPSv"), initPRv: qs("#initPRv"),
+    btnInitDefault: qs("#btnInitDefault"), btnInitRandom: qs("#btnInitRandom"),
+    btnStart: qs("#btnStart"),
+
+    interveneSec: qs("#interveneSec"),
+    recBadge: qs("#recBadge"), costBadge: qs("#costBadge"),
+    btnEnable: qs("#btnEnable"), btnNoIntervene: qs("#btnNoIntervene"),
+    adjPF: qs("#adjPF"), adjPC: qs("#adjPC"), adjPS: qs("#adjPS"), adjPR: qs("#adjPR"),
+    adjPFv: qs("#adjPFv"), adjPCv: qs("#adjPCv"), adjPSv: qs("#adjPSv"), adjPRv: qs("#adjPRv"),
+    btnApply: qs("#btnApply"),
+
+    eventTitle: qs("#eventTitle"), eventDesc: qs("#eventDesc"), eventRecLine: qs("#eventRecLine"),
+    genBadge: qs("#genBadge"), kpiN: qs("#kpiN"), kpiPow: qs("#kpiPow"),
+    pReadout: qs("#pReadout"),
+    btnModeOverlay: qs("#btnModeOverlay"), btnModePop: qs("#btnModePop"), btnModeGene: qs("#btnModeGene"),
+    chart: qs("#chart"),
+    btnNext: qs("#btnNext"), btnReset: qs("#btnReset"),
+    logLine: qs("#logLine"),
+  };
+
+  // scene buttons
+  ui.sceneBtns.addEventListener("click", (e)=>{
+    const b = e.target.closest("button[data-sc]");
+    if(!b) return;
+    sceneKey = b.dataset.sc;
+    ui.sceneKey.textContent = sceneKey;
+    qsa("#sceneBtns .btn").forEach(x=>x.classList.toggle("active", x===b));
+  });
+
+  // init sliders
+  function setInitReadout(){
+    const pv=(el,out)=> out.textContent = (+el.value).toFixed(2);
+    pv(ui.initPF,ui.initPFv); pv(ui.initPC,ui.initPCv); pv(ui.initPS,ui.initPSv); pv(ui.initPR,ui.initPRv);
+  }
+  [ui.initPF,ui.initPC,ui.initPS,ui.initPR].forEach(el=>el.addEventListener("input", setInitReadout));
+  ui.btnInitDefault.addEventListener("click", ()=>{ ui.initPF.value=ui.initPC.value=ui.initPS.value=ui.initPR.value="0.50"; setInitReadout(); });
+  ui.btnInitRandom.addEventListener("click", ()=>{
+    const r=()=>Math.random().toFixed(2);
+    ui.initPF.value=r(); ui.initPC.value=r(); ui.initPS.value=r(); ui.initPR.value=r(); setInitReadout();
+  });
+  setInitReadout();
+
+  // intervention sliders: allow only one locus active
+  const adjMap = {F:ui.adjPF, C:ui.adjPC, S:ui.adjPS, R:ui.adjPR};
+  const adjValMap = {F:ui.adjPFv, C:ui.adjPCv, S:ui.adjPSv, R:ui.adjPRv};
+  function setAdjReadout(){
+    for(const k of ["F","C","S","R"]){
+      const v = parseFloat(adjMap[k].value);
+      adjValMap[k].textContent = fmt(v);
+    }
+  }
+  function resetAdj(){
+    for(const k of ["F","C","S","R"]){ adjMap[k].value="0.00"; }
+    setAdjReadout();
+    activeLocus = null;
+  }
+  setAdjReadout();
+
+  function lockAllAdj(lock=true){
+    for(const k of ["F","C","S","R"]){ adjMap[k].disabled = lock; }
+  }
+  function enableAdj(){
+    lockAllAdj(false);
+    ui.btnApply.disabled = false;
+  }
+  function disableAdj(){
+    lockAllAdj(true);
+    ui.btnApply.disabled = true;
+  }
+
+  // When a slider is moved, lock others to enforce "one locus per gen"
+  for(const k of ["F","C","S","R"]){
+    adjMap[k].addEventListener("input", ()=>{
+      setAdjReadout();
+      if(!enabled || appliedThisGen) return;
+      // if first movement, pick active locus
+      const v = parseFloat(adjMap[k].value);
+      if(activeLocus === null && Math.abs(v) > 1e-9){
+        activeLocus = k;
+        for(const kk of ["F","C","S","R"]){
+          if(kk !== k){ adjMap[kk].disabled = true; }
+        }
+      }
+      // if user returns to 0, allow selecting another locus
+      if(activeLocus === k && Math.abs(v) < 1e-9){
+        activeLocus = null;
+        for(const kk of ["F","C","S","R"]){ adjMap[kk].disabled = false; }
+      }
+      updateCostBadge();
+    });
+  }
+
+  ui.btnEnable.addEventListener("click", ()=>{
+    if(gen===0 && population.length===0) return;
+    if(appliedThisGen) return;
+    enabled = true;
+    ui.btnEnable.classList.add("active");
+    enableAdj();
+    ui.logLine.textContent = "已啟用本代基因微調：選一個基因座拖動（Δp≤0.05）。";
+    updateCostBadge();
+  });
+
+  ui.btnNoIntervene.addEventListener("click", ()=>{
+    enabled = false;
+    ui.btnEnable.classList.remove("active");
+    resetAdj();
+    disableAdj();
+    costFactor = 0.0;
+    updateCostBadge();
+    ui.logLine.textContent = "本代不干預（cost=0）。";
+  });
+
+  ui.btnApply.addEventListener("click", ()=>{
+    if(!enabled || appliedThisGen) return;
+    // determine locus and delta
+    let locus = activeLocus;
+    if(!locus){
+      // allow "apply" if exactly one slider non-zero
+      const nonzero = ["F","C","S","R"].filter(k=> Math.abs(parseFloat(adjMap[k].value))>1e-9);
+      if(nonzero.length===1) locus = nonzero[0];
+    }
+    if(!locus){
+      ui.logLine.textContent = "請先選一個基因座拖動（Δp 不可同時多軸）。";
+      return;
+    }
+    const dp = clamp(parseFloat(adjMap[locus].value), -0.05, 0.05);
+    // apply to pState now (pre-selection, affects reproduction center)
+    pState[locus] = clamp(pState[locus] + dp, 0, 1);
+    appliedThisGen = true;
+    enabled = false;
+    ui.btnEnable.classList.remove("active");
+    disableAdj();
+    ui.btnApply.disabled = true;
+    // lock sliders visually
+    for(const kk of ["F","C","S","R"]){ adjMap[kk].disabled = true; }
+    ui.logLine.textContent = `已套用：${locus} ${fmt(dp)}（本代鎖定）。`;
+    updateAllReadouts();
+  });
+
+  // chart mode
+  let chartMode = "overlay"; // overlay | pop | gene
+  function setMode(mode){
+    chartMode = mode;
+    ui.btnModeOverlay.classList.toggle("active", mode==="overlay");
+    ui.btnModePop.classList.toggle("active", mode==="pop");
+    ui.btnModeGene.classList.toggle("active", mode==="gene");
+    drawChart();
+  }
+  ui.btnModeOverlay.addEventListener("click", ()=>setMode("overlay"));
+  ui.btnModePop.addEventListener("click", ()=>setMode("pop"));
+  ui.btnModeGene.addEventListener("click", ()=>setMode("gene"));
+
+  // reset
+  ui.btnReset.addEventListener("click", ()=>{
+    gen = 0; population = []; curEvent=null;
+    popHist.length=0; pHist.F.length=pHist.C.length=pHist.S.length=pHist.R.length=0;
+    appliedThisGen=false; enabled=false; activeLocus=null; costFactor=0;
+    ui.interveneSec.style.display="none";
+    ui.btnNext.disabled = true;
+    ui.badgeRun.textContent = "Ready";
+    ui.logLine.textContent = "已重設。請重新建立族群。";
+    ui.eventTitle.textContent="—"; ui.eventDesc.textContent="—"; ui.eventRecLine.textContent="推薦：—";
+    ui.genBadge.textContent="Gen 0"; ui.kpiN.textContent="—"; ui.kpiPow.textContent="—";
+    ui.pReadout.textContent="pF=— · pC=— · pS=— · pR=—";
+    resetAdj(); disableAdj();
+    drawChart();
+  });
+
+  // start
+  ui.btnStart.addEventListener("click", ()=>{
+    // initialize pState from sliders
+    pState = {
+      F: clamp(parseFloat(ui.initPF.value),0,1),
+      C: clamp(parseFloat(ui.initPC.value),0,1),
+      S: clamp(parseFloat(ui.initPS.value),0,1),
+      R: clamp(parseFloat(ui.initPR.value),0,1),
+    };
+    gen = 0;
+    evPow = 0.65;
+    harsh = 0.50;
+    population = createPopulation(50);
+    // shift initial traits toward mu(p)
+    for(const ind of population){
+      ind.fur  = clamp( lerp(ind.fur, traitMu("F"), 0.55), 0, 100);
+      ind.camo = clamp( lerp(ind.camo, traitMu("C"), 0.55), 0, 100);
+      ind.speed= clamp( lerp(ind.speed, traitMu("S"), 0.55), 0, 100);
+      ind.size = clamp( lerp(ind.size, traitMu("R"), 0.35), 0, 100);
+    }
+    // histories
+    popHist.length=0;
+    pHist.F=[pState.F]; pHist.C=[pState.C]; pHist.S=[pState.S]; pHist.R=[pState.R];
+    popHist.push({gen:0,pop:population.length});
+    ui.interveneSec.style.display="";
+    ui.btnNext.disabled = false;
+    ui.badgeRun.textContent = "Running";
+    ui.logLine.textContent = "族群已建立。按「進入下一代」。";
+    newEvent();
+    appliedThisGen = false; enabled=false; activeLocus=null; costFactor=0;
+    resetAdj(); disableAdj();
+    updateAllReadouts();
+    drawChart();
+  });
+
+  // next generation
+  ui.btnNext.addEventListener("click", ()=>{
+    if(population.length===0) return;
+    stepOneGen();
+  });
+
+  // ---------- simulation ----------
+  function traitMu(locus){
+    const t = TRAIT_ENDS[locus];
+    return lerp(t.low, t.high, pState[locus]);
+  }
+
+  function createPopulation(N){
+    const arr = [];
+    for(let i=0;i<N;i++){
+      arr.push({
+        fur: rand(25,75),
+        camo: rand(25,75),
+        speed: rand(25,75),
+        size: rand(35,85),
+        sex: (Math.random()<0.5) ? "F":"M",
+      });
+    }
+    return arr;
+  }
+
+  function pickEventForScene(scKey){
+    const pool = EVENTS.filter(e => (e.sceneBias||[]).includes(scKey));
+    return choice(pool.length?pool:EVENTS);
+  }
+
+  function calcAvg(arr){
+    if(!arr.length) return {fur:50,camo:50,speed:50,size:60};
+    const s = {fur:0,camo:0,speed:0,size:0};
+    for(const x of arr){ s.fur+=x.fur; s.camo+=x.camo; s.speed+=x.speed; s.size+=x.size; }
+    s.fur/=arr.length; s.camo/=arr.length; s.speed/=arr.length; s.size/=arr.length;
+    return s;
+  }
+
+  function updateGeneDriftBySurvivors(survivors){
+    const avgS = calcAvg(survivors);
+    const k = clamp(0.02 + 0.06*evPow + 0.06*harsh, 0.02, 0.12);
+    function pHatFromTrait(locus){
+      const t = TRAIT_ENDS[locus];
+      const v = avgS[t.key];
+      return clamp((v - t.low) / Math.max(1e-6, (t.high - t.low)), 0, 1);
+    }
+    pState.F = lerp(pState.F, pHatFromTrait("F"), k);
+    pState.C = lerp(pState.C, pHatFromTrait("C"), k);
+    pState.S = lerp(pState.S, pHatFromTrait("S"), k);
+    pState.R = lerp(pState.R, pHatFromTrait("R"), k);
+  }
+
+  function reproduceFromSurvivors(survivors, nextN){
+    if(!survivors.length) return [];
+    // balanced mix weights (B)
+    const wMu = clamp(0.40 + 0.15*evPow, 0.35, 0.55);
+    const wPar = 1 - wMu;
+
+    // separate by sex; if missing, treat as any
+    const females = survivors.filter(x=>x.sex==="F");
+    const males = survivors.filter(x=>x.sex==="M");
+    const poolF = females.length?females:survivors;
+    const poolM = males.length?males:survivors;
+
+    const kids=[];
+    for(let i=0;i<nextN;i++){
+      const mom = choice(poolF);
+      const dad = choice(poolM);
+      // parent avg then toward mu(p)
+      let fur  = wPar*((mom.fur+dad.fur)/2)  + wMu*traitMu("F") + rand(-6,6);
+      let camo = wPar*((mom.camo+dad.camo)/2)+ wMu*traitMu("C") + rand(-6,6);
+      let speed= wPar*((mom.speed+dad.speed)/2)+wMu*traitMu("S") + rand(-6,6);
+      let size = wPar*((mom.size+dad.size)/2)+ wMu*traitMu("R") + rand(-5,5);
+      kids.push({
+        fur: clamp(fur,0,100),
+        camo: clamp(camo,0,100),
+        speed: clamp(speed,0,100),
+        size: clamp(size,0,100),
+        sex: (Math.random()<0.5) ? "F":"M",
+      });
+    }
+    return kids;
+  }
+
+  function newEvent(){
+    curEvent = pickEventForScene(sceneKey);
+    // mild variability
+    evPow = clamp(0.55 + 0.35*Math.random(), 0.30, 0.95);
+    harsh = clamp(0.35 + 0.45*Math.random(), 0.20, 0.95);
+  }
+
+  function recText(){
+    const parts=[];
+    for(const k of ["F","C","S","R"]){
+      const s = recSignForEventLocus(curEvent?.key, k);
+      if(s===+1) parts.push(`${k} ↑`);
+      else if(s===-1) parts.push(`${k} ↓`);
+    }
+    return parts.length ? parts.join("、") : "—";
+  }
+
+  function updateCostBadge(){
+    // compute cost based on current enabled slider direction (active locus) vs recommendation
+    let locus = activeLocus;
+    if(!locus){
+      const nonzero = ["F","C","S","R"].filter(k=> Math.abs(parseFloat(adjMap[k].value))>1e-9);
+      locus = (nonzero.length===1) ? nonzero[0] : null;
+    }
+    let dp = locus ? parseFloat(adjMap[locus].value) : 0;
+    // base cost: grows with evPow and absolute dp
+    let cost = 0.0;
+    if(enabled && locus){
+      cost = (0.10 + 0.35*evPow) * (Math.abs(dp)/0.05);
+      const rec = recSignForEventLocus(curEvent?.key, locus);
+      if(rec!==0 && Math.sign(dp) !== rec){
+        cost *= 1.25; // against recommendation
+      }
+      cost = clamp(cost, 0, 0.60);
+    }
+    costFactor = cost;
+    ui.costBadge.textContent = `成本：-${Math.round(cost*100)}% 出生`;
+  }
+
+  function updateAllReadouts(){
+    ui.genBadge.textContent = `Gen ${gen}`;
+    ui.kpiN.textContent = population.length.toString();
+    ui.kpiPow.textContent = evPow.toFixed(2);
+    ui.eventTitle.textContent = `${curEvent?.icon||"❔"} ${curEvent?.name||"—"}`;
+    ui.eventDesc.textContent = curEvent?.desc || "—";
+    const rt = recText();
+    ui.eventRecLine.textContent = `推薦：${rt}`;
+    ui.recBadge.textContent = `推薦：${rt}`;
+    ui.pReadout.textContent = `pF=${pState.F.toFixed(2)} · pC=${pState.C.toFixed(2)} · pS=${pState.S.toFixed(2)} · pR=${pState.R.toFixed(2)}`;
+    updateCostBadge();
+  }
+
+  function stepOneGen(){
+    // reset per-gen intervention flags for next step
+    appliedThisGen = false;
+    enabled = false;
+    activeLocus = null;
+    ui.btnEnable.classList.remove("active");
+    resetAdj(); disableAdj();
+    costFactor = 0.0;
+
+    // selection
+    const survivors = [];
+    for(const ind of population){
+      // evPow makes selection sharper
+      const pSurv = clamp(lerp(0.35, curEvent.score(ind), evPow), 0.02, 0.98);
+      if(Math.random() < pSurv) survivors.push(ind);
+    }
+
+    // drift update from survivors phenotype
+    updateGeneDriftBySurvivors(survivors);
+
+    // reproduction: base birth rate depends on harsh and survivors proportion, plus intervention cost
+    const survRate = survivors.length / Math.max(1, population.length);
+    const baseBirth = clamp(0.90 - 0.35*harsh + 0.25*survRate, 0.25, 1.10);
+    const birthPenalty = clamp(costFactor, 0, 0.60);
+    const nextN = clamp(Math.round(population.length * baseBirth * (1 - birthPenalty)), 1, 9999);
+
+    const kids = reproduceFromSurvivors(survivors, nextN);
+    population = kids;
+
+    gen += 1;
+    popHist.push({gen, pop:population.length});
+    pHist.F.push(pState.F); pHist.C.push(pState.C); pHist.S.push(pState.S); pHist.R.push(pState.R);
+
+    // new event for next gen
+    newEvent();
+
+    ui.logLine.innerHTML = `完成 Gen ${gen-1} → ${gen}：存活 ${survivors.length}/${Math.max(1,popHist[popHist.length-2]?.pop||0)}，新 N=${population.length}。`;
+    updateAllReadouts();
+    drawChart();
+  }
+
+  // ---------- chart ----------
+  const cctx = ui.chart.getContext("2d");
+  const CW = ui.chart.width, CH = ui.chart.height;
+  const colors = {
+    F: "rgba( 80,180,255,0.95)",
+    C: "rgba(120,255,170,0.92)",
+    S: "rgba(255,205, 90,0.92)",
+    R: "rgba(255,120,170,0.92)",
+    N: "rgba(255,255,255,0.75)",
+    Ng: "rgba(255,255,255,0.18)",
+  };
+
+  function drawAxes(padL,padR,padT,padB){
+    const x0=padL, x1=CW-padR, y0=CH-padB, y1=padT;
+    cctx.strokeStyle = "rgba(255,255,255,0.22)";
+    cctx.lineWidth = 1;
+    cctx.beginPath(); cctx.moveTo(x0,y1); cctx.lineTo(x0,y0); cctx.lineTo(x1,y0); cctx.stroke();
+    return {x0,x1,y0,y1};
+  }
+
+  function xFromGen(g, minGen, maxGen, x0, x1){
+    const t = (g - minGen) / Math.max(1e-6, (maxGen - minGen));
+    return lerp(x0, x1, clamp(t,0,1));
+  }
+
+  function drawChart(){
+    cctx.clearRect(0,0,CW,CH);
+    cctx.fillStyle = "rgba(0,0,0,0.18)";
+    cctx.fillRect(0,0,CW,CH);
+
+    const padL=52, padR=14, padT=16, padB=34;
+    const {x0,x1,y0,y1} = drawAxes(padL,padR,padT,padB);
+
+    if(popHist.length===0){
+      cctx.fillStyle="rgba(232,238,247,0.45)";
+      cctx.font="14px system-ui";
+      cctx.fillText("建立族群後開始顯示圖表", x0, (y0+y1)/2);
+      return;
+    }
+
+    const maxGen = popHist[popHist.length-1].gen;
+    const minGen = Math.max(0, maxGen - 30);
+
+    // grid for p axis (0..1)
+    function yFromP(p){ return lerp(y0, y1, clamp(p,0,1)); }
+
+    // population axis (0..maxPop)
+    const maxPop = Math.max(10, ...popHist.map(p=>p.pop));
+    function yFromN(n){ return lerp(y0, y1, clamp(n/maxPop,0,1)); }
+
+    // y gridlines (always p grid, helpful for overlay)
+    for(let i=0;i<=4;i++){
+      const t=i/4;
+      const y=lerp(y0,y1,t);
+      cctx.strokeStyle="rgba(255,255,255,0.08)";
+      cctx.beginPath(); cctx.moveTo(x0,y); cctx.lineTo(x1,y); cctx.stroke();
+      cctx.fillStyle="rgba(255,255,255,0.45)";
+      cctx.font="12px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
+      cctx.fillText((1-t).toFixed(2), 10, y+4);
+    }
+
+    // legend (colored letters)
+    const legendX = x1-138, legendY = y1+14;
+    cctx.font = "12px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
+    cctx.fillStyle = colors.F; cctx.fillText("F", legendX, legendY);
+    cctx.fillStyle = colors.C; cctx.fillText("C", legendX+18, legendY);
+    cctx.fillStyle = colors.S; cctx.fillText("S", legendX+36, legendY);
+    cctx.fillStyle = colors.R; cctx.fillText("R", legendX+54, legendY);
+    cctx.fillStyle = "rgba(255,255,255,0.75)"; cctx.fillText("N", legendX+78, legendY);
+
+    // series: p lines
+    function plotP(key, lw){
+      cctx.strokeStyle = colors[key];
+      cctx.lineWidth = lw;
+      cctx.beginPath();
+      for(let g=minGen; g<=maxGen; g++){
+        const arr = pHist[key];
+        const v = arr[Math.min(arr.length-1, g)] ?? arr[arr.length-1] ?? 0.5;
+        const x = xFromGen(g,minGen,maxGen,x0,x1);
+        const y = yFromP(v);
+        if(g===minGen) cctx.moveTo(x,y); else cctx.lineTo(x,y);
+      }
+      cctx.stroke();
+    }
+
+    // population line
+    function plotN(alpha, lw){
+      cctx.strokeStyle = `rgba(255,255,255,${alpha})`;
+      cctx.lineWidth = lw;
+      cctx.beginPath();
+      for(const pt of popHist){
+        if(pt.gen < minGen) continue;
+        const x = xFromGen(pt.gen,minGen,maxGen,x0,x1);
+        const y = yFromN(pt.pop);
+        if(pt.gen===minGen) cctx.moveTo(x,y); else cctx.lineTo(x,y);
+      }
+      cctx.stroke();
+    }
+
+    if(chartMode === "gene"){
+      plotP("F",2.4); plotP("C",1.6); plotP("S",1.6); plotP("R",1.6);
+    } else if(chartMode === "pop"){
+      plotN(0.85,2.4);
+    } else { // overlay
+      plotP("F",2.0); plotP("C",1.3); plotP("S",1.3); plotP("R",1.3);
+      plotN(0.35,2.6); // secondary visual
+    }
+
+    // x label
+    cctx.fillStyle = "rgba(255,255,255,0.55)";
+    cctx.font="12px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
+    cctx.fillText(`Gen ${minGen}→${maxGen}`, x0, CH-10);
+  }
+
+  // initial draw
+  drawChart();
+
+})();
+</script>
+</body>
+</html>
