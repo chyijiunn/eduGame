@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Drakeling Genetics v0.1</title>
+    <style>
+        :root {
+            --primary: #4a90e2;
+            --bg: #f0f2f5;
+            --panel: #ffffff;
+            --text: #333;
+        }
+        body, html {
+            margin: 0; padding: 0; width: 100%; height: 100%;
+            overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg); color: var(--text);
+            touch-action: none;
+        }
+        #ui-layer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; z-index: 10;
+            display: flex; flex-direction: column;
+        }
+        .header {
+            background: rgba(255,255,255,0.9); padding: 10px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1); pointer-events: auto;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .controls {
+            position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+            display: flex; gap: 10px; pointer-events: auto;
+            background: white; padding: 15px; border-radius: 30px; box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        }
+        .game-canvas {
+            width: 100%; height: 100%; cursor: grab;
+        }
+        .game-canvas:active { cursor: grabbing; }
+
+        .btn {
+            padding: 8px 16px; border: none; border-radius: 20px;
+            background: var(--primary); color: white; cursor: pointer; font-weight: bold;
+        }
+        .btn:disabled { background: #ccc; }
+        .btn-lvl { background: #6c757d; font-size: 12px; }
+        .btn-lvl.active { background: #28a745; }
+
+        .allele-toggle {
+            display: flex; flex-direction: column; align-items: center; gap: 5px;
+            background: #f8f9fa; padding: 5px; border-radius: 8px; border: 1px solid #ddd;
+        }
+        .gene-label { font-size: 10px; font-weight: bold; }
+        
+        #viewport {
+            transform-origin: 0 0;
+            will-change: transform;
+        }
+
+        /* 資訊面板 */
+        .info-panel {
+            position: absolute; top: 70px; right: 10px; width: 220px;
+            background: rgba(255,255,255,0.9); padding: 15px; border-radius: 10px;
+            pointer-events: auto; font-size: 14px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .drake-label { font-size: 12px; text-align: center; margin-top: 5px; font-weight: bold; }
+
+        .batch-container {
+            display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; margin-top: 10px;
+        }
+        .mini-drake { width: 40px; height: 40px; border: 1px solid #eee; }
+    </style>
+</head>
+<body>
+
+<div id="ui-layer">
+    <div class="header">
+        <div style="font-weight: bold;">Drakeling Genetics <span style="color: #666; font-size: 12px;">v0.1</span></div>
+        <div style="display: flex; gap: 5px;">
+            <button class="btn btn-lvl active" onclick="switchLevel(1)" id="l1-btn">關卡 1</button>
+            <button class="btn btn-lvl" onclick="switchLevel(2)" id="l2-btn">關卡 2</button>
+            <button class="btn btn-lvl" onclick="switchLevel(3)" id="l3-btn">關卡 3</button>
+        </div>
+    </div>
+
+    <div id="info" class="info-panel">
+        <div id="mission-text">加載中...</div>
+    </div>
+
+    <div class="controls" id="game-controls">
+        <!-- 控制按鈕會由 JS 動態生成 -->
+    </div>
+</div>
+
+<svg id="svg-root" class="game-canvas">
+    <g id="viewport">
+        <!-- 內容物 -->
+    </g>
+</svg>
+
+<script>
+    // 遊戲狀態
+    const state = {
+        level: 1,
+        zoom: 1,
+        panX: 0,
+        panY: 0,
+        isDragging: false,
+        lastMouse: { x: 0, y: 0 },
+        lastDist: 0,
+        
+        // 基因設定: W(翅膀), R(紅色), H(角), T(長尾)
+        // 大寫顯性，小寫隱性
+        traits: {
+            'W': { dom: '有翅膀', rec: '無翅膀' },
+            'R': { dom: '紅色', rec: '綠色' },
+            'H': { dom: '有角', rec: '無角' },
+            'T': { dom: '長尾', rec: '短尾' }
+        },
+        
+        // 玩家目前編輯的基因 (Level 1)
+        playerGeno: [['W', 'w'], ['R', 'r'], ['H', 'H'], ['T', 't']],
+        targetGeno: [],
+        
+        // Level 2/3
+        motherGeno: [['W','W'], ['R','r'], ['H','h'], ['t','t']],
+        fatherGeno: [['w','w'], ['r','r'], ['H','h'], ['T','T']],
+        children: [],
+        history: [],
+        hiddenFather: null
+    };
+
+    const viewport = document.getElementById('viewport');
+    const svgRoot = document.getElementById('svg-root');
+    const controls = document.getElementById('game-controls');
+    const missionText = document.getElementById('mission-text');
+
+    // 初始化
+    function init() {
+        setupInteractions();
+        switchLevel(1);
+        window.addEventListener('resize', centerView);
+        centerView();
+    }
+
+    // --- 繪圖邏輯 ---
+    function getPhenotype(genotype) {
+        const pheno = {};
+        genotype.forEach(pair => {
+            const key = pair[0].toUpperCase();
+            const isDominant = pair[0] === key || pair[1] === key;
+            pheno[key] = isDominant;
+        });
+        return pheno;
+    }
+
+    function createDrakeSVG(genotype, x, y, scale = 1) {
+        const p = getPhenotype(genotype);
+        const bodyColor = p.R ? "#ff5e5e" : "#5eff86";
+        const wingColor = "#8ec5fc";
+        
+        let html = `<g transform="translate(${x},${y}) scale(${scale})">`;
+        
+        // 尾巴
+        if (p.T) { // 長尾
+            html += `<path d="M-20,20 Q-40,40 -60,20" stroke="${bodyColor}" stroke-width="8" fill="none" />`;
+        } else { // 短尾
+            html += `<path d="M-20,20 Q-30,25 -35,20" stroke="${bodyColor}" stroke-width="8" fill="none" />`;
+        }
+
+        // 翅膀
+        if (p.W) {
+            html += `<path d="M0,0 Q-30,-50 -10,-10 M0,0 Q30,-50 10,-10" fill="${wingColor}" opacity="0.7" stroke="#333" />`;
+        }
+
+        // 身體
+        html += `<ellipse cx="0" cy="10" rx="30" ry="20" fill="${bodyColor}" stroke="#333" />`;
+        
+        // 頭部
+        html += `<circle cx="25" cy="-5" r="15" fill="${bodyColor}" stroke="#333" />`;
+        
+        // 角
+        if (p.H) {
+            html += `<path d="M20,-15 L15,-25 M30,-15 L35,-25" stroke="#555" stroke-width="3" />`;
+        }
+
+        // 眼睛
+        html += `<circle cx="30" cy="-8" r="2" fill="black" />`;
+        
+        html += `</g>`;
+        return html;
+    }
+
+    // --- 關卡邏輯 ---
+    function switchLevel(lvl) {
+        state.level = lvl;
+        document.querySelectorAll('.btn-lvl').forEach(b => b.classList.remove('active'));
+        document.getElementById(`l${lvl}-btn`).classList.add('active');
+        state.history = [];
+        state.children = [];
+        
+        if (lvl === 1) {
+            state.targetGeno = [['w','w'], ['r','r'], ['H','H'], ['T','t']];
+            missionText.innerHTML = "<b>關卡 1：認識基因</b><br>調整下方染色體上的等位基因（大寫為顯性），使左側的小龍與右側目標一致。";
+        } else if (lvl === 2) {
+            missionText.innerHTML = "<b>關卡 2：配子結合</b><br>點擊「雜合」按鈕，從父母各隨機取一套染色體產生子代。";
+        } else if (lvl === 3) {
+            state.hiddenFather = generateRandomGeno();
+            missionText.innerHTML = "<b>關卡 3：逆向推導</b><br>父親的基因是未知的。透過觀察大量子代的性狀比例，推斷父親的基因組成。";
+        }
+        
+        render();
+    }
+
+    function generateRandomGeno() {
+        const genes = ['W','R','H','T'];
+        return genes.map(g => {
+            const r = Math.random();
+            if (r < 0.33) return [g, g];
+            if (r < 0.66) return [g, g.toLowerCase()];
+            return [g.toLowerCase(), g.toLowerCase()];
+        });
+    }
+
+    function breed() {
+        const child = [];
+        const m = state.motherGeno;
+        const f = (state.level === 3) ? state.hiddenFather : state.fatherGeno;
+        
+        for(let i=0; i<4; i++) {
+            const geneM = m[i][Math.floor(Math.random()*2)];
+            const geneF = f[i][Math.floor(Math.random()*2)];
+            child.push([geneM, geneF]);
+        }
+        return child;
+    }
+
+    function render() {
+        let content = "";
+        const centerX = window.innerWidth / 2;
+        const centerY = window.innerHeight / 2;
+
+        if (state.level === 1) {
+            // 左：玩家控制
+            content += createDrakeSVG(state.playerGeno, centerX - 150, centerY, 1.5);
+            content += `<text x="${centerX-150}" y="${centerY+100}" text-anchor="middle" font-weight="bold">你的小龍</text>`;
+            // 右：目標
+            content += createDrakeSVG(state.targetGeno, centerX + 150, centerY, 1.5);
+            content += `<text x="${centerX+150}" y="${centerY+100}" text-anchor="middle" font-weight="bold" fill="green">目標性狀</text>`;
+            
+            renderControlsL1();
+        } 
+        else if (state.level === 2) {
+            content += createDrakeSVG(state.motherGeno, centerX - 250, centerY - 100, 1);
+            content += `<text x="${centerX-250}" y="${centerY-30}" text-anchor="middle">母親 (${state.motherGeno.map(p=>p.join("")).join(" ")})</text>`;
+            
+            content += createDrakeSVG(state.fatherGeno, centerX + 250, centerY - 100, 1);
+            content += `<text x="${centerX+250}" y="${centerY-30}" text-anchor="middle">父親 (${state.fatherGeno.map(p=>p.join("")).join(" ")})</text>`;
+            
+            if (state.children.length > 0) {
+                const latest = state.children[state.children.length-1];
+                content += createDrakeSVG(latest, centerX, centerY + 80, 1.8);
+                content += `<text x="${centerX}" y="${centerY+180}" text-anchor="middle" font-weight="bold">子代基因型: ${latest.map(p=>p.join("")).join(" ")}</text>`;
+            }
+            renderControlsL2();
+        }
+        else if (state.level === 3) {
+            content += createDrakeSVG(state.motherGeno, centerX - 250, centerY - 150, 1);
+            content += `<text x="${centerX-250}" y="${centerY-80}" text-anchor="middle">母親</text>`;
+            
+            content += `<g transform="translate(${centerX + 200}, ${centerY - 200})">
+                <rect x="0" y="0" width="100" height="100" fill="#eee" stroke="#ccc" />
+                <text x="50" y="60" font-size="40" text-anchor="middle">?</text>
+                <text x="50" y="120" text-anchor="middle">神祕父親</text>
+            </g>`;
+
+            // 顯示最近一批
+            if (state.children.length > 0) {
+                const batch = state.children[state.children.length-1];
+                batch.forEach((child, i) => {
+                    const row = Math.floor(i / 10);
+                    const col = i % 10;
+                    content += createDrakeSVG(child, centerX - 250 + (col * 55), centerY + 50 + (row * 60), 0.4);
+                });
+                content += `<text x="${centerX}" y="${centerY + 30}" text-anchor="middle" font-weight="bold">第 ${state.children.length} 窩寶寶 (20隻)</text>`;
+            }
+            renderControlsL3();
+        }
+
+        viewport.innerHTML = content;
+        updateTransform();
+    }
+
+    function renderControlsL1() {
+        let html = "";
+        state.playerGeno.forEach((pair, i) => {
+            const geneBase = pair[0].toUpperCase();
+            html += `<div class="allele-toggle">
+                <span class="gene-label">${state.traits[geneBase].dom.slice(0,2)}</span>
+                <button class="btn" onclick="toggleGene(${i}, 0)">${pair[0]}</button>
+                <button class="btn" onclick="toggleGene(${i}, 1)">${pair[1]}</button>
+            </div>`;
+        });
+        controls.innerHTML = html;
+    }
+
+    function toggleGene(traitIdx, alleleIdx) {
+        const current = state.playerGeno[traitIdx][alleleIdx];
+        state.playerGeno[traitIdx][alleleIdx] = (current === current.toUpperCase()) ? current.toLowerCase() : current.toUpperCase();
+        render();
+        checkL1Win();
+    }
+
+    function checkL1Win() {
+        const p1 = JSON.stringify(getPhenotype(state.playerGeno));
+        const p2 = JSON.stringify(getPhenotype(state.targetGeno));
+        if (p1 === p2) {
+            setTimeout(() => alert("恭喜！性狀完全符合！"), 100);
+        }
+    }
+
+    function renderControlsL2() {
+        controls.innerHTML = `<button class="btn" onclick="doBreed(1)">雜合 (產生子代)</button>`;
+    }
+
+    function doBreed(count) {
+        if (state.level === 3) {
+            const batch = [];
+            for(let i=0; i<20; i++) batch.push(breed());
+            state.children.push(batch);
+        } else {
+            state.children.push(breed());
+        }
+        render();
+    }
+
+    function renderControlsL3() {
+        controls.innerHTML = `
+            <button class="btn" style="background:#666" onclick="popHistory()" ${state.children.length===0?'disabled':''}>回溯</button>
+            <button class="btn" onclick="doBreed(20)">雜合 20 個寶寶</button>
+            <button class="btn" style="background:goldenrod" onclick="guessFather()">我猜測父親基因</button>
+        `;
+    }
+
+    function popHistory() {
+        state.children.pop();
+        render();
+    }
+
+    function guessFather() {
+        const f = state.hiddenFather.map(p => p.join("")).join(" ");
+        alert("這名父親的基因型是: " + f + "\n你猜對了嗎？點擊切換關卡可重新挑戰！");
+    }
+
+    // --- 互動系統 (縮放/拖曳) ---
+    function setupInteractions() {
+        window.addEventListener('wheel', e => {
+            e.preventDefault();
+            const delta = e.deltaY > 0 ? 0.9 : 1.1;
+            applyZoom(delta, e.clientX, e.clientY);
+        }, { passive: false });
+
+        svgRoot.addEventListener('pointerdown', e => {
+            state.isDragging = true;
+            state.lastMouse = { x: e.clientX, y: e.clientY };
+            if (e.pointerType === 'touch') state.lastDist = 0;
+        });
+
+        window.addEventListener('pointermove', e => {
+            if (!state.isDragging) return;
+            
+            // 處理拖曳
+            const dx = e.clientX - state.lastMouse.x;
+            const dy = e.clientY - state.lastMouse.y;
+            state.panX += dx;
+            state.panY += dy;
+            state.lastMouse = { x: e.clientX, y: e.clientY };
+            updateTransform();
+        });
+
+        window.addEventListener('pointerup', () => state.isDragging = false);
+        
+        // 簡易雙指縮放支援
+        svgRoot.addEventListener('touchmove', e => {
+            if (e.touches.length === 2) {
+                const dist = Math.hypot(e.touches[0].pageX - e.touches[1].pageX, e.touches[0].pageY - e.touches[1].pageY);
+                if (state.lastDist > 0) {
+                    const delta = dist / state.lastDist;
+                    const midX = (e.touches[0].pageX + e.touches[1].pageX) / 2;
+                    const midY = (e.touches[0].pageY + e.touches[1].pageY) / 2;
+                    applyZoom(delta, midX, midY);
+                }
+                state.lastDist = dist;
+            }
+        }, { passive: false });
+    }
+
+    function applyZoom(delta, centerX, centerY) {
+        const newZoom = state.zoom * delta;
+        if (newZoom < 0.2 || newZoom > 5) return;
+        
+        // 座標補償，讓縮放中心位於滑鼠處
+        state.panX = centerX - (centerX - state.panX) * delta;
+        state.panY = centerY - (centerY - state.panY) * delta;
+        state.zoom = newZoom;
+        updateTransform();
+    }
+
+    function updateTransform() {
+        viewport.setAttribute('transform', `translate(${state.panX}, ${state.panY}) scale(${state.zoom})`);
+    }
+
+    function centerView() {
+        state.zoom = 1;
+        state.panX = 0;
+        state.panY = 0;
+        updateTransform();
+    }
+
+    init();
+</script>
+</body>
+</html>

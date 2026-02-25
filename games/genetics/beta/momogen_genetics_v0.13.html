@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Momo Genetics v0.14</title>
+    <title>Momo Genetics v0.13</title>
     <style>
         :root {
             --bg: #0d1117;
@@ -46,13 +46,6 @@
             padding: 12px; border-radius: 8px; pointer-events: auto; font-size: 13px;
         }
 
-        .stats-box {
-            position: absolute; top: 150px; right: 10px; width: 240px;
-            background: rgba(22, 27, 34, 0.85); border: 1px solid var(--panel-border);
-            padding: 10px; border-radius: 8px; pointer-events: auto; font-size: 12px;
-            color: var(--accent);
-        }
-
         .controls {
             position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
             display: flex; gap: 8px; pointer-events: auto;
@@ -81,6 +74,12 @@
         }
         @keyframes popIn { to { transform: scale(1); } }
 
+        .gene-ctrl {
+            display: flex; flex-direction: column; align-items: center; gap: 2px;
+            padding: 4px 6px; border: 1px solid #30363d; border-radius: 6px; background: #0d1117;
+        }
+        .gene-label { font-size: 10px; color: var(--accent); }
+
         select {
             background: #0d1117; color: white; border: 1px solid var(--panel-border);
             padding: 4px 8px; border-radius: 4px; outline: none;
@@ -94,7 +93,7 @@
 
 <div id="ui-layer">
     <div class="sidebar">
-        <div style="font-weight: bold; color: var(--primary); margin-bottom: 8px; font-size: 14px;">MomoGen v0.14</div>
+        <div style="font-weight: bold; color: var(--primary); margin-bottom: 8px; font-size: 14px;">MomoGen v0.13</div>
         <div class="nav-group">
             <div class="nav-title">第一大關 (單基因)</div>
             <button class="nav-btn" onclick="switchL(1,1)" id="btn-1-1">1-1 匹配性狀</button>
@@ -113,8 +112,6 @@
         <div id="mission-title" style="font-weight: bold; color: var(--accent); margin-bottom: 3px;"></div>
         <div id="mission-desc" style="line-height: 1.3;"></div>
     </div>
-
-    <div id="stats-area" class="stats-box" style="display:none;"></div>
 
     <div class="controls" id="game-controls"></div>
 </div>
@@ -143,13 +140,12 @@
         motherChroms: [],
         fatherChroms: [],
         hiddenFather: null,
-        childrenBatches: [] // 改為存放每一批的寶寶陣列
+        children: []
     };
 
     const viewport = document.getElementById('viewport');
     const controls = document.getElementById('game-controls');
     const overlay = document.getElementById('win-overlay');
-    const statsArea = document.getElementById('stats-area');
 
     function init() {
         setupInteractions();
@@ -158,14 +154,14 @@
 
     function switchL(m, s) {
         state.mainL = m; state.subL = s;
-        state.childrenBatches = [];
+        state.children = [];
         state.isWon = false;
         overlay.style.display = 'none';
-        statsArea.style.display = 'none';
         
         document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
         document.getElementById(`btn-${m}-${s}`).classList.add('active');
 
+        // 初始化
         randomizeTarget();
         randomizeParents();
         if (s === 3) state.hiddenFather = generateRandomChroms(m===2);
@@ -176,12 +172,12 @@
 
     function updateText() {
         const descs = {
-            "1-1": "匹配性狀：調整基因，使外觀與右側目標一致。",
-            "1-2": "編輯父母：自由修改父母基因，觀察其遺傳模式。",
-            "1-3": "追蹤：透過分析寶寶比例推斷父親基因型。母本已知。",
-            "2-1": "聯鎖匹配：同一染色體上的兩個基因位點會一起移動。",
-            "2-2": "編輯父母：嘗試不同的聯鎖排列（例如 ET/et）。",
-            "2-3": "數據推論：根據子代組合比例與母本基因，判斷父親基因排列。"
+            "1-1": "點擊下方的基因改變大小寫。貓耳(E)是顯性，垂耳(e)是隱性。請匹配右邊的目標性狀！",
+            "1-2": "本關可隨機更換父母。點擊父母下方的染色體基因即可變換基因型，再點雜合看結果。",
+            "1-3": "父親基因被隱藏了。點擊繁殖產生寶寶，從比例推斷父親是 EE, Ee 還是 ee 並提交。",
+            "2-1": "雙性狀聯鎖遺傳。調整同一條染色體上的兩個基因位點，匹配右側的複合性狀。",
+            "2-2": "編輯父母的聯鎖排列（如 ET/et）。觀察兩個性狀是如何成組遺傳的。",
+            "2-3": "難度最高！根據寶寶出現的性狀組合，判斷父親兩條染色體分別帶有什麼基因（即聯鎖排列）。"
         };
         document.getElementById('mission-title').innerText = `關卡 ${state.mainL}-${state.subL}`;
         document.getElementById('mission-desc').innerText = descs[`${state.mainL}-${state.subL}`];
@@ -189,7 +185,10 @@
 
     function randomizeTarget() {
         state.targetChroms = generateRandomChroms(state.mainL === 2);
-        state.playerChroms = [{g: state.mainL === 2 ? ['e','t'] : ['e']}, {g: state.mainL === 2 ? ['e','t'] : ['e']}];
+        state.playerChroms = [
+            {g: state.mainL === 2 ? ['e','t'] : ['e']},
+            {g: state.mainL === 2 ? ['e','t'] : ['e']}
+        ];
     }
 
     function randomizeParents() {
@@ -198,7 +197,8 @@
     }
 
     function generateRandomChroms(isLinked) {
-        const poolE = ['E','e']; const poolT = ['T','t'];
+        const poolE = ['E','e'];
+        const poolT = ['T','t'];
         const g1 = isLinked ? [poolE[Math.floor(Math.random()*2)], poolT[Math.floor(Math.random()*2)]] : [poolE[Math.floor(Math.random()*2)]];
         const g2 = isLinked ? [poolE[Math.floor(Math.random()*2)], poolT[Math.floor(Math.random()*2)]] : [poolE[Math.floor(Math.random()*2)]];
         return [{g:g1}, {g:g2}];
@@ -211,6 +211,7 @@
         return res;
     }
 
+    // --- 繪圖功能 ---
     function drawMomo(chroms, x, y, scale=1, label="") {
         const p = getPheno(chroms);
         let h = `<g transform="translate(${x},${y}) scale(${scale})">`;
@@ -235,7 +236,7 @@
         return h;
     }
 
-    function drawChromosomes(chroms, x, y, stateKey="") {
+    function drawInteractiveChroms(chroms, x, y, stateKey) {
         let h = `<g transform="translate(${x},${y})">`;
         chroms.forEach((c, idx) => {
             const cx = idx * 34 - 17;
@@ -243,7 +244,8 @@
             c.g.forEach((gene, gIdx) => {
                 const gy = gIdx * 25 + 15;
                 const isDom = gene === gene.toUpperCase();
-                if (stateKey) h += `<rect x="${cx}" y="${gy-10}" width="30" height="20" fill="transparent" style="cursor:pointer" onclick="toggleStateGene('${stateKey}',${idx},${gIdx})"/>`;
+                // 點擊區域
+                h += `<rect x="${cx}" y="${gy-10}" width="30" height="20" fill="transparent" style="cursor:pointer" onclick="toggleStateGene('${stateKey}',${idx},${gIdx})"/>`;
                 h += `<rect x="${cx+2}" y="${gy}" width="10" height="4" rx="2" fill="${isDom?'#ff7a45':'#58a6ff'}" pointer-events="none" />`;
                 h += `<text x="${cx+18}" y="${gy+5}" font-size="11" fill="white" font-weight="bold" pointer-events="none">${gene}</text>`;
             });
@@ -261,28 +263,6 @@
         if (state.subL === 1) checkWin1();
     }
 
-    function updateStats() {
-        const allChildren = state.childrenBatches.flat();
-        if (allChildren.length === 0) { statsArea.style.display = 'none'; return; }
-        statsArea.style.display = 'block';
-        
-        const total = allChildren.length;
-        const counts = {};
-        allChildren.forEach(child => {
-            const p = getPheno(child);
-            const key = state.mainL === 1 ? (p.E ? "貓耳" : "垂耳") : 
-                        `${p.E?"貓耳":"垂耳"}+${p.T?"長尾":"圓尾"}`;
-            counts[key] = (counts[key] || 0) + 1;
-        });
-
-        let h = `<div style="font-weight:bold; border-bottom:1px solid #333; margin-bottom:5px;">累計統計 (共 ${total} 隻)</div>`;
-        for (let k in counts) {
-            const perc = ((counts[k]/total)*100).toFixed(1);
-            h += `<div>${k}: ${counts[k]} (${perc}%)</div>`;
-        }
-        statsArea.innerHTML = h;
-    }
-
     function render() {
         let h = "";
         const cx = window.innerWidth / 2;
@@ -290,53 +270,69 @@
 
         if (state.subL === 1) {
             h += drawMomo(state.playerChroms, cx - 180, cy - 60, 1.6, "你的小獸");
-            h += drawChromosomes(state.playerChroms, cx - 180, cy + 50, 'playerChroms');
+            h += drawInteractiveChroms(state.playerChroms, cx - 180, cy + 50, 'playerChroms');
             h += drawMomo(state.targetChroms, cx + 180, cy - 60, 1.6, "目標外型");
             controls.innerHTML = `<button class="btn btn-secondary" onclick="randomizeTarget();render();">更換目標</button>`;
         } 
         else if (state.subL === 2) {
             h += drawMomo(state.motherChroms, cx - 220, cy - 140, 1, "母本");
-            h += drawChromosomes(state.motherChroms, cx - 220, cy - 80, 'motherChroms');
+            h += drawInteractiveChroms(state.motherChroms, cx - 220, cy - 80, 'motherChroms');
             h += drawMomo(state.fatherChroms, cx + 220, cy - 140, 1, "父本");
-            h += drawChromosomes(state.fatherChroms, cx + 220, cy - 80, 'fatherChroms');
-            if (state.childrenBatches.length > 0) {
-                const lastBatch = state.childrenBatches[state.childrenBatches.length-1];
-                const baby = lastBatch[lastBatch.length-1];
+            h += drawInteractiveChroms(state.fatherChroms, cx + 220, cy - 80, 'fatherChroms');
+            
+            if (state.children.length > 0) {
+                const baby = state.children[state.children.length-1];
                 h += drawMomo(baby, cx, cy + 40, 1.6, "子代結果");
-                h += drawChromosomes(baby, cx, cy + 120);
+                h += drawInteractiveChroms(baby, cx, cy + 120, ''); // 子代不可編輯
             }
-            controls.innerHTML = `<button class="btn btn-secondary" onclick="randomizeParents();render();">隨機父母</button><button class="btn" onclick="breed(1)">執行雜合</button>`;
+            controls.innerHTML = `
+                <button class="btn btn-secondary" onclick="randomizeParents();render();">隨機父母</button>
+                <button class="btn" onclick="breed(1)">執行雜合 (配對)</button>
+            `;
         }
         else if (state.subL === 3) {
             h += drawMomo(state.motherChroms, cx - 250, cy - 150, 0.8, "母親");
-            h += drawChromosomes(state.motherChroms, cx - 250, cy - 100);
-            h += `<g transform="translate(${cx+200},${cy-150})"><rect x="-40" y="-40" width="80" height="80" rx="10" fill="#161b22" stroke="#30363d" /><text y="15" text-anchor="middle" font-size="50" fill="#30363d" font-weight="bold">?</text><text y="60" text-anchor="middle" fill="#8b949e">神秘父親</text></g>`;
+            h += `<g transform="translate(${cx+200},${cy-150})">
+                <rect x="-40" y="-40" width="80" height="80" rx="10" fill="#161b22" stroke="#30363d" />
+                <text y="15" text-anchor="middle" font-size="50" fill="#30363d" font-weight="bold">?</text>
+                <text y="60" text-anchor="middle" fill="#8b949e">神秘父親</text>
+            </g>`;
             
-            const all = state.childrenBatches.flat();
-            all.forEach((child, i) => {
-                const r = Math.floor(i/15); const c = i%15;
-                h += drawMomo(child, cx - 380 + c*55, cy + 50 + r*75, 0.45);
-            });
+            if (state.children.length > 0) {
+                const batch = state.children[state.children.length-1];
+                batch.forEach((child, i) => {
+                    const r = Math.floor(i/10); const c = i%10;
+                    h += drawMomo(child, cx - 240 + c*55, cy + 50 + r*75, 0.45);
+                });
+            }
             renderControlsGuess();
-            updateStats();
         }
+
         viewport.innerHTML = h;
     }
 
     function renderControlsGuess() {
         let optionsHtml = "";
         if (state.mainL === 1) {
-            optionsHtml = `<select id="guess-select"><option value="EE">父親為 EE</option><option value="Ee">父親為 Ee</option><option value="ee">父親為 ee</option></select>`;
+            optionsHtml = `<select id="guess-select">
+                <option value="EE">父親為 EE (純合顯性)</option>
+                <option value="Ee">父親為 Ee (雜合子)</option>
+                <option value="ee">父親為 ee (純合隱性)</option>
+            </select>`;
         } else {
+            // 聯鎖排列選項
             const combos = ["ET/ET", "ET/Et", "ET/eT", "ET/et", "Et/Et", "Et/eT", "Et/et", "eT/eT", "eT/et", "et/et"];
-            optionsHtml = `<select id="guess-select">` + combos.map(c => `<option value="${c}">${c}</option>`).join("") + `</select>`;
+            optionsHtml = `<select id="guess-select">` + 
+                combos.map(c => `<option value="${c}">${c}</option>`).join("") + 
+                `</select>`;
         }
+
         controls.innerHTML = `
-            <button class="btn btn-secondary" onclick="state.motherChroms=generateRandomChroms(state.mainL==2);state.childrenBatches=[];render();">更換母本</button>
-            <button class="btn btn-secondary" style="background:#555" onclick="state.childrenBatches.pop();render();">回溯 20 隻</button>
+            <button class="btn btn-secondary" onclick="state.hiddenFather=generateRandomChroms(state.mainL==2);state.children=[];render();">更換父親</button>
             <button class="btn" onclick="breed(20)">產生 20 個寶寶</button>
             <div style="display:flex; align-items:center; gap:5px; margin-left:10px; border-left:1px solid #30363d; padding-left:10px;">
-                ${optionsHtml}<button class="btn btn-success" onclick="checkGuess()">提交答案</button>
+                ${optionsHtml}
+                <button class="btn btn-success" onclick="checkGuess()">提交答案</button>
             </div>
         `;
     }
@@ -350,31 +346,48 @@
     function checkGuess() {
         const guess = document.getElementById('guess-select').value;
         const actualArr = state.hiddenFather.map(c => c.g.join(""));
+        // 標準化實際基因型字串
         let actual = actualArr.sort().join("/");
         if (state.mainL === 1) {
             actual = actual.replace("/", "");
+            // 對於單基因 Ee vs eE 做處理
             if (actual === "eE") actual = "Ee";
+        } else {
+            // 對於 ET/et 這類排序做處理
         }
-        const gN = guess.split("/").sort().join("/");
-        const aN = actual.split("/").sort().join("/");
-        if (gN === aN) triggerWin();
-        else alert("不對喔，再根據性狀比例推論看看！");
+
+        // 簡單的比對邏輯：將使用者選擇與實際組合排序後比對
+        const guessNormalized = guess.split("/").sort().join("/");
+        const actualNormalized = actual.split("/").sort().join("/");
+
+        if (guessNormalized === actualNormalized) triggerWin();
+        else alert("不對喔，再觀察一下寶寶的性狀比例！");
     }
 
     function triggerWin() {
-        state.isWon = true; overlay.style.display = 'flex';
-        setTimeout(() => { overlay.style.display = 'none'; state.isWon = false; }, 3000);
+        state.isWon = true;
+        overlay.style.display = 'flex';
+        setTimeout(() => {
+            overlay.style.display = 'none';
+            state.isWon = false;
+        }, 3000);
     }
 
     function breed(count) {
         if (state.isWon) return;
         const father = state.subL === 3 ? state.hiddenFather : state.fatherChroms;
-        const batch = [];
-        for(let i=0; i<count; i++) {
-            batch.push([ JSON.parse(JSON.stringify(state.motherChroms[Math.floor(Math.random()*2)])), 
-                         JSON.parse(JSON.stringify(father[Math.floor(Math.random()*2)])) ]);
+        if (count === 1) {
+            const child = [ JSON.parse(JSON.stringify(state.motherChroms[Math.floor(Math.random()*2)])), 
+                            JSON.parse(JSON.stringify(father[Math.floor(Math.random()*2)])) ];
+            state.children.push(child);
+        } else {
+            const batch = [];
+            for(let i=0; i<20; i++) {
+                batch.push([ JSON.parse(JSON.stringify(state.motherChroms[Math.floor(Math.random()*2)])), 
+                             JSON.parse(JSON.stringify(father[Math.floor(Math.random()*2)])) ]);
+            }
+            state.children.push(batch);
         }
-        state.childrenBatches.push(batch);
         render();
     }
 

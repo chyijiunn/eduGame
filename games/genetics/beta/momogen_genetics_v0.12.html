@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Momo Genetics v0.12</title>
+    <style>
+        :root {
+            --bg: #0d1117;
+            --panel: #161b22;
+            --panel-border: #30363d;
+            --text: #c9d1d9;
+            --primary: #58a6ff;
+            --accent: #79c0ff;
+            --success: #238636;
+        }
+        body, html {
+            margin: 0; padding: 0; width: 100%; height: 100%;
+            overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            background-color: var(--bg); color: var(--text);
+            touch-action: none;
+        }
+        #ui-layer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; z-index: 10;
+        }
+        .sidebar {
+            position: absolute; top: 10px; left: 10px; width: 160px;
+            background: var(--panel); border: 1px solid var(--panel-border);
+            border-radius: 8px; padding: 10px; pointer-events: auto;
+        }
+        .nav-group { margin-bottom: 15px; }
+        .nav-title { font-size: 12px; color: #8b949e; margin-bottom: 5px; font-weight: bold; }
+        .nav-btn {
+            display: block; width: 100%; padding: 6px; margin: 2px 0;
+            background: transparent; border: 1px solid transparent; color: var(--text);
+            text-align: left; cursor: pointer; border-radius: 4px; font-size: 13px;
+        }
+        .nav-btn.active { background: #1f6feb; border-color: #388bfd; }
+        
+        .info-box {
+            position: absolute; top: 10px; right: 10px; width: 260px;
+            background: var(--panel); border: 1px solid var(--panel-border);
+            padding: 15px; border-radius: 8px; pointer-events: auto; font-size: 14px;
+        }
+
+        .controls {
+            position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+            display: flex; gap: 10px; pointer-events: auto;
+            background: var(--panel); padding: 12px 20px; border-radius: 40px;
+            border: 1px solid var(--panel-border); box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+        }
+
+        .btn {
+            padding: 8px 16px; border: none; border-radius: 20px;
+            background: var(--primary); color: white; cursor: pointer; font-weight: bold;
+        }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .gene-ctrl {
+            display: flex; flex-direction: column; align-items: center; gap: 4px;
+            padding: 4px 8px; border: 1px solid #30363d; border-radius: 8px; background: #0d1117;
+        }
+        .gene-label { font-size: 10px; color: var(--accent); }
+
+        svg { width: 100%; height: 100%; cursor: grab; background: var(--bg); }
+        svg:active { cursor: grabbing; }
+        #viewport { transform-origin: 0 0; }
+    </style>
+</head>
+<body>
+
+<div id="ui-layer">
+    <div class="sidebar">
+        <div style="font-weight: bold; color: var(--primary); margin-bottom: 10px;">MomoGen v0.12</div>
+        <div class="nav-group">
+            <div class="nav-title">第一大關：單性狀</div>
+            <button class="nav-btn" onclick="switchL(1,1)" id="btn-1-1">1-1 基礎調整</button>
+            <button class="nav-btn" onclick="switchL(1,2)" id="btn-1-2">1-2 配子預測</button>
+            <button class="nav-btn" onclick="switchL(1,3)" id="btn-1-3">1-3 逆向追蹤</button>
+        </div>
+        <div class="nav-group">
+            <div class="nav-title">第二大關：雙聯鎖</div>
+            <button class="nav-btn" onclick="switchL(2,1)" id="btn-2-1">2-1 聯鎖排列</button>
+            <button class="nav-btn" onclick="switchL(2,2)" id="btn-2-2">2-2 隨機配對</button>
+            <button class="nav-btn" onclick="switchL(2,3)" id="btn-2-3">2-3 神秘父親</button>
+        </div>
+    </div>
+
+    <div class="info-box">
+        <div id="mission-title" style="font-weight: bold; color: var(--accent); margin-bottom: 5px;"></div>
+        <div id="mission-desc" style="line-height: 1.4;"></div>
+    </div>
+
+    <div class="controls" id="game-controls"></div>
+</div>
+
+<svg id="svg-root">
+    <g id="viewport"></g>
+</svg>
+
+<script>
+    const state = {
+        mainL: 1, subL: 1,
+        zoom: 1, panX: 0, panY: 0,
+        isDragging: false, lastMouse: {x:0, y:0},
+        
+        // 基因定義
+        // 大關1 只有 E(耳朵)
+        // 大關2 有 E(耳朵) 和 T(尾巴)，且在同一對染色體上
+        traits: {
+            E: { name: '耳朵', dom: '貓耳', rec: '垂耳' },
+            T: { name: '尾巴', dom: '長尾', rec: '圓尾' }
+        },
+        
+        // 染色體結構 [ { genes: ['E', 'T'] }, { genes: ['e', 't'] } ]
+        playerChroms: [], 
+        targetChroms: [],
+        motherChroms: [],
+        fatherChroms: [],
+        hiddenFather: null,
+        children: []
+    };
+
+    const viewport = document.getElementById('viewport');
+    const controls = document.getElementById('game-controls');
+
+    function init() {
+        setupInteractions();
+        switchL(1, 1);
+        window.addEventListener('resize', () => render());
+    }
+
+    function switchL(m, s) {
+        state.mainL = m; state.subL = s;
+        state.children = [];
+        
+        // 更新 UI 按鈕
+        document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById(`btn-${m}-${s}`).classList.add('active');
+
+        // 初始化基因
+        if (m === 1) {
+            state.playerChroms = [{g:['E']}, {g:['e']}];
+            state.targetChroms = [{g:['e']}, {g:['e']}];
+            state.motherChroms = [{g:['E']}, {g:['E']}];
+            state.fatherChroms = [{g:['e']}, {g:['e']}];
+            state.missionTitle = `關卡 1-${s}`;
+        } else {
+            state.playerChroms = [{g:['E','T']}, {g:['e','t']}];
+            state.targetChroms = [{g:['e','T']}, {g:['e','T']}];
+            state.motherChroms = [{g:['E','T']}, {g:['E','T']}];
+            state.fatherChroms = [{g:['e','t']}, {g:['e','t']}];
+            state.missionTitle = `關卡 2-${s}`;
+            if (s === 3) state.hiddenFather = generateRandomChroms(true);
+        }
+
+        const descs = {
+            "1-1": "調整染色體上的等位基因。貓耳 (E) 是顯性，垂耳 (e) 是隱性。試著讓左邊的小獸變成垂耳！",
+            "1-2": "點擊雜合。子代會隨機從父母各拿一條染色體。觀察單一性狀的傳承。",
+            "1-3": "父親的基因是未知的。透過觀察大量寶寶的耳朵類型，推斷父親是純合子還是雜合子。",
+            "2-1": "現在多了尾巴基因 (T/t)，且它與耳朵在同一條染色體上！調整它們，匹配右側的『垂耳長尾』目標。",
+            "2-2": "聯鎖遺傳：耳朵和尾巴會『整組』一起傳給下一代。看看這對組合如何影響子代外表。",
+            "2-3": "挑戰題！根據這窩寶寶的性狀組合，推算出父親那兩條染色體上分別帶有哪些基因組合。"
+        };
+        document.getElementById('mission-title').innerText = state.missionTitle;
+        document.getElementById('mission-desc').innerText = descs[`${m}-${s}`];
+
+        render();
+    }
+
+    function generateRandomChroms(isLinked) {
+        const poolE = ['E','e'];
+        const poolT = ['T','t'];
+        return [
+            {g: isLinked ? [poolE[rand(2)], poolT[rand(2)]] : [poolE[rand(2)]]},
+            {g: isLinked ? [poolE[rand(2)], poolT[rand(2)]] : [poolE[rand(2)]]}
+        ];
+    }
+    const rand = (n) => Math.floor(Math.random()*n);
+
+    // --- 繪圖 ---
+    function getPheno(chroms) {
+        const res = {};
+        const allGenes = chroms[0].g.concat(chroms[1].g);
+        ['E','T'].forEach(k => {
+            res[k] = allGenes.includes(k);
+        });
+        return res;
+    }
+
+    function drawMomo(chroms, x, y, scale=1, label="") {
+        const p = getPheno(chroms);
+        let h = `<g transform="translate(${x},${y}) scale(${scale})">`;
+        
+        // 1. 尾巴 (後)
+        if (state.mainL === 2) {
+            if (p.T) // 長尾 (狐狸感)
+                h += `<path d="M-20,20 Q-60,60 -20,70 Q0,50 -10,30" fill="#ff7a45" stroke="#333" />`;
+            else // 圓尾 (兔感)
+                h += `<circle cx="-25" cy="25" r="10" fill="#eee" stroke="#333" />`;
+        }
+
+        // 2. 身體
+        h += `<circle cx="0" cy="15" r="40" fill="#fff1f1" stroke="#333" stroke-width="2" />`;
+        h += `<ellipse cx="0" cy="35" rx="20" ry="10" fill="#ffd6d6" opacity="0.5" />`;
+
+        // 3. 耳朵
+        if (p.E) { // 貓耳
+            h += `<path d="M-30,-15 L-45,-50 L-10,-35 Z" fill="#fff1f1" stroke="#333" />`;
+            h += `<path d="M30,-15 L45,-50 L10,-35 Z" fill="#fff1f1" stroke="#333" />`;
+        } else { // 垂耳
+            h += `<path d="M-30,-15 Q-50,20 -25,30 Q-10,20 -15,-10 Z" fill="#fff1f1" stroke="#333" />`;
+            h += `<path d="M30,-15 Q50,20 25,30 Q10,20 15,-10 Z" fill="#fff1f1" stroke="#333" />`;
+        }
+
+        // 4. 臉
+        h += `<circle cx="-15" cy="5" r="4" fill="#333" />`;
+        h += `<circle cx="15" cy="5" r="4" fill="#333" />`;
+        h += `<path d="M-5,15 Q0,20 5,15" fill="none" stroke="#333" stroke-width="2" />`;
+        
+        if(label) h += `<text y="70" text-anchor="middle" fill="#8b949e" font-size="12">${label}</text>`;
+        h += `</g>`;
+        return h;
+    }
+
+    function drawChromosomes(chroms, x, y) {
+        let h = `<g transform="translate(${x},${y})">`;
+        chroms.forEach((c, idx) => {
+            const cx = idx * 30 - 15;
+            h += `<rect x="${cx}" y="0" width="12" height="60" rx="6" fill="#30363d" stroke="#58a6ff" stroke-width="1" />`;
+            c.g.forEach((gene, gIdx) => {
+                const gy = gIdx * 25 + 15;
+                const isDom = gene === gene.toUpperCase();
+                h += `<rect x="${cx+2}" y="${gy}" width="8" height="4" rx="2" fill="${isDom?'#ff7a45':'#58a6ff'}" />`;
+                h += `<text x="${cx+18}" y="${gy+5}" font-size="10" fill="white">${gene}</text>`;
+            });
+        });
+        h += `</g>`;
+        return h;
+    }
+
+    function render() {
+        let h = "";
+        const cx = window.innerWidth / 2;
+        const cy = window.innerHeight / 2;
+
+        if (state.subL === 1) {
+            h += drawMomo(state.playerChroms, cx - 180, cy - 50, 1.5, "你的小獸");
+            h += drawChromosomes(state.playerChroms, cx - 180, cy + 60);
+            h += drawMomo(state.targetChroms, cx + 180, cy - 50, 1.5, "目標外型");
+            renderControlsL1();
+        } 
+        else if (state.subL === 2) {
+            h += drawMomo(state.motherChroms, cx - 220, cy - 120, 1, "母本");
+            h += drawChromosomes(state.motherChroms, cx - 220, cy - 60);
+            h += drawMomo(state.fatherChroms, cx + 220, cy - 120, 1, "父本");
+            h += drawChromosomes(state.fatherChroms, cx + 220, cy - 60);
+            
+            if (state.children.length > 0) {
+                const baby = state.children[state.children.length-1];
+                h += drawMomo(baby, cx, cy + 50, 1.5, "子代");
+                h += drawChromosomes(baby, cx, cy + 130);
+            }
+            controls.innerHTML = `<button class="btn" onclick="breed(1)">執行雜合 (配對)</button>`;
+        }
+        else if (state.subL === 3) {
+            h += drawMomo(state.motherChroms, cx - 250, cy - 150, 0.8, "母親");
+            h += `<text x="${cx+200}" y="${cy-100}" text-anchor="middle" font-size="40" fill="#30363d">?</text>`;
+            h += `<text x="${cx+200}" y="${cy-50}" text-anchor="middle" fill="#8b949e">神秘父親</text>`;
+            
+            if (state.children.length > 0) {
+                const batch = state.children[state.children.length-1];
+                batch.forEach((child, i) => {
+                    const r = Math.floor(i/10); const c = i%10;
+                    h += drawMomo(child, cx - 240 + c*55, cy + 50 + r*70, 0.4);
+                });
+            }
+            renderControlsL3();
+        }
+
+        viewport.innerHTML = h;
+    }
+
+    function renderControlsL1() {
+        let h = "";
+        state.playerChroms[0].g.forEach((_, gIdx) => {
+            const geneE = state.playerChroms[0].g[gIdx].toUpperCase();
+            const trait = state.traits[geneE];
+            h += `<div class="gene-ctrl">
+                <span class="gene-label">${trait.name}</span>
+                <div style="display:flex; gap:5px;">
+                    <button class="btn" style="padding:4px 10px" onclick="toggleGene(0,${gIdx})">${state.playerChroms[0].g[gIdx]}</button>
+                    <button class="btn" style="padding:4px 10px" onclick="toggleGene(1,${gIdx})">${state.playerChroms[1].g[gIdx]}</button>
+                </div>
+            </div>`;
+        });
+        controls.innerHTML = h;
+    }
+
+    function toggleGene(cIdx, gIdx) {
+        const cur = state.playerChroms[cIdx].g[gIdx];
+        state.playerChroms[cIdx].g[gIdx] = cur === cur.toUpperCase() ? cur.toLowerCase() : cur.toUpperCase();
+        render();
+        const p1 = JSON.stringify(getPheno(state.playerChroms));
+        const p2 = JSON.stringify(getPheno(state.targetChroms));
+        if (p1 === p2) setTimeout(() => alert("恭喜成功！性狀完全符合。"), 100);
+    }
+
+    function breed(count) {
+        const father = state.subL === 3 ? state.hiddenFather : state.fatherGeno || state.fatherChroms;
+        if (count === 1) {
+            const child = [
+                state.motherChroms[rand(2)],
+                father[rand(2)]
+            ];
+            state.children.push(child);
+        } else {
+            const batch = [];
+            for(let i=0; i<20; i++) batch.push([state.motherChroms[rand(2)], father[rand(2)]]);
+            state.children.push(batch);
+        }
+        render();
+    }
+
+    function renderControlsL3() {
+        controls.innerHTML = `
+            <button class="btn" style="background:#30363d" onclick="state.children.pop();render();">回溯</button>
+            <button class="btn" onclick="breed(20)">產生 20 個寶寶</button>
+            <button class="btn" style="background:#d29922" onclick="alert('父親基因：'+JSON.stringify(state.hiddenFather.map(c=>c.g.join(''))))">揭曉真相</button>
+        `;
+    }
+
+    // --- 互動 (簡化) ---
+    function setupInteractions() {
+        let isDown = false;
+        window.addEventListener('pointerdown', e => { isDown = true; state.lastMouse = {x:e.clientX, y:e.clientY}; });
+        window.addEventListener('pointermove', e => {
+            if(!isDown) return;
+            state.panX += e.clientX - state.lastMouse.x;
+            state.panY += e.clientY - state.lastMouse.y;
+            state.lastMouse = {x:e.clientX, y:e.clientY};
+            viewport.setAttribute('transform', `translate(${state.panX},${state.panY}) scale(${state.zoom})`);
+        });
+        window.addEventListener('pointerup', () => isDown = false);
+        window.addEventListener('wheel', e => {
+            const d = e.deltaY > 0 ? 0.9 : 1.1;
+            state.zoom *= d;
+            viewport.setAttribute('transform', `translate(${state.panX},${state.panY}) scale(${state.zoom})`);
+        }, {passive:false});
+    }
+
+    init();
+</script>
+</body>
+</html>
