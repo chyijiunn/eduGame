@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <title>genGrift 0.7 - 生態演化實驗室</title>
+    <style>
+        :root { --bg: #0a0a0a; --panel: #1a1a1a; --accent: #00ffcc; --text: #eee; }
+        body { background: var(--bg); color: var(--text); font-family: 'Courier New', Courier, monospace; margin: 0; display: flex; flex-direction: column; height: 100vh; }
+        
+        #top-bar { padding: 10px 20px; background: var(--panel); display: flex; justify-content: space-between; border-bottom: 2px solid #333; }
+        #main-stage { flex-grow: 1; position: relative; overflow: hidden; cursor: crosshair; }
+        canvas { display: block; }
+
+        /* UI Panels */
+        #ui-bottom { height: 220px; background: var(--panel); display: flex; border-top: 2px solid #333; }
+        .panel-section { flex: 1; padding: 10px; border-right: 1px solid #333; position: relative; }
+        
+        /* Breeding Modal */
+        #breed-modal { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); 
+                       width: 700px; background: #222; border: 2px solid var(--accent); padding: 20px; z-index: 100; }
+        .chromo-row { display: flex; align-items: center; justify-content: space-between; margin: 10px 0; background: #333; padding: 5px; }
+        .gene-slot { width: 40px; height: 40px; line-height: 40px; text-align: center; border: 1px solid var(--accent); cursor: pointer; font-size: 1.5em; }
+        .preview-box { width: 100px; height: 100px; border: 1px solid #555; display: flex; align-items: center; justify-content: center; background: #000; }
+
+        /* Chart Controls */
+        .chart-btn { background: #333; color: #ccc; border: 1px solid #555; cursor: pointer; padding: 2px 8px; font-size: 12px; }
+        .chart-btn.active { background: var(--accent); color: #000; }
+        
+        #env-fx { position: absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index:2; transition: 0.5s; }
+    </style>
+</head>
+<body>
+
+<div id="top-bar">
+    <div>YEAR: <span id="y-val">0</span> | GEN: <span id="g-val">0</span> | POP: <span id="p-val">0</span></div>
+    <div id="env-status" style="color:var(--accent)">環境穩定</div>
+    <div style="color:#ffd700">BIOMASS: <span id="b-val">1000</span></div>
+</div>
+
+<div id="main-stage">
+    <div id="env-fx"></div>
+    <canvas id="simCanvas"></canvas>
+</div>
+
+<div id="ui-bottom">
+    <div class="panel-section" style="max-width: 250px;">
+        <button onclick="openBreedModal()" style="width:100%; height:50px; background:var(--accent); font-weight:bold; cursor:pointer">啟動人擇育種</button>
+        <p style="font-size:12px; color:#888; margin-top:10px;">* 生物碰撞異性會產生後代<br>* 移動會持續消耗生物量<br>* 未成年個體(Age<6)無法生育</p>
+    </div>
+    <div class="panel-section">
+        <div style="margin-bottom:5px;">
+            <button class="chart-btn active" onclick="setChart('pop')">個體數</button>
+            <button class="chart-btn" onclick="setChart('freq')">基因頻率</button>
+            <button class="chart-btn" onclick="setChart('pheno')">性狀比例</button>
+        </div>
+        <canvas id="chartCanvas" width="400" height="150"></canvas>
+    </div>
+</div>
+
+<div id="breed-modal">
+    <h3 style="color:var(--accent); margin:0;">人擇染色體編輯器</h3>
+    <div style="display:flex; gap:20px; margin-top:20px;">
+        <div style="flex:1">
+            <div style="display:flex; justify-content:space-around; color:#888; font-size:12px;"><span>父方 (Male)</span><span>母方 (Female)</span></div>
+            <div id="chromo-editor"></div>
+        </div>
+        <div style="width:150px; text-align:center;">
+            <div class="preview-box" id="breed-preview"></div>
+            <p style="font-size:12px;">預覽後代性狀</p>
+            <button onclick="doMassBreed()" style="width:100%">執行大量繁育</button>
+            <button onclick="closeBreedModal()" style="width:100%; margin-top:10px; background:#444">關閉</button>
+        </div>
+    </div>
+</div>
+
+<script>
+/** 核心物理與遺傳引擎 **/
+const canvas = document.getElementById('simCanvas');
+const ctx = canvas.getContext('2d');
+const cCanvas = document.getElementById('chartCanvas');
+const cCtx = cCanvas.getContext('2d');
+
+let state = {
+    year: 0, biomass: 2000, population: [],
+    history: [], chartMode: 'pop',
+    breeding: { f:['F','f'], c:['C','c'], s:['S','s'], r:['R','r'] } // 預設父母基因
+};
+
+const TRAITS = {
+    f: { dom: 'F', rec: 'f', color: '#ff5555' },
+    c: { dom: 'C', rec: 'c', color: '#55ff55' },
+    s: { dom: 'S', rec: 's', color: '#5555ff' },
+    r: { dom: 'R', rec: 'r', color: '#ffff55' }
+};
+
+class Creature {
+    constructor(x, y, genes, age=0) {
+        this.x = x; this.y = y;
+        this.genes = genes; // {f:[F,f], c:[C,c]...}
+        this.age = age;
+        this.gender = Math.random() > 0.5 ? 'M' : 'F';
+        this.energy = 100;
+        this.isResting = false;
+        this.angle = Math.random() * Math.PI * 2;
+        this.radius = this.hasTrait('r') ? 10 : 5;
+    }
+
+    hasTrait(key) {
+        return this.genes[key].some(a => a === a.toUpperCase());
+    }
+
+    update() {
+        this.isResting = Math.random() < 0.2;
+        let cost = this.isResting ? 0.05 : 0.5;
+        state.biomass -= cost;
+
+        if (!this.isResting) {
+            let speed = this.hasTrait('s') ? 3 : 1.2;
+            this.x += Math.cos(this.angle) * speed;
+            this.y += Math.sin(this.angle) * speed;
+            if (this.x < 0 || this.x > canvas.width) this.angle = Math.PI - this.angle;
+            if (this.y < 0 || this.y > canvas.height) this.angle = -this.angle;
+        }
+    }
+
+    draw() {
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        ctx.globalAlpha = this.age < 6 ? 0.4 : 1.0; // 未成年半透明
+        
+        // 繪製主體
+        ctx.fillStyle = this.hasTrait('c') ? varColor(this.gender) : '#666';
+        if (this.hasTrait('f')) {
+            ctx.beginPath();
+            for(let i=0; i<10; i++){
+                let r = this.radius + (i%2==0?5:0);
+                let a = (i/10)*Math.PI*2;
+                ctx.lineTo(Math.cos(a)*r, Math.sin(a)*r);
+            }
+            ctx.fill();
+        } else {
+            ctx.beginPath();
+            ctx.arc(0,0, this.radius, 0, Math.PI*2);
+            ctx.fill();
+        }
+        
+        // 眼睛
+        ctx.fillStyle = 'white';
+        ctx.fillRect(-2, -3, 2, 2); ctx.fillRect(2, -3, 2, 2);
+        ctx.restore();
+    }
+}
+
+function varColor(g) { return g === 'M' ? '#00ccff' : '#ff00aa'; }
+
+/** 碰撞與交配邏輯 **/
+function checkCollisions() {
+    for (let i = 0; i < state.population.length; i++) {
+        for (let j = i + 1; j < state.population.length; j++) {
+            let a = state.population[i];
+            let b = state.population[j];
+            let dist = Math.hypot(a.x - b.x, a.y - b.y);
+            
+            if (dist < (a.radius + b.radius)) {
+                // 交配檢查
+                if (a.gender !== b.gender && a.age >= 6 && b.age >= 6) {
+                    if (Math.random() < 0.05) { // 碰撞受孕率
+                        spawnChild(a, b);
+                    }
+                }
+                // 碰撞反彈
+                a.angle += Math.PI; b.angle += Math.PI;
+            }
+        }
+    }
+}
+
+function spawnChild(p1, p2) {
+    if (state.population.length > 300) return;
+    let babyGenes = {};
+    for (let k in TRAITS) {
+        // 孟德爾分離定律：從父母各取一
+        let g1 = p1.genes[k][Math.floor(Math.random()*2)];
+        let g2 = p2.genes[k][Math.floor(Math.random()*2)];
+        babyGenes[k] = [g1, g2];
+    }
+    state.population.push(new Creature(p1.x, p1.y, babyGenes));
+}
+
+/** 育種視窗與大量繁殖 **/
+function openBreedModal() {
+    const box = document.getElementById('chromo-editor');
+    box.innerHTML = '';
+    for (let k in TRAITS) {
+        let row = document.createElement('div');
+        row.className = 'chromo-row';
+        row.innerHTML = `
+            <span>${k.toUpperCase()}</span>
+            <div class="gene-slot" onclick="toggleGene('${k}',0)">${state.breeding[k][0]}</div>
+            <div class="gene-slot" onclick="toggleGene('${k}',1)">${state.breeding[k][1]}</div>
+        `;
+        box.appendChild(row);
+    }
+    updatePreview();
+    document.getElementById('breed-modal').style.display = 'block';
+}
+
+function toggleGene(k, idx) {
+    let current = state.breeding[k][idx];
+    state.breeding[k][idx] = (current === current.toUpperCase()) ? current.toLowerCase() : current.toUpperCase();
+    openBreedModal();
+}
+
+function updatePreview() {
+    const pre = document.getElementById('breed-preview');
+    // 預覽後代性狀邏輯：這裡顯示如果父母是這組基因，後代「可能」的模樣
+    pre.innerHTML = `<div style="color:white; font-size:10px">遺傳組合預覽</div>`;
+}
+
+function doMassBreed() {
+    if (state.biomass < 500) return alert("生物量不足！");
+    state.biomass -= 500;
+    
+    // 執行 50 次受控繁育 (符合遺傳定律)
+    for(let i=0; i<50; i++) {
+        let babyGenes = {};
+        for(let k in TRAITS) {
+            // 假設玩家設定的是「族群目標基因頻率」或「特定種源」
+            // 這裡模擬從玩家設定的這對「虛擬父母」產出
+            let g1 = state.breeding[k][0]; 
+            let g2 = state.breeding[k][1];
+            babyGenes[k] = [g1, g2];
+        }
+        state.population.push(new Creature(Math.random()*canvas.width, Math.random()*canvas.height, babyGenes));
+    }
+    closeBreedModal();
+}
+
+/** 折線圖系統 **/
+function drawCharts() {
+    cCtx.clearRect(0,0,cCanvas.width, cCanvas.height);
+    if (state.history.length < 2) return;
+
+    const maxPoints = 50;
+    let data = state.history.slice(-maxPoints);
+    
+    if (state.chartMode === 'pop') {
+        drawLines([{label:'Pop', color:varColor('M'), key:'count'}], data);
+    } else if (state.chartMode === 'freq') {
+        let lines = Object.keys(TRAITS).map(k => ({label:k, color:TRAITS[k].color, key: 'p_'+k}));
+        drawLines(lines, data);
+    }
+}
+
+function drawLines(configs, data) {
+    configs.forEach(cfg => {
+        cCtx.strokeStyle = cfg.color;
+        cCtx.beginPath();
+        data.forEach((d, i) => {
+            let x = (i / (data.length-1)) * cCanvas.width;
+            let val = d[cfg.key];
+            let y = cCanvas.height - (val / (state.chartMode==='pop'?300:1)) * cCanvas.height;
+            if(i===0) cCtx.moveTo(x,y); else cCtx.lineTo(x,y);
+        });
+        cCtx.stroke();
+    });
+}
+
+/** 遊戲循環 **/
+function loop() {
+    // 物理
+    canvas.width = canvas.offsetWidth;
+    canvas.height = canvas.offsetHeight;
+    ctx.clearRect(0,0,canvas.width, canvas.height);
+    
+    state.population.forEach(c => {
+        c.update();
+        c.draw();
+    });
+    checkCollisions();
+
+    // 數據紀錄 (每秒)
+    if (Date.now() % 1000 < 20) {
+        state.year++;
+        recordHistory();
+        // 歲月催人老
+        state.population.forEach(c => c.age += 1);
+        state.population = state.population.filter(c => c.age < (8 + Math.random()*4) && state.biomass > 0);
+    }
+
+    renderUI();
+    drawCharts();
+    requestAnimationFrame(loop);
+}
+
+function recordHistory() {
+    let snap = { count: state.population.length };
+    for(let k in TRAITS) {
+        let domCount = state.population.filter(c => c.hasTrait(k)).length;
+        snap['p_'+k] = domCount / (state.population.length || 1);
+    }
+    state.history.push(snap);
+}
+
+function renderUI() {
+    document.getElementById('y-val').innerText = state.year;
+    document.getElementById('p-val').innerText = state.population.length;
+    document.getElementById('b-val').innerText = Math.floor(state.biomass);
+    if(state.biomass <= 0) document.getElementById('env-status').innerText = "資源耗盡！滅絕預警";
+}
+
+function setChart(m) {
+    state.chartMode = m;
+    document.querySelectorAll('.chart-btn').forEach(b => b.classList.remove('active'));
+    event.target.classList.add('active');
+}
+
+function closeBreedModal() { document.getElementById('breed-modal').style.display='none'; }
+
+// 初始化
+for(let i=0; i<30; i++) {
+    state.population.push(new Creature(Math.random()*800, Math.random()*400, {
+        f:['F','f'], c:['C','c'], s:['S','s'], r:['r','r']
+    }, 6));
+}
+loop();
+</script>
+</body>
+</html>

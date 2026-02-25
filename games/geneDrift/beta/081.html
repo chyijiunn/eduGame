@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <title>genGrift 0.8 - 染色體遺傳實驗室</title>
+    <style>
+        :root { --bg: #0d0d0d; --accent: #00ffcc; --girl: #ff00aa; --boy: #00ccff; --text: #eee; }
+        body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', sans-serif; margin: 0; overflow: hidden; display: flex; flex-direction: column; height: 100vh; }
+        
+        #stage { flex-grow: 1; position: relative; background: radial-gradient(circle, #222 0%, #000 100%); }
+        #ui-bottom { height: 180px; background: #1a1a1a; border-top: 2px solid #333; display: flex; padding: 10px; }
+        
+        /* 育種視窗 - 核心重頭戲 */
+        #breed-modal { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); 
+                       width: 850px; background: #1a1a1a; border: 2px solid var(--accent); padding: 25px; z-index: 1000; box-shadow: 0 0 50px #000; }
+        
+        .breeding-grid { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; }
+        .parent-card { flex: 1; background: #252525; padding: 15px; border-radius: 8px; border-top: 4px solid #555; }
+        .parent-card.male { border-color: var(--boy); }
+        .parent-card.female { border-color: var(--girl); }
+
+        .chromosome-row { display: flex; align-items: center; margin: 10px 0; justify-content: space-between; }
+        .gene-pair { display: flex; gap: 5px; }
+        .allele { width: 35px; height: 35px; line-height: 35px; text-align: center; border: 1px solid #444; 
+                  cursor: pointer; font-weight: bold; font-size: 1.2em; transition: 0.2s; background: #111; }
+        .allele:hover { border-color: var(--accent); }
+        .allele.active { background: var(--accent); color: #000; border-color: #fff; }
+
+        .preview-section { width: 220px; background: #000; padding: 15px; border-radius: 8px; text-align: center; border: 1px solid #333; }
+        #preview-canvas { background: #080808; border: 1px solid #222; margin-bottom: 10px; }
+
+        .btn-breed { background: var(--accent); color: #000; border: none; padding: 12px 20px; font-weight: bold; cursor: pointer; width: 100%; margin-top: 10px; }
+        .btn-breed:disabled { background: #444; color: #888; cursor: not-allowed; }
+
+        #biomass-tag { position: absolute; top: 20px; right: 20px; font-size: 1.5em; color: #ffd700; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<div id="stage">
+    <div id="biomass-tag">ENERGY: <span id="b-val">2000</span></div>
+    <canvas id="mainCanvas"></canvas>
+    <button onclick="openBreedModal()" style="position:absolute; bottom:20px; left:20px; padding:15px 30px; background:var(--accent); cursor:pointer; font-weight:bold;">開啟染色體育種介面</button>
+</div>
+
+<div id="breed-modal">
+    <h2 style="margin-top:0; color:var(--accent)">人工選擇：染色體配對</h2>
+    <div class="breeding-grid">
+        <div class="parent-card male">
+            <h4 style="margin:0 0 10px 0; color:var(--boy)">父方染色體 (Male Pair)</h4>
+            <div id="male-chromos"></div>
+        </div>
+
+        <div class="parent-card female">
+            <h4 style="margin:0 0 10px 0; color:var(--girl)">母方染色體 (Female Pair)</h4>
+            <div id="female-chromos"></div>
+        </div>
+
+        <div class="preview-section">
+            <h4 style="margin:0 0 10px 0;">後代預覽 (Probable)</h4>
+            <canvas id="preview-canvas" width="120" height="120"></canvas>
+            <div id="preview-stats" style="font-size: 12px; color: #888; margin-bottom: 10px;"></div>
+            <button class="btn-breed" id="breed-execute" onclick="doBreed()">執行大量繁育 (50隻)</button>
+            <button onclick="document.getElementById('breed-modal').style.display='none'" style="background:none; color:#777; border:none; cursor:pointer; margin-top:10px;">取消</button>
+        </div>
+    </div>
+</div>
+
+<script>
+/** 遺傳定義 **/
+const GENES = {
+    f: { name: '毛皮', dom: 'F', rec: 'f' },
+    c: { name: '花紋', dom: 'C', rec: 'c' },
+    s: { name: '速度', dom: 'S', rec: 's' },
+    r: { name: '體型', dom: 'R', rec: 'r' }
+};
+
+let state = {
+    biomass: 2000,
+    population: [],
+    // 玩家目前選中的染色體組 [父1, 父2, 母1, 母2]
+    selected: {
+        male: { f:'F', c:'C', s:'S', r:'r' },
+        female: { f:'f', c:'c', s:'s', r:'r' }
+    }
+};
+
+/** 繪圖引擎：繪製單個生物 **/
+function drawCreature(ctx, x, y, genes, scale=1, alpha=1) {
+    const isBig = genes.r.some(a => a === 'R');
+    const hasFur = genes.f.some(a => a === 'F');
+    const hasCamo = genes.c.some(a => a === 'C');
+    const isFast = genes.s.some(a => a === 'S');
+    
+    const baseSize = (isBig ? 15 : 8) * scale;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.globalAlpha = alpha;
+
+    // 1. 腳 (Speed)
+    ctx.strokeStyle = '#555';
+    ctx.lineWidth = 2 * scale;
+    const legL = isFast ? 15*scale : 6*scale;
+    ctx.beginPath();
+    ctx.moveTo(-baseSize/2, 0); ctx.lineTo(-baseSize/2, legL);
+    ctx.moveTo(baseSize/2, 0); ctx.lineTo(baseSize/2, legL);
+    ctx.stroke();
+
+    // 2. 身體 (Fur + Camo)
+    ctx.fillStyle = hasCamo ? '#00ccff' : '#444';
+    if (hasFur) {
+        ctx.beginPath();
+        for(let i=0; i<12; i++) {
+            let angle = (i/12) * Math.PI * 2;
+            let r = baseSize + (i%2===0 ? 6*scale : 0);
+            ctx.lineTo(Math.cos(angle)*r, Math.sin(angle)*r);
+        }
+        ctx.closePath();
+        ctx.fill();
+    } else {
+        ctx.beginPath();
+        ctx.arc(0, 0, baseSize, 0, Math.PI*2);
+        ctx.fill();
+    }
+
+    // 3. 臉
+    ctx.fillStyle = 'white';
+    ctx.beginPath();
+    ctx.arc(-baseSize/3, -baseSize/4, 2*scale, 0, Math.PI*2);
+    ctx.arc(baseSize/3, -baseSize/4, 2*scale, 0, Math.PI*2);
+    ctx.fill();
+
+    ctx.restore();
+}
+
+/** 育種介面邏輯 **/
+function openBreedModal() {
+    renderChromoEditor('male', 'male-chromos');
+    renderChromoEditor('female', 'female-chromos');
+    updatePreview();
+    document.getElementById('breed-modal').style.display = 'block';
+}
+
+function renderChromoEditor(gender, containerId) {
+    const container = document.getElementById(containerId);
+    container.innerHTML = '';
+    for (let key in GENES) {
+        const g = GENES[key];
+        const row = document.createElement('div');
+        row.className = 'chromosome-row';
+        const current = state.selected[gender][key];
+        row.innerHTML = `
+            <span style="font-size:12px; color:#888">${g.name}</span>
+            <div class="gene-pair">
+                <div class="allele ${current === g.dom ? 'active' : ''}" onclick="selectGene('${gender}','${key}','${g.dom}')">${g.dom}</div>
+                <div class="allele ${current === g.rec ? 'active' : ''}" onclick="selectGene('${gender}','${key}','${g.rec}')">${g.rec}</div>
+            </div>
+        `;
+        container.appendChild(row);
+    }
+}
+
+function selectGene(gender, key, val) {
+    state.selected[gender][key] = val;
+    renderChromoEditor(gender, gender + '-chromos');
+    updatePreview();
+}
+
+function updatePreview() {
+    const canvas = document.getElementById('preview-canvas');
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // 預覽結合後的性狀 (Aa 結構)
+    const previewGenes = {};
+    for (let k in GENES) {
+        previewGenes[k] = [state.selected.male[k], state.selected.female[k]];
+    }
+    drawCreature(ctx, 60, 60, previewGenes, 1.5);
+    
+    // 顯示性狀文字
+    let txt = "";
+    if (previewGenes.f.some(a=>a==='F')) txt += "長毛 ";
+    if (previewGenes.c.some(a=>a==='C')) txt += "斑點 ";
+    if (previewGenes.s.some(a=>a==='S')) txt += "長腿 ";
+    if (previewGenes.r.some(a=>a==='R')) txt += "巨型";
+    document.getElementById('preview-stats').innerText = txt || "全隱性個體";
+}
+
+function doBreed() {
+    if (state.biomass < 500) return alert("能源不足");
+    state.biomass -= 500;
+    
+    // 大量繁育 50 隻符合遺傳法則的後代
+    for(let i=0; i<50; i++) {
+        let childGenes = {};
+        for(let k in GENES) {
+            // 由於這是「人工選擇」，我們假設玩家鎖定了這對父母的特定配子
+            // 但為了符合「遺傳法則」，如果未來加入多個配子選擇，這裡會變隨機
+            childGenes[k] = [state.selected.male[k], state.selected.female[k]];
+        }
+        state.population.push({
+            x: Math.random() * window.innerWidth,
+            y: Math.random() * (window.innerHeight - 200),
+            genes: childGenes,
+            age: 0,
+            vx: (Math.random()-0.5)*2,
+            vy: (Math.random()-0.5)*2
+        });
+    }
+    document.getElementById('breed-modal').style.display = 'none';
+}
+
+/** 主循環 **/
+const mainCanvas = document.getElementById('mainCanvas');
+const mainCtx = mainCanvas.getContext('2d');
+
+function loop() {
+    mainCanvas.width = window.innerWidth;
+    mainCanvas.height = window.innerHeight;
+    mainCtx.clearRect(0,0,mainCanvas.width, mainCanvas.height);
+    
+    document.getElementById('b-val').innerText = Math.floor(state.biomass);
+
+    state.population.forEach(p => {
+        // 移動與能量消耗
+        p.x += p.vx; p.y += p.vy;
+        if(p.x<0 || p.x>mainCanvas.width) p.vx*=-1;
+        if(p.y<0 || p.y>mainCanvas.height) p.vy*=-1;
+        state.biomass -= 0.05; // 移動消耗
+        
+        drawCreature(mainCtx, p.x, p.y, p.genes);
+    });
+    
+    requestAnimationFrame(loop);
+}
+
+// 初始化 10 隻展示
+for(let i=0; i<10; i++) {
+    state.population.push({
+        x: Math.random()*800, y: Math.random()*400,
+        genes: { f:['F','f'], c:['C','c'], s:['S','s'], r:['r','r'] },
+        age: 6, vx:1, vy:1
+    });
+}
+loop();
+</script>
+</body>
+</html>

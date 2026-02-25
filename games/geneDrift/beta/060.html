@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <title>genGrift 0.6 - 族群遺傳演化模擬器</title>
+    <style>
+        :root { --primary: #4CAF50; --bg: #f0f4f8; }
+        body { font-family: sans-serif; background: var(--bg); margin: 0; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+        
+        /* 頂部狀態列 */
+        #status-bar { background: #333; color: white; padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; }
+        .biomass-box { color: #ffd700; font-weight: bold; font-size: 1.2em; }
+
+        /* 主視窗 */
+        #main-view { flex-grow: 1; position: relative; background: #e0e0e0; overflow: hidden; border: 4px solid #333; }
+        .creature { position: absolute; transition: all 0.5s ease; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: bold; }
+
+        /* 底部數據面板 */
+        #data-panel { height: 180px; background: white; display: flex; border-top: 2px solid #333; padding: 10px; }
+        .chart-container { flex: 1; border-right: 1px solid #ccc; padding: 5px; }
+        .stats-box { width: 200px; padding: 10px; }
+
+        /* 育種視窗 (Modal) */
+        #breeding-modal { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 400px; background: white; border: 3px solid #333; padding: 20px; z-index: 100; box-shadow: 0 0 20px rgba(0,0,0,0.5); }
+        .chromosome-pair { margin: 15px 0; padding: 10px; border: 1px dashed #999; }
+        .btn-group { display: flex; justify-content: space-around; margin-top: 10px; }
+        button { cursor: pointer; padding: 8px 16px; background: var(--primary); color: white; border: none; border-radius: 4px; }
+        button:disabled { background: #ccc; }
+    </style>
+</head>
+<body>
+
+<div id="status-bar">
+    <div>年份: <span id="year-val">0</span> | 代數: <span id="gen-val">0</span></div>
+    <div id="env-tag" style="background: #555; padding: 4px 10px;">環境穩定</div>
+    <div class="biomass-box">生物量: <span id="biomass-val">0</span></div>
+</div>
+
+<div id="main-view">
+    </div>
+
+<div id="data-panel">
+    <div class="stats-box">
+        <b>族群數據</b><br>
+        個體數: <span id="pop-val">0</span><br>
+        <button onclick="openBreedingModal()" id="breed-btn" style="margin-top:10px;">引發人擇</button>
+    </div>
+    <div class="chart-container">
+        <b>基因頻率 (p)</b>
+        <div id="p-stats" style="font-size: 0.9em; margin-top:10px;"></div>
+    </div>
+</div>
+
+<div id="breeding-modal">
+    <h3>染色體育種介面</h3>
+    <p>消耗 50 生物量來強化特定基因 (Δp + 0.05)</p>
+    <div id="chromo-list"></div>
+    <button onclick="closeBreedingModal()" style="background:#666">關閉</button>
+</div>
+
+<script>
+/** 核心邏輯架構 **/
+let state = {
+    year: 0,
+    gen: 0,
+    biomass: 100,
+    population: [],
+    p: { f: 0.5, c: 0.5, s: 0.5, r: 0.5 }, // 顯性基因頻率
+    env: 'stable',
+    isGameOver: false
+};
+
+const TRAITS = {
+    f: { name: '毛皮', dom: '長毛', rec: '短毛' },
+    c: { name: '花紋', dom: '斑點', rec: '純色' },
+    s: { name: '速度', dom: '長腿', rec: '短腿' },
+    r: { name: '體型', dom: '巨型', rec: '迷你' }
+};
+
+// 初始化族群
+function initPopulation(count) {
+    for (let i = 0; i < count; i++) {
+        state.population.push(createIndividual());
+    }
+}
+
+function createIndividual() {
+    const genes = {};
+    for (let key in state.p) {
+        const r1 = Math.random() < state.p[key] ? 1 : 0;
+        const r2 = Math.random() < state.p[key] ? 1 : 0;
+        genes[key] = r1 + r2; // 0:aa, 1:Aa, 2:AA
+    }
+    return {
+        id: Math.random().toString(36).substr(2, 5),
+        genes: genes,
+        age: Math.floor(Math.random() * 8),
+        x: Math.random() * 90,
+        y: Math.random() * 90
+    };
+}
+
+// 每一年的邏輯更新
+function updateYear() {
+    if (state.isGameOver) return;
+    state.year++;
+    
+    // 1. 累積生物量
+    state.population.forEach(ind => {
+        let weight = ind.genes.r > 0 ? 3 : 1; // 巨型 vs 迷你
+        state.biomass += weight;
+        ind.age++;
+    });
+
+    // 2. 自然死亡與繁衍 (每8年換代)
+    if (state.year % 8 === 0) {
+        state.gen++;
+        reproduction();
+    }
+
+    // 3. 隨機災難
+    if (Math.random() < 0.1) triggerDisaster();
+
+    // 4. 檢查失敗條件
+    if (state.population.length === 0) {
+        state.isGameOver = true;
+        alert("族群已滅絕！遊戲結束。");
+    }
+
+    render();
+}
+
+// 繁衍邏輯：Hardy-Weinberg 交配
+function reproduction() {
+    const nextPop = [];
+    const size = Math.min(200, state.population.length * 1.2); // 200隻上限
+    for (let i = 0; i < size; i++) {
+        nextPop.push(createIndividual());
+    }
+    state.population = nextPop;
+}
+
+// 災難系統
+function triggerDisaster() {
+    const disasters = [
+        { name: '酷暑熱浪', target: 'f', type: 'dom', loss: 0.4 },
+        { name: '極地寒流', target: 'f', type: 'rec', loss: 0.4 },
+        { name: '資源飢荒', target: 'r', type: 'dom', loss: 0.5 },
+        { name: '掠食者入侵', target: 'r', type: 'rec', loss: 0.5 }
+    ];
+    const d = disasters[Math.floor(Math.random() * disasters.length)];
+    state.env = d.name;
+
+    // 生物量與個體移除邏輯
+    state.population = state.population.filter(ind => {
+        const isTarget = d.type === 'dom' ? ind.genes[d.target] > 0 : ind.genes[d.target] === 0;
+        return isTarget ? Math.random() > d.loss : true;
+    });
+    
+    setTimeout(() => { state.env = '穩定'; render(); }, 3000);
+}
+
+/** UI 渲染與人擇交互 **/
+function render() {
+    document.getElementById('year-val').innerText = state.year;
+    document.getElementById('gen-val').innerText = state.gen;
+    document.getElementById('biomass-val').innerText = state.biomass;
+    document.getElementById('pop-val').innerText = state.population.length;
+    document.getElementById('env-tag').innerText = "環境: " + state.env;
+
+    const view = document.getElementById('main-view');
+    view.innerHTML = '';
+    state.population.slice(0, 50).forEach(ind => { // 僅渲染前50隻保持效能
+        const div = document.createElement('div');
+        div.className = 'creature';
+        const size = ind.genes.r > 0 ? 30 : 15;
+        const color = ind.genes.c > 0 ? '#ffcc00' : '#888';
+        const fur = ind.genes.f > 0 ? '5px solid #555' : 'none';
+        div.style = `width:${size}px; height:${size}px; background:${color}; left:${ind.x}%; top:${ind.y}%; border:${fur};`;
+        view.appendChild(div);
+    });
+
+    let pHtml = "";
+    for(let k in state.p) pHtml += `${TRAITS[k].name}(p): ${state.p[k].toFixed(2)} | `;
+    document.getElementById('p-stats').innerHTML = pHtml;
+}
+
+function openBreedingModal() {
+    document.getElementById('breeding-modal').style.display = 'block';
+    let html = "";
+    for(let k in state.p) {
+        html += `<div class="chromosome-pair">
+            <b>${TRAITS[k].name}</b> (目前 p=${state.p[k].toFixed(2)})<br>
+            <button onclick="modifyP('${k}', 0.05)" ${state.biomass < 50 ? 'disabled':''}>強化顯性(+)</button>
+            <button onclick="modifyP('${k}', -0.05)" ${state.biomass < 50 ? 'disabled':''}>強化隱性(-)</button>
+        </div>`;
+    }
+    document.getElementById('chromo-list').innerHTML = html;
+}
+
+function modifyP(key, delta) {
+    if (state.biomass >= 50) {
+        state.biomass -= 50;
+        state.p[key] = Math.max(0.05, Math.min(0.95, state.p[key] + delta));
+        openBreedingModal();
+        render();
+    }
+}
+
+function closeBreedingModal() {
+    document.getElementById('breeding-modal').style.display = 'none';
+}
+
+// 啟動
+initPopulation(50);
+setInterval(updateYear, 1000); // 每一秒過一年
+render();
+
+</script>
+</body>
+</html>

@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <title>genGrift 0.6 - 深空演化實驗室</title>
+    <style>
+        :root {
+            --bg-dark: #121212;
+            --panel-bg: #1e1e1e;
+            --accent: #00ffcc;
+            --text: #e0e0e0;
+            --danger: #ff4444;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: var(--bg-dark);
+            color: var(--text);
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* 頂部狀態列 */
+        #status-bar {
+            background: var(--panel-bg);
+            padding: 15px 25px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid #333;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+        }
+        .biomass-display { color: #ffd700; font-size: 1.4em; font-weight: bold; text-shadow: 0 0 10px rgba(255,215,0,0.3); }
+
+        /* 主視窗：環境背景 */
+        #world-container {
+            flex-grow: 1;
+            position: relative;
+            background: radial-gradient(circle, #2a2a2a 0%, #121212 100%);
+            overflow: hidden;
+        }
+        #world-canvas { width: 100%; height: 100%; }
+
+        /* 環境特效濾鏡 */
+        #env-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; transition: background 1s ease; z-index: 5;
+        }
+
+        /* 數據面板 */
+        #data-panel {
+            height: 150px; background: var(--panel-bg);
+            display: flex; border-top: 2px solid #333; padding: 15px;
+        }
+        .stat-group { flex: 1; padding: 0 20px; border-right: 1px solid #333; }
+
+        /* 育種視窗 (染色體) */
+        #breeding-modal {
+            display: none; position: fixed; top: 50%; left: 50%;
+            transform: translate(-50%, -50%); width: 600px;
+            background: #252525; border: 2px solid var(--accent);
+            padding: 30px; z-index: 100; box-shadow: 0 0 30px rgba(0,255,204,0.2);
+        }
+        .chromosome-ui {
+            display: flex; justify-content: space-around; align-items: center; margin: 20px 0;
+        }
+        .allele-slot {
+            width: 40px; height: 80px; border: 2px solid #555;
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer; border-radius: 20px; transition: 0.3s;
+            font-size: 1.5em; font-weight: bold;
+        }
+        .allele-slot.selected { border-color: var(--accent); background: rgba(0,255,204,0.1); box-shadow: 0 0 15px var(--accent); }
+        .gender-label { text-align: center; margin-bottom: 10px; color: #aaa; }
+
+        button {
+            background: transparent; border: 1px solid var(--accent);
+            color: var(--accent); padding: 10px 20px; cursor: pointer;
+            font-weight: bold; transition: 0.3s;
+        }
+        button:hover { background: var(--accent); color: black; }
+        button:disabled { border-color: #555; color: #555; cursor: not-allowed; }
+    </style>
+</head>
+<body>
+
+<div id="status-bar">
+    <div>
+        <span style="color:var(--accent)">SYSTEM ONLINE</span> | 
+        年份: <span id="year-val">0</span> | 
+        代數: <span id="gen-val">0</span>
+    </div>
+    <div id="env-tag" style="letter-spacing: 2px;">環境穩定</div>
+    <div class="biomass-display">ENERGY: <span id="biomass-val">100</span></div>
+</div>
+
+<div id="world-container">
+    <div id="env-overlay"></div>
+    <canvas id="world-canvas"></canvas>
+</div>
+
+<div id="data-panel">
+    <div class="stat-group">
+        <h4 style="margin:0">族群狀態</h4>
+        <p>個體數: <span id="pop-val">0</span></p>
+        <button onclick="openBreedingModal()">啟動人擇程序</button>
+    </div>
+    <div class="stat-group" id="p-chart-area">
+        <h4 style="margin:0">基因頻率 (Dominant)</h4>
+        <div id="p-stats" style="margin-top:10px; font-family: monospace;"></div>
+    </div>
+</div>
+
+<div id="breeding-modal">
+    <h2 style="color:var(--accent); margin-top:0;">基因配對程序</h2>
+    <p>選取雄性與雌性欲強化的基因位點 (消耗 100 ENERGY)</p>
+    
+    <div id="breeding-controls">
+        </div>
+
+    <div style="margin-top:20px; text-align: right;">
+        <button id="execute-btn" onclick="executeBreeding()" disabled>執行配對</button>
+        <button onclick="closeBreedingModal()" style="border-color:#777; color:#777">取消</button>
+    </div>
+</div>
+
+<script>
+/** 核心邏輯 **/
+const TRAITS = {
+    f: { name: '毛皮(Fur)', dom: 'F', rec: 'f' },
+    c: { name: '花紋(Camo)', dom: 'C', rec: 'c' },
+    s: { name: '速度(Speed)', dom: 'S', rec: 's' },
+    r: { name: '體型(Size)', dom: 'R', rec: 'r' }
+};
+
+let state = {
+    year: 0, gen: 0, biomass: 100, population: [],
+    p: { f: 0.5, c: 0.5, s: 0.5, r: 0.5 },
+    env: 'stable',
+    selectedM: null, selectedF: null, selectedTrait: null
+};
+
+const canvas = document.getElementById('world-canvas');
+const ctx = canvas.getContext('2d');
+
+function resize() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight - 200;
+}
+window.addEventListener('resize', resize);
+resize();
+
+/** 生物類別：包含繪圖邏輯 **/
+class Creature {
+    constructor() {
+        this.init();
+    }
+    init() {
+        // 基因型決定 (AA, Aa, aa)
+        this.genes = {};
+        for(let key in state.p) {
+            this.genes[key] = (Math.random() < state.p[key] ? 1 : 0) + (Math.random() < state.p[key] ? 1 : 0);
+        }
+        this.x = Math.random() * canvas.width;
+        this.y = Math.random() * canvas.height;
+        this.vx = (Math.random() - 0.5) * 2;
+        this.vy = (Math.random() - 0.5) * 2;
+        this.age = 0;
+    }
+    draw() {
+        const isBig = this.genes.r > 0;
+        const size = isBig ? 15 : 8;
+        const hasFur = this.genes.f > 0;
+        const hasPattern = this.genes.c > 0;
+        const isFast = this.genes.s > 0;
+
+        ctx.save();
+        ctx.translate(this.x, this.y);
+
+        // 畫腿 (Speed)
+        ctx.strokeStyle = '#555';
+        ctx.lineWidth = 2;
+        const legLen = isFast ? 12 : 5;
+        ctx.beginPath();
+        ctx.moveTo(-5, 0); ctx.lineTo(-5, legLen);
+        ctx.moveTo(5, 0); ctx.lineTo(5, legLen);
+        ctx.stroke();
+
+        // 畫身體
+        ctx.fillStyle = hasPattern ? '#00ccff' : '#444';
+        if (hasFur) {
+            // 長毛效果：鋸齒圓
+            ctx.beginPath();
+            for(let a=0; a<Math.PI*2; a+=0.5) {
+                let r = size + Math.random()*5;
+                ctx.lineTo(Math.cos(a)*r, Math.sin(a)*r);
+            }
+            ctx.fill();
+        } else {
+            ctx.beginPath();
+            ctx.arc(0, 0, size, 0, Math.PI*2);
+            ctx.fill();
+        }
+
+        // 眼睛
+        ctx.fillStyle = 'white';
+        ctx.beginPath();
+        ctx.arc(-size/3, -size/4, 2, 0, Math.PI*2);
+        ctx.arc(size/3, -size/4, 2, 0, Math.PI*2);
+        ctx.fill();
+
+        ctx.restore();
+    }
+    move() {
+        let speedMult = this.genes.s > 0 ? 1.5 : 0.6;
+        this.x += this.vx * speedMult;
+        this.y += this.vy * speedMult;
+        if(this.x < 0 || this.x > canvas.width) this.vx *= -1;
+        if(this.y < 0 || this.y > canvas.height) this.vy *= -1;
+    }
+}
+
+/** 遊戲循環 **/
+function update() {
+    state.year++;
+    if(state.year % 8 === 0) {
+        state.gen++;
+        // 世代更迭
+        let nextGen = [];
+        let targetSize = Math.min(150, state.population.length * 1.2);
+        for(let i=0; i<targetSize; i++) nextGen.push(new Creature());
+        state.population = nextGen;
+    }
+
+    // 生物量產出
+    state.population.forEach(c => {
+        state.biomass += (c.genes.r > 0 ? 0.2 : 0.1);
+        c.move();
+    });
+
+    if(Math.random() < 0.05) triggerEvent();
+    
+    renderUI();
+}
+
+function triggerEvent() {
+    const events = [
+        { name: '極地寒流', color: 'rgba(0, 100, 255, 0.2)', target:'f', type:'rec', loss: 0.5 },
+        { name: '酷暑熱浪', color: 'rgba(255, 100, 0, 0.2)', target:'f', type:'dom', loss: 0.5 },
+        { name: '掠食者入侵', color: 'rgba(255, 0, 0, 0.15)', target:'r', type:'rec', loss: 0.6 }
+    ];
+    const e = events[Math.floor(Math.random()*events.length)];
+    state.env = e.name;
+    document.getElementById('env-overlay').style.background = e.color;
+
+    // 淘汰邏輯
+    state.population = state.population.filter(ind => {
+        const isVulnerable = e.type === 'dom' ? ind.genes[e.target] > 0 : ind.genes[e.target] === 0;
+        return isVulnerable ? Math.random() > e.loss : true;
+    });
+
+    setTimeout(() => {
+        state.env = '穩定';
+        document.getElementById('env-overlay').style.background = 'transparent';
+    }, 3000);
+}
+
+/** 育種介面邏輯 **/
+function openBreedingModal() {
+    const container = document.getElementById('breeding-controls');
+    container.innerHTML = '';
+    
+    for(let k in TRAITS) {
+        const t = TRAITS[k];
+        const row = document.createElement('div');
+        row.className = 'chromosome-ui';
+        row.innerHTML = `
+            <div style="width:100px">${t.name}</div>
+            <div class="allele-slot" onclick="selectAllele('M','${k}','dom', this)">${t.dom}</div>
+            <div class="allele-slot" onclick="selectAllele('M','${k}','rec', this)">${t.rec}</div>
+            <div style="margin: 0 20px">🧬</div>
+            <div class="allele-slot" onclick="selectAllele('F','${k}','dom', this)">${t.dom}</div>
+            <div class="allele-slot" onclick="selectAllele('F','${k}','rec', this)">${t.rec}</div>
+        `;
+        container.appendChild(row);
+    }
+    document.getElementById('breeding-modal').style.display = 'block';
+}
+
+function selectAllele(gender, trait, type, el) {
+    // 同性別只能選一個位點
+    const parentDiv = el.parentElement;
+    parentDiv.querySelectorAll('.allele-slot').forEach(s => s.classList.remove('selected'));
+    el.classList.add('selected');
+
+    if(gender === 'M') state.selectedM = { trait, type };
+    else state.selectedF = { trait, type };
+
+    document.getElementById('execute-btn').disabled = !(state.selectedM && state.selectedF && state.biomass >= 100);
+}
+
+function executeBreeding() {
+    state.biomass -= 100;
+    // 改變頻率：如果選了顯性則 p 增加，選了隱性則 p 減少
+    const genes = [state.selectedM, state.selectedF];
+    genes.forEach(g => {
+        let delta = g.type === 'dom' ? 0.03 : -0.03;
+        state.p[g.trait] = Math.max(0.05, Math.min(0.95, state.p[g.trait] + delta));
+    });
+    
+    closeBreedingModal();
+}
+
+function closeBreedingModal() {
+    state.selectedM = state.selectedF = null;
+    document.getElementById('breeding-modal').style.display = 'none';
+}
+
+function renderUI() {
+    document.getElementById('year-val').innerText = state.year;
+    document.getElementById('gen-val').innerText = state.gen;
+    document.getElementById('biomass-val').innerText = Math.floor(state.biomass);
+    document.getElementById('pop-val').innerText = state.population.length;
+    document.getElementById('env-tag').innerText = "環境: " + state.env;
+    document.getElementById('env-tag').style.color = state.env === '穩定' ? 'var(--accent)' : 'var(--danger)';
+
+    let pHtml = "";
+    for(let k in state.p) {
+        pHtml += `[${k.toUpperCase()}:${state.p[k].toFixed(2)}] `;
+    }
+    document.getElementById('p-stats').innerText = pHtml;
+}
+
+function loop() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    state.population.forEach(c => c.draw());
+    requestAnimationFrame(loop);
+}
+
+// 初始化
+for(let i=0; i<50; i++) state.population.push(new Creature());
+setInterval(update, 1000);
+loop();
+renderUI();
+
+</script>
+</body>
+</html>
