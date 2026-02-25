@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <title>genGrift 1.21 - 工業化育種</title>
+    <style>
+        :root { --bg: #050505; --accent: #00ffcc; --text: #eee; --panel: #111; }
+        body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', sans-serif; margin: 0; overflow: hidden; display: flex; flex-direction: column; height: 100vh; }
+        
+        #top-hud { background: var(--panel); padding: 10px 25px; display: flex; justify-content: space-between; border-bottom: 2px solid #333; align-items: center; z-index: 10; }
+        .biomass-val { color: #ffd700; font-size: 1.5em; font-weight: bold; }
+
+        #stage { flex-grow: 1; position: relative; background: #080808; overflow: hidden; }
+        #ui-bottom { height: 220px; background: var(--panel); border-top: 2px solid #333; display: flex; }
+        
+        .control-panel { width: 250px; padding: 15px; border-right: 1px solid #333; font-size: 11px; }
+        .chart-panel { flex-grow: 1; padding: 10px; position: relative; display: flex; flex-direction: column; }
+        
+        /* 育種彈窗 */
+        #breed-modal { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); 
+                       width: 850px; background: #1a1a1a; border: 2px solid var(--accent); padding: 25px; z-index: 1000; box-shadow: 0 0 100px #000; }
+        .genotype-btn { width: 55px; height: 32px; background: #000; color: #666; border: 1px solid #444; cursor: pointer; font-size: 11px; border-radius: 4px; }
+        .genotype-btn.active { color: var(--accent); border-color: var(--accent); }
+
+        .btn { background: var(--accent); color: #000; border: none; padding: 10px 20px; font-weight: bold; cursor: pointer; border-radius: 4px; }
+        .tab-btn { background: #222; color: #777; border: none; padding: 5px 12px; cursor: pointer; font-size: 11px; margin-left: 5px; border-radius: 3px; }
+        .tab-btn.active { background: var(--accent); color: #000; }
+        
+        .input-qty { background: #000; color: var(--accent); border: 1px solid #444; padding: 5px; width: 60px; text-align: center; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<div id="top-hud">
+    <div>YEAR: <span id="y-val">0</span> | POP: <span id="p-val">0</span></div>
+    <div id="status-msg" style="color:var(--accent); font-weight:bold;">資源豐富</div>
+    <div class="biomass-val">ENERGY: <span id="b-val">5000</span></div>
+</div>
+
+<div id="stage"><canvas id="mainCanvas"></canvas></div>
+
+<div id="ui-bottom">
+    <div class="control-panel">
+        <button class="btn" style="width:100%" onclick="openBreedModal()">人擇基因配對</button>
+        <div style="color:#666; margin-top:12px; line-height:1.4;">
+            <b style="color:#bbb">灰色食性形狀：</b><br>
+            ● <b>○ 圓環</b>: 基礎能量 (25)<br>
+            ● <b>△ 三角</b>: 高速[S]限定 (100)<br>
+            ● <b>□ 方塊</b>: 體型[R]限定 (150)<br>
+            <span style="color:#ffd700;">※ 每次生殖固定消耗 120 能量</span>
+        </div>
+    </div>
+    <div class="chart-panel">
+        <div style="display:flex; justify-content: flex-end; margin-bottom: 5px;">
+            <button class="tab-btn active" onclick="setChart('pop')">人口</button>
+            <button class="tab-btn" onclick="setChart('freq')">基因頻率</button>
+            <button class="tab-btn" onclick="setChart('pheno')">性狀表現</button>
+        </div>
+        <canvas id="chartCanvas"></canvas>
+    </div>
+</div>
+
+<div id="breed-modal">
+    <h3 style="margin:0 0 20px 0; color:var(--accent); text-align:center;">工業化育種控制台</h3>
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+        <canvas id="male-pre" width="100" height="100" style="background:#000; border-radius:8px;"></canvas>
+        <div style="flex-grow:1; padding: 0 20px;" id="gene-selector-rows"></div>
+        <canvas id="female-pre" width="100" height="100" style="background:#000; border-radius:8px;"></canvas>
+    </div>
+    <div style="margin-top:25px; text-align:center; border-top:1px solid #333; padding-top:20px;">
+        繁育數量：<input type="number" id="breed-qty" class="input-qty" value="100"> 
+        <span style="color:#888; margin-left:10px;">總預估消耗：<span id="cost-estimate" style="color:#ffd700">12000</span></span><br><br>
+        <button class="btn" onclick="doMassBreed()">開始工業化繁育</button>
+        <button class="btn" style="background:#444; color:#ccc; margin-left:10px;" onclick="document.getElementById('breed-modal').style.display='none'">取消</button>
+    </div>
+</div>
+
+<script>
+const GENES = {
+    f: { name: '毛皮(F)', dom: 'F', rec: 'f', col: '#ff5555' },
+    c: { name: '花紋(C)', dom: 'C', rec: 'c', col: '#55ff55' },
+    s: { name: '速度(S)', dom: 'S', rec: 's', col: '#5555ff' },
+    r: { name: '體型(R)', dom: 'R', rec: 'r', col: '#ffff55' }
+};
+
+let state = {
+    year: 0, biomass: 5000, population: [], foods: [],
+    history: [], chartMode: 'pop', 
+    parentGeno: {
+        male:   { f:['F','F'], c:['c','c'], s:['S','S'], r:['r','r'] },
+        female: { f:['f','f'], c:['C','C'], s:['s','s'], r:['r','r'] }
+    }
+};
+
+class Food {
+    constructor() {
+        this.x = Math.random() * window.innerWidth;
+        this.y = Math.random() * (window.innerHeight - 250);
+        let r = Math.random();
+        this.type = r > 0.9 ? 'R' : (r > 0.75 ? 'S' : 'N');
+        this.vx = this.type === 'S' ? (Math.random()-0.5)*8 : 0;
+        this.vy = this.type === 'S' ? (Math.random()-0.5)*8 : 0;
+    }
+    update(w, h) {
+        this.x += this.vx; this.y += this.vy;
+        if(this.x<0 || this.x>w) this.vx *= -1;
+        if(this.y<0 || this.y>h) this.vy *= -1;
+    }
+    draw(ctx) {
+        ctx.strokeStyle = '#888'; ctx.lineWidth = 1.5; ctx.beginPath();
+        if(this.type === 'N') ctx.arc(this.x, this.y, 5, 0, Math.PI*2);
+        else if(this.type === 'S') { // 三角形
+            ctx.moveTo(this.x, this.y-6); ctx.lineTo(this.x+6, this.y+4); ctx.lineTo(this.x-6, this.y+4); ctx.closePath();
+        } else { // 方塊
+            ctx.rect(this.x-5, this.y-5, 10, 10);
+        }
+        ctx.stroke();
+    }
+}
+
+class Creature {
+    constructor(x, y, genes, gender) {
+        this.x = x; this.y = y; this.genes = genes; 
+        this.gender = gender || (Math.random() > 0.5 ? 'M' : 'F');
+        this.age = 0; this.reproCooldown = 400;
+        this.angle = Math.random() * Math.PI * 2;
+        this.hasFur = genes.f.includes('F');
+        this.hasCamo = genes.c.includes('C');
+        this.isFast = genes.s.includes('S');
+        this.isBig = genes.r.includes('R');
+        this.radius = this.isBig ? 18 : 9;
+        this.speed = this.isFast ? 3.8 : 1.4;
+    }
+    update(w, h) {
+        this.age++; if(this.reproCooldown > 0) this.reproCooldown--;
+        this.x += Math.cos(this.angle) * this.speed; this.y += Math.sin(this.angle) * this.speed;
+        if(this.x<0 || this.x>w) this.angle = Math.PI - this.angle;
+        if(this.y<0 || this.y>h) this.angle = -this.angle;
+        if(Math.random()<0.02) this.angle += (Math.random()-0.5);
+
+        let cost = 0.1 + (this.isBig?0.06:0) + (this.isFast?0.04:0);
+        if(this.hasCamo) cost -= 0.05;
+        state.biomass -= cost;
+
+        state.foods.forEach((f, i) => {
+            if(Math.hypot(this.x-f.x, this.y-f.y) < this.radius+6) {
+                if(f.type==='N' || (f.type==='S'&&this.isFast) || (f.type==='R'&&this.isBig)) {
+                    state.biomass += (f.type==='N'?25:100); state.foods.splice(i, 1);
+                }
+            }
+        });
+    }
+    draw(ctx, scale=1) {
+        ctx.save(); ctx.translate(this.x, this.y);
+        const s = scale, r = this.radius * s;
+        ctx.strokeStyle = '#444'; ctx.lineWidth = 3*s;
+        let l = (this.isFast?18:6)*s; ctx.beginPath(); ctx.moveTo(-r/2,0); ctx.lineTo(-r/2,l); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(r/2,0); ctx.lineTo(r/2,l); ctx.stroke();
+        ctx.fillStyle = this.gender==='M'?'#1a3a5a':'#5a1a3a';
+        ctx.beginPath(); ctx.arc(0,0,r,0,Math.PI*2); ctx.fill();
+        if(this.hasFur){ ctx.strokeStyle=ctx.fillStyle; ctx.lineWidth=2*s; for(let i=0;i<12;i++){ let a=i*Math.PI/6; ctx.beginPath(); ctx.moveTo(Math.cos(a)*r, Math.sin(a)*r); ctx.lineTo(Math.cos(a)*(r+10*s), Math.sin(a)*(r+10*s)); ctx.stroke(); }}
+        if(this.hasCamo){ ctx.fillStyle=this.gender==='M'?'#0cf':'#f0a'; for(let i=0;i<3;i++){ ctx.beginPath(); ctx.arc((i-1)*r*0.4,0,3*s,0,Math.PI*2); ctx.fill(); }}
+        ctx.fillStyle='white'; ctx.beginPath(); ctx.arc(-r/3,-r/4,3*s,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.arc(r/3,-r/4,3*s,0,Math.PI*2); ctx.fill();
+        ctx.restore();
+    }
+}
+
+function handleReproduction() {
+    for (let i=0; i<state.population.length; i++) {
+        for (let j=i+1; j<state.population.length; j++) {
+            let a = state.population[i], b = state.population[j];
+            if (Math.hypot(a.x-b.x, a.y-b.y) < a.radius+b.radius && a.gender!==b.gender && a.reproCooldown===0 && b.reproCooldown===0) {
+                if (state.biomass >= 120) {
+                    let childG = {};
+                    ['f','c','s','r'].forEach(k => childG[k] = [a.genes[k][Math.floor(Math.random()*2)], b.genes[k][Math.floor(Math.random()*2)]]);
+                    state.population.push(new Creature(a.x, a.y, childG));
+                    a.reproCooldown=600; b.reproCooldown=600; state.biomass -= 120;
+                }
+            }
+        }
+    }
+}
+
+function openBreedModal() {
+    const container = document.getElementById('gene-selector-rows');
+    container.innerHTML = '';
+    for (let k in GENES) {
+        const g = GENES[k];
+        const row = document.createElement('div');
+        row.style = "display:flex; align-items:center; justify-content:space-between; margin:8px 0; background:#222; padding:6px 12px; border-radius:4px;";
+        row.innerHTML = `
+            <div style="display:flex; gap:3px">${['FF','Ff','ff'].map(t=>`<button class="genotype-btn ${getGType('male',k)===t?'active':''}" onclick="setGType('male','${k}','${t}')">${t.replace(/F/g,g.dom).replace(/f/g,g.rec)}</button>`).join('')}</div>
+            <div style="color:var(--accent); font-weight:bold; width:70px; text-align:center">${g.name}</div>
+            <div style="display:flex; gap:3px">${['FF','Ff','ff'].map(t=>`<button class="genotype-btn ${getGType('female',k)===t?'active':''}" onclick="setGType('female','${k}','${t}')">${t.replace(/F/g,g.dom).replace(/f/g,g.rec)}</button>`).join('')}</div>
+        `;
+        container.appendChild(row);
+    }
+    updateEstimate(); updatePre();
+    document.getElementById('breed-modal').style.display = 'block';
+}
+
+function getGType(p, k) { let g=state.parentGeno[p][k]; return g[0]===g[1] ? (g[0]===k.toUpperCase()?'FF':'ff') : 'Ff'; }
+function setGType(p, k, t) { let D=k.toUpperCase(), r=k.toLowerCase(); state.parentGeno[p][k] = t==='FF'?[D,D]:(t==='ff'?[r,r]:[D,r]); openBreedModal(); }
+function updateEstimate() { document.getElementById('cost-estimate').innerText = parseInt(document.getElementById('breed-qty').value || 0) * 120; }
+document.getElementById('breed-qty').addEventListener('input', updateEstimate);
+
+function doMassBreed() {
+    let qty = parseInt(document.getElementById('breed-qty').value) || 100;
+    let cost = qty * 120;
+    if(state.biomass < cost) return alert("能量不足！需要 " + cost);
+    state.biomass -= cost;
+    for(let i=0; i<qty; i++) {
+        let cg = {}; ['f','c','s','r'].forEach(k => cg[k] = [state.parentGeno.male[k][Math.floor(Math.random()*2)], state.parentGeno.female[k][Math.floor(Math.random()*2)]]);
+        state.population.push(new Creature(Math.random()*window.innerWidth, Math.random()*window.innerHeight*0.5, cg));
+    }
+    document.getElementById('breed-modal').style.display='none';
+}
+
+function updatePre() {
+    ['male','female'].forEach(s => {
+        const ctx = document.getElementById(s+'-pre').getContext('2d');
+        ctx.clearRect(0,0,100,100); new Creature(50,50,state.parentGeno[s],s==='male'?'M':'F').draw(ctx,0.7);
+    });
+}
+
+function recordHistory() {
+    let snap = { pop: state.population.length };
+    for(let k in GENES) {
+        let total = state.population.length*2||1, domCount = 0;
+        state.population.forEach(p=>{if(p.genes[k][0]===GENES[k].dom) domCount++; if(p.genes[k][1]===GENES[k].dom) domCount++;});
+        snap['freq_'+k]=domCount/total; snap['pheno_'+k]=state.population.filter(p=>p.genes[k].includes(GENES[k].dom)).length/(state.population.length||1);
+    }
+    state.history.push(snap); if(state.history.length>100) state.history.shift();
+}
+
+function drawChart() {
+    const c = document.getElementById('chartCanvas'); const cx = c.getContext('2d');
+    c.width=c.offsetWidth; c.height=150; cx.clearRect(0,0,c.width,c.height);
+    if(state.history.length<2) return;
+    if(state.chartMode==='pop') {
+        cx.strokeStyle='#fff'; cx.lineWidth=2; cx.beginPath();
+        state.history.forEach((d,i)=>{let x=(i/100)*c.width,y=c.height-(d.pop/500)*c.height; if(i===0) cx.moveTo(x,y); else cx.lineTo(x,y);}); cx.stroke();
+    } else {
+        let pre = state.chartMode==='freq'?'freq_':'pheno_';
+        for(let k in GENES) {
+            cx.strokeStyle=GENES[k].col; cx.lineWidth=2; cx.beginPath();
+            state.history.forEach((d,i)=>{let x=(i/100)*c.width,y=c.height-d[pre+k]*c.height; if(i===0) cx.moveTo(x,y); else cx.lineTo(x,y);}); cx.stroke();
+        }
+    }
+}
+function setChart(m) { state.chartMode=m; document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active')); event.target.classList.add('active'); }
+
+const canvas = document.getElementById('mainCanvas'), ctx = canvas.getContext('2d');
+function loop() {
+    canvas.width=window.innerWidth; canvas.height=window.innerHeight-220;
+    if(state.biomass<=0 || state.population.length===0) return;
+    // 食物生成加快 10 倍
+    for(let i=0; i<5; i++) if(state.foods.length < 150) state.foods.push(new Food());
+    state.foods.forEach(f => { f.update(canvas.width, canvas.height); f.draw(ctx); });
+    state.population.forEach((p, i) => { p.update(canvas.width, canvas.height); p.draw(ctx); if(p.age > 3500) state.population.splice(i,1); });
+    handleReproduction();
+    if(Date.now()%1000<20) { state.year++; recordHistory(); }
+    document.getElementById('y-val').innerText=state.year; document.getElementById('p-val').innerText=state.population.length;
+    document.getElementById('b-val').innerText=Math.max(0, Math.floor(state.biomass));
+    drawChart(); requestAnimationFrame(loop);
+}
+
+for(let i=0; i<30; i++) state.population.push(new Creature(Math.random()*800,200,{f:['f','f'],c:['c','c'],s:['s','s'],r:['r','r']}));
+loop();
+</script>
+</body>
+</html>
