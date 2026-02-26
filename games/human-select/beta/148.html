@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
-<head><script src="/eduGame/ga4.js"></script>
+<head>
     <meta charset="UTF-8">
-    <title>humanSelect 1.49</title>
+    <title>genGrift 1.48 - 無限階梯代謝壓力版</title>
     <style>
         :root { --bg: #050505; --accent: #00ffcc; --text: #eee; --panel: #111; --btn-bg: #1a1a1a; }
         body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', sans-serif; margin: 0; overflow: hidden; display: flex; flex-direction: column; height: 100vh; }
@@ -10,6 +10,7 @@
         .biomass-val { color: #ffd700; font-size: 1.5em; font-weight: bold; }
         #stage { flex-grow: 1; position: relative; background: #080808; }
         #ui-bottom { height: 220px; background: var(--panel); border-top: 2px solid #333; display: flex; }
+        /* 統一按鈕樣式 */
         .btn { background: var(--btn-bg); color: var(--accent); border: 1px solid var(--accent); padding: 10px 20px; font-weight: bold; cursor: pointer; border-radius: 4px; transition: 0.2s; font-size: 13px; }
         .btn:hover { background: var(--accent); color: #000; box-shadow: 0 0 10px var(--accent); }
         .tab-btn { background: #111; color: #666; border: 1px solid #333; padding: 5px 12px; cursor: pointer; font-size: 11px; margin-left: 5px; }
@@ -36,16 +37,8 @@
     <canvas id="mainCanvas"></canvas>
     <div id="end-screen">
         <h1 style="color:var(--accent); border-bottom: 2px solid var(--accent); padding-bottom: 10px;">族群演化終局報告</h1>
-        <div style="display: flex; gap: 30px;">
-            <div style="flex: 1;">
-                <p id="end-stats" style="font-size: 1.1em; line-height: 1.6;"></p>
-                <canvas id="endChart" width="800" height="400" style="background:#111; border:1px solid #333; width:100%;"></canvas>
-            </div>
-            <div style="width: 250px; background: #111; padding: 15px; border: 1px solid #333;">
-                <h3 style="color: #f55; margin-top:0;">關鍵轉折點</h3>
-                <ul id="inflection-list" style="font-size: 12px; color: #ccc; padding-left: 20px;"></ul>
-            </div>
-        </div>
+        <p id="end-stats" style="font-size: 1.2em; line-height: 1.6;"></p>
+        <canvas id="endChart" width="1000" height="400" style="background:#111; border:1px solid #333; width:100%;"></canvas>
         <div style="margin-top:20px;"><button class="btn" onclick="location.reload()">重新啟動模擬</button></div>
     </div>
 </div>
@@ -53,7 +46,7 @@
 <div id="ui-bottom">
     <div class="control-panel">
         <button class="btn" style="width:100%;" onclick="openBreedModal()">OPEN BREEDING LAB</button>
-        <p style="color:#555; margin-top:15px; font-size: 10px; line-height:1.4;">Ver 1.49 | 轉折點標記修復</p>
+        <p style="color:#555; margin-top:15px; font-size: 10px; line-height:1.4;">Ver 1.48 | 無限階梯代謝 (Infinite Steps)</p>
     </div>
     <div class="chart-panel">
         <div style="display:flex; justify-content: flex-end; margin-bottom: 5px;">
@@ -85,13 +78,22 @@
 
 <script>
 /**
- * 1.49 無限階梯代謝與轉折標記
+ * 1.48 無限階梯代謝設定
  */
 const CONFIG = {
-    INITIAL_BIOMASS: 20000, INITIAL_POP_SIZE: 50, FOOD_SPAWN_RATE: 3, MAX_FOOD_COUNT: 150,
-    ENERGY_N: 25, ENERGY_S: 250, ENERGY_R: 450, RATIO_R: 0.94, RATIO_S: 0.80,
-    ADULT_AGE: 600, AVG_LIFESPAN: 3000, STD_DEVIATION: 500, DISASTER_CYCLE: 24, DISASTER_DURATION: 12,
-    METABOLIC_BASE: 0.1, POP_STEP_SIZE: 300, STEP_MULTIPLIER: 1.0 
+    INITIAL_BIOMASS: 20000,    
+    INITIAL_POP_SIZE: 50,      
+    FOOD_SPAWN_RATE: 3,        
+    MAX_FOOD_COUNT: 150,       
+    ENERGY_N: 25, ENERGY_S: 250, ENERGY_R: 450,
+    RATIO_R: 0.94, RATIO_S: 0.80,
+    ADULT_AGE: 600, AVG_LIFESPAN: 3000, STD_DEVIATION: 500,
+    DISASTER_CYCLE: 24, DISASTER_DURATION: 12,
+
+    // 無限代謝階梯設定 (Ver 1.48)
+    METABOLIC_BASE: 0.1,       // 基礎代謝消耗量
+    POP_STEP_SIZE: 300,        // 每增加多少人口算一個階梯
+    STEP_MULTIPLIER: 1.0       // 每個階梯增加的代謝倍數 (例: 300人時 +1.0x, 即變成 2x)
 };
 
 const GENES = { f:{name:'毛皮',dom:'F',rec:'f',col:'#ff5555'}, c:{name:'花紋',dom:'C',rec:'c',col:'#55ff55'}, s:{name:'速度',dom:'S',rec:'s',col:'#5555ff'}, r:{name:'體型',dom:'R',rec:'r',col:'#ffff55'} };
@@ -128,21 +130,33 @@ class Creature {
             this.angle+=(Math.random()-0.5)*0.2; let s=this.speedBase; this.x+=Math.cos(this.angle)*s; this.y+=Math.sin(this.angle)*s;
             if(this.x<0||this.x>w)this.x=(this.x+w)%w; if(this.y<0||this.y>h)this.y=(this.y+h)%h;
         }
+
+        // 1.48 無限階梯代謝邏輯
         let pop = state.population.length;
+        // 代謝倍數 = 1.0 + (向下取整(人口 / 300) * 1.0)
         let metabolicMult = 1.0 + (Math.floor(pop / CONFIG.POP_STEP_SIZE) * CONFIG.STEP_MULTIPLIER);
-        state.biomass -= (CONFIG.METABOLIC_BASE + (this.isBig?0.06:0) + (this.isFast?0.04:0)) * metabolicMult;
+
+        let totalCost = (CONFIG.METABOLIC_BASE + (this.isBig?0.06:0) + (this.isFast?0.04:0)) * metabolicMult;
+        state.biomass -= totalCost;
+        
         state.foods.forEach((f,i)=>{ if(Math.hypot(this.x-f.x,this.y-f.y)<this.radius+6){ if(f.type==='N'||(f.type==='S'&&this.isFast)||(f.type==='R'&&this.isBig)){ state.biomass+=(f.type==='N'?25:(f.type==='S'?250:450)); state.foods.splice(i,1); } } });
+        
         if(this.age > CONFIG.ADULT_AGE && this.reproCooldown <= 0) {
             state.population.forEach(other => {
                 if(other !== this && other.age > CONFIG.ADULT_AGE && other.gender !== this.gender && other.reproCooldown <= 0) {
-                    if(Math.hypot(this.x - other.x, this.y - other.y) < 20) { this.handleReproduction(other); }
+                    if(Math.hypot(this.x - other.x, this.y - other.y) < 20) {
+                        this.handleReproduction(other);
+                    }
                 }
             });
         }
     }
     handleReproduction(partner) {
         this.reproCooldown = 1200; partner.reproCooldown = 1200;
-        let cg = {}; ['f','c','s','r'].forEach(k => { cg[k] = [this.genes[k][Math.floor(Math.random()*2)], partner.genes[k][Math.floor(Math.random()*2)]]; });
+        let cg = {};
+        ['f','c','s','r'].forEach(k => {
+            cg[k] = [this.genes[k][Math.floor(Math.random()*2)], partner.genes[k][Math.floor(Math.random()*2)]];
+        });
         state.population.push(new Creature(this.x, this.y, cg, Math.random()>0.5?'M':'F'));
     }
     draw(ctx, isEmbryo=false){
@@ -156,69 +170,97 @@ class Creature {
     }
 }
 
-// UI 邏輯與主循環 (略，與 1.48 相同)
-function openBreedModal() { state.isPaused=true; document.getElementById('breed-modal').style.display='flex'; const container=document.getElementById('gene-selector-rows'); container.innerHTML=''; for(let k in GENES){ const g=GENES[k]; const row=document.createElement('div'); row.style="display:flex; align-items:center; justify-content:space-between; margin:4px 0; background:#1a1a1a; padding:4px 12px; border:1px solid #333;"; row.innerHTML=`<div style="display:flex; gap:3px">${['FF','Ff','ff'].map(t=>`<button class="genotype-btn ${getGType('male',k)===t?'active':''}" onclick="setGType('male','${k}','${t}')">${t.replace(/F/g,g.dom).replace(/f/g,g.rec)}</button>`).join('')}</div><div style="color:var(--accent); font-size:11px; width:70px; text-align:center">${g.name}</div><div style="display:flex; gap:3px">${['FF','Ff','ff'].map(t=>`<button class="genotype-btn ${getGType('female',k)===t?'active':''}" onclick="setGType('female','${k}','${t}')">${t.replace(/F/g,g.dom).replace(/f/g,g.rec)}</button>`).join('')}</div>`; container.appendChild(row); } updatePre(); }
-function generatePreview(){ const qty=parseInt(document.getElementById('breed-qty').value)||24; const pool=document.getElementById('embryo-pool'); pool.innerHTML=''; state.tempEmbryos=[]; for(let i=0;i<qty;i++){ let cg={}; ['f','c','s','r'].forEach(k=>{cg[k]=[state.parentGeno.male[k][Math.floor(Math.random()*2)],state.parentGeno.female[k][Math.floor(Math.random()*2)]];}); let e=new Creature(42,45,cg,Math.random()>0.5?'M':'F'); state.tempEmbryos.push(e); const card=document.createElement('div'); card.className='embryo-card'; const c=document.createElement('canvas'); c.width=85; c.height=70; e.draw(c.getContext('2d'),true); const tag=document.createElement('div'); tag.className='gene-tag'; tag.innerHTML=`${cg.f.join('')}${cg.c.join('')}<br>${cg.s.join('')}${cg.r.join('')}`; card.appendChild(c); card.appendChild(tag); pool.appendChild(card); } document.getElementById('confirm-btn').style.display='inline-block'; }
+// UI 邏輯與主循環 (維持 1.47 穩定功能)
+function openBreedModal() {
+    state.isPaused=true; document.getElementById('breed-modal').style.display='flex';
+    const container=document.getElementById('gene-selector-rows'); container.innerHTML='';
+    for(let k in GENES){
+        const g=GENES[k]; const row=document.createElement('div');
+        row.style="display:flex; align-items:center; justify-content:space-between; margin:4px 0; background:#1a1a1a; padding:4px 12px; border:1px solid #333;";
+        row.innerHTML=`<div style="display:flex; gap:3px">${['FF','Ff','ff'].map(t=>`<button class="genotype-btn ${getGType('male',k)===t?'active':''}" onclick="setGType('male','${k}','${t}')">${t.replace(/F/g,g.dom).replace(/f/g,g.rec)}</button>`).join('')}</div><div style="color:var(--accent); font-size:11px; width:70px; text-align:center">${g.name}</div><div style="display:flex; gap:3px">${['FF','Ff','ff'].map(t=>`<button class="genotype-btn ${getGType('female',k)===t?'active':''}" onclick="setGType('female','${k}','${t}')">${t.replace(/F/g,g.dom).replace(/f/g,g.rec)}</button>`).join('')}</div>`;
+        container.appendChild(row);
+    }
+    updatePre();
+}
+function generatePreview(){
+    const qty=parseInt(document.getElementById('breed-qty').value)||24;
+    const pool=document.getElementById('embryo-pool'); pool.innerHTML=''; state.tempEmbryos=[];
+    for(let i=0;i<qty;i++){
+        let cg={}; ['f','c','s','r'].forEach(k=>{cg[k]=[state.parentGeno.male[k][Math.floor(Math.random()*2)],state.parentGeno.female[k][Math.floor(Math.random()*2)]];});
+        let e=new Creature(42,45,cg,Math.random()>0.5?'M':'F'); state.tempEmbryos.push(e);
+        const card=document.createElement('div'); card.className='embryo-card';
+        const c=document.createElement('canvas'); c.width=85; c.height=70; e.draw(c.getContext('2d'),true);
+        const tag=document.createElement('div'); tag.className='gene-tag'; tag.innerHTML=`${cg.f.join('')}${cg.c.join('')}<br>${cg.s.join('')}${cg.r.join('')}`;
+        card.appendChild(c); card.appendChild(tag); pool.appendChild(card);
+    }
+    document.getElementById('confirm-btn').style.display='inline-block';
+}
 function closeBreedModal(){ state.isPaused=false; document.getElementById('breed-modal').style.display='none'; }
 function confirmRelease(){ if(state.biomass<state.tempEmbryos.length*120)return alert("能量不足"); state.biomass-=state.tempEmbryos.length*120; state.tempEmbryos.forEach(e=>{e.x=Math.random()*window.innerWidth; e.y=Math.random()*(window.innerHeight-300); state.population.push(e);}); closeBreedModal(); }
 function getGType(p,k){let g=state.parentGeno[p][k]; return g[0]===g[1]?(g[0]===k.toUpperCase()?'FF':'ff'):'Ff';}
 function setGType(p,k,t){let D=k.toUpperCase(),r=k.toLowerCase(); state.parentGeno[p][k]=t==='FF'?[D,D]:(t==='ff'?[r,r]:[D,r]); updatePre(); openBreedModal();}
 function updatePre(){['male','female'].forEach(s=>{const ctx=document.getElementById(s+'-pre').getContext('2d'); ctx.clearRect(0,0,100,100); new Creature(35,35,state.parentGeno[s],s==='male'?'M':'F').draw(ctx,true);});}
-function loop() { const canvas=document.getElementById('mainCanvas'), ctx=canvas.getContext('2d'); canvas.width=window.innerWidth; canvas.height=window.innerHeight-220; if(!state.isPaused && !state.isEnded){ ctx.fillStyle=(EVENTS[state.event]||{bg:"#080808"}).bg; ctx.fillRect(0,0,canvas.width,canvas.height); if(state.biomass<=0||(state.population.length===0&&state.year>5)){ showEndReport(); return; } if(state.foods.length<CONFIG.MAX_FOOD_COUNT)for(let i=0;i<CONFIG.FOOD_SPAWN_RATE;i++)state.foods.push(new Food()); state.foods.forEach(f=>{f.update(canvas.width,canvas.height);f.draw(ctx);}); for(let i=state.population.length-1;i>=0;i--){let p=state.population[i]; if(p.update(canvas.width,canvas.height)==="dead")state.population.splice(i,1); else p.draw(ctx);} if(Date.now()%1000<20){ state.year++; if(state.year%CONFIG.DISASTER_CYCLE===0)state.event=Object.keys(EVENTS)[Math.floor(Math.random()*9)]; else if(state.year%CONFIG.DISASTER_CYCLE===CONFIG.DISASTER_DURATION)state.event='normal'; recordHistory(); } } document.getElementById('y-val').innerText=state.year; document.getElementById('p-val').innerText=state.population.length; document.getElementById('b-val').innerText=Math.floor(state.biomass); document.getElementById('status-msg').innerText=EVENTS[state.event].name; drawChart(); requestAnimationFrame(loop); }
-function recordHistory(){ let snap={pop:state.population.length, event:EVENTS[state.event].name, year:state.year}; for(let k in GENES){ let total=state.population.length*2||1, domCount=0; state.population.forEach(p=>{if(p.genes[k][0]===GENES[k].dom)domCount++; if(p.genes[k][1]===GENES[k].dom)domCount++;}); snap['freq_'+k]=domCount/total; snap['pheno_'+k]=state.population.filter(p=>p.genes[k].includes(GENES[k].dom)).length/(state.population.length||1); } state.history.push(snap); if(state.history.length>200)state.history.shift(); }
-function drawChart(){ const c=document.getElementById('chartCanvas'),cx=c.getContext('2d'); c.width=c.offsetWidth; c.height=150; if(state.history.length<2)return; const data=state.history; if(state.chartMode==='pop'){ const maxPop=Math.max(...data.map(d=>d.pop), 100); cx.strokeStyle='#00ffcc'; cx.lineWidth=2; cx.beginPath(); data.forEach((d,i)=>{let x=(i/(data.length-1))*c.width, y=c.height-(d.pop/maxPop)*c.height*0.8-10; i===0?cx.moveTo(x,y):cx.lineTo(x,y);}); cx.stroke(); }else{ let pre=state.chartMode==='freq'?'freq_':'pheno_'; for(let k in GENES){ cx.strokeStyle=GENES[k].col; cx.beginPath(); data.forEach((d,i)=>{let x=(i/(data.length-1))*c.width, y=c.height-d[pre+k]*c.height*0.8-10; i===0?cx.moveTo(x,y):cx.lineTo(x,y);}); cx.stroke(); } } }
-function setChart(m){ state.chartMode=m; document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active')); document.getElementById('btn-'+m).classList.add('active'); }
-
-// --- 1.49 終局報告與斜率偵測邏輯 ---
-function showEndReport() {
-    state.isEnded = true;
-    const screen = document.getElementById('end-screen');
-    const stats = document.getElementById('end-stats');
-    const list = document.getElementById('inflection-list');
-    screen.style.display = 'block';
-    
-    let history = state.history;
-    if(history.length < 5) return;
-
-    // 計算斜率與偵測轉折點
-    let slopes = [];
-    for(let i=1; i<history.length; i++) {
-        slopes.push({ idx: i, val: history[i].pop - history[i-1].pop, year: history[i].year, event: history[i].event, pop: history[i].pop });
+function loop() {
+    const canvas=document.getElementById('mainCanvas'), ctx=canvas.getContext('2d');
+    canvas.width=window.innerWidth; canvas.height=window.innerHeight-220;
+    if(!state.isPaused && !state.isEnded){
+        ctx.fillStyle=(EVENTS[state.event]||{bg:"#080808"}).bg; ctx.fillRect(0,0,canvas.width,canvas.height);
+        if(state.biomass<=0||(state.population.length===0&&state.year>5)){ showEndReport(); return; }
+        if(state.foods.length<CONFIG.MAX_FOOD_COUNT)for(let i=0;i<CONFIG.FOOD_SPAWN_RATE;i++)state.foods.push(new Food());
+        state.foods.forEach(f=>{f.update(canvas.width,canvas.height);f.draw(ctx);});
+        for(let i=state.population.length-1;i>=0;i--){let p=state.population[i]; if(p.update(canvas.width,canvas.height)==="dead")state.population.splice(i,1); else p.draw(ctx);}
+        if(Date.now()%1000<20){ state.year++; if(state.year%CONFIG.DISASTER_CYCLE===0)state.event=Object.keys(EVENTS)[Math.floor(Math.random()*9)]; else if(state.year%CONFIG.DISASTER_CYCLE===CONFIG.DISASTER_DURATION)state.event='normal'; recordHistory(); }
     }
-    
-    let diffs = [];
-    for(let i=1; i<slopes.length; i++) {
-        diffs.push({ idx: slopes[i].idx, diff: Math.abs(slopes[i].val - slopes[i-1].val), data: slopes[i] });
-    }
-    
-    // 找出斜率改變最大的 3 個點
-    let inflections = diffs.sort((a,b) => b.diff - a.diff).slice(0, 3).sort((a,b) => a.idx - b.idx);
-
-    stats.innerHTML = `遊戲時長：${Math.floor((new Date()-state.startTime)/1000)} 秒 | 終局年份：${state.year} 年<br>滅絕原因：${state.biomass<=0?"環境能量崩潰 (無限代謝懲罰)":"族群自然凋零"}`;
-    
-    list.innerHTML = inflections.map(f => `<li>YEAR ${f.data.year}: ${f.data.event}<br>(人口: ${f.data.pop}, 異動量: ${f.diff.toFixed(1)})</li>`).join('');
-
-    const cvs = document.getElementById('endChart'), ctx = cvs.getContext('2d');
-    const pad = 50, w = cvs.width - pad*2, h = cvs.height - pad*2;
-    const maxP = Math.max(...history.map(d=>d.pop), 10);
-
-    ctx.clearRect(0,0,cvs.width,cvs.height);
-    ctx.strokeStyle='#444'; ctx.beginPath(); ctx.moveTo(pad,pad); ctx.lineTo(pad,h+pad); ctx.lineTo(w+pad,h+pad); ctx.stroke();
-    
-    // 畫人口線
-    ctx.strokeStyle='#00ffcc'; ctx.lineWidth=3; ctx.beginPath();
-    history.forEach((d,i)=>{ let x=pad+(i/(history.length-1))*w, y=pad+h-(d.pop/maxP)*h; i===0?ctx.moveTo(x,y):ctx.lineTo(x,y); });
-    ctx.stroke();
-
-    // 標記轉折點 (紅色點)
-    inflections.forEach(f => {
-        let x = pad + (f.idx / (history.length-1)) * w;
-        let y = pad + h - (history[f.idx].pop / maxP) * h;
-        ctx.fillStyle = '#f55'; ctx.beginPath(); ctx.arc(x, y, 6, 0, Math.PI*2); ctx.fill();
-        ctx.strokeStyle = 'white'; ctx.lineWidth = 2; ctx.stroke();
-    });
+    document.getElementById('y-val').innerText=state.year;
+    document.getElementById('p-val').innerText=state.population.length;
+    document.getElementById('b-val').innerText=Math.floor(state.biomass);
+    document.getElementById('status-msg').innerText=EVENTS[state.event].name;
+    drawChart(); requestAnimationFrame(loop);
 }
-
+function recordHistory(){
+    let snap={pop:state.population.length, event:EVENTS[state.event].name, year:state.year};
+    for(let k in GENES){
+        let total=state.population.length*2||1, domCount=0;
+        state.population.forEach(p=>{if(p.genes[k][0]===GENES[k].dom)domCount++; if(p.genes[k][1]===GENES[k].dom)domCount++;});
+        snap['freq_'+k]=domCount/total; snap['pheno_'+k]=state.population.filter(p=>p.genes[k].includes(GENES[k].dom)).length/(state.population.length||1);
+    }
+    state.history.push(snap); if(state.history.length>120)state.history.shift();
+}
+function drawChart(){
+    const c=document.getElementById('chartCanvas'),cx=c.getContext('2d');
+    c.width=c.offsetWidth; c.height=150; if(state.history.length<2)return;
+    const data=state.history;
+    if(state.chartMode==='pop'){
+        const maxPop=Math.max(...data.map(d=>d.pop), 100);
+        cx.strokeStyle='#00ffcc'; cx.lineWidth=2; cx.beginPath();
+        data.forEach((d,i)=>{let x=(i/(data.length-1))*c.width, y=c.height-(d.pop/maxPop)*c.height*0.8-10; i===0?cx.moveTo(x,y):cx.lineTo(x,y);});
+        cx.stroke();
+    }else{
+        let pre=state.chartMode==='freq'?'freq_':'pheno_';
+        for(let k in GENES){
+            cx.strokeStyle=GENES[k].col; cx.beginPath();
+            data.forEach((d,i)=>{let x=(i/(data.length-1))*c.width, y=c.height-d[pre+k]*c.height*0.8-10; i===0?cx.moveTo(x,y):cx.lineTo(x,y);});
+            cx.stroke();
+        }
+    }
+}
+function setChart(m){ state.chartMode=m; document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active')); document.getElementById('btn-'+m).classList.add('active'); }
+function showEndReport() {
+    state.isEnded=true;
+    const playSec=Math.floor((new Date()-state.startTime)/1000);
+    const screen=document.getElementById('end-screen');
+    const stats=document.getElementById('end-stats');
+    screen.style.display='block';
+    stats.innerHTML=`遊戲時長：${playSec} 秒 | 終局年份：${state.year} 年<br>原因：${state.biomass<=0?"環境能量因過度繁育與無限階梯代謝壓力而耗盡":"個體全數死亡"}`;
+    const cvs=document.getElementById('endChart'), ctx=cvs.getContext('2d');
+    const data=state.history; if(data.length<5) return;
+    const pad=50, w=cvs.width-pad*2, h=cvs.height-pad*2;
+    const maxP=Math.max(...data.map(d=>d.pop), 10);
+    ctx.strokeStyle='#444'; ctx.beginPath(); ctx.moveTo(pad,pad); ctx.lineTo(pad,h+pad); ctx.lineTo(w+pad,h+pad); ctx.stroke();
+    ctx.strokeStyle='#00ffcc'; ctx.lineWidth=3; ctx.beginPath();
+    data.forEach((d,i)=>{ let x=pad+(i/(data.length-1))*w, y=pad+h-(d.pop/maxP)*h; i===0?ctx.moveTo(x,y):ctx.lineTo(x,y); });
+    ctx.stroke();
+}
 window.onload=()=>{ for(let i=0;i<CONFIG.INITIAL_POP_SIZE;i++){state.population.push(new Creature(Math.random()*window.innerWidth, Math.random()*400, {f:['f','f'],c:['c','c'],s:['s','s'],r:['r','r']}, null, Math.random()*2000));} loop(); };
 </script>
 </body>

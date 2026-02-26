@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <title>genGrift 1.4 - 終局分析版本</title>
+    <style>
+        :root { --bg: #050505; --accent: #00ffcc; --text: #eee; --panel: #111; }
+        body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', sans-serif; margin: 0; overflow: hidden; display: flex; flex-direction: column; height: 100vh; }
+        #top-hud { background: var(--panel); padding: 10px 25px; display: flex; justify-content: space-between; border-bottom: 2px solid #333; align-items: center; z-index: 10; }
+        .biomass-val { color: #ffd700; font-size: 1.5em; font-weight: bold; }
+        #stage { flex-grow: 1; position: relative; background: #080808; transition: 1.5s; }
+        #ui-bottom { height: 220px; background: var(--panel); border-top: 2px solid #333; display: flex; }
+        .control-panel { width: 280px; padding: 15px; border-right: 1px solid #333; font-size: 11px; }
+        .chart-panel { flex-grow: 1; padding: 10px; display: flex; flex-direction: column; }
+        #breed-modal { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 850px; background: #1a1a1a; border: 2px solid var(--accent); padding: 25px; z-index: 1000; box-shadow: 0 0 100px #000; }
+        .btn { background: var(--accent); color: #000; border: none; padding: 10px 20px; font-weight: bold; cursor: pointer; border-radius: 4px; }
+        #end-screen { display:none; position:absolute; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.95); z-index:1000; color:white; padding:40px; box-sizing:border-box; }
+        .genotype-btn { width: 55px; height: 32px; background: #000; color: #666; border: 1px solid #444; cursor: pointer; font-size: 11px; }
+        .genotype-btn.active { color: var(--accent); border-color: var(--accent); }
+    </style>
+</head>
+<body>
+
+<div id="top-hud">
+    <div>YEAR: <span id="y-val">0</span> | POP: <span id="p-val">0</span></div>
+    <div id="status-msg" style="color:var(--accent); font-weight:bold;">環境檢測中...</div>
+    <div class="biomass-val">ENERGY: <span id="b-val">0</span></div>
+</div>
+
+<div id="stage">
+    <canvas id="mainCanvas"></canvas>
+    <div id="end-screen">
+        <h1 style="color:var(--accent); margin-bottom:10px;">族群演化終結報告</h1>
+        <div id="end-stats" style="font-size:18px; margin-bottom:20px; line-height:1.6;"></div>
+        <canvas id="endChart" width="1000" height="400" style="background:#111; border:1px solid #333;"></canvas>
+        <div style="margin-top:20px;"><button class="btn" onclick="location.reload()">重新啟動模擬</button></div>
+    </div>
+</div>
+
+<div id="ui-bottom">
+    <div class="control-panel">
+        <button class="btn" style="width:100%" onclick="openBreedModal()">人擇基因配對</button>
+        <div style="color:#666; margin-top:10px; line-height:1.4;">
+            <b>1.4 版本規則：</b><br>
+            ● 滅絕或能量枯竭時觸發大數據結算<br>
+            ● 自動識別人口斜率轉折點<br>
+            ● 食物回報：△(250) □(450)
+        </div>
+    </div>
+    <div class="chart-panel"><canvas id="chartCanvas"></canvas></div>
+</div>
+
+<div id="breed-modal">...</div>
+
+<script>
+const CONFIG = {
+    INITIAL_BIOMASS: 500, INITIAL_POP_SIZE: 150, 
+    FOOD_SPAWN_RATE: 1, MAX_FOOD_COUNT: 150,
+    ENERGY_N: 25, ENERGY_S: 250, ENERGY_R: 450,
+    RATIO_R: 0.94, RATIO_S: 0.80,
+    ADULT_AGE: 600, AVG_LIFESPAN: 3000, STD_DEVIATION: 500,
+    DISASTER_CYCLE: 24, DISASTER_DURATION: 12
+};
+
+const GENES = { f: { name: '毛皮(F)', dom: 'F', rec: 'f', col: '#ff5555' }, c: { name: '花紋(C)', dom: 'C', rec: 'c', col: '#55ff55' }, s: { name: '速度(S)', dom: 'S', rec: 's', col: '#5555ff' }, r: { name: '體型(R)', dom: 'R', rec: 'r', col: '#ffff55' } };
+
+let state = {
+    startTime: new Date(), year: 0, biomass: CONFIG.INITIAL_BIOMASS, 
+    population: [], foods: [], history: [], isEnded: false, event: 'normal',
+    parentGeno: { male: { f:['F','F'], c:['c','c'], s:['S','S'], r:['r','r'] }, female: { f:['f','f'], c:['C','C'], s:['s','s'], r:['r','r'] } }
+};
+
+const EVENTS = {
+    normal: { name: "穩定時期", bg: "#080808" }, ice: { name: "極寒流", bg: "#001a33" }, heat: { name: "酷暑熱浪", bg: "#331a00" }, radiation: { name: "光能輻射", bg: "#1a3300" }, dust: { name: "毒素塵埃", bg: "#1a1a1a" }, storm: { name: "電磁風暴", bg: "#1a0033" }, marsh: { name: "黏稠沼澤", bg: "#0d1a0d" }, meteor: { name: "隕石撞擊", bg: "#330000" }, hypoxia: { name: "氧氣稀薄", bg: "#1a0d00" }
+};
+
+// --- 工業引擎邏輯 ---
+function randomNormal(m, s) { let u=0,v=0; while(u===0)u=Math.random(); while(v===0)v=Math.random(); return (Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v))*s+m; }
+
+class Food {
+    constructor() { this.x=Math.random()*window.innerWidth; this.y=Math.random()*(window.innerHeight-250); let r=Math.random(); this.type = r>CONFIG.RATIO_R?'R':(r>CONFIG.RATIO_S?'S':'N'); this.vx=(this.type==='S')?(Math.random()-0.5)*7:0; this.vy=(this.type==='S')?(Math.random()-0.5)*7:0; }
+    update(w,h){ this.x+=this.vx; this.y+=this.vy; if(this.x<0||this.x>w)this.vx*=-1; if(this.y<0||this.y>h)this.vy*=-1; }
+    draw(ctx){ ctx.strokeStyle='#888'; ctx.beginPath(); if(this.type==='N')ctx.arc(this.x,this.y,5,0,Math.PI*2); else if(this.type==='S'){ctx.moveTo(this.x,this.y-6);ctx.lineTo(this.x+6,this.y+4);ctx.lineTo(this.x-6,this.y+4);ctx.closePath();} else ctx.rect(this.x-5,this.y-5,10,10); ctx.stroke(); }
+}
+
+class Creature {
+    constructor(x,y,g,gd,age=0){ this.x=x;this.y=y;this.genes=g;this.gender=gd||(Math.random()>0.5?'M':'F');this.age=age;this.reproCooldown=400;this.angle=Math.random()*Math.PI*2;this.maxAge=randomNormal(CONFIG.AVG_LIFESPAN,CONFIG.STD_DEVIATION);this.isFast=g.s.includes('S');this.isBig=g.r.includes('R');this.radius=this.isBig?18:9; }
+    update(w,h){
+        this.age++; if(this.age>this.maxAge)return "dead";
+        if(state.biomass>0){
+            this.angle+=(Math.random()-0.5)*0.2; let s=this.isFast?3.8:1.4; this.x+=Math.cos(this.angle)*s; this.y+=Math.sin(this.angle)*s;
+            if(this.x<0||this.x>w)this.x=(this.x+w)%w; if(this.y<0||this.y>h)this.y=(this.y+h)%h;
+        }
+        state.biomass -= (0.1 + (this.isBig?0.06:0) + (this.isFast?0.04:0));
+        state.foods.forEach((f,i)=>{ if(Math.hypot(this.x-f.x,this.y-f.y)<this.radius+6){ state.biomass+=(f.type==='N'?CONFIG.ENERGY_N:(f.type==='S'?CONFIG.ENERGY_S:CONFIG.ENERGY_R)); state.foods.splice(i,1); } });
+    }
+    draw(ctx){
+        ctx.save(); ctx.translate(this.x,this.y); ctx.fillStyle=this.gender==='M'?'#1a3a5a':'#5a1a3a'; ctx.beginPath(); ctx.arc(0,0,this.radius,0,Math.PI*2); ctx.fill(); ctx.restore();
+    }
+}
+
+function handleReproduction(){
+    for(let i=0;i<state.population.length;i++){
+        for(let j=i+1;j<state.population.length;j++){
+            let a=state.population[i], b=state.population[j];
+            if(a.age>CONFIG.ADULT_AGE&&b.age>CONFIG.ADULT_AGE&&a.gender!==b.gender&&a.reproCooldown===0&&state.biomass>120){
+                let cg={};['f','c','s','r'].forEach(k=>cg[k]=[a.genes[k][Math.floor(Math.random()*2)],b.genes[k][Math.floor(Math.random()*2)]]);
+                state.population.push(new Creature(a.x,a.y,cg)); a.reproCooldown=600; b.reproCooldown=600; state.biomass-=120;
+            }
+        }
+    }
+}
+
+// --- 核心終結分析演算法 ---
+function showEndReport() {
+    state.isEnded = true;
+    const endScreen = document.getElementById('end-screen');
+    const statsDiv = document.getElementById('end-stats');
+    const now = new Date();
+    const playTime = Math.floor((now - state.startTime)/1000);
+    
+    endScreen.style.display = 'block';
+    statsDiv.innerHTML = `
+        真實運行時間：${playTime} 秒 | 
+        最終模擬年份：${state.year} 年 | 
+        滅絕原因：${state.biomass <= 0 ? "能量枯竭 (Biomass Depleted)" : "個體消亡 (Population Extinction)"}
+    `;
+
+    drawEndChart();
+}
+
+function drawEndChart() {
+    const canvas = document.getElementById('endChart');
+    const ctx = canvas.getContext('2d');
+    const data = state.history;
+    if(data.length < 5) return;
+
+    const padding = 50;
+    const w = canvas.width - padding*2;
+    const h = canvas.height - padding*2;
+    const maxPop = Math.max(...data.map(d => d.pop), 10);
+
+    // 繪製座標軸
+    ctx.strokeStyle = '#666'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(padding, padding); ctx.lineTo(padding, h+padding); ctx.lineTo(w+padding, h+padding); ctx.stroke();
+    
+    // 繪製人口折線
+    ctx.strokeStyle = '#00ffcc'; ctx.lineWidth = 2;
+    ctx.beginPath();
+    data.forEach((d, i) => {
+        let x = padding + (i / (data.length-1)) * w;
+        let y = padding + h - (d.pop / maxPop) * h;
+        if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    });
+    ctx.stroke();
+
+    // --- 重大事件分析 (斜率轉折分析) ---
+    let slopes = [];
+    for(let i=1; i<data.length; i++) {
+        slopes.push({ idx: i, val: Math.abs(data[i].pop - data[i-1].pop), event: data[i].event });
+    }
+    // 找出斜率變動最大的前三個點
+    let majorEvents = slopes.sort((a,b) => b.val - a.val).slice(0, 3);
+
+    majorEvents.forEach(ev => {
+        let x = padding + (ev.idx / (data.length-1)) * w;
+        let y = padding + h - (data[ev.idx].pop / maxPop) * h;
+        
+        // 畫圈標示
+        ctx.fillStyle = "rgba(255, 215, 0, 0.6)";
+        ctx.beginPath(); ctx.arc(x, y, 8, 0, Math.PI*2); ctx.fill();
+        ctx.strokeStyle = "white"; ctx.beginPath(); ctx.arc(x, y, 8, 0, Math.PI*2); ctx.stroke();
+
+        // 標註災難原因
+        ctx.fillStyle = "white"; ctx.font = "12px Arial";
+        ctx.fillText(`${data[ev.idx].event} (年:${data[ev.idx].year})`, x+10, y-10);
+    });
+}
+
+function loop() {
+    if(state.isEnded) return;
+    const mainCanvas = document.getElementById('mainCanvas');
+    const ctx = mainCanvas.getContext('2d');
+    mainCanvas.width = window.innerWidth; mainCanvas.height = window.innerHeight-220;
+    
+    ctx.fillStyle = (EVENTS[state.event]||{bg:"#080808"}).bg;
+    ctx.fillRect(0,0,mainCanvas.width, mainCanvas.height);
+
+    // 檢查終止條件
+    if(state.biomass <= 0 || (state.population.length === 0 && state.year > 5)) {
+        showEndReport(); return;
+    }
+
+    if(state.foods.length<CONFIG.MAX_FOOD_COUNT) for(let i=0;i<CONFIG.FOOD_SPAWN_RATE;i++) state.foods.push(new Food());
+    state.foods.forEach(f=>{f.update(mainCanvas.width, mainCanvas.height); f.draw(ctx);});
+    
+    for(let i=state.population.length-1; i>=0; i--){
+        let p=state.population[i]; 
+        if(p.update(mainCanvas.width, mainCanvas.height)==="dead") state.population.splice(i,1);
+        else p.draw(ctx);
+    }
+    handleReproduction();
+
+    if(Date.now()%1000<20) {
+        state.year++;
+        // 災難切換
+        if(state.year % CONFIG.DISASTER_CYCLE === 0) {
+            const keys = Object.keys(EVENTS).filter(k=>k!=='normal');
+            state.event = keys[Math.floor(Math.random()*keys.length)];
+        } else if(state.year % CONFIG.DISASTER_CYCLE === CONFIG.DISASTER_DURATION) {
+            state.event = 'normal';
+        }
+        // 紀錄歷史 (加入當時事件名)
+        state.history.push({ year: state.year, pop: state.population.length, event: EVENTS[state.event].name });
+    }
+
+    document.getElementById('y-val').innerText=state.year;
+    document.getElementById('p-val').innerText=state.population.length;
+    document.getElementById('b-val').innerText=Math.floor(state.biomass);
+    document.getElementById('status-msg').innerText=EVENTS[state.event].name;
+    requestAnimationFrame(loop);
+}
+
+window.onload = () => {
+    for(let i=0;i<CONFIG.INITIAL_POP_SIZE;i++) {
+        state.population.push(new Creature(Math.random()*window.innerWidth, Math.random()*400, {f:['f','f'],c:['c','c'],s:['s','s'],r:['r','r']}, null, Math.random()*1500));
+    }
+    loop();
+};
+</script>
+</body>
+</html>
