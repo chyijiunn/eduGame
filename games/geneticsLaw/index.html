@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Momo Genetics v0.14</title>
+    <title>geneticsLaw v0.141</title>
+    <script src="/eduGame/ga4.js"></script>
     <style>
         :root {
             --bg: #0d1117;
@@ -81,11 +82,6 @@
         }
         @keyframes popIn { to { transform: scale(1); } }
 
-        select {
-            background: #0d1117; color: white; border: 1px solid var(--panel-border);
-            padding: 4px 8px; border-radius: 4px; outline: none;
-        }
-
         svg { width: 100%; height: 100%; cursor: grab; background: var(--bg); }
         #viewport { transform-origin: 0 0; }
     </style>
@@ -94,7 +90,7 @@
 
 <div id="ui-layer">
     <div class="sidebar">
-        <div style="font-weight: bold; color: var(--primary); margin-bottom: 8px; font-size: 14px;">MomoGen v0.14</div>
+        <div style="font-weight: bold; color: var(--primary); margin-bottom: 8px; font-size: 14px;">geneticsLaw v0.141</div>
         <div class="nav-group">
             <div class="nav-title">第一大關 (單基因)</div>
             <button class="nav-btn" onclick="switchL(1,1)" id="btn-1-1">1-1 匹配性狀</button>
@@ -115,7 +111,6 @@
     </div>
 
     <div id="stats-area" class="stats-box" style="display:none;"></div>
-
     <div class="controls" id="game-controls"></div>
 </div>
 
@@ -142,8 +137,9 @@
         targetChroms: [],
         motherChroms: [],
         fatherChroms: [],
+        guessChroms: [],  // 新增：猜測用的染色體
         hiddenFather: null,
-        childrenBatches: [] // 改為存放每一批的寶寶陣列
+        childrenBatches: []
     };
 
     const viewport = document.getElementById('viewport');
@@ -168,7 +164,13 @@
 
         randomizeTarget();
         randomizeParents();
-        if (s === 3) state.hiddenFather = generateRandomChroms(m===2);
+        
+        // 初始化猜測染色體
+        state.guessChroms = [{g: m === 2 ? ['e','t'] : ['e']}, {g: m === 2 ? ['e','t'] : ['e']}];
+
+        if (s === 3) {
+            state.hiddenFather = generateRandomChroms(m===2);
+        }
 
         updateText();
         render();
@@ -176,14 +178,14 @@
 
     function updateText() {
         const descs = {
-            "1-1": "匹配性狀：調整基因，使外觀與右側目標一致。",
-            "1-2": "編輯父母：自由修改父母基因，觀察其遺傳模式。",
-            "1-3": "追蹤：透過分析寶寶比例推斷父親基因型。母本已知。",
-            "2-1": "聯鎖匹配：同一染色體上的兩個基因位點會一起移動。",
-            "2-2": "編輯父母：嘗試不同的聯鎖排列（例如 ET/et）。",
-            "2-3": "數據推論：根據子代組合比例與母本基因，判斷父親基因排列。"
+            "1-1": "匹配性狀：調整下方染色體基因，使外型與目標一致。",
+            "1-2": "編輯父母：點擊父母染色體修改基因型，觀察遺傳結果。",
+            "1-3": "追蹤推論：觀察寶寶比例，並點擊下方染色體設定您推測的父親基因，最後提交。",
+            "2-1": "聯鎖匹配：同一染色體上的兩個基因會整組遺傳。",
+            "2-2": "編輯父母：嘗試編輯聯鎖基因排列（如 Et/eT）。",
+            "2-3": "終極挑戰：根據寶寶性狀比例與母本基因，推算父親的聯鎖排列並設定染色體提交。"
         };
-        document.getElementById('mission-title').innerText = `關卡 ${state.mainL}-${state.subL}`;
+        document.getElementById('mission-title').innerText = `geneticsLaw ${state.mainL}-${state.subL}`;
         document.getElementById('mission-desc').innerText = descs[`${state.mainL}-${state.subL}`];
     }
 
@@ -235,8 +237,9 @@
         return h;
     }
 
-    function drawChromosomes(chroms, x, y, stateKey="") {
+    function drawChromosomes(chroms, x, y, stateKey="", label="") {
         let h = `<g transform="translate(${x},${y})">`;
+        if(label) h += `<text x="0" y="-15" text-anchor="middle" fill="#8b949e" font-size="12" font-weight="bold">${label}</text>`;
         chroms.forEach((c, idx) => {
             const cx = idx * 34 - 17;
             h += `<rect x="${cx}" y="0" width="14" height="60" rx="7" fill="#30363d" stroke="#58a6ff" stroke-width="1.5" />`;
@@ -290,7 +293,7 @@
 
         if (state.subL === 1) {
             h += drawMomo(state.playerChroms, cx - 180, cy - 60, 1.6, "你的小獸");
-            h += drawChromosomes(state.playerChroms, cx - 180, cy + 50, 'playerChroms');
+            h += drawChromosomes(state.playerChroms, cx - 180, cy + 50, 'playerChroms', "基因型");
             h += drawMomo(state.targetChroms, cx + 180, cy - 60, 1.6, "目標外型");
             controls.innerHTML = `<button class="btn btn-secondary" onclick="randomizeTarget();render();">更換目標</button>`;
         } 
@@ -302,20 +305,23 @@
             if (state.childrenBatches.length > 0) {
                 const lastBatch = state.childrenBatches[state.childrenBatches.length-1];
                 const baby = lastBatch[lastBatch.length-1];
-                h += drawMomo(baby, cx, cy + 40, 1.6, "子代結果");
+                h += drawMomo(baby, cx, cy + 40, 1.6, "最新子代");
                 h += drawChromosomes(baby, cx, cy + 120);
             }
             controls.innerHTML = `<button class="btn btn-secondary" onclick="randomizeParents();render();">隨機父母</button><button class="btn" onclick="breed(1)">執行雜合</button>`;
         }
         else if (state.subL === 3) {
-            h += drawMomo(state.motherChroms, cx - 250, cy - 150, 0.8, "母親");
-            h += drawChromosomes(state.motherChroms, cx - 250, cy - 100);
-            h += `<g transform="translate(${cx+200},${cy-150})"><rect x="-40" y="-40" width="80" height="80" rx="10" fill="#161b22" stroke="#30363d" /><text y="15" text-anchor="middle" font-size="50" fill="#30363d" font-weight="bold">?</text><text y="60" text-anchor="middle" fill="#8b949e">神秘父親</text></g>`;
+            h += drawMomo(state.motherChroms, cx - 350, cy - 180, 0.8, "已知母親");
+            h += drawChromosomes(state.motherChroms, cx - 350, cy - 120);
+            h += `<g transform="translate(${cx+200},${cy-180})"><rect x="-40" y="-40" width="80" height="80" rx="10" fill="#161b22" stroke="#30363d" /><text y="15" text-anchor="middle" font-size="50" fill="#30363d" font-weight="bold">?</text><text y="60" text-anchor="middle" fill="#8b949e">神秘父親</text></g>`;
             
+            // 猜測用的染色體
+            h += drawChromosomes(state.guessChroms, cx, cy + 130, 'guessChroms', "點擊下方染色體設定『父親』的基因");
+
             const all = state.childrenBatches.flat();
             all.forEach((child, i) => {
                 const r = Math.floor(i/15); const c = i%15;
-                h += drawMomo(child, cx - 380 + c*55, cy + 50 + r*75, 0.45);
+                h += drawMomo(child, cx - 400 + c*55, cy - 60 + r*75, 0.45);
             });
             renderControlsGuess();
             updateStats();
@@ -324,20 +330,11 @@
     }
 
     function renderControlsGuess() {
-        let optionsHtml = "";
-        if (state.mainL === 1) {
-            optionsHtml = `<select id="guess-select"><option value="EE">父親為 EE</option><option value="Ee">父親為 Ee</option><option value="ee">父親為 ee</option></select>`;
-        } else {
-            const combos = ["ET/ET", "ET/Et", "ET/eT", "ET/et", "Et/Et", "Et/eT", "Et/et", "eT/eT", "eT/et", "et/et"];
-            optionsHtml = `<select id="guess-select">` + combos.map(c => `<option value="${c}">${c}</option>`).join("") + `</select>`;
-        }
         controls.innerHTML = `
             <button class="btn btn-secondary" onclick="state.motherChroms=generateRandomChroms(state.mainL==2);state.childrenBatches=[];render();">更換母本</button>
             <button class="btn btn-secondary" style="background:#555" onclick="state.childrenBatches.pop();render();">回溯 20 隻</button>
             <button class="btn" onclick="breed(20)">產生 20 個寶寶</button>
-            <div style="display:flex; align-items:center; gap:5px; margin-left:10px; border-left:1px solid #30363d; padding-left:10px;">
-                ${optionsHtml}<button class="btn btn-success" onclick="checkGuess()">提交答案</button>
-            </div>
+            <button class="btn btn-success" style="margin-left:20px" onclick="checkGuess()">提交答案</button>
         `;
     }
 
@@ -348,17 +345,14 @@
     }
 
     function checkGuess() {
-        const guess = document.getElementById('guess-select').value;
-        const actualArr = state.hiddenFather.map(c => c.g.join(""));
-        let actual = actualArr.sort().join("/");
-        if (state.mainL === 1) {
-            actual = actual.replace("/", "");
-            if (actual === "eE") actual = "Ee";
+        const actualArr = state.hiddenFather.map(c => c.g.join("")).sort();
+        const guessArr = state.guessChroms.map(c => c.g.join("")).sort();
+        
+        if (JSON.stringify(actualArr) === JSON.stringify(guessArr)) {
+            triggerWin();
+        } else {
+            alert("不對喔，再根據性狀比例與母親基因推論看看！");
         }
-        const gN = guess.split("/").sort().join("/");
-        const aN = actual.split("/").sort().join("/");
-        if (gN === aN) triggerWin();
-        else alert("不對喔，再根據性狀比例推論看看！");
     }
 
     function triggerWin() {
@@ -381,7 +375,7 @@
     function setupInteractions() {
         let isDown = false;
         window.addEventListener('pointerdown', e => { 
-            if(e.target.tagName==='rect' || e.target.tagName==='button' || e.target.tagName==='select') return;
+            if(e.target.tagName==='rect' || e.target.tagName==='button' || e.target.tagName==='select' || e.target.tagName==='text') return;
             isDown = true; state.lastMouse = {x:e.clientX, y:e.clientY}; 
         });
         window.addEventListener('pointermove', e => {
