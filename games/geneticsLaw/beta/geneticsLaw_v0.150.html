@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>geneticsLaw v0.150</title>
+    <script src="/eduGame/ga4.js"></script>
+    <style>
+        :root {
+            --bg: #0b0f17;
+            --panel: #121a28cc;
+            --panel-border: #223052;
+            --text: #e9eefc;
+            --primary: #7cf3c7;
+            --accent: #ffcf5a;
+            --success: #67e06f;
+            --error: #ff6b8b;
+        }
+        body, html {
+            margin: 0; padding: 0; width: 100%; height: 100%;
+            overflow: hidden; font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+            background-color: var(--bg); color: var(--text);
+            touch-action: none;
+        }
+        #ui-layer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; z-index: 10;
+        }
+        .sidebar {
+            position: absolute; top: 10px; left: 10px; width: 155px;
+            background: var(--panel); border: 1px solid var(--panel-border);
+            border-radius: 12px; padding: 10px; pointer-events: auto;
+            backdrop-filter: blur(8px);
+        }
+        .nav-group { margin-bottom: 12px; }
+        .nav-title { font-size: 11px; color: #a8b3d6; margin-bottom: 4px; font-weight: bold; }
+        .nav-btn {
+            display: block; width: 100%; padding: 7px; margin: 3px 0;
+            background: transparent; border: 1px solid transparent; color: var(--text);
+            text-align: left; cursor: pointer; border-radius: 6px; font-size: 12px;
+        }
+        .nav-btn.active { background: #1b2946; border-color: #2a3a63; color: var(--primary); font-weight: bold; }
+        
+        .info-box {
+            position: absolute; top: 10px; right: 10px; width: 220px;
+            background: var(--panel); border: 1px solid var(--panel-border);
+            padding: 12px; border-radius: 12px; pointer-events: auto; font-size: 13px;
+            backdrop-filter: blur(8px);
+        }
+
+        .stats-box {
+            position: absolute; top: 180px; right: 10px; width: 220px;
+            background: rgba(18, 26, 40, 0.85); border: 1px solid var(--panel-border);
+            padding: 10px; border-radius: 12px; pointer-events: auto; font-size: 12px;
+            color: var(--accent);
+        }
+
+        .controls {
+            position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+            display: flex; gap: 8px; pointer-events: auto;
+            background: var(--panel); padding: 12px 20px; border-radius: 40px;
+            border: 1px solid var(--panel-border); box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+            flex-wrap: wrap; justify-content: center; max-width: 90vw;
+            backdrop-filter: blur(10px);
+        }
+
+        .btn {
+            padding: 9px 16px; border: 1px solid var(--panel-border); border-radius: 20px;
+            background: #1b2946; color: var(--text); cursor: pointer; font-weight: 900; font-size: 13px;
+        }
+        .btn:active { transform: translateY(1px); }
+        .btn-primary { background: #2f7c66; color: white; border-color: #439a82; }
+        .btn-success { background: #2f6f36; color: white; }
+
+        .correct-overlay {
+            position: fixed; inset: 0; display: none;
+            justify-content: center; align-items: center;
+            background: rgba(0,0,0,0.5); z-index: 100; pointer-events: none;
+        }
+        .correct-text {
+            font-size: 70px; font-weight: 900; color: var(--success);
+            text-shadow: 0 0 20px rgba(103, 224, 111, 0.5);
+            transform: scale(0); animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+        @keyframes popIn { to { transform: scale(1); } }
+
+        svg { width: 100%; height: 100%; cursor: grab; background: var(--bg); }
+        #viewport { transform-origin: 0 0; }
+    </style>
+</head>
+<body>
+
+<div id="ui-layer">
+    <div class="sidebar">
+        <div style="font-weight: 900; color: var(--primary); margin-bottom: 8px; font-size: 15px; letter-spacing: 0.5px;">geneticsLaw v0.150</div>
+        <div class="nav-group">
+            <div class="nav-title">第一大關 (單基因)</div>
+            <button class="nav-btn" onclick="switchL(1,1)" id="btn-1-1">1-1 匹配性狀</button>
+            <button class="nav-btn" onclick="switchL(1,2)" id="btn-1-2">1-2 編輯父母</button>
+            <button class="nav-btn" onclick="switchL(1,3)" id="btn-1-3">1-3 猜親代</button>
+        </div>
+        <div class="nav-group">
+            <div class="nav-title">第二大關 (雙聯鎖)</div>
+            <button class="nav-btn" onclick="switchL(2,1)" id="btn-2-1">2-1 聯鎖匹配</button>
+            <button class="nav-btn" onclick="switchL(2,2)" id="btn-2-2">2-2 編輯父母</button>
+            <button class="nav-btn" onclick="switchL(2,3)" id="btn-2-3">2-3 終極挑戰</button>
+        </div>
+    </div>
+
+    <div class="info-box">
+        <div id="mission-title" style="font-weight: bold; color: var(--accent); margin-bottom: 4px;"></div>
+        <div id="mission-desc" style="line-height: 1.4; color: #a8b3d6;"></div>
+    </div>
+
+    <div id="stats-area" class="stats-box" style="display:none;"></div>
+    <div class="controls" id="game-controls"></div>
+</div>
+
+<div class="correct-overlay" id="win-overlay">
+    <div class="correct-text">答對了！</div>
+</div>
+
+<svg id="svg-root">
+    <g id="viewport"></g>
+</svg>
+
+<script>
+    const state = {
+        mainL: 1, subL: 1,
+        zoom: 1, panX: 0, panY: 0,
+        isWon: false,
+        playerChroms: [], targetChroms: [], motherChroms: [], fatherChroms: [], guessChroms: [],
+        hiddenFather: null, childrenBatches: []
+    };
+
+    const viewport = document.getElementById('viewport');
+    const controls = document.getElementById('game-controls');
+    const overlay = document.getElementById('win-overlay');
+    const statsArea = document.getElementById('stats-area');
+
+    function init() {
+        setupInteractions();
+        switchL(1, 1);
+    }
+
+    function switchL(m, s) {
+        state.mainL = m; state.subL = s;
+        state.childrenBatches = [];
+        state.isWon = false;
+        overlay.style.display = 'none';
+        statsArea.style.display = 'none';
+        state.zoom = 1; state.panX = 0; state.panY = 0;
+        viewport.setAttribute('transform', `translate(0,0) scale(1)`);
+        
+        document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById(`btn-${m}-${s}`).classList.add('active');
+
+        randomizeTarget();
+        randomizeParents();
+        state.guessChroms = [{g: m === 2 ? ['E','T'] : ['E']}, {g: m === 2 ? ['E','T'] : ['E']}];
+        if (s === 3) state.hiddenFather = generateRandomChroms(m===2);
+
+        updateText();
+        render();
+    }
+
+    function updateText() {
+        const descs = {
+            "1-1": "匹配性狀：調整下方染色體，使小獸外型與目標一致。",
+            "1-2": "編輯父母：點擊父母染色體修改基因，觀察子代結果。",
+            "1-3": "推論父親：觀察寶寶性狀比例，猜測並設定父親基因。",
+            "2-1": "聯鎖匹配：同一染色體上的兩個基因會一起遺傳。",
+            "2-2": "聯鎖雜合：嘗試編輯聯鎖基因排列，觀察組合變化。",
+            "2-3": "終極挑戰：根據複雜的性狀比例，推算出父親的基因型。"
+        };
+        document.getElementById('mission-title').innerText = `關卡 ${state.mainL}-${state.subL}`;
+        document.getElementById('mission-desc').innerText = descs[`${state.mainL}-${state.subL}`];
+    }
+
+    function randomizeTarget() {
+        state.targetChroms = generateRandomChroms(state.mainL === 2);
+        state.playerChroms = [{g: state.mainL === 2 ? ['e','t'] : ['e']}, {g: state.mainL === 2 ? ['e','t'] : ['e']}];
+    }
+
+    function randomizeParents() {
+        state.motherChroms = generateRandomChroms(state.mainL === 2);
+        state.fatherChroms = generateRandomChroms(state.mainL === 2);
+    }
+
+    function generateRandomChroms(isLinked) {
+        const poolE = ['E','e']; const poolT = ['T','t'];
+        const g1 = isLinked ? [poolE[Math.floor(Math.random()*2)], poolT[Math.floor(Math.random()*2)]] : [poolE[Math.floor(Math.random()*2)]];
+        const g2 = isLinked ? [poolE[Math.floor(Math.random()*2)], poolT[Math.floor(Math.random()*2)]] : [poolE[Math.floor(Math.random()*2)]];
+        return [{g:g1}, {g:g2}];
+    }
+
+    function getPheno(chroms) {
+        const allGenes = chroms[0].g.concat(chroms[1].g);
+        return {
+            ear: allGenes.includes('E') ? 'floppy' : 'pointy',
+            tail: allGenes.includes('T') ? 'curly' : 'straight'
+        };
+    }
+
+    function drawCreature(chroms, x, y, scale=1, label="") {
+        const p = getPheno(chroms);
+        const isFloppy = p.ear === 'floppy';
+        const isCurly = p.tail === 'curly';
+        const bodyColor = isFloppy ? "#7cf3c7" : "#ff9aa2"; // Mint vs Pink
+        const blushColor = "#ffb7b7";
+        const eyeColor = "#2a3a63";
+
+        let h = `<g transform="translate(${x},${y}) scale(${scale})">`;
+        
+        // 標籤移至上方
+        if(label) h += `<text y="-65" text-anchor="middle" fill="#e9eefc" font-size="16" font-weight="900" letter-spacing="1">${label}</text>`;
+
+        // 影子
+        h += `<ellipse cx="0" cy="55" rx="55" ry="12" fill="#000" opacity="0.2" />`;
+
+        // 尾巴
+        if (state.mainL === 2) {
+            if (isCurly) {
+                h += `<path d="M45,20 Q75,10 70,-15 T45,-10" fill="none" stroke="${bodyColor}" stroke-width="10" stroke-linecap="round" />`;
+            } else {
+                h += `<path d="M45,20 L80,35" fill="none" stroke="${bodyColor}" stroke-width="8" stroke-linecap="round" />`;
+            }
+        }
+
+        // 身體 (Blob)
+        h += `<path d="M-55,0 Q-55,-45 0,-45 Q55,-45 55,0 Q55,45 0,45 Q-55,45 -55,0 Z" fill="${bodyColor}" stroke="rgba(0,0,0,0.1)" stroke-width="1" />`;
+
+        // 耳朵
+        if (isFloppy) {
+            // 垂耳
+            h += `<path d="M-45,-25 Q-65,-25 -60,10 Q-55,25 -40,15 Z" fill="${bodyColor}" />`;
+            h += `<path d="M45,-25 Q65,-25 60,10 Q55,25 40,15 Z" fill="${bodyColor}" />`;
+        } else {
+            // 尖耳
+            h += `<path d="M-45,-30 L-60,-65 L-20,-42 Z" fill="${bodyColor}" />`;
+            h += `<path d="M45,-30 L60,-65 L20,-42 Z" fill="${bodyColor}" />`;
+        }
+
+        // 五官
+        h += `<circle cx="-18" cy="-5" r="5" fill="${eyeColor}" />`;
+        h += `<circle cx="18" cy="-5" r="5" fill="${eyeColor}" />`;
+        h += `<path d="M-6,12 Q0,18 6,12" fill="none" stroke="${eyeColor}" stroke-width="3" stroke-linecap="round" />`;
+        
+        // 腮紅
+        h += `<circle cx="-32" cy="8" r="8" fill="${blushColor}" opacity="0.6" />`;
+        h += `<circle cx="32" cy="8" r="8" fill="${blushColor}" opacity="0.6" />`;
+
+        h += `</g>`;
+        return h;
+    }
+
+    function drawChromosomes(chroms, x, y, stateKey="", label="") {
+        let h = `<g transform="translate(${x},${y})">`;
+        if(label) h += `<text x="0" y="-18" text-anchor="middle" fill="#a8b3d6" font-size="12" font-weight="900">${label}</text>`;
+        chroms.forEach((c, idx) => {
+            const cx = idx * 36 - 18;
+            h += `<rect x="${cx}" y="0" width="16" height="65" rx="8" fill="#1b2946" stroke="#2a3a63" stroke-width="2" />`;
+            c.g.forEach((gene, gIdx) => {
+                const gy = gIdx * 25 + 16;
+                const isDom = gene === gene.toUpperCase();
+                const geneColor = isDom ? '#7cf3c7' : '#ffcf5a';
+                if (stateKey) h += `<rect x="${cx-5}" y="${gy-10}" width="35" height="25" fill="transparent" style="cursor:pointer" onclick="toggleStateGene('${stateKey}',${idx},${gIdx})"/>`;
+                h += `<rect x="${cx+3}" y="${gy}" width="10" height="4" rx="2" fill="${geneColor}" pointer-events="none" />`;
+                h += `<text x="${cx+22}" y="${gy+6}" font-size="13" fill="white" font-weight="900" pointer-events="none">${gene}</text>`;
+            });
+        });
+        h += `</g>`;
+        return h;
+    }
+
+    function toggleStateGene(key, cIdx, gIdx) {
+        if (state.isWon) return;
+        const target = state[key];
+        const cur = target[cIdx].g[gIdx];
+        target[cIdx].g[gIdx] = cur === cur.toUpperCase() ? cur.toLowerCase() : cur.toUpperCase();
+        render();
+        if (state.subL === 1) checkWin1();
+    }
+
+    function render() {
+        let h = "";
+        const cx = window.innerWidth / 2;
+        const cy = window.innerHeight / 2;
+
+        if (state.subL === 1) {
+            h += drawCreature(state.playerChroms, cx - 140, cy - 60, 1.4, "你的小獸");
+            h += drawChromosomes(state.playerChroms, cx - 140, cy + 60, 'playerChroms', "點擊修改基因型");
+            h += drawCreature(state.targetChroms, cx + 140, cy - 60, 1.4, "目標外型");
+            controls.innerHTML = `<button class="btn" onclick="randomizeTarget();render();">更換目標</button>`;
+        } 
+        else if (state.subL === 2) {
+            h += drawCreature(state.motherChroms, cx - 130, cy - 140, 0.9, "母本");
+            h += drawChromosomes(state.motherChroms, cx - 130, cy - 60, 'motherChroms');
+            h += drawCreature(state.fatherChroms, cx + 130, cy - 140, 0.9, "父本");
+            h += drawChromosomes(state.fatherChroms, cx + 130, cy - 60, 'fatherChroms');
+            if (state.childrenBatches.length > 0) {
+                const batch = state.childrenBatches[state.childrenBatches.length-1];
+                const baby = batch[batch.length-1];
+                h += drawCreature(baby, cx, cy + 60, 1.4, "最新產出的寶寶");
+                h += drawChromosomes(baby, cx, cy + 150);
+            }
+            controls.innerHTML = `<button class="btn" onclick="randomizeParents();render();">隨機父母</button><button class="btn btn-primary" onclick="breed(1)">執行雜合</button>`;
+        }
+        else if (state.subL === 3) {
+            const topY = cy - 220;
+            h += drawCreature(state.motherChroms, cx - 100, topY, 0.7, "已知母親");
+            h += drawChromosomes(state.motherChroms, cx - 100, topY + 50);
+            
+            h += `<g transform="translate(${cx + 100},${topY}) scale(0.7)">
+                    <rect x="-45" y="-45" width="90" height="90" rx="16" fill="#1b2946" stroke="#2a3a63" stroke-width="2" />
+                    <text y="20" text-anchor="middle" font-size="60" fill="#7cf3c7" font-weight="900">?</text>
+                    <text y="-65" text-anchor="middle" fill="#e9eefc" font-size="22" font-weight="900">神秘父親</text>
+                  </g>`;
+            h += drawChromosomes(state.guessChroms, cx + 100, topY + 50, 'guessChroms', "點擊設定父親基因");
+
+            const all = state.childrenBatches.flat();
+            const startX = cx - 360;
+            const startY = topY + 180;
+            all.forEach((child, i) => {
+                const r = Math.floor(i/14); const c = i%14;
+                h += drawCreature(child, startX + c*55, startY + r*80, 0.45);
+            });
+            renderControlsGuess();
+            updateStats();
+        }
+        viewport.innerHTML = h;
+    }
+
+    function updateStats() {
+        const allChildren = state.childrenBatches.flat();
+        if (allChildren.length === 0) { statsArea.style.display = 'none'; return; }
+        statsArea.style.display = 'block';
+        const total = allChildren.length;
+        const counts = {};
+        allChildren.forEach(child => {
+            const p = getPheno(child);
+            const key = state.mainL === 1 ? (p.ear === 'floppy' ? "垂耳" : "尖耳") : `${p.ear==='floppy'?"垂耳":"尖耳"}+${p.tail==='curly'?"捲尾":"直尾"}`;
+            counts[key] = (counts[key] || 0) + 1;
+        });
+        let h = `<div style="font-weight:900; border-bottom:1px solid #2a3a63; margin-bottom:6px; color:var(--primary);">統計 (${total} 隻)</div>`;
+        for (let k in counts) {
+            const perc = ((counts[k]/total)*100).toFixed(1);
+            h += `<div style="margin:2px 0;">${k}: <span style="color:white">${counts[k]}</span> (${perc}%)</div>`;
+        }
+        statsArea.innerHTML = h;
+    }
+
+    function renderControlsGuess() {
+        controls.innerHTML = `
+            <button class="btn" onclick="state.motherChroms=generateRandomChroms(state.mainL==2);state.childrenBatches=[];render();">換母本</button>
+            <button class="btn" style="color:#a8b3d6" onclick="state.childrenBatches.pop();render();">回溯 20 隻</button>
+            <button class="btn btn-primary" onclick="breed(20)">雜合 +20 隻</button>
+            <button class="btn btn-success" style="margin-left:15px" onclick="checkGuess()">提交答案</button>
+        `;
+    }
+
+    function checkWin1() {
+        const pP = getPheno(state.playerChroms);
+        const pT = getPheno(state.targetChroms);
+        if (pP.ear === pT.ear && pP.tail === pT.tail) triggerWin();
+    }
+
+    function checkGuess() {
+        const actualArr = state.hiddenFather.map(c => c.g.join("")).sort();
+        const guessArr = state.guessChroms.map(c => c.g.join("")).sort();
+        if (JSON.stringify(actualArr) === JSON.stringify(guessArr)) triggerWin();
+        else alert("性狀比例不太對喔，再觀察一下！");
+    }
+
+    function triggerWin() {
+        state.isWon = true; overlay.style.display = 'flex';
+        setTimeout(() => { overlay.style.display = 'none'; state.isWon = false; }, 3000);
+    }
+
+    function breed(count) {
+        if (state.isWon) return;
+        const father = state.subL === 3 ? state.hiddenFather : state.fatherChroms;
+        const batch = [];
+        for(let i=0; i<count; i++) {
+            batch.push([ JSON.parse(JSON.stringify(state.motherChroms[Math.floor(Math.random()*2)])), 
+                         JSON.parse(JSON.stringify(father[Math.floor(Math.random()*2)])) ]);
+        }
+        state.childrenBatches.push(batch);
+        render();
+    }
+
+    function setupInteractions() {
+        let isDown = false;
+        window.addEventListener('pointerdown', e => { 
+            if(e.target.tagName==='rect' || e.target.tagName==='button' || e.target.tagName==='text') return;
+            isDown = true; state.lastMouse = {x:e.clientX, y:e.clientY}; 
+        });
+        window.addEventListener('pointermove', e => {
+            if(!isDown) return;
+            state.panX += e.clientX - state.lastMouse.x;
+            state.panY += e.clientY - state.lastMouse.y;
+            state.lastMouse = {x:e.clientX, y:e.clientY};
+            viewport.setAttribute('transform', `translate(${state.panX},${state.panY}) scale(${state.zoom})`);
+        });
+        window.addEventListener('pointerup', () => isDown = false);
+        window.addEventListener('wheel', e => {
+            const d = e.deltaY > 0 ? 0.9 : 1.1;
+            state.zoom *= d;
+            viewport.setAttribute('transform', `translate(${state.panX},${state.panY}) scale(${state.zoom})`);
+        }, {passive:false});
+    }
+
+    init();
+</script>
+</body>
+</html>
