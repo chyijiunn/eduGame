@@ -1,0 +1,755 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>卡片式入口頁</title>
+    <style>
+        :root {
+            --bg: #050608;
+            --bg-elevated: #10141b;
+            --bg-elevated-soft: #141923;
+            --card-border: #2c3440;
+            --accent: #a5d68a;      /* 抹茶綠 */
+            --accent-soft: rgba(165, 214, 138, 0.15);
+            --accent-strong: #8fc36f;
+            --text: #e5e7eb;
+            --text-muted: #9ca3af;
+            --chip-bg: #1f2933;
+            --chip-active-bg: #1a2a1b;
+            --chip-border: #3b4250;
+            --shadow-soft: 0 18px 40px rgba(0, 0, 0, 0.55);
+            --radius-lg: 18px;
+            --radius-xl: 22px;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                "Helvetica Neue", Arial, "Noto Sans TC", "Noto Sans", sans-serif;
+            background: radial-gradient(circle at top, #18212a 0, #050608 55%);
+            color: var(--text);
+            display: flex;
+            justify-content: center;
+        }
+
+        .app {
+            width: 100%;
+            max-width: 1200px;
+            padding: 24px 18px 40px;
+        }
+
+        header {
+            margin-bottom: 20px;
+        }
+
+        .title-row {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 8px;
+        }
+
+        h1 {
+            font-size: 1.8rem;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            margin: 0;
+            color: var(--accent);
+        }
+
+        .badge {
+            padding: 4px 10px;
+            border-radius: 999px;
+            border: 1px solid rgba(165, 214, 138, 0.4);
+            background: rgba(19, 27, 22, 0.7);
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.14em;
+            color: var(--text-muted);
+            white-space: nowrap;
+        }
+
+        .subtitle {
+            margin: 0;
+            font-size: 0.9rem;
+            color: var(--text-muted);
+        }
+
+        /* 搜尋 + 標籤列 */
+        .control-bar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 18px;
+            margin-bottom: 8px;
+        }
+
+        .search-wrapper {
+            flex: 1 1 220px;
+            position: relative;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 9px 12px 9px 32px;
+            border-radius: 999px;
+            border: 1px solid var(--card-border);
+            background: rgba(9, 12, 17, 0.95);
+            color: var(--text);
+            font-size: 0.9rem;
+            outline: none;
+            transition: border-color 0.18s ease, box-shadow 0.18s ease,
+                background 0.18s ease;
+        }
+
+        .search-input::placeholder {
+            color: #6b7280;
+        }
+
+        .search-input:focus {
+            border-color: var(--accent-strong);
+            box-shadow: 0 0 0 1px rgba(165, 214, 138, 0.4);
+            background: #05070b;
+        }
+
+        .search-icon {
+            position: absolute;
+            left: 11px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 0.9rem;
+            color: #6b7280;
+            pointer-events: none;
+        }
+
+        .tag-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .tag-chip {
+            border-radius: 999px;
+            border: 1px solid var(--chip-border);
+            background: var(--chip-bg);
+            color: var(--text-muted);
+            padding: 6px 11px;
+            font-size: 0.78rem;
+            cursor: pointer;
+            user-select: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: background 0.15s ease, color 0.15s ease,
+                border-color 0.15s ease, transform 0.1s ease;
+        }
+
+        .tag-chip span.dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 999px;
+            background: #4b5563;
+        }
+
+        .tag-chip.active {
+            background: var(--chip-active-bg);
+            color: var(--accent);
+            border-color: rgba(165, 214, 138, 0.7);
+            transform: translateY(-1px);
+        }
+
+        .tag-chip.active span.dot {
+            background: var(--accent);
+        }
+
+        .result-info {
+            font-size: 0.75rem;
+            color: #6b7280;
+            margin: 4px 2px 10px;
+        }
+
+        /* 卡片區域 */
+        .card-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 16px;
+        }
+
+        .card {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            text-decoration: none;
+            color: inherit;
+            padding: 14px 14px 12px;
+            border-radius: var(--radius-xl);
+            background: radial-gradient(circle at top left,
+                    rgba(165, 214, 138, 0.08) 0,
+                    transparent 55%),
+                var(--bg-elevated);
+            border: 1px solid var(--card-border);
+            box-shadow: var(--shadow-soft);
+            overflow: hidden;
+            transition: transform 0.16s ease, box-shadow 0.16s ease,
+                border-color 0.16s ease, background 0.2s ease;
+        }
+
+        .card::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(circle at top right,
+                    rgba(165, 214, 138, 0.14) 0,
+                    transparent 45%);
+            opacity: 0;
+            transition: opacity 0.25s ease;
+            pointer-events: none;
+        }
+
+        .card:hover {
+            transform: translateY(-4px) scale(1.01);
+            border-color: rgba(165, 214, 138, 0.75);
+            box-shadow: 0 22px 50px rgba(0, 0, 0, 0.7);
+            background: radial-gradient(circle at top left,
+                    rgba(165, 214, 138, 0.16) 0,
+                    transparent 60%),
+                var(--bg-elevated-soft);
+        }
+
+        .card:hover::before {
+            opacity: 1;
+        }
+
+        .card-thumb {
+            width: 100%;
+            aspect-ratio: 16 / 9;
+            border-radius: var(--radius-lg);
+            background: linear-gradient(135deg, #111827, #020617);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 10px;
+            overflow: hidden;
+            border: 1px solid rgba(55, 65, 81, 0.9);
+        }
+
+        .card-thumb svg {
+            width: 88%;
+            height: 88%;
+            display: block;
+        }
+
+        .card-body {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            flex: 1;
+        }
+
+        .card-title-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            gap: 8px;
+        }
+
+        .card-title {
+            font-size: 1rem;
+            font-weight: 600;
+        }
+
+        .card-tag-pill {
+            font-size: 0.7rem;
+            padding: 2px 8px;
+            border-radius: 999px;
+            background: rgba(15, 23, 42, 0.9);
+            border: 1px solid rgba(148, 163, 184, 0.5);
+            color: #cbd5f5;
+            white-space: nowrap;
+        }
+
+        .card-desc {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            line-height: 1.4;
+        }
+
+        .card-footer {
+            margin-top: 6px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.7rem;
+            color: #6b7280;
+        }
+
+        .tag-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 3px;
+        }
+
+        .mini-tag {
+            padding: 1px 6px;
+            border-radius: 999px;
+            background: rgba(31, 41, 55, 0.9);
+            border: 1px solid rgba(75, 85, 99, 0.9);
+            font-size: 0.7rem;
+        }
+
+        .card-arrow {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            color: var(--accent);
+        }
+
+        .card-arrow span {
+            transform: translateX(0);
+            transition: transform 0.15s ease;
+        }
+
+        .card:hover .card-arrow span {
+            transform: translateX(2px);
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        @media (max-width: 720px) {
+            .app {
+                padding: 16px 12px 32px;
+            }
+
+            .title-row {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            h1 {
+                font-size: 1.4rem;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="app">
+    <header>
+        <div class="title-row">
+            <h1>LAB ENTRANCE</h1>
+            <div class="badge">Matcha · Dark · Cards</div>
+        </div>
+        <p class="subtitle">
+            使用上方搜尋與標籤，快速找到你要的 Java / CSS / JS / 互動網頁。
+        </p>
+
+        <div class="control-bar">
+            <div class="search-wrapper">
+                <span class="search-icon">🔍</span>
+                <input
+                    id="searchInput"
+                    class="search-input"
+                    type="text"
+                    placeholder="輸入關鍵字搜尋標題、描述或標籤..."
+                />
+            </div>
+            <div class="tag-row">
+                <button class="tag-chip active" data-filter="all">
+                    <span class="dot"></span> 全部
+                </button>
+                <button class="tag-chip" data-filter="java">
+                    <span class="dot"></span> Java
+                </button>
+                <button class="tag-chip" data-filter="css">
+                    <span class="dot"></span> CSS
+                </button>
+                <button class="tag-chip" data-filter="js">
+                    <span class="dot"></span> JS
+                </button>
+                <button class="tag-chip" data-filter="other">
+                    <span class="dot"></span> 其他
+                </button>
+            </div>
+        </div>
+
+        <div id="resultInfo" class="result-info">
+            顯示 <span id="resultCount">0</span> 個入口
+        </div>
+    </header>
+
+    <main>
+        <section class="card-grid" id="cardGrid">
+            <!-- 卡片示範 1：Java -->
+            <a
+                href="demo/java-sim.html"
+                class="card"
+                target="_blank"
+                rel="noopener"
+                data-tags="java, 演算法, 教學"
+                data-search="Java 演算法 視覺化 排序 教學"
+            >
+                <div class="card-thumb">
+                    <!-- SVG 縮圖：Java 類似程式方塊 -->
+                    <svg viewBox="0 0 200 120" xmlns="http://www.w3.org/2000/svg">
+                        <defs>
+                            <linearGradient id="gradJava" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" stop-color="#a5d68a" />
+                                <stop offset="100%" stop-color="#3b4a2f" />
+                            </linearGradient>
+                        </defs>
+                        <rect x="0" y="0" width="200" height="120" fill="#05060a" />
+                        <rect x="16" y="18" width="80" height="32" rx="7" fill="url(#gradJava)" />
+                        <rect x="104" y="18" width="80" height="32" rx="7" fill="#131925" />
+                        <rect x="16" y="60" width="80" height="32" rx="7" fill="#131925" />
+                        <rect x="104" y="60" width="80" height="32" rx="7" fill="#131925" />
+                        <circle cx="56" cy="34" r="4" fill="#05060a" />
+                        <circle cx="144" cy="34" r="4" fill="#a5d68a" />
+                        <path d="M56 40 L56 80" stroke="#4b5563" stroke-width="1.4" stroke-dasharray="3 3" />
+                        <path d="M144 40 L144 80" stroke="#4b5563" stroke-width="1.4" stroke-dasharray="3 3" />
+                    </svg>
+                </div>
+                <div class="card-body">
+                    <div class="card-title-row">
+                        <div class="card-title">Java 排序視覺化</div>
+                        <div class="card-tag-pill">Java</div>
+                    </div>
+                    <p class="card-desc">
+                        多種排序演算法的步驟一目了然，用動畫展示資料如何被重排，適合配合課堂講解。
+                    </p>
+                    <div class="card-footer">
+                        <div class="tag-list">
+                            <span class="mini-tag">演算法</span>
+                            <span class="mini-tag">教學輔助</span>
+                        </div>
+                        <div class="card-arrow">
+                            前往 <span>↗</span>
+                        </div>
+                    </div>
+                </div>
+            </a>
+
+            <!-- 卡片示範 2：CSS -->
+            <a
+                href="demo/css-cards.html"
+                class="card"
+                target="_blank"
+                rel="noopener"
+                data-tags="css, 版面, UI"
+                data-search="CSS 卡片 排版 版面設計 UI 設計"
+            >
+                <div class="card-thumb">
+                    <!-- SVG 縮圖：CSS 卡片排版 -->
+                    <svg viewBox="0 0 200 120" xmlns="http://www.w3.org/2000/svg">
+                        <rect x="0" y="0" width="200" height="120" fill="#05060a" />
+                        <rect x="14" y="16" width="80" height="40" rx="8" fill="#0f172a" />
+                        <rect x="106" y="16" width="80" height="40" rx="8" fill="#0f172a" />
+                        <rect x="14" y="64" width="80" height="40" rx="8" fill="#0f172a" />
+                        <rect x="106" y="64" width="80" height="40" rx="8" fill="#0f172a" />
+                        <rect x="22" y="23" width="24" height="24" rx="6" fill="#111827" />
+                        <rect x="114" y="23" width="24" height="24" rx="6" fill="#111827" />
+                        <rect x="22" y="71" width="24" height="24" rx="6" fill="#111827" />
+                        <rect x="114" y="71" width="24" height="24" rx="6" fill="#111827" />
+                        <circle cx="34" cy="35" r="6" fill="#a5d68a" />
+                        <circle cx="126" cy="83" r="6" fill="#a5d68a" />
+                    </svg>
+                </div>
+                <div class="card-body">
+                    <div class="card-title-row">
+                        <div class="card-title">CSS 卡片排版展示</div>
+                        <div class="card-tag-pill">CSS</div>
+                    </div>
+                    <p class="card-desc">
+                        示範各種卡片布局、陰影與圓角設定，方便快速複製到新專案使用。
+                    </p>
+                    <div class="card-footer">
+                        <div class="tag-list">
+                            <span class="mini-tag">版面</span>
+                            <span class="mini-tag">UI</span>
+                        </div>
+                        <div class="card-arrow">
+                            前往 <span>↗</span>
+                        </div>
+                    </div>
+                </div>
+            </a>
+
+            <!-- 卡片示範 3：JS -->
+            <a
+                href="demo/js-science.html"
+                class="card"
+                target="_blank"
+                rel="noopener"
+                data-tags="js, 互動, 科學"
+                data-search="JS 互動 科學 模擬 物理"
+            >
+                <div class="card-thumb">
+                    <!-- SVG 縮圖：JS 科學互動 -->
+                    <svg viewBox="0 0 200 120" xmlns="http://www.w3.org/2000/svg">
+                        <defs>
+                            <radialGradient id="gradJS" cx="50%" cy="20%" r="80%">
+                                <stop offset="0%" stop-color="#a5d68a" />
+                                <stop offset="100%" stop-color="#020617" />
+                            </radialGradient>
+                        </defs>
+                        <rect x="0" y="0" width="200" height="120" fill="#05060a" />
+                        <circle cx="100" cy="60" r="32" fill="url(#gradJS)" />
+                        <circle cx="60" cy="40" r="6" fill="#f9fafb" />
+                        <circle cx="144" cy="42" r="4" fill="#facc15" />
+                        <circle cx="54" cy="82" r="4" fill="#38bdf8" />
+                        <circle cx="138" cy="84" r="6" fill="#a5d68a" />
+                        <path d="M60 40 Q100 12 144 42" stroke="#4ade80" stroke-width="1.4" fill="none" />
+                        <path d="M54 82 Q100 112 138 84" stroke="#22d3ee" stroke-width="1.4" fill="none" />
+                        <path d="M60 40 Q44 60 54 82" stroke="#6b7280" stroke-width="1.2" fill="none" />
+                        <path d="M144 42 Q156 62 138 84" stroke="#6b7280" stroke-width="1.2" fill="none" />
+                    </svg>
+                </div>
+                <div class="card-body">
+                    <div class="card-title-row">
+                        <div class="card-title">JS 科學模擬實驗室</div>
+                        <div class="card-tag-pill">JS</div>
+                    </div>
+                    <p class="card-desc">
+                        使用 JavaScript 建立物理與科學互動模型，支援滑鼠與觸控操作。
+                    </p>
+                    <div class="card-footer">
+                        <div class="tag-list">
+                            <span class="mini-tag">互動</span>
+                            <span class="mini-tag">科學</span>
+                        </div>
+                        <div class="card-arrow">
+                            前往 <span>↗</span>
+                        </div>
+                    </div>
+                </div>
+            </a>
+
+            <!-- 卡片示範 4：CSS + JS -->
+            <a
+                href="demo/ui-dashboard.html"
+                class="card"
+                target="_blank"
+                rel="noopener"
+                data-tags="css, js, 儀表板, UI"
+                data-search="Dashboard 儀表板 CSS JS 視覺化"
+            >
+                <div class="card-thumb">
+                    <!-- SVG 縮圖：儀表板 -->
+                    <svg viewBox="0 0 200 120" xmlns="http://www.w3.org/2000/svg">
+                        <rect x="0" y="0" width="200" height="120" fill="#05060a" />
+                        <rect x="14" y="16" width="172" height="88" rx="12" fill="#020617" />
+                        <path d="M34 80 A56 56 0 0 1 166 80" fill="none" stroke="#1f2937" stroke-width="10" />
+                        <path d="M34 80 A56 56 0 0 1 140 40" fill="none" stroke="#a5d68a" stroke-width="10" />
+                        <circle cx="100" cy="80" r="6" fill="#0b1120" stroke="#a5d68a" stroke-width="2" />
+                        <line x1="100" y1="80" x2="140" y2="40" stroke="#a5d68a" stroke-width="2.5" />
+                        <circle cx="54" cy="84" r="3" fill="#4b5563" />
+                        <circle cx="76" cy="92" r="3" fill="#4b5563" />
+                        <circle cx="124" cy="92" r="3" fill="#4b5563" />
+                        <circle cx="146" cy="84" r="3" fill="#4b5563" />
+                    </svg>
+                </div>
+                <div class="card-body">
+                    <div class="card-title-row">
+                        <div class="card-title">互動儀表板範本</div>
+                        <div class="card-tag-pill">CSS + JS</div>
+                    </div>
+                    <p class="card-desc">
+                        有簡易圖表與數值顯示的範本，可改成台股模擬、科學數據看板等用途。
+                    </p>
+                    <div class="card-footer">
+                        <div class="tag-list">
+                            <span class="mini-tag">視覺化</span>
+                            <span class="mini-tag">儀表板</span>
+                        </div>
+                        <div class="card-arrow">
+                            前往 <span>↗</span>
+                        </div>
+                    </div>
+                </div>
+            </a>
+
+            <!-- 卡片示範 5：Other -->
+            <a
+                href="demo/markdown-viewer.html"
+                class="card"
+                target="_blank"
+                rel="noopener"
+                data-tags="other, 工具, 教學"
+                data-search="Markdown 工具 說明文件 教學"
+            >
+                <div class="card-thumb">
+                    <!-- SVG 縮圖：文件/工具 -->
+                    <svg viewBox="0 0 200 120" xmlns="http://www.w3.org/2000/svg">
+                        <rect x="0" y="0" width="200" height="120" fill="#05060a" />
+                        <rect x="40" y="16" width="120" height="88" rx="10" fill="#020617" />
+                        <rect x="48" y="24" width="104" height="20" rx="5" fill="#0b1120" />
+                        <rect x="48" y="52" width="60" height="12" rx="4" fill="#111827" />
+                        <rect x="48" y="72" width="80" height="12" rx="4" fill="#111827" />
+                        <circle cx="54" cy="34" r="3" fill="#ef4444" />
+                        <circle cx="64" cy="34" r="3" fill="#f59e0b" />
+                        <circle cx="74" cy="34" r="3" fill="#22c55e" />
+                        <path d="M120 64 L132 76 L152 52" stroke="#a5d68a" stroke-width="3" fill="none" />
+                    </svg>
+                </div>
+                <div class="card-body">
+                    <div class="card-title-row">
+                        <div class="card-title">說明文件檢視工具</div>
+                        <div class="card-tag-pill">工具</div>
+                    </div>
+                    <p class="card-desc">
+                        專門用來預覽 README / 教學講義的 Markdown 轉 HTML 小工具。
+                    </p>
+                    <div class="card-footer">
+                        <div class="tag-list">
+                            <span class="mini-tag">Other</span>
+                            <span class="mini-tag">Doc</span>
+                        </div>
+                        <div class="card-arrow">
+                            前往 <span>↗</span>
+                        </div>
+                    </div>
+                </div>
+            </a>
+
+            <!-- 卡片示範 6：再一個 JS / 科學 -->
+            <a
+                href="demo/physics-lab.html"
+                class="card"
+                target="_blank"
+                rel="noopener"
+                data-tags="js, 科學, other"
+                data-search="JS 科學 實驗 物理 實驗室"
+            >
+                <div class="card-thumb">
+                    <!-- SVG 縮圖：實驗室瓶瓶罐罐 -->
+                    <svg viewBox="0 0 200 120" xmlns="http://www.w3.org/2000/svg">
+                        <rect x="0" y="0" width="200" height="120" fill="#05060a" />
+                        <rect x="24" y="82" width="152" height="6" rx="3" fill="#1f2933" />
+                        <rect x="42" y="40" width="30" height="38" rx="6" fill="#020617" stroke="#4b5563" stroke-width="2" />
+                        <rect x="44" y="50" width="26" height="26" rx="4" fill="#a5d68a" opacity="0.75" />
+                        <rect x="84" y="26" width="32" height="52" rx="8" fill="#020617" stroke="#4b5563" stroke-width="2" />
+                        <rect x="88" y="40" width="24" height="30" rx="6" fill="#22c55e" opacity="0.7" />
+                        <rect x="130" y="34" width="26" height="44" rx="6" fill="#020617" stroke="#4b5563" stroke-width="2" />
+                        <rect x="132" y="46" width="22" height="22" rx="4" fill="#e5e7eb" opacity="0.8" />
+                        <circle cx="56" cy="56" r="3" fill="#166534" />
+                        <circle cx="99" cy="48" r="3" fill="#15803d" />
+                        <circle cx="140" cy="54" r="3" fill="#6b7280" />
+                    </svg>
+                </div>
+                <div class="card-body">
+                    <div class="card-title-row">
+                        <div class="card-title">Physics Lab 小實驗</div>
+                        <div class="card-tag-pill">JS</div>
+                    </div>
+                    <p class="card-desc">
+                        一組簡單物理小實驗的集合，例如拋體、振盪、光學路徑等互動頁面入口。
+                    </p>
+                    <div class="card-footer">
+                        <div class="tag-list">
+                            <span class="mini-tag">科學</span>
+                            <span class="mini-tag">互動實驗</span>
+                        </div>
+                        <div class="card-arrow">
+                            前往 <span>↗</span>
+                        </div>
+                    </div>
+                </div>
+            </a>
+        </section>
+    </main>
+</div>
+
+<script>
+    (function () {
+        const searchInput = document.getElementById("searchInput");
+        const tagChips = document.querySelectorAll(".tag-chip");
+        const cards = document.querySelectorAll(".card");
+        const resultCountEl = document.getElementById("resultCount");
+        const resultInfoEl = document.getElementById("resultInfo");
+
+        let activeTag = "all";
+
+        function normalize(str) {
+            return (str || "")
+                .toString()
+                .toLowerCase()
+                .replace(/\s+/g, " ")
+                .trim();
+        }
+
+        function getCardText(card) {
+            // 將標題 + 描述 + data-search 合併當作全文檢索
+            const dataSearch = card.getAttribute("data-search") || "";
+            const titleEl = card.querySelector(".card-title");
+            const descEl = card.querySelector(".card-desc");
+            const title = titleEl ? titleEl.textContent : "";
+            const desc = descEl ? descEl.textContent : "";
+            return normalize([dataSearch, title, desc].join(" "));
+        }
+
+        function cardMatchesTag(card, tag) {
+            if (tag === "all") return true;
+            const raw = card.getAttribute("data-tags") || "";
+            const tags = raw
+                .split(",")
+                .map((t) => normalize(t))
+                .filter(Boolean);
+            return tags.includes(tag);
+        }
+
+        function updateFilter() {
+            const keyword = normalize(searchInput.value);
+            let visibleCount = 0;
+
+            cards.forEach((card) => {
+                const matchesTag = cardMatchesTag(card, activeTag);
+                const text = getCardText(card);
+                const matchesSearch =
+                    !keyword || (text && text.indexOf(keyword) !== -1);
+
+                if (matchesTag && matchesSearch) {
+                    card.classList.remove("hidden");
+                    visibleCount++;
+                } else {
+                    card.classList.add("hidden");
+                }
+            });
+
+            resultCountEl.textContent = visibleCount;
+            if (visibleCount === 0) {
+                resultInfoEl.textContent = "沒有符合條件的入口，試試看調整標籤或搜尋字。";
+            } else {
+                resultInfoEl.innerHTML =
+                    '顯示 <span id="resultCount">' +
+                    visibleCount +
+                    "</span> 個入口";
+            }
+        }
+
+        tagChips.forEach((chip) => {
+            chip.addEventListener("click", () => {
+                tagChips.forEach((c) => c.classList.remove("active"));
+                chip.classList.add("active");
+                activeTag = chip.getAttribute("data-filter") || "all";
+                activeTag = normalize(activeTag);
+                updateFilter();
+            });
+        });
+
+        searchInput.addEventListener("input", () => {
+            updateFilter();
+        });
+
+        // 初始更新
+        updateFilter();
+    })();
+</script>
+</body>
+</html>

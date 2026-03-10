@@ -164,6 +164,11 @@ AiGameMaker
 	1. GA4 / [Plausible](https://plausible.io)
 	2. 註冊網頁
 
+1. 入口網頁規劃
+	1. 幫我利用 css , java ,寫一個 html 的入口網頁
+	2. 以向量圖片形式提供網站連結，並提供搜尋、設定不同類別標籤
+	3. 色系以 OO 色為主色調，搭配 OO 和白色
+
 # 作業
 1. 完成後按發佈再分享
 2. padlet 可以有縮圖
