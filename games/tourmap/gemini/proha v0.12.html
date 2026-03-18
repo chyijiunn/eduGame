@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>布拉格劇院核心 10 日遊地圖 v0.12 - 修正版</title>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <style>
+        :root {
+            --primary-color: #a4161a; /* 經典紅 */
+            --bg-color: #f5f3f4;
+            --text-color: #333;
+        }
+        body, html { margin: 0; padding: 0; height: 100%; font-family: "Microsoft JhengHei", sans-serif; background: var(--bg-color); color: var(--text-color); overflow: hidden; }
+        
+        #app-container { display: flex; flex-direction: column; height: 100vh; }
+        
+        /* 標題區 */
+        header { background: var(--primary-color); color: white; padding: 10px 15px; text-align: center; box-shadow: 0 2px 5px rgba(0,0,0,0.2); z-index: 1000; flex-shrink: 0; }
+        header h2 { margin: 0; font-size: 1.2rem; }
+        header p { margin: 2px 0 0; font-size: 0.8rem; opacity: 0.8; }
+        
+        /* 地圖區 */
+        #map { flex-grow: 1; width: 100%; z-index: 1; background: #ddd; } /* 加入背景色，方便辨識是否加載 */
+
+        /* 天數控制欄 (下方橫滑) */
+        #controls {
+            background: white;
+            padding: 10px;
+            display: flex;
+            overflow-x: auto;
+            white-space: nowrap;
+            border-top: 1px solid #ddd;
+            gap: 10px;
+            z-index: 1000;
+            flex-shrink: 0;
+            -webkit-overflow-scrolling: touch;
+        }
+        .day-btn {
+            padding: 8px 16px;
+            background: #f0f0f0;
+            border: 1px solid #ccc;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            flex-shrink: 0;
+            font-size: 0.9rem;
+        }
+        .day-btn.active { background: var(--primary-color); color: white; border-color: var(--primary-color); box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+
+        /* 景點資訊面板 */
+        #info-panel {
+            position: absolute;
+            bottom: 85px; 
+            left: 10px;
+            right: 10px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 -2px 15px rgba(0,0,0,0.15);
+            z-index: 1001;
+            display: none;
+            max-height: 35vh;
+            overflow-y: auto;
+            border-left: 5px solid var(--primary-color);
+        }
+        #info-title { margin-top: 0; color: var(--primary-color); font-size: 1.1rem; }
+        #info-time { font-weight: bold; color: #555; margin-bottom: 10px; font-size: 0.9rem; }
+        #info-content { font-size: 0.9rem; line-height: 1.5; color: #444; }
+
+        /* 桌機優化 */
+        @media (min-width: 768px) {
+            #app-container { flex-direction: row; }
+            header { width: 200px; height: 100%; padding: 20px; text-align: left; }
+            #controls { flex-direction: column; width: 200px; height: 100%; overflow-y: auto; overflow-x: hidden; padding: 20px; border-top: none; border-right: 1px solid #ddd; }
+            .day-btn { width: 100%; text-align: left; border-radius: 8px; }
+            #info-panel { left: auto; right: 20px; bottom: 20px; width: 300px; max-height: 60vh; background: white; }
+        }
+    </style>
+</head>
+<body>
+
+<div id="app-container">
+    <header>
+        <h2>布拉格 10日遊</h2>
+        <p>中心點：國家劇院 (V0.12)</p>
+    </header>
+
+    <div id="map"></div>
+
+    <div id="controls" id="dayButtons"></div>
+
+    <div id="info-panel" id="infoPanel">
+        <h3 id="info-title">請選擇天數</h3>
+        <div id="info-time"></div>
+        <p id="info-content">點擊下方按鈕，顯示當日精確景點與圓形步行路線。</p>
+    </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+    // --- 1. 初始化地圖與核心座標 ---
+    const theaterPos = [50.0811, 14.4131]; 
+    const map = L.map('map', {
+        zoomControl: true,
+        tap: false 
+    }).setView(theaterPos, 15);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap'
+    }).addTo(map);
+
+    // 定義劇院核心標記（紅色）
+    const redIcon = new L.Icon({
+        iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
+        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+        iconSize: [25, 41],
+        iconAnchor: [12, 41],
+        popupAnchor: [1, -34],
+        shadowSize: [41, 41]
+    });
+    L.marker(theaterPos, {icon: redIcon}).addTo(map).bindPopup("<b>布拉格國家劇院</b><br>我們的旅行核心起點").openPopup();
+
+    // --- 2. 旅遊資料 (修正了 Day 9 座標) ---
+    const travelData = [
+        { day: 1, title: "伏爾塔瓦河對岸漫步", time: "約 45 分鐘 (2.8 km)", desc: "劇院 -> 查理大橋 -> 康帕島(Kampa) -> 沿河岸南下 -> 軍團橋返回劇院。", 
+          landmarks: [{name: "查理大橋", pos: [50.0865, 14.4114]},{name: "康帕島公園", pos: [50.0835, 14.4085]},{name: "軍團橋", pos: [50.0813, 14.4098]}],
+          path: [[50.0811, 14.4131], [50.0865, 14.4114], [50.0835, 14.4085], [50.0813, 14.4098], [50.0811, 14.4131]] 
+        },
+        { day: 2, title: "舊城核心經典", time: "約 40 分鐘 (2.5 km)", desc: "劇院 -> 伯利恆教堂 -> 舊城廣場(天文鐘) -> 經捷克克魯姆洛夫(Karlova)小巷返回。",
+          landmarks: [{name: "伯利恆教堂", pos: [50.0842, 14.4168]},{name: "舊城廣場&天文鐘", pos: [50.0870, 14.4207]},{name: "金蛇之屋", pos: [50.0862, 14.4165]}],
+          path: [[50.0811, 14.4131], [50.0842, 14.4168], [50.0870, 14.4207], [50.0862, 14.4165], [50.0811, 14.4131]]
+        },
+        { day: 3, title: "新城商業與悲壯歷史", time: "約 55 分鐘 (3.5 km)", desc: "劇院 -> 瓦茨拉夫廣場 -> 國家博物館 -> 經聖西里爾與美多德教堂返回。",
+          landmarks: [{name: "瓦茨拉夫廣場", pos: [50.0822, 14.4239]},{name: "國家博物館", pos: [50.0792, 14.4300]},{name: "聖西里爾與美多德教堂", pos: [50.0759, 14.4170]}],
+          path: [[50.0811, 14.4131], [50.0822, 14.4239], [50.0792, 14.4300], [50.0759, 14.4170], [50.0811, 14.4131]]
+        },
+        { day: 4, title: "河岸現代與古老高堡", time: "約 1 小時 20 分鐘 (5.5 km)", desc: "劇院 -> 跳舞的房子 -> 高堡區深度遊 -> 搭乘電車(建議)或沿鐵路橋旁步行返回。",
+          landmarks: [{name: "跳舞的房子", pos: [50.0754, 14.4141]},{name: "高堡-聖彼得與保羅教堂", pos: [50.0644, 14.4195]},{name: "鐵路橋", pos: [50.0667, 14.4145]}],
+          path: [[50.0811, 14.4131], [50.0754, 14.4141], [50.0644, 14.4195], [50.0667, 14.4145], [50.0754, 14.4141], [50.0811, 14.4131]]
+        },
+        { day: 5, title: "小城區花園秘境", time: "約 1 小時 (3.8 km)", desc: "劇院 -> 佩特任山(Petřín)纜車站 -> 佩特任瞭望塔 -> 聖尼古拉教堂(小城) -> 經查理大橋南側返回。",
+          landmarks: [{name: "佩特任纜車站", pos: [50.0825, 14.4039]},{name: "佩特任瞭望塔", pos: [50.0835, 14.3951]},{name: "聖尼古拉教堂(小城)", pos: [50.0880, 14.4032]}],
+          path: [[50.0811, 14.4131], [50.0825, 14.4039], [50.0835, 14.3951], [50.0880, 14.4032], [50.0865, 14.4114], [50.0811, 14.4131]]
+        },
+        { day: 6, title: "猶太區歷史回顧", time: "約 45 分鐘 (2.9 km)", desc: "劇院 -> 魯道夫音樂廳 -> 舊猶太公墓 -> 西班牙猶太格 -> 沿巴黎大道返回。",
+          landmarks: [{name: "魯道夫音樂廳", pos: [50.0895, 14.4150]},{name: "舊猶太公墓", pos: [50.0899, 14.4172]},{name: "西班牙猶太格", pos: [50.0901, 14.4209]},{name: "黑Madonna之屋", pos: [50.0869, 14.4255]}],
+          path: [[50.0811, 14.4131], [50.0895, 14.4150], [50.0899, 14.4172], [50.0901, 14.4209], [50.0869, 14.4255], [50.0811, 14.4131]]
+        },
+        { day: 7, title: "北緣皇家花園與萊特納", time: "約 1 小時 10 分鐘 (4.8 km)", desc: "劇院 -> 切赫橋 -> 萊特納公園(Letná)看全景 -> 皇家花園 -> 馬奈橋返回。",
+          landmarks: [{name: "切赫橋", pos: [50.0935, 14.4173]},{name: "萊特納節拍器", pos: [50.0938, 14.4159]},{name: "皇家花園", pos: [50.0938, 14.4052]},{name: "馬奈橋", pos: [50.0898, 14.4121]}],
+          path: [[50.0811, 14.4131], [50.0935, 14.4173], [50.0938, 14.4159], [50.0938, 14.4052], [50.0898, 14.4121], [50.0811, 14.4131]]
+        },
+        { day: 8, title: "東側巷弄與市民會館", time: "約 45 分鐘 (2.7 km)", desc: "劇院 -> 穆夏博物館 -> 火藥塔 -> 市民會館 -> 經護城河街商業區返回。",
+          landmarks: [{name: "穆夏博物館", pos: [50.0845, 14.4280]},{name: "火藥塔&市民會館", pos: [50.0872, 14.4278]},{name: "地鐵Můstek站", pos: [50.0838, 14.4228]}],
+          path: [[50.0811, 14.4131], [50.0845, 14.4280], [50.0872, 14.4278], [50.0838, 14.4228], [50.0811, 14.4131]]
+        },
+        { day: 9, title: "南側生活美學與斯拉夫島", time: "約 35 分鐘 (2.2 km)", desc: "劇院 -> 斯拉夫島(Žofín) -> 聖阿達爾伯特教堂 -> 經新城內部巷弄返回劇院。",
+          landmarks: [{name: "斯拉夫島(Žofín)", pos: [50.0788, 14.4135]},{name: "聖阿達爾伯特教堂", pos: [50.0781, 14.4149]},{name: "Myšák甜點店", pos: [50.0815, 14.4220]}], // 修正了這裡的座標
+          path: [[50.0811, 14.4131], [50.0788, 14.4135], [50.0781, 14.4149], [50.0815, 14.4220], [50.0811, 14.4131]]
+        },
+        { day: 10, title: "城堡終章深度遊", time: "約 1 小時 30 分鐘 (6.0 km)", desc: "劇院 -> 查理大橋 -> 聖維特大教堂 -> 黃金小巷 -> 舊城堡階梯南下 -> 沿小城河岸返回劇院。",
+          landmarks: [{name: "查理大橋", pos: [50.0865, 14.4114]},{name: "聖維特大教堂", pos: [50.0909, 14.4005]},{name: "黃金小巷", pos: [50.0920, 14.4020]},{name: "舊城堡階梯底", pos: [50.0921, 14.4101]}],
+          path: [[50.0811, 14.4131], [50.0865, 14.4114], [50.0909, 14.4005], [50.0920, 14.4020], [50.0921, 14.4101], [50.0898, 14.4121], [50.0865, 14.4114], [50.0811, 14.4131]]
+        }
+    ];
+
+    // --- 3. 互動邏輯 ---
+    let currentPolyline = null; 
+    let currentMarkers = [];   
+    const infoPanel = document.getElementById('info-panel');
+    const infoTitle = document.getElementById('info-title');
+    const infoTime = document.getElementById('info-time');
+    const infoContent = document.getElementById('info-content');
+
+    const controls = document.getElementById('controls');
+    travelData.forEach((item, index) => {
+        const btn = document.createElement('button');
+        btn.innerText = `Day ${item.day}`;
+        btn.className = 'day-btn';
+        btn.onclick = () => showDay(index, btn);
+        controls.appendChild(btn);
+    });
+
+    function showDay(index, btn) {
+        document.querySelectorAll('.day-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+
+        if (currentPolyline) map.removeLayer(currentPolyline);
+        currentMarkers.forEach(marker => map.removeLayer(marker));
+        currentMarkers = [];
+
+        const data = travelData[index];
+        
+        // 畫新圓形路線 (使用硬編碼顏色修正 Bug)
+        currentPolyline = L.polyline(data.path, {
+            color: '#a4161a', // 修正：直接使用顏色值
+            weight: 4, 
+            opacity: 0.8,
+            dashArray: '5, 10' // 虛線表示步行徑
+        }).addTo(map);
+
+        // 新增景點標記
+        data.landmarks.forEach(lm => {
+            const m = L.marker(lm.pos).addTo(map).bindPopup(`<b>${lm.name}</b>`);
+            currentMarkers.push(m);
+        });
+
+        const allPoints = [theaterPos, ...data.path];
+        map.fitBounds(L.latLngBounds(allPoints), {padding: [40, 40]});
+
+        infoPanel.style.display = 'block';
+        infoTitle.innerText = `第 ${data.day} 天：${data.title}`;
+        infoTime.innerText = `⏱️ 預估總步行：${data.time}`;
+        infoContent.innerText = data.desc;
+    }
+</script>
+
+</body>
+</html>

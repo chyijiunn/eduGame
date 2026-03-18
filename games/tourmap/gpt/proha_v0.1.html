@@ -1,0 +1,881 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes" />
+  <title>proha v0.1｜布拉格 10 天步行放射旅圖</title>
+  <link rel="preconnect" href="https://unpkg.com">
+  <link rel="preconnect" href="https://tile.openstreetmap.org">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+  <style>
+    :root{
+      --bg:#0b1220;
+      --panel:#111a2b;
+      --panel-2:#18233a;
+      --card:#0f1727;
+      --line:#2b3b5a;
+      --muted:#91a4c3;
+      --text:#f5f7fb;
+      --accent:#7c9cff;
+      --accent-2:#59d0ff;
+      --ok:#65d28b;
+      --warn:#ffd166;
+      --danger:#ff7a7a;
+      --shadow:0 16px 40px rgba(0,0,0,.28);
+      --radius:18px;
+      --radius-sm:12px;
+      --sidebar-w:420px;
+      --header-h:56px;
+      --font: "Inter", "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%;margin:0;background:var(--bg);color:var(--text);font-family:var(--font)}
+    body{overflow:hidden}
+    a{color:inherit}
+    .app{
+      display:grid;
+      grid-template-columns:minmax(340px,var(--sidebar-w)) 1fr;
+      height:100vh;
+      width:100vw;
+      overflow:hidden;
+    }
+    .sidebar{
+      background:linear-gradient(180deg, rgba(17,26,43,.98), rgba(11,18,32,.98));
+      border-right:1px solid rgba(255,255,255,.06);
+      display:flex;
+      flex-direction:column;
+      min-width:0;
+      z-index:20;
+    }
+    .topbar{
+      padding:18px 20px 10px;
+      border-bottom:1px solid rgba(255,255,255,.06);
+      background:rgba(11,18,32,.55);
+      backdrop-filter:blur(8px);
+      position:sticky;
+      top:0;
+      z-index:10;
+    }
+    .title-row{display:flex;gap:10px;align-items:flex-start;justify-content:space-between}
+    .title-wrap h1{margin:0;font-size:1.15rem;letter-spacing:.02em}
+    .title-wrap .sub{margin-top:6px;color:var(--muted);font-size:.92rem;line-height:1.45}
+    .badge{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border-radius:999px;background:rgba(124,156,255,.14);border:1px solid rgba(124,156,255,.25);font-size:.82rem;white-space:nowrap}
+    .controls{padding:14px 20px 8px;display:grid;gap:10px}
+    .controls-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    button{
+      appearance:none;border:0;cursor:pointer;font:inherit;color:var(--text);
+      background:linear-gradient(180deg, #1b2740, #11192b);padding:12px 14px;border-radius:14px;
+      border:1px solid rgba(255,255,255,.08);transition:.18s transform,.18s background,.18s border-color,.18s opacity;
+      box-shadow:0 6px 16px rgba(0,0,0,.18);
+    }
+    button:hover{transform:translateY(-1px);border-color:rgba(255,255,255,.18)}
+    button:active{transform:translateY(0)}
+    .btn-secondary{background:linear-gradient(180deg, #152036, #0d1524)}
+    .btn-accent{background:linear-gradient(180deg, #5070ff, #3352d8)}
+    .legend{
+      margin:0 20px 14px;padding:12px 14px;border-radius:14px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);
+      color:var(--muted);font-size:.88rem;line-height:1.55;
+    }
+    .legend strong{color:var(--text)}
+    .days{
+      padding:0 20px 10px;overflow:auto;display:grid;grid-template-columns:1fr 1fr;gap:10px;align-content:start;
+    }
+    .day-btn{
+      text-align:left;min-height:88px;display:flex;flex-direction:column;justify-content:space-between;position:relative;overflow:hidden;
+    }
+    .day-btn .num{font-weight:800;font-size:1rem;opacity:.95}
+    .day-btn .label{font-size:.94rem;line-height:1.35;margin-top:6px}
+    .day-btn .meta{margin-top:8px;color:var(--muted);font-size:.78rem}
+    .day-btn.active{border-color:rgba(255,255,255,.25)}
+    .day-btn.active::after{
+      content:"已顯示";position:absolute;right:10px;top:10px;font-size:.74rem;padding:5px 8px;border-radius:999px;background:rgba(255,255,255,.12)
+    }
+    .detail-wrap{padding:12px 20px 24px;overflow:auto;border-top:1px solid rgba(255,255,255,.06);background:rgba(0,0,0,.08)}
+    .detail-empty{
+      padding:16px;border-radius:16px;border:1px dashed rgba(255,255,255,.12);color:var(--muted);line-height:1.6;background:rgba(255,255,255,.02)
+    }
+    .day-card{
+      background:linear-gradient(180deg, rgba(24,35,58,.9), rgba(13,21,36,.94));
+      border:1px solid rgba(255,255,255,.06);border-radius:18px;padding:16px 16px 14px;margin-bottom:14px;box-shadow:var(--shadow)
+    }
+    .day-card h3{margin:0 0 6px;font-size:1rem;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+    .swatch{width:14px;height:14px;border-radius:50%;display:inline-block;flex:0 0 auto;box-shadow:0 0 0 2px rgba(255,255,255,.16) inset}
+    .theme{color:var(--accent-2);font-size:.85rem;margin:0 0 8px}
+    .intro{margin:0 0 10px;color:#d8e2f2;line-height:1.58;font-size:.92rem}
+    .stats{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px}
+    .stat{padding:7px 10px;border-radius:999px;background:rgba(255,255,255,.06);font-size:.8rem;color:#d9e1f3}
+    .mini-actions{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+    .mini-actions a,.mini-actions button{
+      text-decoration:none;font-size:.84rem;padding:10px 12px;border-radius:12px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08)
+    }
+    .poi-list{display:grid;gap:8px}
+    .poi-item{padding:10px 12px;background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.06);border-radius:14px}
+    .poi-top{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}
+    .poi-name{font-weight:700;font-size:.92rem}
+    .poi-code{font-size:.76rem;color:var(--muted);white-space:nowrap}
+    .poi-desc{margin-top:4px;font-size:.84rem;color:#d3deef;line-height:1.48}
+    .poi-meta{margin-top:6px;font-size:.77rem;color:var(--muted);display:flex;flex-wrap:wrap;gap:8px}
+    .overlap-box{margin-top:10px;padding:10px 12px;border-radius:12px;background:rgba(255,209,102,.08);border:1px solid rgba(255,209,102,.18);font-size:.82rem;color:#ffe4a1;line-height:1.5}
+
+    .map-wrap{position:relative;min-width:0}
+    #map{height:100%;width:100%}
+    .map-floating{
+      position:absolute;top:16px;right:16px;z-index:600;display:flex;flex-direction:column;gap:10px;max-width:min(420px, calc(100vw - 32px));
+    }
+    .float-card{
+      background:rgba(17,26,43,.9);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.08);border-radius:16px;
+      box-shadow:var(--shadow);padding:12px 14px;font-size:.88rem;line-height:1.5
+    }
+    .status-row{display:flex;align-items:center;gap:10px}
+    .dot{width:10px;height:10px;border-radius:50%;background:var(--ok);box-shadow:0 0 12px rgba(101,210,139,.7)}
+    .status-text{font-weight:700}
+    .status-sub{margin-top:4px;color:var(--muted);font-size:.82rem}
+    .map-note{color:#d9e4f6}
+
+    .route-label{
+      background:rgba(17,26,43,.92);color:#fff;border:1px solid rgba(255,255,255,.12);padding:6px 10px;border-radius:999px;
+      font-size:.76rem;font-weight:700;box-shadow:0 6px 14px rgba(0,0,0,.25)
+    }
+    .poi-marker{
+      width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;
+      color:#fff;border:2px solid rgba(255,255,255,.92);box-shadow:0 6px 16px rgba(0,0,0,.28);font-size:.72rem
+    }
+    .base-marker{
+      width:42px;height:42px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-weight:900;
+      color:#fff;border:2px solid rgba(255,255,255,.92);box-shadow:0 10px 22px rgba(0,0,0,.32);font-size:.8rem
+    }
+
+    .leaflet-popup-content-wrapper,.leaflet-popup-tip{background:#10192a;color:var(--text);border:1px solid rgba(255,255,255,.1)}
+    .leaflet-popup-content{margin:14px 16px;line-height:1.55}
+    .leaflet-container{background:#d8e5f2;touch-action:pan-x pan-y pinch-zoom}
+    .leaflet-control-zoom a{background:#111a2b !important;color:#fff !important;border-color:rgba(255,255,255,.1) !important}
+
+    @media (max-width: 980px){
+      body{overflow:auto}
+      .app{grid-template-columns:1fr;grid-template-rows:minmax(340px,48vh) minmax(52vh,1fr);height:auto;min-height:100vh}
+      .sidebar{border-right:0;border-bottom:1px solid rgba(255,255,255,.06)}
+      .days{grid-template-columns:1fr 1fr}
+      .map-floating{top:10px;left:10px;right:10px;max-width:none}
+      .float-card{padding:10px 12px}
+    }
+    @media (max-width: 640px){
+      .days,.controls,.legend,.topbar,.detail-wrap{padding-left:14px;padding-right:14px}
+      .days{grid-template-columns:1fr}
+      .controls-grid{grid-template-columns:1fr}
+      .title-wrap h1{font-size:1.05rem}
+      .title-wrap .sub{font-size:.86rem}
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="topbar">
+        <div class="title-row">
+          <div class="title-wrap">
+            <h1>proha v0.1｜布拉格劇院放射型 10 天步行旅圖</h1>
+            <div class="sub">以 <strong>布拉格國家劇院 Národní divadlo</strong> 為起終點。點選天數可疊加多條路線，同時比對是否重複；每一天都會顯示景點、座標、簡介、步行分段時間與回到劇院的完整圈線。</div>
+          </div>
+          <div class="badge">單一 HTML・手機/電腦皆可用</div>
+        </div>
+      </div>
+
+      <div class="controls">
+        <div class="controls-grid">
+          <button id="clearBtn" class="btn-secondary">清除所有路線</button>
+          <button id="fitBtn" class="btn-secondary">縮放到已選路線</button>
+        </div>
+      </div>
+
+      <div class="legend">
+        <strong>操作方式</strong><br>
+        1. 點天數＝開/關該天路線。<br>
+        2. 可同時打開多天，比對路線是否重疊。<br>
+        3. 每條線會用真實步行路徑服務嘗試計算；若服務繁忙，仍保留景點點位與 Google Maps 步行導航連結。<br>
+        4. 劇院附近極短接續段可能仍有少量重疊，這是同一中心點出發時較難完全避免的區域。
+      </div>
+
+      <div id="days" class="days"></div>
+
+      <div class="detail-wrap" id="detailWrap">
+        <div class="detail-empty">尚未顯示任何一天。請先點選上方任一天數；可一次開多天，檢查不同圈線是否互相覆蓋。</div>
+      </div>
+    </aside>
+
+    <main class="map-wrap">
+      <div id="map"></div>
+      <div class="map-floating">
+        <div class="float-card">
+          <div class="status-row">
+            <span class="dot" id="statusDot"></span>
+            <div>
+              <div class="status-text" id="statusText">待命中</div>
+              <div class="status-sub" id="statusSub">點選任一天數後，會開始抓取該日景點座標與步行線。</div>
+            </div>
+          </div>
+        </div>
+        <div class="float-card map-note">
+          地圖可滑鼠滾輪縮放、拖曳移動；手機/平板支援雙指縮放與拖曳、單指點選景點。
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  <script>
+    const APP_VERSION = 'proha v0.1';
+    const STORAGE_KEY = 'proha_v0.1_state';
+    const COORD_CACHE_KEY = 'proha_v0.1_coord_cache';
+    const BASE_QUERY = 'National Theatre, Národní 2, Prague, Czechia';
+    const THEATRE_COORD = { lat: 50.08114, lng: 14.41395 };
+
+    const COLORS = ['#7c9cff', '#ff8e72', '#64d5a4', '#f4b860', '#b38cff', '#59d0ff', '#ff6fb5', '#8fd655', '#ffa94d', '#48c6ef'];
+
+    const DAY_DATA = [
+      {
+        id: 1,
+        title: '舊城南圈',
+        theme: '最經典的舊城入門日，先熟悉劇院周邊與查理大橋東側的核心街區。',
+        intro: '第 1 天先走最密集的經典區：河岸、老城廣場、天文鐘、哈維爾市集與克萊門特學院。整體距離不長，適合作為抵達後的城市定向日。',
+        plannedKm: '5–7 km',
+        points: [
+          { name: '布拉格國家劇院', query: 'National Theatre, Národní 2, Prague, Czechia', blurb: '10 天行程的共同起終點。' },
+          { name: 'Café Slavia', query: 'Café Slavia, Smetanovo nábřeží, Prague, Czechia', blurb: '劇院對面的老牌咖啡館，適合早晨定點。' },
+          { name: '新舞台 Laterna magika', query: 'The New Stage, Národní, Prague, Czechia', blurb: '國家劇院現代劇場建築群之一。' },
+          { name: '白雪聖母教堂', query: 'Church of Our Lady of the Snows, Jungmannovo náměstí, Prague, Czechia', blurb: '新城通往舊城的重要 Gothic 教堂。' },
+          { name: '哈維爾市集', query: 'Havelské tržiště, Prague, Czechia', blurb: '布拉格老城最經典的市場動線之一。' },
+          { name: '布拉格天文鐘 / 舊市政廳', query: 'Prague Astronomical Clock, Old Town Hall, Prague, Czechia', blurb: '第一次進老城最具代表性的地標。' },
+          { name: '老城廣場', query: 'Old Town Square, Prague, Czechia', blurb: '布拉格城市核心，四周名建築最密集。' },
+          { name: '克萊門特學院', query: 'Klementinum, Prague, Czechia', blurb: '巴洛克建築群，回河岸前的重要節點。' },
+          { name: '史梅塔納河岸', query: 'Smetanovo nábřeží, Prague, Czechia', blurb: '可回看伏爾塔瓦河與查理大橋輪廓。' },
+          { name: '布拉格國家劇院（回程）', query: 'National Theatre, Národní 2, Prague, Czechia', blurb: '完成第一天環線。' }
+        ]
+      },
+      {
+        id: 2,
+        title: '查理大橋與小城東圈',
+        theme: '以查理大橋與小城區為主，單次過橋後繞回劇院。',
+        intro: '這一天把最熱門的查理大橋、小城廣場、列儂牆與康帕島串成一條完整步行圈，回程收在河岸線。',
+        plannedKm: '6–8 km',
+        points: [
+          { name: '布拉格國家劇院', query: BASE_QUERY, blurb: '由劇院前廣場出發。' },
+          { name: '軍團橋', query: 'Most Legií, Prague, Czechia', blurb: '從劇院旁最直覺的跨河入口進小城。' },
+          { name: '康帕公園', query: 'Kampa Park, Prague, Czechia', blurb: '查理大橋南側的島岸步行區。' },
+          { name: '約翰藍儂牆', query: 'Lennon Wall, Prague, Czechia', blurb: '小城最有辨識度的塗鴉牆。' },
+          { name: '小城廣場 / 聖尼古拉教堂', query: 'Malostranské náměstí, Prague, Czechia', blurb: '小城最具代表性的廣場。' },
+          { name: '內魯多瓦街下段', query: 'Nerudova, Prague, Czechia', blurb: '往城堡方向最著名的石板坡道街。' },
+          { name: '查理大橋西塔', query: 'Lesser Town Bridge Tower, Prague, Czechia', blurb: '上橋前的 Gothic 塔門。' },
+          { name: '舊城橋塔', query: 'Old Town Bridge Tower, Prague, Czechia', blurb: '查理大橋東側地標，視角極佳。' },
+          { name: '史梅塔納博物館河岸', query: 'Bedrich Smetana Museum, Prague, Czechia', blurb: '過橋後順河岸回劇院，視野很經典。' },
+          { name: '布拉格國家劇院（回程）', query: BASE_QUERY, blurb: '完成查理大橋圈。' }
+        ]
+      },
+      {
+        id: 3,
+        title: '布拉格城堡與赫拉德恰尼',
+        theme: '從劇院往西北爬升，走到城堡高區，再由舊城堡階梯回河岸。',
+        intro: '第 3 天是王道城堡日，會有明顯爬坡。用不同於第 2 天的方式進入西岸高區，把城堡主體與赫拉德恰尼一次完成。',
+        plannedKm: '8–11 km',
+        points: [
+          { name: '布拉格國家劇院', query: BASE_QUERY, blurb: '由劇院出發前往西岸高地。' },
+          { name: 'Újezd', query: 'Újezd, Prague, Czechia', blurb: '進入小城西側與佩特任山腳的重要轉折點。' },
+          { name: '內魯多瓦街', query: 'Nerudova, Prague, Czechia', blurb: '經典上坡進城堡街道。' },
+          { name: '赫拉德恰尼廣場', query: 'Hradčanské náměstí, Prague, Czechia', blurb: '城堡前最壯觀的廣場視角。' },
+          { name: '布拉格城堡正門', query: 'Prague Castle, Prague, Czechia', blurb: '布拉格最具代表性的王城入口。' },
+          { name: '聖維特主教座堂', query: 'St. Vitus Cathedral, Prague, Czechia', blurb: '城堡核心，也是天際線主角。' },
+          { name: '聖喬治教堂', query: 'St. George Basilica, Prague, Czechia', blurb: '城堡區另一個很有辨識度的老建築。' },
+          { name: '舊城堡階梯觀景點', query: 'Old Castle Stairs, Prague, Czechia', blurb: '由高區下切回城，是經典下坡景線。' },
+          { name: '魯道夫音樂廳', query: 'Rudolfinum, Prague, Czechia', blurb: '回到河岸後接回中心。' },
+          { name: '布拉格國家劇院（回程）', query: BASE_QUERY, blurb: '完成城堡環線。' }
+        ]
+      },
+      {
+        id: 4,
+        title: '猶太區與舊城北圈',
+        theme: '舊城北側密度最高的一圈，主看猶太區與共和廣場周邊。',
+        intro: '把猶太區的重要地標、巴黎大街與火藥塔、共和廣場串起來，形成與老城南圈不同的北側經典環線。',
+        plannedKm: '6–8 km',
+        points: [
+          { name: '布拉格國家劇院', query: BASE_QUERY, blurb: '由劇院往河岸北側走。' },
+          { name: '馬內斯橋東端', query: 'Mánes Bridge, Prague, Czechia', blurb: '切入舊城北側與猶太區的入口。' },
+          { name: '魯道夫音樂廳', query: 'Rudolfinum, Prague, Czechia', blurb: '布拉格新文藝復興式代表建築。' },
+          { name: '舊新猶太會堂', query: 'Old-New Synagogue, Prague, Czechia', blurb: '歐洲現存最古老的猶太會堂之一。' },
+          { name: '猶太市政廳', query: 'Jewish Town Hall, Prague, Czechia', blurb: '和猶太區街廓一起看最有味道。' },
+          { name: '西班牙會堂', query: 'Spanish Synagogue, Prague, Czechia', blurb: '外觀與室內風格都很有辨識度。' },
+          { name: '巴黎大街', query: 'Pařížská, Prague, Czechia', blurb: '舊城最華麗、最筆直的精品街道。' },
+          { name: '火藥塔', query: 'Powder Tower, Prague, Czechia', blurb: '舊城北東端的重要門樓。' },
+          { name: '市民會館', query: 'Municipal House, Prague, Czechia', blurb: '新藝術風格代表建築。' },
+          { name: '布拉格國家劇院（回程）', query: BASE_QUERY, blurb: '完成舊城北圈。' }
+        ]
+      },
+      {
+        id: 5,
+        title: '新城大道與博物館圈',
+        theme: '從國家大道一路拉到瓦茨拉夫廣場、國家博物館與東側城市肌理。',
+        intro: '第 5 天以新城最具代表性的線型空間為主，適合想把購物、百貨、廣場與博物館一次接起來的人。',
+        plannedKm: '7–9 km',
+        points: [
+          { name: '布拉格國家劇院', query: BASE_QUERY, blurb: '由劇院前往新城主軸。' },
+          { name: '國家大道', query: 'Národní třída, Prague, Czechia', blurb: '銜接劇院與市中心最直接的城市走廊。' },
+          { name: '榮格曼廣場', query: 'Jungmannovo náměstí, Prague, Czechia', blurb: '往瓦茨拉夫廣場前的重要轉點。' },
+          { name: '瓦茨拉夫廣場', query: 'Wenceslas Square, Prague, Czechia', blurb: '新城最核心的大道型廣場。' },
+          { name: '國家博物館', query: 'National Museum, Prague, Czechia', blurb: '新城軸線終點的代表性建築。' },
+          { name: '國家歌劇院', query: 'State Opera, Prague, Czechia', blurb: '和博物館區一起看非常順路。' },
+          { name: '耶路撒冷會堂', query: 'Jerusalem Synagogue, Prague, Czechia', blurb: '色彩鮮明，常被忽略但很值得看。' },
+          { name: '盧采爾納拱廊', query: 'Lucerna Passage, Prague, Czechia', blurb: '布拉格內街與拱廊空間的代表。' },
+          { name: '方濟各花園', query: 'Františkánská zahrada, Prague, Czechia', blurb: '從熱鬧廣場切回安靜綠地的收束點。' },
+          { name: '布拉格國家劇院（回程）', query: BASE_QUERY, blurb: '完成新城主軸圈。' }
+        ]
+      },
+      {
+        id: 6,
+        title: '高堡與南岸河景圈',
+        theme: '這天把南岸的代表步行線一次完成，重點是高堡 Vyšehrad。',
+        intro: '如果你想把布拉格更有地勢層次的一面走出來，第 6 天很適合。從跳舞的房子一路下切到高堡，再沿河岸回劇院。',
+        plannedKm: '9–12 km',
+        points: [
+          { name: '布拉格國家劇院', query: BASE_QUERY, blurb: '南向步行線起點。' },
+          { name: '跳舞的房子', query: 'Dancing House, Prague, Czechia', blurb: '新舊布拉格轉折的現代地標。' },
+          { name: '伊拉謝克橋', query: 'Jiráskův most, Prague, Czechia', blurb: '往南岸高堡區的重要連接點。' },
+          { name: '艾瑪烏修道院', query: 'Emmaus Monastery, Prague, Czechia', blurb: '南側新城歷史感很強的節點。' },
+          { name: '納斯盧皮植物園', query: 'Botanical Garden Na Slupi, Prague, Czechia', blurb: '上高堡前的綠色轉場。' },
+          { name: '高堡磚門', query: 'Brick Gate, Vyšehrad, Prague, Czechia', blurb: '正式進入高堡範圍。' },
+          { name: '聖彼得與聖保羅教堂', query: 'Basilica of St Peter and St Paul, Vyšehrad, Prague, Czechia', blurb: '高堡最醒目的教堂建築。' },
+          { name: '高堡公墓', query: 'Vyšehrad Cemetery, Prague, Czechia', blurb: '捷克重要文化人物長眠處。' },
+          { name: '納普拉夫卡河岸', query: 'Náplavka, Rašínovo nábřeží, Prague, Czechia', blurb: '沿河回劇院前最生活化的步行帶。' },
+          { name: '布拉格國家劇院（回程）', query: BASE_QUERY, blurb: '完成南岸高堡圈。' }
+        ]
+      },
+      {
+        id: 7,
+        title: '雷特納高地與北岸視角',
+        theme: '主打俯瞰老城河景的高地步行圈，視野很強。',
+        intro: '第 7 天是攝影感很好的高地線。從河岸北上到雷特納，收集伏爾塔瓦河與橋群的鳥瞰視角，再回到中心。',
+        plannedKm: '8–10 km',
+        points: [
+          { name: '布拉格國家劇院', query: BASE_QUERY, blurb: '由劇院一路沿河向北。' },
+          { name: '魯道夫音樂廳', query: 'Rudolfinum, Prague, Czechia', blurb: '回到北岸前的熟悉節點。' },
+          { name: '契赫橋', query: 'Čech Bridge, Prague, Czechia', blurb: '上切雷特納最順的橋位之一。' },
+          { name: '雷特納節拍器', query: 'Prague Metronome, Prague, Czechia', blurb: '布拉格高地最知名地標之一。' },
+          { name: '哈納夫斯基亭', query: 'Hanavský pavilion, Prague, Czechia', blurb: '經典俯瞰老城河景的位置。' },
+          { name: '雷特納啤酒花園觀景點', query: 'Letná Beer Garden, Prague, Czechia', blurb: '橋群視角相當完整。' },
+          { name: '國家技術博物館', query: 'National Technical Museum, Prague, Czechia', blurb: '北側文化建築群節點。' },
+          { name: '聖艾格尼絲修道院', query: 'Convent of Saint Agnes, Prague, Czechia', blurb: '回城前很有辨識度的歷史建築。' },
+          { name: '革命街', query: 'Revoluční, Prague, Czechia', blurb: '接回市中心的寬街走廊。' },
+          { name: '布拉格國家劇院（回程）', query: BASE_QUERY, blurb: '完成北岸高地圈。' }
+        ]
+      },
+      {
+        id: 8,
+        title: '卡林與維特科夫',
+        theme: '把東北向的卡林街區與 Vítkov 山脊接成完整步行日。',
+        intro: '這一天比前幾天更有「城市生活層次」：老火車站、卡林廣場、拱橋與維特科夫丘陵，能看見觀光核心外的布拉格。',
+        plannedKm: '10–13 km',
+        points: [
+          { name: '布拉格國家劇院', query: BASE_QUERY, blurb: '東北向外擴的一天。' },
+          { name: '市民會館', query: 'Municipal House, Prague, Czechia', blurb: '先切到共和廣場一帶。' },
+          { name: '馬薩里克車站', query: 'Masaryk Railway Station, Prague, Czechia', blurb: '老城外緣的重要交通節點。' },
+          { name: '佛羅倫茨', query: 'Florenc, Prague, Czechia', blurb: '往卡林延伸的轉折點。' },
+          { name: '卡林廣場', query: 'Karlín Square, Prague, Czechia', blurb: '卡林最代表性的城市廣場。' },
+          { name: '卡林聖西里爾與美多德教堂', query: 'Church of Saints Cyril and Methodius, Karlín, Prague, Czechia', blurb: '卡林廣場主體建築。' },
+          { name: '內格雷利高架橋', query: 'Negrelli Viaduct, Prague, Czechia', blurb: '東北側最有辨識度的鐵道高架景觀。' },
+          { name: '維特科夫國家紀念碑', query: 'National Memorial on Vítkov Hill, Prague, Czechia', blurb: '高處看回布拉格中心。' },
+          { name: '中央車站公園', query: 'Vrchlického sady, Prague, Czechia', blurb: '從高地切回中心的收束點。' },
+          { name: '布拉格國家劇院（回程）', query: BASE_QUERY, blurb: '完成卡林—維特科夫圈。' }
+        ]
+      },
+      {
+        id: 9,
+        title: '佩特任山與西岸花園圈',
+        theme: '西岸綠坡、觀景塔、修道院與河邊藝術點的完整散步線。',
+        intro: '如果你想安排較多綠地與視野，第 9 天會很適合。這條線把佩特任山、鏡迷宮、神學院花園與斯特拉霍夫修道院串在一起。',
+        plannedKm: '9–12 km',
+        points: [
+          { name: '布拉格國家劇院', query: BASE_QUERY, blurb: '由劇院西向過河。' },
+          { name: '軍團橋南端', query: 'Most Legií, Prague, Czechia', blurb: '從劇院出發最順的過河方式。' },
+          { name: '金斯基花園', query: 'Kinský Garden, Prague, Czechia', blurb: '先走西岸南側花園進山。' },
+          { name: '佩特任觀景塔', query: 'Petřín Lookout Tower, Prague, Czechia', blurb: '布拉格最經典的制高點之一。' },
+          { name: '鏡迷宮', query: 'Mirror Maze, Prague, Czechia', blurb: '佩特任山上很具代表性的趣味地標。' },
+          { name: '神學院花園觀景點', query: 'Seminary Garden, Prague, Czechia', blurb: '山坡中段視野與果園感兼具。' },
+          { name: '斯特拉霍夫修道院', query: 'Strahov Monastery, Prague, Czechia', blurb: '西岸高地另一個重量級經典點。' },
+          { name: 'Újezd', query: 'Újezd, Prague, Czechia', blurb: '回落到山腳後往河邊收線。' },
+          { name: '康帕博物館河岸', query: 'Museum Kampa, Prague, Czechia', blurb: '以藝術館與河岸步行空間作為收尾。' },
+          { name: '布拉格國家劇院（回程）', query: BASE_QUERY, blurb: '完成西岸花園圈。' }
+        ]
+      },
+      {
+        id: 10,
+        title: '霍列索維采與王家獵苑圈',
+        theme: '把更外圍但仍很標誌性的北側大空間，走成最後一天的長距離環線。',
+        intro: '第 10 天適合把視野拉更開：從河岸北上到霍列索維采市場、展覽區與王家獵苑 Stromovka，屬於「外擴版布拉格」的一天。',
+        plannedKm: '11–14 km',
+        points: [
+          { name: '布拉格國家劇院', query: BASE_QUERY, blurb: '最後一天往更外圍擴張。' },
+          { name: '史提法尼克橋', query: 'Štefánik Bridge, Prague, Czechia', blurb: '從中心快速切到北側。' },
+          { name: '布拉格市場', query: 'Prague Market, Prague, Czechia', blurb: '霍列索維采的代表場域之一。' },
+          { name: '貿易宮 / 現代美術館', query: 'Veletržní Palace, Prague, Czechia', blurb: '大尺度建築與文化場館。' },
+          { name: '斯特羅莫夫卡公園', query: 'Stromovka, Prague, Czechia', blurb: '王家獵苑改建而成的大型公園。' },
+          { name: '布拉格展覽中心', query: 'Výstaviště Praha, Prague, Czechia', blurb: '北側大型展覽設施區。' },
+          { name: '工業宮', query: 'Industrial Palace, Prague, Czechia', blurb: '展覽中心內最具辨識度的建築。' },
+          { name: '布拉格天文館外側', query: 'Planetarium Prague, Prague, Czechia', blurb: '大公園邊緣的地標節點。' },
+          { name: '德佛札克河岸', query: 'Dvořákovo nábřeží, Prague, Czechia', blurb: '回到中心前再看一次北岸河景。' },
+          { name: '布拉格國家劇院（回程）', query: BASE_QUERY, blurb: '完成第 10 天長距離外擴圈。' }
+        ]
+      }
+    ];
+
+    const coordCache = loadJson(COORD_CACHE_KEY, {
+      [BASE_QUERY]: THEATRE_COORD,
+      'National Theatre, Národní 2, Prague, Czechia': THEATRE_COORD
+    });
+
+    const state = {
+      activeDays: new Set(loadJson(STORAGE_KEY, { activeDays: [] }).activeDays || []),
+      focusDay: null,
+      dayLayers: new Map(),
+      dayStats: new Map(),
+      loadingDays: new Set(),
+      mapReady: false,
+    };
+
+    const map = L.map('map', {
+      zoomControl: true,
+      attributionControl: true,
+      preferCanvas: true,
+      minZoom: 12,
+      maxZoom: 19,
+      zoomSnap: 0.5,
+    }).setView([THEATRE_COORD.lat, THEATRE_COORD.lng], 14);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+    L.control.scale({ imperial:false }).addTo(map);
+    state.mapReady = true;
+
+    const dayButtonsEl = document.getElementById('days');
+    const detailWrap = document.getElementById('detailWrap');
+    const clearBtn = document.getElementById('clearBtn');
+    const fitBtn = document.getElementById('fitBtn');
+    const statusText = document.getElementById('statusText');
+    const statusSub = document.getElementById('statusSub');
+    const statusDot = document.getElementById('statusDot');
+
+    function loadJson(key, fallback){
+      try {
+        const raw = localStorage.getItem(key);
+        return raw ? JSON.parse(raw) : fallback;
+      } catch {
+        return fallback;
+      }
+    }
+    function saveJson(key, value){
+      try { localStorage.setItem(key, JSON.stringify(value)); } catch {}
+    }
+    function setStatus(text, sub, mode='ok'){
+      statusText.textContent = text;
+      statusSub.textContent = sub;
+      const colors = { ok:'#65d28b', loading:'#ffd166', warn:'#ff9f68', error:'#ff7a7a' };
+      statusDot.style.background = colors[mode] || colors.ok;
+      statusDot.style.boxShadow = `0 0 12px ${colors[mode] || colors.ok}`;
+    }
+
+    function createDayButtons(){
+      dayButtonsEl.innerHTML = '';
+      DAY_DATA.forEach(day => {
+        const btn = document.createElement('button');
+        btn.className = 'day-btn' + (state.activeDays.has(day.id) ? ' active' : '');
+        btn.innerHTML = `
+          <div>
+            <div class="num">Day ${day.id}</div>
+            <div class="label">${day.title}</div>
+          </div>
+          <div class="meta">${day.plannedKm}・${day.points.length} 點</div>
+        `;
+        btn.addEventListener('click', () => toggleDay(day.id));
+        dayButtonsEl.appendChild(btn);
+      });
+    }
+
+    async function toggleDay(dayId){
+      if (state.activeDays.has(dayId)) {
+        deactivateDay(dayId);
+      } else {
+        state.activeDays.add(dayId);
+        state.focusDay = dayId;
+        createDayButtons();
+        persistState();
+        renderDetails();
+        await ensureDayLayer(dayId);
+      }
+      renderDetails();
+    }
+
+    function deactivateDay(dayId){
+      state.activeDays.delete(dayId);
+      if (state.dayLayers.has(dayId)) {
+        map.removeLayer(state.dayLayers.get(dayId));
+      }
+      if (state.focusDay === dayId) {
+        state.focusDay = [...state.activeDays].slice(-1)[0] || null;
+      }
+      createDayButtons();
+      persistState();
+      renderDetails();
+      if (!state.activeDays.size) {
+        setStatus('待命中', '點選任一天數後，會開始抓取該日景點座標與步行線。', 'ok');
+      }
+    }
+
+    function persistState(){
+      saveJson(STORAGE_KEY, { activeDays:[...state.activeDays], focusDay:state.focusDay, version:APP_VERSION });
+      saveJson(COORD_CACHE_KEY, coordCache);
+    }
+
+    async function ensureDayLayer(dayId){
+      const day = DAY_DATA.find(d => d.id === dayId);
+      if (!day) return;
+      if (state.dayLayers.has(dayId)) {
+        state.dayLayers.get(dayId).addTo(map);
+        return;
+      }
+      if (state.loadingDays.has(dayId)) return;
+      state.loadingDays.add(dayId);
+      setStatus(`載入 Day ${day.id}：${day.title}`, '正在定位景點與計算步行路徑… 第一次載入會比較久。', 'loading');
+      try {
+        const resolvedPoints = await resolveDayPoints(day);
+        const layer = L.layerGroup();
+        const routeResult = await buildRoute(day, resolvedPoints, layer);
+        state.dayLayers.set(dayId, layer);
+        state.dayStats.set(dayId, {
+          resolvedPoints,
+          ...routeResult,
+          googleUrl: createGoogleMapsUrl(resolvedPoints),
+        });
+        if (state.activeDays.has(dayId)) layer.addTo(map);
+        setStatus(`Day ${day.id} 已完成`, '你可以繼續疊加其他天數，比對是否有路線重疊。', 'ok');
+      } catch (err) {
+        console.error(err);
+        setStatus(`Day ${day.id} 載入未完整`, '已保留可用點位；部分景點或步行線可能需重新整理後再試。', 'warn');
+      } finally {
+        state.loadingDays.delete(dayId);
+        renderDetails();
+      }
+    }
+
+    async function resolveDayPoints(day){
+      const resolved = [];
+      for (let i = 0; i < day.points.length; i++) {
+        const point = day.points[i];
+        const geo = await resolvePoint(point.query, point.name);
+        resolved.push({
+          ...point,
+          lat: geo?.lat ?? null,
+          lng: geo?.lng ?? null,
+          ok: !!geo,
+          idx: i + 1,
+        });
+      }
+      return resolved;
+    }
+
+    async function resolvePoint(query, fallbackName){
+      if (coordCache[query]) return coordCache[query];
+      const url = new URL('https://nominatim.openstreetmap.org/search');
+      url.searchParams.set('format', 'jsonv2');
+      url.searchParams.set('limit', '1');
+      url.searchParams.set('countrycodes', 'cz');
+      url.searchParams.set('accept-language', 'zh-TW,en');
+      url.searchParams.set('q', query);
+      try {
+        const res = await fetch(url.toString(), {
+          headers: { 'Accept': 'application/json' },
+          cache: 'force-cache'
+        });
+        if (!res.ok) throw new Error('Geocode HTTP ' + res.status);
+        const data = await res.json();
+        if (!data || !data.length) throw new Error('No geocode result for ' + fallbackName);
+        const item = data[0];
+        const geo = { lat: Number(item.lat), lng: Number(item.lon) };
+        coordCache[query] = geo;
+        persistState();
+        await sleep(350);
+        return geo;
+      } catch (e) {
+        console.warn('Geocode failed:', query, e);
+        return null;
+      }
+    }
+
+    function createRouteMarker(dayId, idx, latlng, color, isBase){
+      const html = isBase
+        ? `<div class="base-marker" style="background:${color}">起終</div>`
+        : `<div class="poi-marker" style="background:${color}">${dayId}-${idx}</div>`;
+      return L.marker(latlng, {
+        icon: L.divIcon({ className:'', html, iconSize: isBase ? [42,42] : [34,34], iconAnchor: isBase ? [21,21] : [17,17] })
+      });
+    }
+
+    async function buildRoute(day, points, layer){
+      const usable = points.filter(p => p.ok);
+      const color = COLORS[(day.id - 1) % COLORS.length];
+      const labelLatLng = usable[0]?.lat && usable[0]?.lng ? [usable[0].lat, usable[0].lng] : [THEATRE_COORD.lat, THEATRE_COORD.lng];
+
+      let routeGeo = null;
+      let legs = [];
+      let totalDistance = 0;
+      let totalDuration = 0;
+      let usedRoutingService = false;
+
+      if (usable.length >= 2) {
+        try {
+          const coords = usable.map(p => `${p.lng},${p.lat}`).join(';');
+          const routeUrl = `https://routing.openstreetmap.de/routed-foot/route/v1/driving/${coords}?overview=full&geometries=geojson&steps=true&annotations=distance,duration`;
+          const res = await fetch(routeUrl, { headers: { 'Accept': 'application/json' } });
+          if (!res.ok) throw new Error('Routing HTTP ' + res.status);
+          const data = await res.json();
+          const route = data.routes && data.routes[0];
+          if (!route || !route.geometry || !route.geometry.coordinates?.length) throw new Error('No route geometry');
+          routeGeo = route.geometry.coordinates.map(([lng, lat]) => [lat, lng]);
+          legs = route.legs || [];
+          totalDistance = route.distance || 0;
+          totalDuration = route.duration || 0;
+          usedRoutingService = true;
+        } catch (e) {
+          console.warn('Walking route service failed, fallback to straight lines:', e);
+        }
+      }
+
+      if (!routeGeo) {
+        routeGeo = usable.map(p => [p.lat, p.lng]);
+        totalDistance = roughDistanceKm(routeGeo) * 1000;
+        totalDuration = (roughDistanceKm(routeGeo) / 4.5) * 3600;
+        legs = usable.slice(1).map((p, i) => {
+          const km = haversine(usable[i].lat, usable[i].lng, p.lat, p.lng);
+          return { distance: km * 1000, duration: (km / 4.5) * 3600 };
+        });
+      }
+
+      const polyline = L.polyline(routeGeo, {
+        color,
+        weight: 6,
+        opacity: 0.88,
+        lineCap: 'round',
+        lineJoin: 'round'
+      }).bindPopup(`
+        <strong>Day ${day.id}｜${day.title}</strong><br>
+        總距離：約 ${formatKm(totalDistance)}<br>
+        總步行：約 ${formatDuration(totalDuration)}<br>
+        方式：${usedRoutingService ? '即時步行路線' : '備援折線 / 估算步行時間'}
+      `);
+      polyline.addTo(layer);
+
+      const labelMarker = L.marker(labelLatLng, {
+        icon: L.divIcon({ className:'', html:`<div class="route-label">Day ${day.id}・${day.title}</div>`, iconSize:[120,32], iconAnchor:[0,0] })
+      });
+      labelMarker.addTo(layer);
+
+      let usableIndex = 0;
+      points.forEach((point, allIndex) => {
+        if (!point.ok) return;
+        const isBase = allIndex === 0 || allIndex === points.length - 1;
+        const marker = createRouteMarker(day.id, allIndex + 1, [point.lat, point.lng], color, isBase);
+        const leg = usableIndex > 0 ? legs[usableIndex - 1] : null;
+        marker.bindPopup(`
+          <strong>Day ${day.id}-${allIndex + 1}｜${escapeHtml(point.name)}</strong><br>
+          ${escapeHtml(point.blurb)}<br>
+          座標：${point.lat.toFixed(5)}, ${point.lng.toFixed(5)}<br>
+          ${leg ? `上一段步行：約 ${formatKm(leg.distance)}・${formatDuration(leg.duration)}<br>` : ''}
+          查詢字串：${escapeHtml(point.query)}
+        `);
+        marker.addTo(layer);
+        usableIndex += 1;
+      });
+
+      return {
+        totalDistance,
+        totalDuration,
+        points,
+        legs,
+        usedRoutingService,
+      };
+    }
+
+    function createGoogleMapsUrl(points){
+      const usable = points.filter(p => p.ok);
+      if (usable.length < 2) return null;
+      const origin = `${usable[0].lat},${usable[0].lng}`;
+      const destination = `${usable[usable.length - 1].lat},${usable[usable.length - 1].lng}`;
+      const waypoints = usable.slice(1, -1).map(p => `${p.lat},${p.lng}`).join('|');
+      const url = new URL('https://www.google.com/maps/dir/');
+      url.searchParams.set('api', '1');
+      url.searchParams.set('origin', origin);
+      url.searchParams.set('destination', destination);
+      url.searchParams.set('travelmode', 'walking');
+      if (waypoints) url.searchParams.set('waypoints', waypoints);
+      return url.toString();
+    }
+
+    function formatDuration(sec){
+      const mins = Math.round(sec / 60);
+      const h = Math.floor(mins / 60);
+      const m = mins % 60;
+      if (h && m) return `${h} 小時 ${m} 分`;
+      if (h) return `${h} 小時`;
+      return `${m} 分`;
+    }
+    function formatKm(meters){ return `${(meters / 1000).toFixed(1)} km`; }
+    function roughDistanceKm(latlngs){
+      let sum = 0;
+      for (let i = 1; i < latlngs.length; i++) {
+        sum += haversine(latlngs[i-1][0], latlngs[i-1][1], latlngs[i][0], latlngs[i][1]);
+      }
+      return sum;
+    }
+    function haversine(lat1, lon1, lat2, lon2){
+      const R = 6371;
+      const toRad = d => d * Math.PI / 180;
+      const dLat = toRad(lat2 - lat1);
+      const dLon = toRad(lon2 - lon1);
+      const a = Math.sin(dLat/2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon/2) ** 2;
+      return 2 * R * Math.asin(Math.sqrt(a));
+    }
+    function escapeHtml(str){
+      return String(str)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+    }
+    function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
+
+    function renderDetails(){
+      const activeIds = [...state.activeDays].sort((a,b) => a - b);
+      if (!activeIds.length) {
+        detailWrap.innerHTML = '<div class="detail-empty">尚未顯示任何一天。請先點選上方任一天數；可一次開多天，檢查不同圈線是否互相覆蓋。</div>';
+        return;
+      }
+
+      const overlaps = computeOverlaps(activeIds);
+      const cards = activeIds.map(id => {
+        const day = DAY_DATA.find(d => d.id === id);
+        const stats = state.dayStats.get(id);
+        const color = COLORS[(id - 1) % COLORS.length];
+        const points = stats?.points || day.points.map((p, i) => ({ ...p, idx:i+1, ok:false }));
+        const legs = stats?.legs || [];
+        let usableCounter = 0;
+        const listHtml = points.map((p, idx) => {
+          let legHtml = '';
+          if (p.ok && usableCounter > 0) {
+            const leg = legs[usableCounter - 1];
+            if (leg) legHtml = `<span>上一段：約 ${formatKm(leg.distance)}・${formatDuration(leg.duration)}</span>`;
+          }
+          if (p.ok) usableCounter += 1;
+          return `
+            <div class="poi-item">
+              <div class="poi-top">
+                <div class="poi-name">${idx + 1}. ${escapeHtml(p.name)}</div>
+                <div class="poi-code">Day ${id}-${idx + 1}</div>
+              </div>
+              <div class="poi-desc">${escapeHtml(p.blurb)}</div>
+              <div class="poi-meta">
+                ${p.ok ? `<span>座標 ${p.lat.toFixed(5)}, ${p.lng.toFixed(5)}</span>` : '<span>座標載入中 / 暫未取得</span>'}
+                ${legHtml}
+              </div>
+            </div>
+          `;
+        }).join('');
+
+        const overlapList = overlaps.get(id);
+        const overlapHtml = overlapList?.length
+          ? `<div class="overlap-box"><strong>和其他已開路線重複的景點名：</strong>${overlapList.join('、')}</div>`
+          : '';
+
+        return `
+          <section class="day-card">
+            <h3><span class="swatch" style="background:${color}"></span>Day ${id}｜${escapeHtml(day.title)}</h3>
+            <div class="theme">${escapeHtml(day.theme)}</div>
+            <p class="intro">${escapeHtml(day.intro)}</p>
+            <div class="stats">
+              <span class="stat">規劃距離 ${day.plannedKm}</span>
+              <span class="stat">${day.points.length} 個節點</span>
+              <span class="stat">${stats ? `總步行 ${formatKm(stats.totalDistance)}・${formatDuration(stats.totalDuration)}` : '路線計算中'}</span>
+              <span class="stat">${stats ? (stats.usedRoutingService ? '即時步行路線' : '備援折線估算') : '等待服務回應'}</span>
+            </div>
+            <div class="mini-actions">
+              ${stats?.googleUrl ? `<a href="${stats.googleUrl}" target="_blank" rel="noopener">在 Google Maps 開啟步行導航</a>` : ''}
+              <button type="button" onclick="window.prohaFitDay(${id})">縮放到這一天</button>
+              <button type="button" onclick="window.prohaToggle(${id})">${state.activeDays.has(id) ? '隱藏這一天' : '顯示這一天'}</button>
+            </div>
+            <div class="poi-list">${listHtml}</div>
+            ${overlapHtml}
+          </section>
+        `;
+      }).join('');
+      detailWrap.innerHTML = cards;
+    }
+
+    function computeOverlaps(activeIds){
+      const pointOwners = new Map();
+      activeIds.forEach(id => {
+        const day = DAY_DATA.find(d => d.id === id);
+        day.points.forEach((p, idx) => {
+          if (idx === 0 || idx === day.points.length - 1) return;
+          const key = p.name.trim();
+          if (!pointOwners.has(key)) pointOwners.set(key, []);
+          pointOwners.get(key).push(id);
+        });
+      });
+      const overlapsByDay = new Map(activeIds.map(id => [id, []]));
+      pointOwners.forEach((owners, pointName) => {
+        if (owners.length > 1) {
+          owners.forEach(id => overlapsByDay.get(id).push(pointName));
+        }
+      });
+      return overlapsByDay;
+    }
+
+    function fitVisibleLayers(){
+      const groups = [...state.activeDays]
+        .map(id => state.dayLayers.get(id))
+        .filter(Boolean);
+      if (!groups.length) {
+        map.setView([THEATRE_COORD.lat, THEATRE_COORD.lng], 14);
+        return;
+      }
+      const master = L.featureGroup(groups);
+      const bounds = master.getBounds();
+      if (bounds.isValid()) map.fitBounds(bounds.pad(0.08));
+    }
+
+    clearBtn.addEventListener('click', () => {
+      [...state.activeDays].forEach(id => deactivateDay(id));
+      renderDetails();
+    });
+    fitBtn.addEventListener('click', fitVisibleLayers);
+
+    window.prohaFitDay = function(dayId){
+      const layer = state.dayLayers.get(dayId);
+      if (!layer) return;
+      const fg = L.featureGroup([layer]);
+      const bounds = fg.getBounds();
+      if (bounds.isValid()) map.fitBounds(bounds.pad(0.12));
+    };
+    window.prohaToggle = function(dayId){ toggleDay(dayId); };
+
+    createDayButtons();
+    renderDetails();
+
+    (async function initActiveDays(){
+      const ids = [...state.activeDays].sort((a,b) => a - b);
+      if (!ids.length) return;
+      for (const id of ids) {
+        await ensureDayLayer(id);
+      }
+      fitVisibleLayers();
+    })();
+  </script>
+</body>
+</html>
