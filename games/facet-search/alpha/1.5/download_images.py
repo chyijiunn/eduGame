@@ -10,6 +10,7 @@ import requests, os
     再開啟 index.html 即可離線使用
 
 這樣可以確保：✔真照片 ✔合法 ✔可離線 ✔不會壞
+搭配 v1.4 的頁面使用
 '''
 API_KEY = "API_key"
 headers = {"Authorization": API_KEY}
