@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>捷克超市食材食譜查找</title>
+<style>
+:root{
+  --bg:#0f172a; --panel:#111827; --card:#1f2937; --line:#334155; --text:#f8fafc; --muted:#cbd5e1;
+  --accent:#22c55e; --accent2:#38bdf8; --chip:#0b1220; --shadow:0 10px 30px rgba(0,0,0,.28);
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif;background:linear-gradient(180deg,#0b1220 0%,#111827 100%);color:var(--text)}
+header{position:sticky;top:0;z-index:20;background:rgba(15,23,42,.92);backdrop-filter:blur(10px);border-bottom:1px solid rgba(255,255,255,.08)}
+.wrap{max-width:980px;margin:0 auto;padding:14px}
+.hero{padding:10px 0 8px}
+h1{margin:0;font-size:1.3rem;line-height:1.25}
+.sub{margin-top:6px;color:var(--muted);font-size:.92rem;line-height:1.45}
+.searchRow{display:grid;grid-template-columns:1fr auto;gap:10px;margin-top:12px}
+.searchBox{display:flex;align-items:center;background:#0b1220;border:1px solid var(--line);border-radius:999px;padding:10px 14px;box-shadow:var(--shadow)}
+.searchBox input{width:100%;background:transparent;border:none;color:var(--text);font-size:1rem;outline:none}
+.btn{border:none;border-radius:999px;padding:10px 14px;background:var(--accent);color:#062d16;font-weight:700}
+.panel{background:rgba(17,24,39,.9);border:1px solid rgba(255,255,255,.08);border-radius:20px;padding:12px;box-shadow:var(--shadow);margin-top:12px}
+.filterTitle{font-size:.88rem;color:var(--muted);margin-bottom:8px}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{padding:8px 12px;border-radius:999px;background:var(--chip);border:1px solid var(--line);color:var(--text);font-size:.9rem;cursor:pointer;user-select:none}
+.chip.active{background:linear-gradient(90deg,var(--accent),var(--accent2));color:#062d16;border-color:transparent;font-weight:800}
+.topStats{display:flex;justify-content:space-between;align-items:center;margin-top:12px;color:var(--muted);font-size:.92rem;gap:12px;flex-wrap:wrap}
+.grid{display:grid;grid-template-columns:1fr;gap:12px;margin:14px 0 24px}
+.card{background:rgba(31,41,55,.95);border:1px solid rgba(255,255,255,.08);border-radius:22px;overflow:hidden;box-shadow:var(--shadow);display:flex;flex-direction:column}
+.thumb{aspect-ratio:16/10;background:#0b1220;overflow:hidden}
+.thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.body{padding:14px}
+.title{font-size:1.08rem;font-weight:800;line-height:1.35}
+.cz{color:#93c5fd;font-size:.92rem;margin-top:4px}
+.meta{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.badge{font-size:.78rem;padding:6px 9px;border-radius:999px;background:#0b1220;border:1px solid var(--line);color:#dbeafe}
+.summary{margin-top:10px;color:var(--muted);line-height:1.55;font-size:.93rem}
+.tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.tag{font-size:.75rem;padding:5px 8px;border-radius:999px;background:#172033;color:#a7f3d0;border:1px solid #24435c}
+.actions{display:flex;gap:8px;margin-top:12px}
+.secondary{flex:1;border:1px solid var(--line);background:#0b1220;color:var(--text);border-radius:12px;padding:10px 12px;font-weight:700}
+.primary{flex:1;border:none;background:linear-gradient(90deg,var(--accent),var(--accent2));color:#062d16;border-radius:12px;padding:10px 12px;font-weight:900}
+.modal{position:fixed;inset:0;background:rgba(2,6,23,.78);display:none;align-items:flex-end;justify-content:center;z-index:99}
+.modal.open{display:flex}
+.sheet{width:100%;max-width:860px;max-height:92vh;background:#0f172a;border-radius:24px 24px 0 0;overflow:auto;border-top:1px solid rgba(255,255,255,.08)}
+.sheetHeader{position:sticky;top:0;background:rgba(15,23,42,.94);backdrop-filter:blur(10px);padding:12px;border-bottom:1px solid rgba(255,255,255,.08);display:flex;justify-content:space-between;align-items:center}
+.closeBtn{width:40px;height:40px;border-radius:999px;border:1px solid var(--line);background:#0b1220;color:#fff;font-size:1.1rem}
+.sheetBody{padding:14px}
+.sheetHero{border-radius:18px;overflow:hidden;border:1px solid rgba(255,255,255,.08)}
+.sheetHero img{width:100%;aspect-ratio:16/10;object-fit:cover;display:block}
+.infoGrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
+.info{background:#111827;border:1px solid var(--line);border-radius:16px;padding:12px}
+.info small{display:block;color:var(--muted);margin-bottom:4px}
+.ing,.steps{background:#111827;border:1px solid var(--line);border-radius:16px;padding:14px;margin-top:12px}
+.ing ul,.steps ol{margin:0;padding-left:18px;line-height:1.8}
+.footerNote{color:var(--muted);font-size:.86rem;line-height:1.5;padding:0 0 18px}
+@media (min-width:720px){
+  .grid{grid-template-columns:1fr 1fr}
+  .sheet{border-radius:28px;max-height:90vh;align-self:center}
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <div class="hero">
+      <h1>捷克超市食材食譜查找</h1>
+      <div class="sub">以捷克常見超市可買到的食材為主，做成手機優先的分面搜尋介面。先選食材類別，再用餐別、作法、時間去縮小範圍，點進去就能看完整做法與示意照片。</div>
+      <div class="searchRow">
+        <div class="searchBox"><input id="searchInput" placeholder="搜尋料理、食材、捷克菜名，例如：蘑菇、早餐、pasta、雞胸肉"></div>
+        <button class="btn" id="clearAll">清除</button>
+      </div>
+    </div>
+  </div>
+</header>
+<main class="wrap">
+  <section class="panel">
+    <div class="filterTitle">餐別</div>
+    <div class="chips" id="mealChips"></div>
+    <div class="filterTitle" style="margin-top:12px">可買到的食材類別</div>
+    <div class="chips" id="facetChips"></div>
+    <div class="filterTitle" style="margin-top:12px">料理方式</div>
+    <div class="chips" id="methodChips"></div>
+    <div class="filterTitle" style="margin-top:12px">所需時間</div>
+    <div class="chips" id="timeChips"></div>
+    <div class="topStats"><span id="stats"></span><span>共 30 道，含早餐 / 午餐 / 晚餐</span></div>
+  </section>
+  <section class="grid" id="recipeGrid"></section>
+  <div class="footerNote">註：照片為料理示意圖，實際擺盤可依你在住宿處有沒有烤箱、平底鍋、鍋子來調整。</div>
+</main>
+<div class="modal" id="modal">
+  <div class="sheet">
+    <div class="sheetHeader">
+      <strong id="mTitle">料理</strong>
+      <button class="closeBtn" id="closeModal">✕</button>
+    </div>
+    <div class="sheetBody" id="modalBody"></div>
+  </div>
+</div>
+<script>
+const RECIPES = [{"id": "r01", "name": "蘑菇起司炒蛋吐司", "cz": "Míchaná vejce s houbami a sýrem na toastu", "meal": "早餐", "time": "15分鐘", "method": "平底鍋", "difficulty": "簡單", "ingredients": ["雞蛋", "蘑菇", "起司", "吐司", "奶油", "黑胡椒"], "facets": ["蛋奶", "蔬菜", "麵包", "快手"], "photo": "https://source.unsplash.com/800x600/?scrambled%20eggs%20toast%20mushroom", "summary": "捷克超市很容易買到雞蛋、蘑菇、起司與吐司，早上做這道最快。", "steps": ["蘑菇切片，吐司先烤或乾煎。", "平底鍋放奶油，下蘑菇炒到出香氣。", "打散雞蛋，倒入鍋中輕輕拌炒。", "加入起司絲與黑胡椒，半熟時關火。", "鋪在吐司上即可。"]}, {"id": "r02", "name": "優格莓果燕麥杯", "cz": "Jogurt s ovocem a ovesnými vločkami", "meal": "早餐", "time": "10分鐘", "method": "免開火", "difficulty": "簡單", "ingredients": ["優格", "燕麥片", "莓果", "香蕉", "蜂蜜"], "facets": ["蛋奶", "水果", "免開火", "快手"], "photo": "https://source.unsplash.com/800x600/?yogurt%20berries%20granola", "summary": "不用開火，適合旅途中很趕的早晨。", "steps": ["杯中先放優格。", "依序加入燕麥片、莓果與香蕉片。", "淋上少量蜂蜜。", "靜置3分鐘後食用，口感更融合。"]}, {"id": "r03", "name": "火腿起司可頌", "cz": "Croissant se šunkou a sýrem", "meal": "早餐", "time": "8分鐘", "method": "免開火", "difficulty": "簡單", "ingredients": ["可頌", "火腿", "起司", "番茄", "生菜"], "facets": ["麵包", "肉類", "蛋奶", "免開火", "快手"], "photo": "https://source.unsplash.com/800x600/?ham%20cheese%20croissant", "summary": "直接用超市烘焙區的可頌組裝，幾分鐘就能吃。", "steps": ["可頌橫切開。", "夾入火腿、起司、番茄與生菜。", "想吃熱的可平底鍋小火乾煎1分鐘。"]}, {"id": "r04", "name": "蘋果肉桂燕麥粥", "cz": "Ovesná kaše s jablkem a skořicí", "meal": "早餐", "time": "12分鐘", "method": "鍋煮", "difficulty": "簡單", "ingredients": ["燕麥片", "牛奶", "蘋果", "肉桂", "蜂蜜"], "facets": ["蛋奶", "水果", "一鍋到底", "快手"], "photo": "https://source.unsplash.com/800x600/?apple%20cinnamon%20oatmeal", "summary": "捷克超市很常見蘋果、牛奶與燕麥片，便宜又有飽足感。", "steps": ["牛奶加熱後放入燕麥片。", "小火煮到濃稠。", "加入切丁蘋果與肉桂再煮1-2分鐘。", "起鍋後淋蜂蜜。"]}, {"id": "r05", "name": "馬鈴薯蛋餅鍋", "cz": "Bramborová pánev s vejci", "meal": "早餐", "time": "20分鐘", "method": "平底鍋", "difficulty": "簡單", "ingredients": ["馬鈴薯", "雞蛋", "洋蔥", "奶油", "鹽"], "facets": ["蛋奶", "根莖", "一鍋到底"], "photo": "https://source.unsplash.com/800x600/?potato%20egg%20skillet", "summary": "像簡化版歐洲家常早餐，份量扎實。", "steps": ["馬鈴薯切小丁，洋蔥切碎。", "鍋中放奶油，下馬鈴薯煎到表面金黃。", "加入洋蔥炒香。", "倒入蛋液，小火悶到凝固。"]}, {"id": "r06", "name": "香蕉花生醬吐司", "cz": "Toast s banánem a arašídovým máslem", "meal": "早餐", "time": "5分鐘", "method": "免開火", "difficulty": "簡單", "ingredients": ["吐司", "香蕉", "花生醬", "肉桂"], "facets": ["麵包", "水果", "免開火", "快手"], "photo": "https://source.unsplash.com/800x600/?banana%20peanut%20butter%20toast", "summary": "超市常見吐司、香蕉、抹醬，最省時的早餐之一。", "steps": ["吐司抹上花生醬。", "鋪上香蕉片。", "撒少量肉桂即可。"]}, {"id": "r07", "name": "奶油蘑菇義大利麵", "cz": "Těstoviny s houbami na smetaně", "meal": "午餐", "time": "20分鐘", "method": "一鍋到底", "difficulty": "簡單", "ingredients": ["義大利麵", "蘑菇", "鮮奶油", "大蒜", "起司", "黑胡椒"], "facets": ["麵食", "蛋奶", "蔬菜", "一鍋到底"], "photo": "https://source.unsplash.com/800x600/?creamy%20mushroom%20pasta", "summary": "蘑菇、鮮奶油、起司在捷克超市都很好買，濃郁但不複雜。", "steps": ["先煮義大利麵。", "另鍋炒香大蒜與蘑菇。", "加入鮮奶油與少量煮麵水。", "拌入麵與起司，撒黑胡椒。"]}, {"id": "r08", "name": "香腸番茄筆管麵", "cz": "Penne s klobásou a rajčaty", "meal": "午餐", "time": "25分鐘", "method": "一鍋到底", "difficulty": "簡單", "ingredients": ["筆管麵", "香腸", "罐頭番茄", "洋蔥", "蒜頭"], "facets": ["麵食", "肉類", "一鍋到底"], "photo": "https://source.unsplash.com/800x600/?sausage%20tomato%20pasta", "summary": "香腸是捷克非常常見的食材，做成番茄麵很穩。", "steps": ["筆管麵煮熟備用。", "洋蔥與蒜頭炒香。", "加入香腸片煎上色。", "加入罐頭番茄煮成醬。", "拌入麵即可。"]}, {"id": "r09", "name": "雞胸蔬菜炒飯", "cz": "Kuřecí smažená rýže se zeleninou", "meal": "午餐", "time": "25分鐘", "method": "平底鍋", "difficulty": "簡單", "ingredients": ["白飯", "雞胸肉", "冷凍綜合蔬菜", "雞蛋", "醬油"], "facets": ["米飯", "肉類", "蛋奶", "快手"], "photo": "https://source.unsplash.com/800x600/?chicken%20fried%20rice", "summary": "適合利用前一天剩飯，捷克超市常有冷凍蔬菜可直接用。", "steps": ["雞胸切丁炒熟。", "推到鍋邊，炒散蛋液。", "加入白飯與冷凍蔬菜。", "用少量醬油調味炒勻。"]}, {"id": "r10", "name": "馬鈴薯洋蔥香腸煎鍋", "cz": "Brambory s cibulí a klobásou na pánvi", "meal": "午餐", "time": "25分鐘", "method": "平底鍋", "difficulty": "簡單", "ingredients": ["馬鈴薯", "洋蔥", "香腸", "奶油", "芥末"], "facets": ["根莖", "肉類", "一鍋到底"], "photo": "https://source.unsplash.com/800x600/?potato%20sausage%20skillet", "summary": "很有中歐感的組合，當午餐或早午餐都很合適。", "steps": ["馬鈴薯切片先煎到微焦。", "加入洋蔥炒軟。", "加入香腸片煎香。", "上桌可配少量芥末。"]}, {"id": "r11", "name": "開放式鮪魚麵包", "cz": "Otevřený chléb s tuňákem", "meal": "午餐", "time": "10分鐘", "method": "免開火", "difficulty": "簡單", "ingredients": ["黑麥麵包", "鮪魚罐頭", "優格或美乃滋", "小黃瓜", "檸檬"], "facets": ["麵包", "罐頭", "免開火", "快手"], "photo": "https://source.unsplash.com/800x600/?tuna%20sandwich%20open%20face", "summary": "不開火也能完成，適合外出前快速吃。", "steps": ["鮪魚瀝乾後拌入優格或美乃滋。", "加少量檸檬汁。", "抹在黑麥麵包上。", "鋪小黃瓜片。"]}, {"id": "r12", "name": "奶油雞肉蘑菇飯", "cz": "Kuře s houbami a smetanovou rýží", "meal": "午餐", "time": "30分鐘", "method": "鍋煮", "difficulty": "中等", "ingredients": ["白飯", "雞胸肉", "蘑菇", "鮮奶油", "洋蔥"], "facets": ["米飯", "肉類", "蛋奶"], "photo": "https://source.unsplash.com/800x600/?creamy%20chicken%20mushroom%20rice", "summary": "口味柔和，小孩通常也容易接受。", "steps": ["洋蔥炒香後下雞胸塊。", "加入蘑菇拌炒。", "倒入鮮奶油與少量水。", "煮到收汁後配白飯。"]}, {"id": "r13", "name": "番茄豆子燉湯", "cz": "Rajčatová fazolová polévka", "meal": "午餐", "time": "20分鐘", "method": "一鍋到底", "difficulty": "簡單", "ingredients": ["罐頭番茄", "白豆罐頭", "洋蔥", "大蒜", "高湯塊"], "facets": ["湯品", "蔬菜", "罐頭", "一鍋到底"], "photo": "https://source.unsplash.com/800x600/?tomato%20bean%20soup", "summary": "超市好買又耐放，十天旅程中很實用。", "steps": ["洋蔥與蒜炒香。", "加入罐頭番茄與白豆。", "倒水並加高湯塊。", "小火煮15分鐘。"]}, {"id": "r14", "name": "烤吐司披薩", "cz": "Toastová pizza", "meal": "午餐", "time": "12分鐘", "method": "平底鍋", "difficulty": "簡單", "ingredients": ["吐司", "番茄醬", "起司", "火腿", "甜椒"], "facets": ["麵包", "蛋奶", "肉類", "快手"], "photo": "https://source.unsplash.com/800x600/?toast%20pizza", "summary": "設備很少時超好用，平底鍋或烤箱都可做。", "steps": ["吐司抹番茄醬。", "放火腿、甜椒與起司。", "平底鍋蓋鍋蓋小火加熱到起司融化。"]}, {"id": "r15", "name": "牛肉三明治配酸黃瓜", "cz": "Hovězí sendvič s okurkou", "meal": "午餐", "time": "15分鐘", "method": "免開火", "difficulty": "簡單", "ingredients": ["麵包", "熟牛肉切片", "起司", "酸黃瓜", "芥末"], "facets": ["麵包", "肉類", "免開火"], "photo": "https://source.unsplash.com/800x600/?beef%20sandwich%20pickle", "summary": "利用熟食區或現成肉片，組裝快又有飽足感。", "steps": ["麵包切開。", "抹少量芥末。", "夾入熟牛肉、起司與酸黃瓜。"]}, {"id": "r16", "name": "小黃瓜優格冷麵沙拉", "cz": "Těstovinový salát s okurkou a jogurtem", "meal": "午餐", "time": "18分鐘", "method": "鍋煮", "difficulty": "簡單", "ingredients": ["螺旋麵", "小黃瓜", "優格", "火腿", "黑胡椒"], "facets": ["麵食", "蛋奶", "蔬菜", "快手"], "photo": "https://source.unsplash.com/800x600/?pasta%20salad%20yogurt%20cucumber", "summary": "很適合夏天，做完放冰箱也方便。", "steps": ["麵煮熟放涼。", "小黃瓜切丁，火腿切小片。", "與優格、黑胡椒拌勻即可。"]}, {"id": "r17", "name": "奶油煎豬排", "cz": "Vepřový řízek na másle", "meal": "晚餐", "time": "25分鐘", "method": "平底鍋", "difficulty": "簡單", "ingredients": ["豬排", "奶油", "鹽", "黑胡椒", "檸檬"], "facets": ["肉類", "快手"], "photo": "https://source.unsplash.com/800x600/?pork%20steak%20butter", "summary": "豬肉在捷克超市很常見，簡單煎就好吃。", "steps": ["豬排拍鬆，撒鹽與黑胡椒。", "奶油熱鍋後兩面煎熟。", "起鍋後擠少量檸檬汁。"]}, {"id": "r18", "name": "奶油蘑菇牛排", "cz": "Hovězí steak s houbami na másle", "meal": "晚餐", "time": "25分鐘", "method": "平底鍋", "difficulty": "中等", "ingredients": ["牛排", "蘑菇", "奶油", "蒜頭", "黑胡椒"], "facets": ["肉類", "蔬菜"], "photo": "https://source.unsplash.com/800x600/?steak%20mushroom%20butter", "summary": "買得到不錯的真空牛排時，這道最有儀式感。", "steps": ["牛排回溫並擦乾。", "大火煎兩面至喜歡熟度。", "取出靜置。", "同鍋用奶油炒蘑菇與蒜頭，配牛排上桌。"]}, {"id": "r19", "name": "烤雞腿馬鈴薯盤", "cz": "Pečené kuře s bramborami", "meal": "晚餐", "time": "40分鐘", "method": "烤箱", "difficulty": "簡單", "ingredients": ["雞腿", "馬鈴薯", "洋蔥", "甜椒", "橄欖油"], "facets": ["肉類", "根莖", "烤箱", "一盤料理"], "photo": "https://source.unsplash.com/800x600/?roast%20chicken%20potatoes", "summary": "如果住宿有烤箱，這道最省事，全部一起烤。", "steps": ["雞腿與蔬菜切塊拌油與鹽。", "鋪在烤盤上。", "200°C烤約35分鐘到雞腿熟透。"]}, {"id": "r20", "name": "番茄肉醬義大利麵", "cz": "Špagety s masovou omáčkou", "meal": "晚餐", "time": "30分鐘", "method": "一鍋到底", "difficulty": "簡單", "ingredients": ["義大利麵", "絞肉", "罐頭番茄", "洋蔥", "蒜頭"], "facets": ["麵食", "肉類", "一鍋到底"], "photo": "https://source.unsplash.com/800x600/?spaghetti%20bolognese", "summary": "材料取得容易，十天內做一次很划算。", "steps": ["炒香洋蔥與蒜頭。", "加入絞肉炒散。", "放入罐頭番茄煮成肉醬。", "拌入煮好的義大利麵。"]}, {"id": "r21", "name": "奶油起司燉飯", "cz": "Sýrové rizoto", "meal": "晚餐", "time": "30分鐘", "method": "鍋煮", "difficulty": "中等", "ingredients": ["米", "洋蔥", "高湯塊", "起司", "奶油"], "facets": ["米飯", "蛋奶", "一鍋到底"], "photo": "https://source.unsplash.com/800x600/?cheese%20risotto", "summary": "不用追求正統義式作法，也能做出濃郁版本。", "steps": ["洋蔥炒軟後下生米拌炒。", "分次加入高湯煮到米熟。", "拌入奶油與起司。"]}, {"id": "r22", "name": "高麗菜香腸炒鍋", "cz": "Zelí s klobásou na pánvi", "meal": "晚餐", "time": "20分鐘", "method": "平底鍋", "difficulty": "簡單", "ingredients": ["高麗菜", "香腸", "洋蔥", "芥末"], "facets": ["肉類", "蔬菜", "一鍋到底"], "photo": "https://source.unsplash.com/800x600/?cabbage%20sausage%20skillet", "summary": "捷克常見高麗菜與香腸的家常搭配。", "steps": ["洋蔥與香腸先炒香。", "加入高麗菜絲拌炒到變軟。", "依喜好配芥末。"]}, {"id": "r23", "name": "奶油菠菜雞肉麵", "cz": "Kuřecí těstoviny se špenátem", "meal": "晚餐", "time": "25分鐘", "method": "一鍋到底", "difficulty": "簡單", "ingredients": ["義大利麵", "雞胸肉", "菠菜", "鮮奶油", "蒜頭"], "facets": ["麵食", "肉類", "蔬菜", "蛋奶"], "photo": "https://source.unsplash.com/800x600/?chicken%20spinach%20pasta", "summary": "菠菜在超市冷藏或冷凍區常能找到，做起來很順手。", "steps": ["麵先煮熟。", "雞胸與蒜頭炒香。", "加入菠菜與鮮奶油。", "拌入麵煮1分鐘。"]}, {"id": "r24", "name": "烤鮭魚檸檬馬鈴薯", "cz": "Losos s citronem a bramborami", "meal": "晚餐", "time": "30分鐘", "method": "烤箱", "difficulty": "簡單", "ingredients": ["鮭魚", "馬鈴薯", "檸檬", "奶油", "蒔蘿"], "facets": ["海鮮", "根莖", "烤箱", "一盤料理"], "photo": "https://source.unsplash.com/800x600/?salmon%20potatoes%20lemon", "summary": "若買到冷藏鮭魚排，這道很適合做成稍微正式的晚餐。", "steps": ["馬鈴薯先微波或水煮半熟。", "鮭魚與馬鈴薯一起放烤盤。", "加奶油、檸檬片與蒔蘿。", "200°C烤15-18分鐘。"]}, {"id": "r25", "name": "蘑菇雞湯配麵包", "cz": "Houbová kuřecí polévka s chlebem", "meal": "晚餐", "time": "25分鐘", "method": "一鍋到底", "difficulty": "簡單", "ingredients": ["雞胸肉", "蘑菇", "洋蔥", "高湯塊", "麵包"], "facets": ["湯品", "肉類", "蔬菜", "一鍋到底"], "photo": "https://source.unsplash.com/800x600/?chicken%20mushroom%20soup", "summary": "晚上想吃熱熱的，這道很舒服。", "steps": ["洋蔥炒香。", "加入雞胸丁與蘑菇。", "倒水並放高湯塊。", "煮到雞肉熟透，配麵包。"]}, {"id": "r26", "name": "番茄起司焗烤麵", "cz": "Zapečené těstoviny se sýrem", "meal": "晚餐", "time": "30分鐘", "method": "烤箱", "difficulty": "簡單", "ingredients": ["義大利麵", "番茄醬", "起司", "火腿", "洋蔥"], "facets": ["麵食", "蛋奶", "烤箱"], "photo": "https://source.unsplash.com/800x600/?baked%20pasta%20cheese", "summary": "把剩餘火腿、番茄醬、起司一次消耗很方便。", "steps": ["麵煮八分熟。", "與番茄醬、火腿、洋蔥拌勻。", "放入烤盤鋪起司。", "烤到表面金黃。"]}, {"id": "r27", "name": "豬肉甜椒炒飯", "cz": "Rýže s vepřovým masem a paprikou", "meal": "晚餐", "time": "20分鐘", "method": "平底鍋", "difficulty": "簡單", "ingredients": ["白飯", "豬肉片", "甜椒", "洋蔥", "醬油"], "facets": ["米飯", "肉類", "蔬菜", "快手"], "photo": "https://source.unsplash.com/800x600/?pork%20pepper%20fried%20rice", "summary": "平底鍋一鍋解決，適合疲憊的旅行夜晚。", "steps": ["豬肉片炒熟。", "加入洋蔥與甜椒炒香。", "放入白飯拌炒。", "以少量醬油調味。"]}, {"id": "r28", "name": "馬鈴薯濃湯", "cz": "Bramborová krémová polévka", "meal": "晚餐", "time": "25分鐘", "method": "一鍋到底", "difficulty": "簡單", "ingredients": ["馬鈴薯", "洋蔥", "鮮奶油", "高湯塊", "黑胡椒"], "facets": ["湯品", "根莖", "蛋奶", "一鍋到底"], "photo": "https://source.unsplash.com/800x600/?potato%20soup", "summary": "材料便宜、份量足，很適合十天旅程中的省錢日。", "steps": ["馬鈴薯與洋蔥煮軟。", "加入高湯塊。", "用叉子壓碎或攪拌成較細質地。", "加入鮮奶油與黑胡椒。"]}, {"id": "r29", "name": "起司火腿菠菜歐姆蛋", "cz": "Omeleta se sýrem, šunkou a špenátem", "meal": "晚餐", "time": "15分鐘", "method": "平底鍋", "difficulty": "簡單", "ingredients": ["雞蛋", "火腿", "起司", "菠菜", "奶油"], "facets": ["蛋奶", "肉類", "蔬菜", "快手"], "photo": "https://source.unsplash.com/800x600/?ham%20cheese%20omelette", "summary": "晚餐想吃輕一點時很好用，早餐也適合。", "steps": ["蛋打散。", "菠菜與火腿先略炒。", "倒入蛋液，半凝固時放起司。", "對折煎到熟。"]}, {"id": "r30", "name": "優格雞肉沙拉碗", "cz": "Kuřecí salát s jogurtovým dresinkem", "meal": "晚餐", "time": "18分鐘", "method": "平底鍋", "difficulty": "簡單", "ingredients": ["雞胸肉", "生菜", "小黃瓜", "番茄", "優格", "檸檬"], "facets": ["肉類", "蔬菜", "蛋奶", "清爽"], "photo": "https://source.unsplash.com/800x600/?chicken%20salad%20yogurt", "summary": "需要均衡一點時，這道最適合收尾。", "steps": ["雞胸煎熟切片。", "生菜、小黃瓜、番茄放碗中。", "優格加檸檬汁做醬。", "鋪上雞肉後淋醬。"]}];
+const mealOptions = ["早餐","午餐","晚餐"];
+const facetOptions = ["蛋奶","水果","蔬菜","麵包","麵食","米飯","根莖","肉類","海鮮","湯品","罐頭","烤箱","免開火","一鍋到底","快手","清爽"];
+const methodOptions = ["免開火","平底鍋","鍋煮","一鍋到底","烤箱"];
+const timeOptions = ["10分鐘內","15分鐘內","20分鐘內","30分鐘內","30分鐘以上"];
+const state = {q:"", meals:new Set(), facets:new Set(), methods:new Set(), times:new Set()};
+const grid = document.getElementById("recipeGrid");
+const stats = document.getElementById("stats");
+const searchInput = document.getElementById("searchInput");
+const modal = document.getElementById("modal");
+const modalBody = document.getElementById("modalBody");
+const mTitle = document.getElementById("mTitle");
+
+function makeChips(containerId, items, onClick){
+  const el = document.getElementById(containerId);
+  el.innerHTML = "";
+  items.forEach(item=>{
+    const chip = document.createElement("button");
+    chip.className = "chip";
+    chip.textContent = item;
+    chip.addEventListener("click", ()=>onClick(chip, item));
+    el.appendChild(chip);
+  });
+}
+function toggleChip(setRef, value, chip){
+  if(setRef.has(value)){ setRef.delete(value); chip.classList.remove("active"); }
+  else { setRef.add(value); chip.classList.add("active"); }
+  render();
+}
+makeChips("mealChips", mealOptions, (chip, item)=>toggleChip(state.meals, item, chip));
+makeChips("facetChips", facetOptions, (chip, item)=>toggleChip(state.facets, item, chip));
+makeChips("methodChips", methodOptions, (chip, item)=>toggleChip(state.methods, item, chip));
+makeChips("timeChips", timeOptions, (chip, item)=>toggleChip(state.times, item, chip));
+
+function parseMinutes(str){
+  const n = parseFloat((str || "").replace(/[^\d.]/g, "")) || 0;
+  return n;
+}
+function timeMatch(recipe){
+  if(state.times.size===0) return true;
+  const mins = parseMinutes(recipe.time);
+  for(const t of state.times){
+    if(t==="10分鐘內" && mins <= 10) return true;
+    if(t==="15分鐘內" && mins <= 15) return true;
+    if(t==="20分鐘內" && mins <= 20) return true;
+    if(t==="30分鐘內" && mins <= 30) return true;
+    if(t==="30分鐘以上" && mins > 30) return true;
+  }
+  return false;
+}
+function includesAllSelected(recipe){
+  if(state.meals.size && !state.meals.has(recipe.meal)) return false;
+  if(state.methods.size && !state.methods.has(recipe.method)) return false;
+  if(!timeMatch(recipe)) return false;
+  if(state.facets.size){
+    for(const f of state.facets){
+      if(!(recipe.facets.includes(f) || recipe.ingredients.includes(f))) return false;
+    }
+  }
+  if(state.q){
+    const hay = [recipe.name, recipe.cz, recipe.meal, recipe.method, recipe.time, recipe.summary].concat(recipe.ingredients, recipe.facets).join(" ").toLowerCase();
+    const q = state.q.toLowerCase().trim();
+    if(!hay.includes(q)) return false;
+  }
+  return true;
+}
+function card(recipe){
+  const tags = recipe.facets.map(t=>`<span class="tag">${t}</span>`).join("");
+  const ings = recipe.ingredients.slice(0,5).map(i=>`<span class="badge">${i}</span>`).join("");
+  return `
+  <article class="card">
+    <div class="thumb"><img loading="lazy" src="${recipe.photo}" alt="${recipe.name}"></div>
+    <div class="body">
+      <div class="title">${recipe.name}</div>
+      <div class="cz">${recipe.cz}</div>
+      <div class="meta">
+        <span class="badge">${recipe.meal}</span>
+        <span class="badge">${recipe.method}</span>
+        <span class="badge">${recipe.time}</span>
+        <span class="badge">${recipe.difficulty}</span>
+      </div>
+      <div class="summary">${recipe.summary}</div>
+      <div class="meta">${ings}</div>
+      <div class="tags">${tags}</div>
+      <div class="actions">
+        <button class="secondary" onclick="quickFilter('${recipe.meal}')">看同餐別</button>
+        <button class="primary" onclick="openRecipe('${recipe.id}')">查看食譜</button>
+      </div>
+    </div>
+  </article>`;
+}
+function render(){
+  const filtered = RECIPES.filter(includesAllSelected);
+  stats.textContent = `目前顯示 ${filtered.length} 道料理`;
+  if(filtered.length===0){
+    grid.innerHTML = `<div class="panel"><strong>找不到符合條件的料理。</strong><div class="sub">建議先清掉 1-2 個食材條件，或只留餐別與時間。</div></div>`;
+  } else {
+    grid.innerHTML = filtered.map(card).join("");
+  }
+}
+window.quickFilter = function(meal){
+  state.meals = new Set([meal]);
+  document.querySelectorAll('#mealChips .chip').forEach(ch=>ch.classList.toggle('active', ch.textContent===meal));
+  render();
+}
+window.openRecipe = function(id){
+  const r = RECIPES.find(x=>x.id===id);
+  if(!r) return;
+  mTitle.textContent = r.name;
+  modalBody.innerHTML = `
+    <div class="sheetHero"><img src="${r.photo}" alt="${r.name}"></div>
+    <div class="infoGrid">
+      <div class="info"><small>捷克文名稱</small><strong>${r.cz}</strong></div>
+      <div class="info"><small>餐別 / 時間</small><strong>${r.meal} · ${r.time}</strong></div>
+      <div class="info"><small>料理方式</small><strong>${r.method}</strong></div>
+      <div class="info"><small>難度</small><strong>${r.difficulty}</strong></div>
+    </div>
+    <div class="ing"><strong>需要食材</strong><ul>${r.ingredients.map(i=>`<li>${i}</li>`).join("")}</ul></div>
+    <div class="steps"><strong>詳細作法</strong><ol>${r.steps.map(s=>`<li>${s}</li>`).join("")}</ol></div>
+    <div class="ing"><strong>這道菜的重點</strong><div style="margin-top:8px; color:var(--muted); line-height:1.7">${r.summary}</div></div>
+  `;
+  modal.classList.add("open");
+}
+document.getElementById("closeModal").addEventListener("click", ()=>modal.classList.remove("open"));
+modal.addEventListener("click", (e)=>{ if(e.target===modal) modal.classList.remove("open"); });
+searchInput.addEventListener("input", e=>{ state.q = e.target.value; render(); });
+document.getElementById("clearAll").addEventListener("click", ()=>{
+  state.q = ""; searchInput.value = "";
+  state.meals.clear(); state.facets.clear(); state.methods.clear(); state.times.clear();
+  document.querySelectorAll(".chip").forEach(ch=>ch.classList.remove("active"));
+  render();
+});
+render();
+</script>
+</body>
+</html>
