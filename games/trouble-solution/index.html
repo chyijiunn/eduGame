@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>煩惱引導式決策樹 v0.1</title>
+  <style>
+    :root {
+      --bg: #0b0f14;
+      --panel: #131a22;
+      --panel-2: #18222d;
+      --line: rgba(255,255,255,0.08);
+      --white: #ffffff;
+      --text: #f3f5f7;
+      --muted: #8b93a1;
+      --blue:  #341595;
+      --cause-blue: #7eb0ff;
+      --radius: 22px;
+      --shadow: 0 12px 32px rgba(0,0,0,0.28);
+    }
+
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", sans-serif; }
+    body { min-height: 100vh; }
+    button { font: inherit; color: inherit; border: 0; background: none; }
+    .app { min-height: 100vh; background: linear-gradient(180deg, #0b0f14 0%, #0d131b 100%); }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      height: calc(60px + env(safe-area-inset-top));
+      padding-top: env(safe-area-inset-top);
+      background: var(--blue);
+      color: var(--white);
+      display: flex;
+      align-items: center;
+      padding-left: 12px;
+      padding-right: 12px;
+      box-shadow: 0 10px 24px rgba(17,32,83,0.25);
+    }
+
+    .topbar__ghost,
+    .back-btn {
+      width: 40px;
+      height: 40px;
+      flex: 0 0 40px;
+      border-radius: 12px;
+    }
+
+    .back-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(255,255,255,0.16);
+      color: var(--white);
+      cursor: pointer;
+      font-size: 24px;
+      line-height: 1;
+      transition: transform 0.12s ease, background 0.12s ease;
+    }
+
+    .back-btn:active { transform: scale(0.96); background: rgba(255,255,255,0.26); }
+
+    .topbar__title {
+      flex: 1 1 auto;
+      text-align: center;
+      font-weight: 800;
+      font-size: 18px;
+      letter-spacing: 0.02em;
+      padding: 0 10px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .screen {
+      min-height: calc(100vh - 60px - env(safe-area-inset-top));
+      padding: 18px 16px calc(28px + env(safe-area-inset-bottom));
+      animation: fadeIn 0.18s ease;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .intro {
+      font-size: 14px;
+      color: rgba(255,255,255,0.72);
+      margin: 4px 2px 18px;
+      line-height: 1.6;
+    }
+
+    .hero-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .hero-card,
+    .select-card,
+    .worry-card {
+      width: 100%;
+      text-align: left;
+      border-radius: var(--radius);
+      background: linear-gradient(180deg, var(--panel) 0%, var(--panel-2) 100%);
+      border: 1px solid var(--line);
+      box-shadow: var(--shadow);
+      transition: transform 0.12s ease, border-color 0.12s ease, background 0.12s ease;
+      cursor: pointer;
+    }
+
+    .hero-card:active,
+    .select-card:active,
+    .worry-card:active {
+      transform: scale(0.985);
+      border-color: rgba(126,176,255,0.4);
+      background: linear-gradient(180deg, #18212c 0%, #1a2734 100%);
+    }
+
+    .hero-card {
+      min-height: calc((100vh - 60px - env(safe-area-inset-top) - 78px - env(safe-area-inset-bottom)) / 2);
+      padding: 22px 10px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .hero-char {
+      color: var(--white);
+      font-size: clamp(54px, 18vw, 82px);
+      font-weight: 900;
+      line-height: 1;
+      letter-spacing: 0.06em;
+      margin-left: 0.06em;
+    }
+
+    .hero-sub {
+      color: rgba(255,255,255,0.76);
+      font-size: 12px;
+      line-height: 1.45;
+      text-align: center;
+    }
+
+    .section-title {
+      margin: 6px 2px 14px;
+      font-size: 22px;
+      font-weight: 800;
+      color: var(--white);
+      letter-spacing: 0.01em;
+    }
+
+    .card-grid {
+      display: grid;
+      gap: 12px;
+      grid-template-columns: repeat(var(--cols, 2), minmax(0, 1fr));
+    }
+
+    .select-card {
+      min-height: 116px;
+      padding: 16px 12px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      gap: 8px;
+    }
+
+    .select-card__title {
+      color: var(--white);
+      font-size: clamp(20px, 5.1vw, 28px);
+      font-weight: 800;
+      line-height: 1.2;
+    }
+
+    .select-card__sub {
+      color: rgba(255,255,255,0.66);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .worry-list {
+      display: grid;
+      gap: 12px;
+    }
+
+    .worry-card {
+      padding: 18px 16px;
+    }
+
+    .worry-card__title {
+      color: var(--white);
+      font-size: 18px;
+      line-height: 1.5;
+      font-weight: 700;
+    }
+
+    .detail-screen {
+      min-height: calc(100vh - 60px - env(safe-area-inset-top));
+      padding: 18px 18px calc(92px + env(safe-area-inset-bottom));
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+
+    .detail-worry {
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.7;
+      margin-bottom: 18px;
+      letter-spacing: 0.03em;
+    }
+
+    .detail-solution {
+      color: var(--white);
+      font-size: clamp(28px, 8vw, 36px);
+      line-height: 1.55;
+      font-weight: 800;
+      letter-spacing: 0.01em;
+      white-space: pre-wrap;
+      text-wrap: pretty;
+    }
+
+    .detail-footer {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      padding: 10px 18px calc(16px + env(safe-area-inset-bottom));
+      background: linear-gradient(180deg, rgba(11,15,20,0) 0%, rgba(11,15,20,0.88) 28%, rgba(11,15,20,0.98) 100%);
+      text-align: center;
+      pointer-events: none;
+    }
+
+    .detail-cause {
+      color: var(--cause-blue);
+      font-size: 13px;
+      line-height: 1.5;
+      letter-spacing: 0.08em;
+    }
+
+    @media (max-width: 360px) {
+      .section-title { font-size: 20px; }
+      .select-card { min-height: 102px; }
+      .select-card__title { font-size: 18px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="topbar" id="topbar"></header>
+    <main id="screen"></main>
+  </div>
+
+  <script>
+    const APP = {"求":{"subtitle":"想要、想抓住","emotions":{"欲望":{"cause":"貪","contexts":{"成就表現":["想一夕成名","想把每件事做到完美","想快點成功，不想等待"],"被看見":["總想被看見、被誇獎","想一直證明自己很厲害","害怕作品不爆紅"],"物質體面":["一直想賺更多才安心","對頭銜地位很執著","想一次擁有所有選項"],"效率追逐":["旅行也想全部打卡完","一直追最新資訊怕落後"]}},"執著":{"cause":"貪","contexts":{"關係抓取":["想控制戀人的情緒與選擇","想留住已經變質的關係","對戀愛熱度上癮","把愛變成佔有","期待每段關係都要有回報"],"放不下":["不敢放手舊夢","總想抓住好運","想把過去美好永遠留住"],"安全控制":["想讓別人照自己的意思活","對孩子未來過度安排","不停囤積、不敢丟","對安全感過度索求","想用努力交換絕對結果"]}}}},"怕":{"subtitle":"害怕失去、害怕不夠","emotions":{"焦慮":{"cause":"貪・癡","contexts":{"比較落後":["捨不得休息，怕落後","對孩子成績過度執著"],"時間未來":["想一次做完所有事","連休閒都要有效率","對明天過度盤算","對等待非常暴躁"],"內在緊繃":["把習慣性焦慮當正常"]}},"恐懼":{"cause":"癡","contexts":{"失去改變":["害怕失去年輕與光彩","討厭身體老化","以為痛苦永遠不會過","對死亡只剩恐懼，不敢看","以為年齡決定一切可能","不明白無常，所以拼命抗拒改變"],"未知不安":["以為控制越多越安全","不知道自己到底在逃什麼"],"孤單不被愛":["想讓所有人都喜歡自己"]}},"空虛":{"cause":"貪・癡","contexts":{"求認同":["忍不住刷社群求認同","對稱讚上癮","不懂界限，只會一味討好"],"填補麻痺":["買東西填補空虛","沉迷資訊，卻沒有覺察","用娛樂麻痺空虛"],"內在空洞":["把忙碌當成有價值","把成功等同幸福","逃避獨處","把關係幻想成救贖","以為愛是交換條件"]}}}},"抗":{"subtitle":"抗拒、憤怒、對立","emotions":{"憤怒":{"cause":"瞋","contexts":{"日常摩擦":["容易因插隊而暴怒","對家人碎念很不耐煩","對動作慢的人沒耐心","一塞車就心火上升","對噪音與雜亂非常煩躁"],"衝突防衛":["討厭工作分配不公","對孩子犯錯很暴躁","對拖延的同事很不爽","情緒一來就口出惡言"],"外界不順":["對網路留言容易動怒","看到不公義就氣到睡不著","看不慣別人的生活方式","長期被社會新聞激怒","對無法改變的事也一直生氣"]}},"怨恨":{"cause":"瞋","contexts":{"舊傷舊帳":["怨恨前任傷過自己","愛翻舊帳","受委屈就想報復","對父母的控制長年怨恨","對過去選擇後悔生恨"],"關係失望":["冷戰，不肯先開口"],"長期悶住":["覺得世界都對不起我"]}},"嫉妒":{"cause":"貪・瞋","contexts":{"成就比較":["怕輸給別人","見不得別人成功","總想辯贏","把別人的人生劇本套在自己身上"],"地位比較":["怕房子車子不夠體面"]}},"委屈":{"cause":"瞋・癡","contexts":{"不被理解":["被否定就整個炸開","被誤會就立刻想反擊","覺得伴侶都不懂我","覺得別人應該懂我的辛苦"],"不被重視":["朋友不回訊息就覺得被冒犯","總覺得被忽略"],"壓抑退縮":["一被批評就高度防衛","覺得孩子不聽話就是挑釁"]}}}},"迷":{"subtitle":"看不清、失方向","emotions":{"羞愧":{"cause":"癡","contexts":{"自我否定":["對自己失誤大發脾氣","對自己的外表感到厭惡","對失敗又羞又怒","以為失敗就是沒用"],"脆弱羞恥":["以為脆弱就是弱"],"身分焦慮":["以為別人的看法就是我的價值","把自我形象當成真相"]}},"失落":{"cause":"癡","contexts":{"留不住":["以為放下等於失去"],"得不到":["以為快樂都在未來","以為悟了就不會痛","不知道停下來也是一種智慧"],"被忽略":["以為沉默就是冷漠"]}},"迷惘":{"cause":"癡","contexts":{"自我認同":["不知道自己真正要什麼","把想法當成事實","把情緒當成自己","把孩子當成自己的延伸"],"人生價值":["遇事只會怪命運","一直問人生意義，卻不活當下","以為多想就能解決一切"],"控制錯覺":["以為改變別人，自己才會好過","以為靈性就是逃離現實"],"無常真實":["只看到表面，看不到因緣","忘了此刻已經在生命裡"]}}}}};
+    const SOLUTIONS = {"怕輸給別人":"停止比較，先把今天眼前這一步走穩。","想一夕成名":"別追逐未來幻影，回到此刻真實的行動。","一直想賺更多才安心":"知足不是放棄進步，而是不讓慾望接管人生。","捨不得休息，怕落後":"你不必靠不停奔跑來證明自己的存在。","總想被看見、被誇獎":"少求掌聲，多把心放回自己正在做的事。","忍不住刷社群求認同":"外面的回應再多，也填不滿內在沒被看見的空。","想控制戀人的情緒與選擇":"給對方空間，也是給關係一條活路。","想留住已經變質的關係":"不再緊抓時，你才會看見這段關係真正是什麼。","想把每件事做到完美":"不求完美，只求此刻做到端正。","買東西填補空虛":"先靜靜看見空虛，別急著用物品把它塞滿。","害怕失去年輕與光彩":"接受無常，才能活出每個年齡真正的美。","想讓所有人都喜歡自己":"當你不再扮演誰，心才真正自由。","對孩子成績過度執著":"陪伴孩子走路，比替孩子搶終點更重要。","想一直證明自己很厲害":"真正穩定的價值，不靠反覆證明成立。","對頭銜地位很執著":"身分只是衣服，不是你的本心。","怕房子車子不夠體面":"你不是你擁有的東西，也不是別人眼中的排場。","想快點成功，不想等待":"把根扎穩，比催花開更重要。","想一次做完所有事":"此刻只能完整地活一件事，不能同時活十件事。","對稱讚上癮":"把心收回來，不要把自己交給別人的一句話。","對戀愛熱度上癮":"追逐感受的人會累，安住於愛的人才會深。","不敢放手舊夢":"該放的放，手空了，新的路才進得來。","總想抓住好運":"越想抓住，越看不見當下本來已經有的豐盛。","連休閒都要有效率":"休息不是浪費，而是讓生命重新呼吸。","旅行也想全部打卡完":"經過很多地方，不代表你真的到過任何地方。","想讓別人照自己的意思活":"管得越多，心越亂；放得適度，關係更清。","對孩子未來過度安排":"愛不是替他活，而是陪他成為自己。","害怕作品不爆紅":"先把作品做好，別把心綁在結果上。","一直追最新資訊怕落後":"知道再多，不如真正醒來看清此刻。","想一次擁有所有選項":"真正的自由，不是樣樣都抓，而是知道什麼可以不拿。","不停囤積、不敢丟":"你抓住的每樣東西，也正在反過來抓住你。","對安全感過度索求":"安定先從日常秩序開始，不從無限保證開始。","想把過去美好永遠留住":"真正的珍惜，不是留住，而是允許它流過。","把愛變成佔有":"佔有會讓愛窒息，尊重才讓愛長大。","期待每段關係都要有回報":"計算越多，心就離愛越遠。","想用努力交換絕對結果":"盡力是你的事，結果不是你能完全命令的事。","對明天過度盤算":"明天從來只會以今天此刻的樣子到來。","容易因插隊而暴怒":"先把呼吸放慢，別讓別人的失序帶走你的心序。","被否定就整個炸開":"受傷的往往不是你本身，而是你緊抓的自我形象。","對家人碎念很不耐煩":"先合掌一息，再決定要不要回話。","怨恨前任傷過自己":"痛會過去，但你若一直認同那個故事，痛就住下來。","討厭工作分配不公":"先把自己該做的事做正，心才不會被怨氣拖垮。","對自己失誤大發脾氣":"請停止懲罰自己，錯誤只是經驗，不是你的身份。","覺得世界都對不起我":"抱怨越多，心越濁；回到行動，路才會清。","見不得別人成功":"嫉妒其實在說你忘了自己的道路。","對動作慢的人沒耐心":"放慢自己一點，世界就不必照你的速度運轉。","對孩子犯錯很暴躁":"你想糾正的若只是情緒，孩子聽見的只會是恐懼。","對網路留言容易動怒":"別把心交給螢幕裡的一句話。","一塞車就心火上升":"事情沒動時，正是看見自己內在躁動的好時刻。","愛翻舊帳":"舊事一再重掃，不會變乾淨，只會讓心再次起塵。","受委屈就想報復":"報復延長傷口，覺察才會終止傷口。","總想辯贏":"贏了口舌，不一定贏得安穩。","對父母的控制長年怨恨":"看見傷痕不是為了繼續恨，而是為了不再由它支配。","對拖延的同事很不爽":"清楚表達，比悶著生氣更有力量。","被誤會就立刻想反擊":"不急著證明時，你反而更接近真相。","討厭身體老化":"對身體多一分感謝，少一分嫌棄。","對自己的外表感到厭惡":"自我攻擊不會帶來美，只會讓你更遠離自己。","對失敗又羞又怒":"失敗不是污點，是提醒你重新站穩的方法。","看到不公義就氣到睡不著":"讓清明引導行動，不要讓憤怒奪走智慧。","覺得伴侶都不懂我":"先把心說清楚，不要期待別人讀心。","朋友不回訊息就覺得被冒犯":"很多痛苦不是來自事實，而是來自你補上的故事。","看不慣別人的生活方式":"不合你意，不等於必須由你來修正。","一被批評就高度防衛":"防衛越強，越看不見真正值得調整的地方。","對過去選擇後悔生恨":"過去不能重來，但現在可以重整。","覺得孩子不聽話就是挑釁":"先放下被冒犯的感覺，才看得見他真正的需要。","總覺得被忽略":"先照顧好自己的心，不要一直向外追討存在感。","對噪音與雜亂非常煩躁":"外界未必立刻能安靜，但你可以先不跟抗拒站在一起。","對等待非常暴躁":"等待也是修行，練的是心不亂。","情緒一來就口出惡言":"先承認怒在升起，別讓它直接借你的嘴說話。","冷戰，不肯先開口":"先放下面子，關係才有回暖的可能。","長期被社會新聞激怒":"感受可以真，卻不必讓怒氣成為你唯一的立場。","覺得別人應該懂我的辛苦":"期待越隱密，失望越深；說清楚反而慈悲。","對無法改變的事也一直生氣":"生命先要求你看清現實，不是先要求現實聽你的。","不知道自己真正要什麼":"先把生活簡單下來，心裡真正重要的才會浮現。","把忙碌當成有價值":"忙不代表活著，清醒地在場才代表你真的活著。","以為快樂都在未來":"今天若不會安住，明天也只會換個地方不安。","以為痛苦永遠不會過":"痛苦會流動，執著於『永遠』的念頭才讓它固定。","把想法當成事實":"念頭只是念頭，不必每一個都奉為真理。","把情緒當成自己":"你不是情緒本身，你是能看見情緒來去的覺知。","以為別人的看法就是我的價值":"別把自己的尺，交到別人手裡。","把成功等同幸福":"得到很多卻不認識自己，仍然可能是空的。","以為失敗就是沒用":"一次跌倒，只是在教你怎麼走得更穩。","不懂界限，只會一味討好":"沒有邊界的善良，常常不是愛，而是害怕失去。","以為控制越多越安全":"真正的安穩來自秩序與覺察，不來自過度操控。","逃避獨處":"你害怕的不是安靜，而是安靜裡那個尚未面對的自己。","遇事只會怪命運":"與其怨天，不如把今天能做的一件事做好。","以為改變別人，自己才會好過":"你真正能開始的改變，永遠只在自己這裡。","把關係幻想成救贖":"伴侶可以同行，不能代替你完成內在功課。","以為靈性就是逃離現實":"真正的覺醒，不是離開人生，而是更真實地活進人生。","對死亡只剩恐懼，不敢看":"知道無常，反而會讓今天活得更深。","以為放下等於失去":"放下不是沒有了，而是不再被它綁住了。","一直問人生意義，卻不活當下":"把今天活端正，意義自然會長出來。","沉迷資訊，卻沒有覺察":"知道很多，不等於真正醒著。","以為多想就能解決一切":"有些答案不是想出來，是靜下來才看見。","把自我形象當成真相":"消失的不是你，而是你誤認為自己的那個形象。","以為沉默就是冷漠":"真正的沉默，常常比急著表態更有溫度。","以為脆弱就是弱":"能誠實地不堅強，反而是更深的力量。","把習慣性焦慮當正常":"焦慮不是你的本性，只是太久沒被整理的心。","不知道自己到底在逃什麼":"先停下逃跑，你才會看見自己一直在逃離什麼。","用娛樂麻痺空虛":"別急著填滿空白，空白有時正是心要說話的地方。","以為愛是交換條件":"當愛只剩計算，它就已經偏離了愛。","把孩子當成自己的延伸":"孩子不是你的作品，而是一個獨立的生命。","以為年齡決定一切可能":"限制你最多的，常常不是年齡，而是你相信的故事。","把別人的人生劇本套在自己身上":"別人走得快，不代表那條路適合你。","不明白無常，所以拼命抗拒改變":"當你允許變化，生命反而不再像敵人。","以為悟了就不會痛":"修行不是變成石頭，而是更清明地承受與理解。","只看到表面，看不到因緣":"每個當下都不是孤立事件，它連著整個生命網。","不知道停下來也是一種智慧":"有時候不往前衝，才是真正往內走。","忘了此刻已經在生命裡":"你一直在找的入口，其實就是現在。"};
+
+    const helperText = {
+      1: "輕點一張卡片，從最接近你的感受開始。",
+      2: "先選一個最接近的情緒子類。",
+      3: "再選一個最像你的情境。",
+      4: "從這些相似的煩惱裡，選一個最接近你的。"
+    };
+
+    const state = {
+      level: 1,
+      category: null,
+      emotion: null,
+      context: null,
+      worry: null
+    };
+
+    const topbarEl = document.getElementById("topbar");
+    const screenEl = document.getElementById("screen");
+
+    function cloneState() {
+      return JSON.parse(JSON.stringify(state));
+    }
+
+    function replaceHistory() {
+      history.replaceState(cloneState(), "", "");
+    }
+
+    function pushHistory() {
+      history.pushState(cloneState(), "", "");
+    }
+
+    function getCategory() {
+      return state.category ? APP[state.category] : null;
+    }
+
+    function getEmotion() {
+      const cat = getCategory();
+      return cat && state.emotion ? cat.emotions[state.emotion] : null;
+    }
+
+    function getContexts() {
+      const emotion = getEmotion();
+      return emotion ? emotion.contexts : null;
+    }
+
+    function getWorries() {
+      const contexts = getContexts();
+      return contexts && state.context ? contexts[state.context] : null;
+    }
+
+    function escapeHtml(value) {
+      return String(value)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#39;");
+    }
+
+    function renderTopbar() {
+      const showBack = state.level > 1;
+      let title = "你現在怎麼了？";
+      if (state.level === 2) title = state.category;
+      if (state.level === 3) title = state.emotion;
+      if (state.level === 4) title = state.context;
+      if (state.level === 5) title = "解方";
+
+      topbarEl.innerHTML = `
+        ${showBack ? `<button class="back-btn" id="backBtn" aria-label="返回上一層">←</button>` : `<div class="topbar__ghost"></div>`}
+        <div class="topbar__title">${escapeHtml(title)}</div>
+        <div class="topbar__ghost"></div>
+      `;
+
+      if (showBack) {
+        document.getElementById("backBtn").addEventListener("click", goBack);
+      }
+      document.title = title + "｜煩惱引導式決策樹";
+    }
+
+    function introBlock(level) {
+      return level <= 4 ? `<div class="intro">${escapeHtml(helperText[level] || "")}</div>` : "";
+    }
+
+    function renderHome() {
+      const cards = Object.entries(APP).map(([key, value]) => `
+        <button class="hero-card" data-category="${escapeHtml(key)}">
+          <div class="hero-char">${escapeHtml(key)}</div>
+          <div class="hero-sub">${escapeHtml(value.subtitle)}</div>
+        </button>
+      `).join("");
+
+      screenEl.innerHTML = `
+        <section class="screen">
+          ${introBlock(1)}
+          <div class="hero-grid">${cards}</div>
+        </section>
+      `;
+
+      screenEl.querySelectorAll("[data-category]").forEach(btn => {
+        btn.addEventListener("click", () => {
+          state.level = 2;
+          state.category = btn.dataset.category;
+          state.emotion = null;
+          state.context = null;
+          state.worry = null;
+          pushHistory();
+          render();
+        });
+      });
+    }
+
+    function renderEmotionLevel() {
+      const cat = getCategory();
+      const entries = Object.entries(cat.emotions);
+      const count = entries.length;
+      const cols = count === 3 ? 3 : (count === 1 ? 1 : 2);
+      const cards = entries.map(([key, value]) => `
+        <button class="select-card" data-emotion="${escapeHtml(key)}">
+          <div class="select-card__title">${escapeHtml(key)}</div>
+          <div class="select-card__sub">共 ${Object.values(value.contexts).flat().length} 個煩惱</div>
+        </button>
+      `).join("");
+
+      screenEl.innerHTML = `
+        <section class="screen">
+          <div class="section-title">${escapeHtml(state.category)}</div>
+          ${introBlock(2)}
+          <div class="card-grid" style="--cols:${cols}">${cards}</div>
+        </section>
+      `;
+
+      screenEl.querySelectorAll("[data-emotion]").forEach(btn => {
+        btn.addEventListener("click", () => {
+          state.level = 3;
+          state.emotion = btn.dataset.emotion;
+          state.context = null;
+          state.worry = null;
+          pushHistory();
+          render();
+        });
+      });
+    }
+
+    function renderContextLevel() {
+      const contexts = getContexts();
+      const entries = Object.entries(contexts);
+      const count = entries.length;
+      const cols = count === 3 ? 3 : (count === 1 ? 1 : 2);
+      const cards = entries.map(([key, worries]) => `
+        <button class="select-card" data-context="${escapeHtml(key)}">
+          <div class="select-card__title">${escapeHtml(key)}</div>
+          <div class="select-card__sub">${worries.length} 個相似煩惱</div>
+        </button>
+      `).join("");
+
+      screenEl.innerHTML = `
+        <section class="screen">
+          <div class="section-title">${escapeHtml(state.emotion)}</div>
+          ${introBlock(3)}
+          <div class="card-grid" style="--cols:${cols}">${cards}</div>
+        </section>
+      `;
+
+      screenEl.querySelectorAll("[data-context]").forEach(btn => {
+        btn.addEventListener("click", () => {
+          state.level = 4;
+          state.context = btn.dataset.context;
+          state.worry = null;
+          pushHistory();
+          render();
+        });
+      });
+    }
+
+    function renderWorryLevel() {
+      const worries = getWorries();
+      const cards = worries.map(title => `
+        <button class="worry-card" data-worry="${escapeHtml(title)}">
+          <div class="worry-card__title">${escapeHtml(title)}</div>
+        </button>
+      `).join("");
+
+      screenEl.innerHTML = `
+        <section class="screen">
+          <div class="section-title">${escapeHtml(state.context)}</div>
+          ${introBlock(4)}
+          <div class="worry-list">${cards}</div>
+        </section>
+      `;
+
+      screenEl.querySelectorAll("[data-worry]").forEach(btn => {
+        btn.addEventListener("click", () => {
+          state.level = 5;
+          state.worry = btn.dataset.worry;
+          pushHistory();
+          render();
+        });
+      });
+    }
+
+    function renderDetail() {
+      const emotion = getEmotion();
+      const solution = SOLUTIONS[state.worry] || "";
+      const cause = emotion.cause;
+
+      screenEl.innerHTML = `
+        <section class="detail-screen">
+          <div class="detail-worry">${escapeHtml(state.worry)}</div>
+          <div class="detail-solution">${escapeHtml(solution)}</div>
+        </section>
+        <div class="detail-footer">
+          <div class="detail-cause">歸因：${escapeHtml(cause)}</div>
+        </div>
+      `;
+    }
+
+    function render() {
+      renderTopbar();
+      if (state.level === 1) return renderHome();
+      if (state.level === 2) return renderEmotionLevel();
+      if (state.level === 3) return renderContextLevel();
+      if (state.level === 4) return renderWorryLevel();
+      if (state.level === 5) return renderDetail();
+    }
+
+    function goBack() {
+      if (history.length > 1) {
+        history.back();
+      } else {
+        state.level = Math.max(1, state.level - 1);
+        if (state.level < 5) state.worry = null;
+        if (state.level < 4) state.context = null;
+        if (state.level < 3) state.emotion = null;
+        if (state.level < 2) state.category = null;
+        replaceHistory();
+        render();
+      }
+    }
+
+    window.addEventListener("popstate", (event) => {
+      const next = event.state;
+      if (!next) return;
+      Object.assign(state, next);
+      render();
+    });
+
+    replaceHistory();
+    render();
+  </script>
+</body>
+</html>
