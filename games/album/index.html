@@ -1,499 +1,320 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
-<head><script src="/eduGame/ga4.js"></script>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>相簿網頁</title>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>相簿</title>
   <style>
-    :root {
-      --bg: #0f1115;
-      --panel: #171a21;
-      --panel-2: #1f2430;
-      --text: #eef2f7;
-      --muted: #a8b0bf;
-      --accent: #86a8ff;
-      --border: rgba(255,255,255,0.08);
-      --shadow: 0 12px 30px rgba(0,0,0,0.28);
-      --radius: 18px;
+    :root{
+      --bg:#111827;
+      --panel:#1f2937;
+      --panel-2:#374151;
+      --text:#f9fafb;
+      --muted:#cbd5e1;
+      --accent:#60a5fa;
+      --border:rgba(255,255,255,.08);
+      --shadow:0 12px 36px rgba(0,0,0,.35);
     }
-
-    * { box-sizing: border-box; }
-    html, body {
-      margin: 0;
-      padding: 0;
-      background: linear-gradient(180deg, #0d1015 0%, #121721 100%);
-      color: var(--text);
-      font-family: "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif;
+      background:linear-gradient(180deg,#0f172a 0%, #111827 100%);
+      color:var(--text);
     }
-
-    body {
-      min-height: 100vh;
-      padding: 24px;
+    .wrap{max-width:1400px;margin:0 auto;padding:20px}
+    .topbar{
+      display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;
+      margin-bottom:18px;padding:16px 18px;background:rgba(255,255,255,.04);border:1px solid var(--border);
+      border-radius:18px;backdrop-filter: blur(10px);
     }
-
-    .wrap {
-      max-width: 1400px;
-      margin: 0 auto;
+    h1{margin:0;font-size:clamp(24px,3vw,34px)}
+    .controls{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+    label{color:var(--muted)}
+    select,button{
+      background:var(--panel);color:var(--text);border:1px solid var(--border);border-radius:12px;
+      padding:10px 12px;font-size:15px;
     }
-
-    .topbar {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 16px;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 18px;
-      background: rgba(255,255,255,0.03);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding: 16px 18px;
-      box-shadow: var(--shadow);
-      backdrop-filter: blur(8px);
+    button{cursor:pointer}
+    button:hover, select:hover{border-color:rgba(255,255,255,.18)}
+    button:disabled{opacity:.45;cursor:not-allowed}
+    .grid{
+      display:grid;
+      grid-template-columns:repeat(auto-fill,minmax(180px,1fr));
+      gap:16px;
     }
-
-    h1 {
-      font-size: clamp(24px, 3vw, 36px);
-      margin: 0;
-      letter-spacing: 0.04em;
+    .card{
+      background:rgba(255,255,255,.04);
+      border:1px solid var(--border);
+      border-radius:18px;
+      overflow:hidden;
+      box-shadow:var(--shadow);
+      transition:transform .18s ease, border-color .18s ease;
     }
-
-    .sub {
-      color: var(--muted);
-      font-size: 14px;
-      margin-top: 6px;
-      line-height: 1.6;
+    .card:hover{transform:translateY(-4px);border-color:rgba(255,255,255,.16)}
+    .thumb-btn{
+      display:block;width:100%;padding:0;border:0;background:none;cursor:pointer;
     }
-
-    .controls {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: 10px;
+    .thumb{
+      display:block;width:100%;aspect-ratio:1/1;object-fit:cover;background:#0b1220;
     }
-
-    .controls label {
-      color: var(--muted);
-      font-size: 14px;
+    .caption{
+      padding:10px 12px;font-size:13px;color:var(--muted);
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
     }
-
-    select, button {
-      border: 1px solid var(--border);
-      background: var(--panel-2);
-      color: var(--text);
-      border-radius: 12px;
-      padding: 10px 14px;
-      font-size: 14px;
-      cursor: pointer;
+    .pager{
+      margin-top:18px;display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap;
     }
+    .page-info{color:var(--muted);min-width:140px;text-align:center}
 
-    button:hover, select:hover { filter: brightness(1.08); }
-    button:disabled { opacity: 0.45; cursor: not-allowed; }
-
-    .gallery-info {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      flex-wrap: wrap;
-      gap: 12px;
-      color: var(--muted);
-      margin: 14px 2px 18px;
-      font-size: 14px;
+    .modal{
+      position:fixed;inset:0;background:rgba(0,0,0,.76);display:none;
+      align-items:center;justify-content:center;padding:24px;z-index:9999;
     }
-
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-      gap: 16px;
+    .modal.show{display:flex}
+    .modal-box{
+      width:min(1100px,100%);max-height:100%;overflow:auto;
+      background:rgba(17,24,39,.96);border:1px solid var(--border);border-radius:22px;
+      box-shadow:0 20px 60px rgba(0,0,0,.5);padding:18px;
     }
-
-    .card {
-      background: rgba(255,255,255,0.03);
-      border: 1px solid var(--border);
-      border-radius: 16px;
-      overflow: hidden;
-      box-shadow: var(--shadow);
-      transition: transform 0.18s ease, border-color 0.18s ease;
-      cursor: pointer;
-      padding: 0;
-      text-align: left;
+    .modal-head{
+      display:flex;justify-content:flex-start;align-items:center;gap:12px;margin-bottom:12px;
     }
-
-    .card:hover {
-      transform: translateY(-4px);
-      border-color: rgba(134,168,255,0.45);
+    .modal-title{font-size:16px;color:var(--muted);word-break:break-all}
+    .viewer{
+      display:flex;flex-direction:column;align-items:center;gap:14px;
     }
-
-    .thumb-box {
-      aspect-ratio: 1 / 1;
-      background: #0b0d12;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      overflow: hidden;
+    .viewer img{
+      max-width:100%;max-height:min(78vh,900px);object-fit:contain;border-radius:16px;background:#000;
+      cursor:pointer;
     }
-
-    .thumb-box img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      display: block;
+    .filename{
+      width:100%;padding:12px 14px;border-radius:14px;background:rgba(255,255,255,.05);
+      border:1px solid var(--border);text-align:center;word-break:break-all;font-size:15px;
     }
-
-    .card-name {
-      padding: 10px 12px;
-      font-size: 13px;
-      color: var(--muted);
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
+    .viewer-actions{
+      width:100%;display:flex;justify-content:center;align-items:center;gap:12px;flex-wrap:wrap;
     }
-
-    .pager {
-      margin-top: 22px;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      gap: 10px;
-      flex-wrap: wrap;
+    .viewer-actions button{
+      min-width:110px;
     }
-
-    .pager .page-text {
-      color: var(--muted);
-      min-width: 120px;
-      text-align: center;
+    .viewer-tip{
+      color:var(--muted);font-size:13px;text-align:center;
     }
-
-    .viewer {
-      position: fixed;
-      inset: 0;
-      z-index: 9999;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 24px;
-      background: rgba(5, 8, 14, 0.82);
-      backdrop-filter: blur(10px);
+    .empty{
+      padding:36px;text-align:center;color:var(--muted);background:rgba(255,255,255,.04);
+      border:1px dashed var(--border);border-radius:18px;
     }
-
-    .viewer.hidden { display: none; }
-
-    .viewer-panel {
-      width: min(1180px, 100%);
-      max-height: calc(100vh - 48px);
-      padding: 18px;
-      border-radius: 20px;
-      background: rgba(17, 22, 31, 0.96);
-      border: 1px solid var(--border);
-      box-shadow: 0 20px 50px rgba(0,0,0,0.45);
-      overflow: auto;
-    }
-
-    .viewer-head {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 10px;
-      margin-bottom: 14px;
-      flex-wrap: wrap;
-    }
-
-    .viewer-title {
-      font-size: 18px;
-      font-weight: 700;
-    }
-
-    .viewer-tools {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-    }
-
-    .image-stage {
-      width: 100%;
-      min-height: 320px;
-      background: #0a0d12;
-      border-radius: 18px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      overflow: hidden;
-      border: 1px solid rgba(255,255,255,0.06);
-    }
-
-    .image-stage img {
-      max-width: 100%;
-      max-height: min(78vh, 980px);
-      display: block;
-      object-fit: contain;
-    }
-
-    .filename {
-      margin-top: 14px;
-      padding: 14px 16px;
-      background: rgba(255,255,255,0.03);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      color: var(--text);
-      word-break: break-all;
-    }
-
-    .empty, .loading, .error {
-      padding: 28px 20px;
-      text-align: center;
-      background: rgba(255,255,255,0.03);
-      border: 1px dashed var(--border);
-      border-radius: 18px;
-      color: var(--muted);
-      line-height: 1.7;
-    }
-
-    code {
-      background: rgba(255,255,255,0.08);
-      padding: 2px 6px;
-      border-radius: 8px;
-      font-size: 0.95em;
-    }
-
-    .no-scroll {
-      overflow: hidden;
-    }
-
-    @media (max-width: 700px) {
-      body { padding: 14px; }
-      .topbar { padding: 14px; }
-      .viewer { padding: 12px; }
-      .viewer-panel { padding: 14px; max-height: calc(100vh - 24px); }
-      .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-      .viewer-tools { width: 100%; }
-      .viewer-tools button { flex: 1; }
-      .filename { font-size: 14px; }
+    @media (max-width:640px){
+      .wrap{padding:14px}
+      .topbar{padding:14px}
+      .grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+      .modal{padding:12px}
+      .modal-box{padding:12px}
+      .viewer-actions{gap:10px}
+      .viewer-actions button{flex:1 1 calc(33.333% - 10px);min-width:90px}
     }
   </style>
 </head>
 <body>
   <div class="wrap">
     <div class="topbar">
-      <div>
-        <h1>相簿</h1>
-        <div class="sub">科技課程帶來的改變</div>
-      </div>
+      <h1>相簿</h1>
       <div class="controls">
-        <label for="pageSize">每頁顯示</label>
-        <select id="pageSize">
-          <option value="20" selected>20 張</option>
-          <option value="50">50 張</option>
-          <option value="100">100 張</option>
+        <label for="perPage">每頁顯示</label>
+        <select id="perPage">
+          <option value="20" selected>20</option>
+          <option value="50">50</option>
+          <option value="100">100</option>
         </select>
       </div>
     </div>
 
-    <div id="status" class="loading">正在讀取照片清單…</div>
-
-    <div id="gallerySection" hidden>
-      <div class="gallery-info">
-        <div id="countInfo"></div>
-        <div id="rangeInfo"></div>
-      </div>
-      <div id="gallery" class="grid"></div>
-      <div class="pager">
-        <button id="prevPage">上一頁</button>
-        <div id="pageText" class="page-text"></div>
-        <button id="nextPage">下一頁</button>
-      </div>
+    <div id="gallery" class="grid"></div>
+    <div id="empty" class="empty" style="display:none;">
+      尚未找到照片。請先把原圖放到 <code>pics/</code>、縮圖放到 <code>thumbnail/</code>，再執行清單產生工具。
     </div>
 
-    <div id="viewer" class="viewer hidden" aria-hidden="true">
-      <div class="viewer-panel" role="dialog" aria-modal="true" aria-label="原圖預覽視窗">
-        <div class="viewer-head">
-          <div class="viewer-title">原圖預覽</div>
-          <div class="viewer-tools">
-            <button id="prevPhoto">上一張</button>
-            <button id="nextPhoto">下一張</button>
-            <button id="closeViewer">關閉</button>
-          </div>
+    <div class="pager">
+      <button id="prevBtn">上一頁</button>
+      <div id="pageInfo" class="page-info"></div>
+      <button id="nextBtn">下一頁</button>
+    </div>
+  </div>
+
+  <div id="modal" class="modal" aria-hidden="true">
+    <div class="modal-box">
+      <div class="modal-head">
+        <div id="modalTitle" class="modal-title">檢視照片</div>
+      </div>
+      <div class="viewer">
+        <img id="fullImage" alt="">
+        <div id="fileName" class="filename"></div>
+        <div class="viewer-actions">
+          <button id="viewerPrevBtn" type="button">上一張</button>
+          <button id="viewerNextBtn" type="button">下一張</button>
+          <button id="closeBtn" type="button">關閉</button>
         </div>
-        <div class="image-stage">
-          <img id="fullImage" alt="原圖預覽" />
-        </div>
-        <div id="filename" class="filename"></div>
+        <div class="viewer-tip">點選照片本身，也會直接切到下一張。</div>
       </div>
     </div>
   </div>
 
   <script>
-    const THUMB_DIR = 'thumbnail/';
-    const FULL_DIR = 'pics/';
-    const MANIFEST = 'photos.json';
-
-    const state = {
-      photos: [],
-      pageSize: 20,
-      page: 1,
-      selectedIndex: -1,
-    };
-
-    const statusEl = document.getElementById('status');
-    const gallerySection = document.getElementById('gallerySection');
     const galleryEl = document.getElementById('gallery');
-    const countInfoEl = document.getElementById('countInfo');
-    const rangeInfoEl = document.getElementById('rangeInfo');
-    const pageTextEl = document.getElementById('pageText');
-    const prevPageBtn = document.getElementById('prevPage');
-    const nextPageBtn = document.getElementById('nextPage');
-    const pageSizeEl = document.getElementById('pageSize');
+    const emptyEl = document.getElementById('empty');
+    const perPageEl = document.getElementById('perPage');
+    const prevBtn = document.getElementById('prevBtn');
+    const nextBtn = document.getElementById('nextBtn');
+    const pageInfo = document.getElementById('pageInfo');
+    const modal = document.getElementById('modal');
+    const closeBtn = document.getElementById('closeBtn');
+    const viewerPrevBtn = document.getElementById('viewerPrevBtn');
+    const viewerNextBtn = document.getElementById('viewerNextBtn');
+    const fullImage = document.getElementById('fullImage');
+    const fileName = document.getElementById('fileName');
+    const modalTitle = document.getElementById('modalTitle');
 
-    const viewerEl = document.getElementById('viewer');
-    const fullImageEl = document.getElementById('fullImage');
-    const filenameEl = document.getElementById('filename');
-    const prevPhotoBtn = document.getElementById('prevPhoto');
-    const nextPhotoBtn = document.getElementById('nextPhoto');
-    const closeViewerBtn = document.getElementById('closeViewer');
+    let photos = [];
+    let currentPage = 1;
+    let perPage = Number(perPageEl.value);
+    let currentIndex = -1;
 
     async function loadPhotos() {
       try {
-        const res = await fetch(MANIFEST, { cache: 'no-store' });
-        if (!res.ok) throw new Error('找不到 photos.json');
-        const data = await res.json();
-
-        const rawFiles = Array.isArray(data)
-          ? data
-          : Array.isArray(data.files)
-            ? data.files
-            : [];
-
-        const files = rawFiles
-          .map(v => String(v).trim())
-          .filter(Boolean)
-          .filter((v, i, arr) => arr.indexOf(v) === i);
-
-        if (!files.length) {
-          throw new Error('photos.json 內沒有可用的檔名');
-        }
-
-        state.photos = files;
-        statusEl.hidden = true;
-        gallerySection.hidden = false;
-        renderGallery();
+        const res = await fetch('gallery.json?ts=' + Date.now());
+        photos = await res.json();
+        if (!Array.isArray(photos)) photos = [];
       } catch (err) {
-        statusEl.className = 'error';
-        statusEl.innerHTML = `
-          <div>讀取失敗：${escapeHtml(err.message)}</div>
-          <div style="margin-top:10px;">
-            請確認：<br>
-            1. <code>index.html</code>、<code>photos.json</code> 在同一層<br>
-            2. <code>thumbnail/</code> 與 <code>pics/</code> 內的檔名一致<br>
-            3. 建議用本機伺服器或網站空間開啟，不要直接雙擊本機檔案
-          </div>
-        `;
+        photos = [];
       }
+      render();
     }
 
-    function renderGallery() {
-      const total = state.photos.length;
-      const totalPages = Math.max(1, Math.ceil(total / state.pageSize));
-      state.page = Math.min(state.page, totalPages);
-
-      const start = (state.page - 1) * state.pageSize;
-      const end = Math.min(start + state.pageSize, total);
-      const current = state.photos.slice(start, end);
-
+    function render() {
       galleryEl.innerHTML = '';
-      current.forEach((file, idx) => {
-        const realIndex = start + idx;
-        const card = document.createElement('button');
+
+      if (photos.length === 0) {
+        emptyEl.style.display = 'block';
+        pageInfo.textContent = '0 / 0';
+        prevBtn.disabled = true;
+        nextBtn.disabled = true;
+        return;
+      }
+
+      emptyEl.style.display = 'none';
+      const totalPages = Math.max(1, Math.ceil(photos.length / perPage));
+      if (currentPage > totalPages) currentPage = totalPages;
+
+      const start = (currentPage - 1) * perPage;
+      const pagePhotos = photos.slice(start, start + perPage);
+
+      pagePhotos.forEach(photo => {
+        const card = document.createElement('div');
         card.className = 'card';
-        card.type = 'button';
         card.innerHTML = `
-          <div class="thumb-box">
-            <img src="${encodeURI(THUMB_DIR + file)}" alt="${escapeHtml(file)}" loading="lazy">
-          </div>
-          <div class="card-name" title="${escapeHtml(file)}">${escapeHtml(file)}</div>
+          <button class="thumb-btn" type="button">
+            <img class="thumb" src="${escapeHtml(photo.thumbnail)}" alt="${escapeHtml(photo.name)}" loading="lazy">
+          </button>
+          <div class="caption">${escapeHtml(photo.name)}</div>
         `;
-        card.addEventListener('click', () => openPhoto(realIndex));
+        card.querySelector('.thumb-btn').addEventListener('click', () => openViewerByName(photo.name));
         galleryEl.appendChild(card);
       });
 
-      if (!current.length) {
-        galleryEl.innerHTML = '<div class="empty">目前沒有照片可顯示。</div>';
-      }
-
-      countInfoEl.textContent = `共 ${total} 張照片`;
-      rangeInfoEl.textContent = `目前顯示第 ${total ? start + 1 : 0}～${end} 張`;
-      pageTextEl.textContent = `${state.page} / ${totalPages}`;
-      prevPageBtn.disabled = state.page <= 1;
-      nextPageBtn.disabled = state.page >= totalPages;
+      pageInfo.textContent = `${currentPage} / ${totalPages}`;
+      prevBtn.disabled = currentPage <= 1;
+      nextBtn.disabled = currentPage >= totalPages;
     }
 
-    function openPhoto(index) {
-      state.selectedIndex = index;
-      const file = state.photos[index];
-      fullImageEl.src = encodeURI(FULL_DIR + file);
-      fullImageEl.alt = file;
-      filenameEl.textContent = file;
-      viewerEl.classList.remove('hidden');
-      viewerEl.setAttribute('aria-hidden', 'false');
-      document.body.classList.add('no-scroll');
-      prevPhotoBtn.disabled = index <= 0;
-      nextPhotoBtn.disabled = index >= state.photos.length - 1;
+    function openViewerByName(name) {
+      const index = photos.findIndex(photo => photo.name === name);
+      if (index === -1) return;
+      openViewer(index);
+    }
+
+    function openViewer(index) {
+      currentIndex = index;
+      const photo = photos[currentIndex];
+      if (!photo) return;
+
+      fullImage.src = photo.full;
+      fullImage.alt = photo.name;
+      fileName.textContent = photo.name;
+      modalTitle.textContent = photo.name;
+      viewerPrevBtn.disabled = photos.length <= 1;
+      viewerNextBtn.disabled = photos.length <= 1;
+      modal.classList.add('show');
+      modal.setAttribute('aria-hidden', 'false');
+      document.body.style.overflow = 'hidden';
+    }
+
+    function showPrevPhoto() {
+      if (photos.length === 0 || currentIndex === -1) return;
+      currentIndex = (currentIndex - 1 + photos.length) % photos.length;
+      openViewer(currentIndex);
+    }
+
+    function showNextPhoto() {
+      if (photos.length === 0 || currentIndex === -1) return;
+      currentIndex = (currentIndex + 1) % photos.length;
+      openViewer(currentIndex);
     }
 
     function closeViewer() {
-      viewerEl.classList.add('hidden');
-      viewerEl.setAttribute('aria-hidden', 'true');
-      document.body.classList.remove('no-scroll');
+      modal.classList.remove('show');
+      modal.setAttribute('aria-hidden', 'true');
+      fullImage.src = '';
+      currentIndex = -1;
+      document.body.style.overflow = '';
     }
 
-    function escapeHtml(str) {
-      return str
+    function escapeHtml(text) {
+      return String(text)
         .replaceAll('&', '&amp;')
         .replaceAll('<', '&lt;')
         .replaceAll('>', '&gt;')
         .replaceAll('"', '&quot;')
-        .replaceAll("'", '&#39;');
+        .replaceAll("'", '&#039;');
     }
 
-    pageSizeEl.addEventListener('change', () => {
-      state.pageSize = Number(pageSizeEl.value);
-      state.page = 1;
-      renderGallery();
+    perPageEl.addEventListener('change', () => {
+      perPage = Number(perPageEl.value);
+      currentPage = 1;
+      render();
     });
 
-    prevPageBtn.addEventListener('click', () => {
-      if (state.page > 1) {
-        state.page -= 1;
-        renderGallery();
+    prevBtn.addEventListener('click', () => {
+      if (currentPage > 1) {
+        currentPage -= 1;
+        render();
         window.scrollTo({ top: 0, behavior: 'smooth' });
       }
     });
 
-    nextPageBtn.addEventListener('click', () => {
-      const totalPages = Math.ceil(state.photos.length / state.pageSize);
-      if (state.page < totalPages) {
-        state.page += 1;
-        renderGallery();
+    nextBtn.addEventListener('click', () => {
+      const totalPages = Math.max(1, Math.ceil(photos.length / perPage));
+      if (currentPage < totalPages) {
+        currentPage += 1;
+        render();
         window.scrollTo({ top: 0, behavior: 'smooth' });
       }
     });
 
-    prevPhotoBtn.addEventListener('click', () => {
-      if (state.selectedIndex > 0) openPhoto(state.selectedIndex - 1);
-    });
+    viewerPrevBtn.addEventListener('click', showPrevPhoto);
+    viewerNextBtn.addEventListener('click', showNextPhoto);
+    closeBtn.addEventListener('click', closeViewer);
+    fullImage.addEventListener('click', showNextPhoto);
 
-    nextPhotoBtn.addEventListener('click', () => {
-      if (state.selectedIndex < state.photos.length - 1) openPhoto(state.selectedIndex + 1);
-    });
-
-    closeViewerBtn.addEventListener('click', closeViewer);
-
-    viewerEl.addEventListener('click', (e) => {
-      if (e.target === viewerEl) closeViewer();
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) closeViewer();
     });
 
     document.addEventListener('keydown', (e) => {
-      if (viewerEl.classList.contains('hidden')) return;
+      if (!modal.classList.contains('show')) return;
       if (e.key === 'Escape') closeViewer();
-      if (e.key === 'ArrowLeft' && state.selectedIndex > 0) openPhoto(state.selectedIndex - 1);
-      if (e.key === 'ArrowRight' && state.selectedIndex < state.photos.length - 1) openPhoto(state.selectedIndex + 1);
+      if (e.key === 'ArrowLeft') showPrevPhoto();
+      if (e.key === 'ArrowRight') showNextPhoto();
     });
 
     loadPhotos();
