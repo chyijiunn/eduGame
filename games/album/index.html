@@ -164,15 +164,29 @@
     }
 
     .viewer {
-      margin-top: 28px;
-      padding: 18px;
-      border-radius: 20px;
-      background: rgba(255,255,255,0.04);
-      border: 1px solid var(--border);
-      box-shadow: var(--shadow);
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      background: rgba(5, 8, 14, 0.82);
+      backdrop-filter: blur(10px);
     }
 
     .viewer.hidden { display: none; }
+
+    .viewer-panel {
+      width: min(1180px, 100%);
+      max-height: calc(100vh - 48px);
+      padding: 18px;
+      border-radius: 20px;
+      background: rgba(17, 22, 31, 0.96);
+      border: 1px solid var(--border);
+      box-shadow: 0 20px 50px rgba(0,0,0,0.45);
+      overflow: auto;
+    }
 
     .viewer-head {
       display: flex;
@@ -240,9 +254,15 @@
       font-size: 0.95em;
     }
 
+    .no-scroll {
+      overflow: hidden;
+    }
+
     @media (max-width: 700px) {
       body { padding: 14px; }
-      .topbar, .viewer { padding: 14px; }
+      .topbar { padding: 14px; }
+      .viewer { padding: 12px; }
+      .viewer-panel { padding: 14px; max-height: calc(100vh - 24px); }
       .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
       .viewer-tools { width: 100%; }
       .viewer-tools button { flex: 1; }
@@ -282,19 +302,21 @@
       </div>
     </div>
 
-    <div id="viewer" class="viewer hidden">
-      <div class="viewer-head">
-        <div class="viewer-title">原圖預覽</div>
-        <div class="viewer-tools">
-          <button id="prevPhoto">上一張</button>
-          <button id="nextPhoto">下一張</button>
-          <button id="backToTop">回到縮圖</button>
+    <div id="viewer" class="viewer hidden" aria-hidden="true">
+      <div class="viewer-panel" role="dialog" aria-modal="true" aria-label="原圖預覽視窗">
+        <div class="viewer-head">
+          <div class="viewer-title">原圖預覽</div>
+          <div class="viewer-tools">
+            <button id="prevPhoto">上一張</button>
+            <button id="nextPhoto">下一張</button>
+            <button id="closeViewer">關閉</button>
+          </div>
         </div>
+        <div class="image-stage">
+          <img id="fullImage" alt="原圖預覽" />
+        </div>
+        <div id="filename" class="filename"></div>
       </div>
-      <div class="image-stage">
-        <img id="fullImage" alt="原圖預覽" />
-      </div>
-      <div id="filename" class="filename"></div>
     </div>
   </div>
 
@@ -325,7 +347,7 @@
     const filenameEl = document.getElementById('filename');
     const prevPhotoBtn = document.getElementById('prevPhoto');
     const nextPhotoBtn = document.getElementById('nextPhoto');
-    const backToTopBtn = document.getElementById('backToTop');
+    const closeViewerBtn = document.getElementById('closeViewer');
 
     async function loadPhotos() {
       try {
@@ -409,9 +431,16 @@
       fullImageEl.alt = file;
       filenameEl.textContent = file;
       viewerEl.classList.remove('hidden');
+      viewerEl.setAttribute('aria-hidden', 'false');
+      document.body.classList.add('no-scroll');
       prevPhotoBtn.disabled = index <= 0;
       nextPhotoBtn.disabled = index >= state.photos.length - 1;
-      viewerEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    function closeViewer() {
+      viewerEl.classList.add('hidden');
+      viewerEl.setAttribute('aria-hidden', 'true');
+      document.body.classList.remove('no-scroll');
     }
 
     function escapeHtml(str) {
@@ -454,12 +483,15 @@
       if (state.selectedIndex < state.photos.length - 1) openPhoto(state.selectedIndex + 1);
     });
 
-    backToTopBtn.addEventListener('click', () => {
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+    closeViewerBtn.addEventListener('click', closeViewer);
+
+    viewerEl.addEventListener('click', (e) => {
+      if (e.target === viewerEl) closeViewer();
     });
 
     document.addEventListener('keydown', (e) => {
       if (viewerEl.classList.contains('hidden')) return;
+      if (e.key === 'Escape') closeViewer();
       if (e.key === 'ArrowLeft' && state.selectedIndex > 0) openPhoto(state.selectedIndex - 1);
       if (e.key === 'ArrowRight' && state.selectedIndex < state.photos.length - 1) openPhoto(state.selectedIndex + 1);
     });
