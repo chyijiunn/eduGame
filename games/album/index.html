@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>相簿網頁</title>
+  <style>
+    :root {
+      --bg: #0f1115;
+      --panel: #171a21;
+      --panel-2: #1f2430;
+      --text: #eef2f7;
+      --muted: #a8b0bf;
+      --accent: #86a8ff;
+      --border: rgba(255,255,255,0.08);
+      --shadow: 0 12px 30px rgba(0,0,0,0.28);
+      --radius: 18px;
+    }
+
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: linear-gradient(180deg, #0d1015 0%, #121721 100%);
+      color: var(--text);
+      font-family: "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+    }
+
+    body {
+      min-height: 100vh;
+      padding: 24px;
+    }
+
+    .wrap {
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    .topbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 18px;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px 18px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(8px);
+    }
+
+    h1 {
+      font-size: clamp(24px, 3vw, 36px);
+      margin: 0;
+      letter-spacing: 0.04em;
+    }
+
+    .sub {
+      color: var(--muted);
+      font-size: 14px;
+      margin-top: 6px;
+      line-height: 1.6;
+    }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .controls label {
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    select, button {
+      border: 1px solid var(--border);
+      background: var(--panel-2);
+      color: var(--text);
+      border-radius: 12px;
+      padding: 10px 14px;
+      font-size: 14px;
+      cursor: pointer;
+    }
+
+    button:hover, select:hover { filter: brightness(1.08); }
+    button:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    .gallery-info {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+      color: var(--muted);
+      margin: 14px 2px 18px;
+      font-size: 14px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 16px;
+    }
+
+    .card {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: var(--shadow);
+      transition: transform 0.18s ease, border-color 0.18s ease;
+      cursor: pointer;
+      padding: 0;
+      text-align: left;
+    }
+
+    .card:hover {
+      transform: translateY(-4px);
+      border-color: rgba(134,168,255,0.45);
+    }
+
+    .thumb-box {
+      aspect-ratio: 1 / 1;
+      background: #0b0d12;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    .thumb-box img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .card-name {
+      padding: 10px 12px;
+      font-size: 13px;
+      color: var(--muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .pager {
+      margin-top: 22px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .pager .page-text {
+      color: var(--muted);
+      min-width: 120px;
+      text-align: center;
+    }
+
+    .viewer {
+      margin-top: 28px;
+      padding: 18px;
+      border-radius: 20px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow);
+    }
+
+    .viewer.hidden { display: none; }
+
+    .viewer-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 14px;
+      flex-wrap: wrap;
+    }
+
+    .viewer-title {
+      font-size: 18px;
+      font-weight: 700;
+    }
+
+    .viewer-tools {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .image-stage {
+      width: 100%;
+      min-height: 320px;
+      background: #0a0d12;
+      border-radius: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      border: 1px solid rgba(255,255,255,0.06);
+    }
+
+    .image-stage img {
+      max-width: 100%;
+      max-height: min(78vh, 980px);
+      display: block;
+      object-fit: contain;
+    }
+
+    .filename {
+      margin-top: 14px;
+      padding: 14px 16px;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      color: var(--text);
+      word-break: break-all;
+    }
+
+    .empty, .loading, .error {
+      padding: 28px 20px;
+      text-align: center;
+      background: rgba(255,255,255,0.03);
+      border: 1px dashed var(--border);
+      border-radius: 18px;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+
+    code {
+      background: rgba(255,255,255,0.08);
+      padding: 2px 6px;
+      border-radius: 8px;
+      font-size: 0.95em;
+    }
+
+    @media (max-width: 700px) {
+      body { padding: 14px; }
+      .topbar, .viewer { padding: 14px; }
+      .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+      .viewer-tools { width: 100%; }
+      .viewer-tools button { flex: 1; }
+      .filename { font-size: 14px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar">
+      <div>
+        <h1>相簿</h1>
+        <div class="sub">縮圖讀取自 <strong>thumbnail/</strong>，原圖讀取自 <strong>pics/</strong>，兩邊檔名需一致。</div>
+      </div>
+      <div class="controls">
+        <label for="pageSize">每頁顯示</label>
+        <select id="pageSize">
+          <option value="20" selected>20 張</option>
+          <option value="50">50 張</option>
+          <option value="100">100 張</option>
+        </select>
+      </div>
+    </div>
+
+    <div id="status" class="loading">正在讀取照片清單…</div>
+
+    <div id="gallerySection" hidden>
+      <div class="gallery-info">
+        <div id="countInfo"></div>
+        <div id="rangeInfo"></div>
+      </div>
+      <div id="gallery" class="grid"></div>
+      <div class="pager">
+        <button id="prevPage">上一頁</button>
+        <div id="pageText" class="page-text"></div>
+        <button id="nextPage">下一頁</button>
+      </div>
+    </div>
+
+    <div id="viewer" class="viewer hidden">
+      <div class="viewer-head">
+        <div class="viewer-title">原圖預覽</div>
+        <div class="viewer-tools">
+          <button id="prevPhoto">上一張</button>
+          <button id="nextPhoto">下一張</button>
+          <button id="backToTop">回到縮圖</button>
+        </div>
+      </div>
+      <div class="image-stage">
+        <img id="fullImage" alt="原圖預覽" />
+      </div>
+      <div id="filename" class="filename"></div>
+    </div>
+  </div>
+
+  <script>
+    const THUMB_DIR = 'thumbnail/';
+    const FULL_DIR = 'pics/';
+    const MANIFEST = 'photos.json';
+
+    const state = {
+      photos: [],
+      pageSize: 20,
+      page: 1,
+      selectedIndex: -1,
+    };
+
+    const statusEl = document.getElementById('status');
+    const gallerySection = document.getElementById('gallerySection');
+    const galleryEl = document.getElementById('gallery');
+    const countInfoEl = document.getElementById('countInfo');
+    const rangeInfoEl = document.getElementById('rangeInfo');
+    const pageTextEl = document.getElementById('pageText');
+    const prevPageBtn = document.getElementById('prevPage');
+    const nextPageBtn = document.getElementById('nextPage');
+    const pageSizeEl = document.getElementById('pageSize');
+
+    const viewerEl = document.getElementById('viewer');
+    const fullImageEl = document.getElementById('fullImage');
+    const filenameEl = document.getElementById('filename');
+    const prevPhotoBtn = document.getElementById('prevPhoto');
+    const nextPhotoBtn = document.getElementById('nextPhoto');
+    const backToTopBtn = document.getElementById('backToTop');
+
+    async function loadPhotos() {
+      try {
+        const res = await fetch(MANIFEST, { cache: 'no-store' });
+        if (!res.ok) throw new Error('找不到 photos.json');
+        const data = await res.json();
+
+        const rawFiles = Array.isArray(data)
+          ? data
+          : Array.isArray(data.files)
+            ? data.files
+            : [];
+
+        const files = rawFiles
+          .map(v => String(v).trim())
+          .filter(Boolean)
+          .filter((v, i, arr) => arr.indexOf(v) === i);
+
+        if (!files.length) {
+          throw new Error('photos.json 內沒有可用的檔名');
+        }
+
+        state.photos = files;
+        statusEl.hidden = true;
+        gallerySection.hidden = false;
+        renderGallery();
+      } catch (err) {
+        statusEl.className = 'error';
+        statusEl.innerHTML = `
+          <div>讀取失敗：${escapeHtml(err.message)}</div>
+          <div style="margin-top:10px;">
+            請確認：<br>
+            1. <code>index.html</code>、<code>photos.json</code> 在同一層<br>
+            2. <code>thumbnail/</code> 與 <code>pics/</code> 內的檔名一致<br>
+            3. 建議用本機伺服器或網站空間開啟，不要直接雙擊本機檔案
+          </div>
+        `;
+      }
+    }
+
+    function renderGallery() {
+      const total = state.photos.length;
+      const totalPages = Math.max(1, Math.ceil(total / state.pageSize));
+      state.page = Math.min(state.page, totalPages);
+
+      const start = (state.page - 1) * state.pageSize;
+      const end = Math.min(start + state.pageSize, total);
+      const current = state.photos.slice(start, end);
+
+      galleryEl.innerHTML = '';
+      current.forEach((file, idx) => {
+        const realIndex = start + idx;
+        const card = document.createElement('button');
+        card.className = 'card';
+        card.type = 'button';
+        card.innerHTML = `
+          <div class="thumb-box">
+            <img src="${encodeURI(THUMB_DIR + file)}" alt="${escapeHtml(file)}" loading="lazy">
+          </div>
+          <div class="card-name" title="${escapeHtml(file)}">${escapeHtml(file)}</div>
+        `;
+        card.addEventListener('click', () => openPhoto(realIndex));
+        galleryEl.appendChild(card);
+      });
+
+      if (!current.length) {
+        galleryEl.innerHTML = '<div class="empty">目前沒有照片可顯示。</div>';
+      }
+
+      countInfoEl.textContent = `共 ${total} 張照片`;
+      rangeInfoEl.textContent = `目前顯示第 ${total ? start + 1 : 0}～${end} 張`;
+      pageTextEl.textContent = `${state.page} / ${totalPages}`;
+      prevPageBtn.disabled = state.page <= 1;
+      nextPageBtn.disabled = state.page >= totalPages;
+    }
+
+    function openPhoto(index) {
+      state.selectedIndex = index;
+      const file = state.photos[index];
+      fullImageEl.src = encodeURI(FULL_DIR + file);
+      fullImageEl.alt = file;
+      filenameEl.textContent = file;
+      viewerEl.classList.remove('hidden');
+      prevPhotoBtn.disabled = index <= 0;
+      nextPhotoBtn.disabled = index >= state.photos.length - 1;
+      viewerEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    function escapeHtml(str) {
+      return str
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
+    }
+
+    pageSizeEl.addEventListener('change', () => {
+      state.pageSize = Number(pageSizeEl.value);
+      state.page = 1;
+      renderGallery();
+    });
+
+    prevPageBtn.addEventListener('click', () => {
+      if (state.page > 1) {
+        state.page -= 1;
+        renderGallery();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    });
+
+    nextPageBtn.addEventListener('click', () => {
+      const totalPages = Math.ceil(state.photos.length / state.pageSize);
+      if (state.page < totalPages) {
+        state.page += 1;
+        renderGallery();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    });
+
+    prevPhotoBtn.addEventListener('click', () => {
+      if (state.selectedIndex > 0) openPhoto(state.selectedIndex - 1);
+    });
+
+    nextPhotoBtn.addEventListener('click', () => {
+      if (state.selectedIndex < state.photos.length - 1) openPhoto(state.selectedIndex + 1);
+    });
+
+    backToTopBtn.addEventListener('click', () => {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (viewerEl.classList.contains('hidden')) return;
+      if (e.key === 'ArrowLeft' && state.selectedIndex > 0) openPhoto(state.selectedIndex - 1);
+      if (e.key === 'ArrowRight' && state.selectedIndex < state.photos.length - 1) openPhoto(state.selectedIndex + 1);
+    });
+
+    loadPhotos();
+  </script>
+</body>
+</html>
