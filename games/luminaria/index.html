@@ -1,0 +1,1157 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Luminaria v0.1</title>
+  <style>
+    :root {
+      --bg0: #03101f;
+      --bg1: #07192d;
+      --bg2: #0b2746;
+      --line: rgba(170, 220, 255, 0.18);
+      --cell: rgba(10, 26, 48, 0.58);
+      --cell-2: rgba(13, 37, 68, 0.72);
+      --text: #dbf6ff;
+      --sub: rgba(219, 246, 255, 0.72);
+      --accent: #98e9ff;
+      --accent-2: #77aaff;
+      --safe-top: env(safe-area-inset-top, 0px);
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
+      --ui-shadow: 0 10px 30px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.06);
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 20% 15%, rgba(78, 144, 255, 0.18), transparent 26%),
+        radial-gradient(circle at 78% 30%, rgba(91, 232, 255, 0.12), transparent 24%),
+        linear-gradient(180deg, var(--bg2), var(--bg1) 42%, var(--bg0));
+      color: var(--text);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+      user-select: none;
+    }
+
+    body {
+      display: flex;
+      justify-content: center;
+      align-items: stretch;
+    }
+
+    .app {
+      width: min(100vw, 840px);
+      height: 100vh;
+      padding: calc(12px + var(--safe-top)) 12px calc(12px + var(--safe-bottom));
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr) auto;
+      gap: 10px;
+      position: relative;
+    }
+
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 4px 4px 0;
+      gap: 10px;
+      min-height: 28px;
+    }
+
+    .title-wrap {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      min-width: 0;
+    }
+
+    .title {
+      margin: 0;
+      font-size: 1rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      white-space: nowrap;
+    }
+
+    .subtitle {
+      color: var(--sub);
+      font-size: 0.8rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--sub);
+      font-size: 0.78rem;
+      white-space: nowrap;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: rgba(160, 208, 255, 0.55);
+      box-shadow: 0 0 12px rgba(120, 180, 255, 0.55);
+    }
+
+    .status-dot.running {
+      background: #99f4ff;
+      box-shadow: 0 0 14px rgba(153, 244, 255, 0.8);
+    }
+
+    .stage-shell {
+      position: relative;
+      min-height: 0;
+      border-radius: 24px;
+      padding: 12px;
+      background: linear-gradient(180deg, rgba(8, 23, 43, 0.72), rgba(5, 17, 33, 0.82));
+      border: 1px solid rgba(170, 220, 255, 0.12);
+      box-shadow: var(--ui-shadow);
+      overflow: hidden;
+    }
+
+    .stage-shell::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(circle at 25% 20%, rgba(117, 194, 255, 0.08), transparent 20%),
+        radial-gradient(circle at 72% 26%, rgba(130, 255, 239, 0.07), transparent 22%),
+        radial-gradient(circle at 48% 80%, rgba(123, 128, 255, 0.08), transparent 24%);
+      pointer-events: none;
+    }
+
+    .stage {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      min-height: 0;
+      border-radius: 18px;
+      overflow: hidden;
+      background:
+        linear-gradient(180deg, rgba(6, 18, 35, 0.84), rgba(4, 14, 27, 0.92)),
+        radial-gradient(circle at 50% 50%, rgba(50, 130, 190, 0.08), transparent 62%);
+    }
+
+    #fxCanvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 3;
+    }
+
+    .grid {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      grid-template-rows: repeat(8, 1fr);
+      gap: 8px;
+      padding: 8px;
+      z-index: 2;
+    }
+
+    .cell {
+      position: relative;
+      appearance: none;
+      border: 1px solid rgba(152, 233, 255, 0.16);
+      border-radius: 18px;
+      background:
+        radial-gradient(circle at 50% 35%, rgba(88, 192, 255, 0.08), transparent 40%),
+        linear-gradient(180deg, rgba(17, 42, 74, 0.68), rgba(9, 25, 45, 0.78));
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,0.05),
+        inset 0 -10px 28px rgba(0,0,0,0.16),
+        0 0 0 1px rgba(0,0,0,0.08);
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+      overflow: hidden;
+      cursor: pointer;
+      touch-action: manipulation;
+      transition: transform 120ms ease, border-color 140ms ease, background 180ms ease;
+    }
+
+    .cell::before {
+      content: "";
+      position: absolute;
+      inset: 10% 14%;
+      border-radius: 18px;
+      background: radial-gradient(circle at center, rgba(130, 240, 255, 0.06), transparent 72%);
+      opacity: 0.9;
+      pointer-events: none;
+    }
+
+    .cell::after {
+      content: "";
+      position: absolute;
+      inset: -24%;
+      background: radial-gradient(circle at center, rgba(123, 227, 255, 0.0), rgba(123, 227, 255, 0.0) 45%, rgba(123, 227, 255, 0.0) 70%);
+      pointer-events: none;
+      opacity: 0;
+      transform: scale(0.85);
+    }
+
+    .cell:active { transform: scale(0.985); }
+
+    .cell .arrow {
+      position: relative;
+      z-index: 2;
+      font-size: clamp(1.35rem, 4.2vw, 2rem);
+      font-weight: 700;
+      text-shadow: 0 0 10px rgba(148, 244, 255, 0.28), 0 0 26px rgba(119, 170, 255, 0.18);
+      transition: transform 120ms ease;
+      line-height: 1;
+    }
+
+    .cell .note-hint {
+      position: absolute;
+      right: 8px;
+      bottom: 6px;
+      z-index: 2;
+      font-size: 0.62rem;
+      color: rgba(219, 246, 255, 0.38);
+      letter-spacing: 0.04em;
+      pointer-events: none;
+    }
+
+    .cell.rotate-flash .arrow {
+      animation: arrowKick 160ms ease;
+    }
+
+    .cell.pulse::after {
+      opacity: 1;
+      animation: pulseRing 380ms ease-out;
+      background: radial-gradient(circle at center,
+        rgba(123, 227, 255, 0.28),
+        rgba(123, 227, 255, 0.10) 32%,
+        rgba(123, 227, 255, 0.0) 72%);
+    }
+
+    .cell.global-flash {
+      border-color: rgba(171, 241, 255, 0.38);
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,0.06),
+        0 0 16px rgba(121, 215, 255, 0.12);
+      animation: globalWash 260ms ease;
+    }
+
+    @keyframes pulseRing {
+      0% { opacity: 0.95; transform: scale(0.72); }
+      100% { opacity: 0; transform: scale(1.18); }
+    }
+
+    @keyframes arrowKick {
+      0% { transform: scale(1); }
+      40% { transform: scale(1.12); }
+      100% { transform: scale(1); }
+    }
+
+    @keyframes globalWash {
+      0% { transform: scale(0.98); }
+      50% { transform: scale(1.01); }
+      100% { transform: scale(1); }
+    }
+
+    .controls {
+      display: grid;
+      gap: 10px;
+    }
+
+    .control-row {
+      display: grid;
+      gap: 8px;
+    }
+
+    .control-row.primary {
+      grid-template-columns: repeat(6, 1fr);
+    }
+
+    .control-row.secondary {
+      grid-template-columns: repeat(5, 1fr);
+    }
+
+    .btn {
+      appearance: none;
+      border: 1px solid rgba(152, 233, 255, 0.16);
+      border-radius: 16px;
+      background: linear-gradient(180deg, rgba(16, 37, 66, 0.82), rgba(9, 22, 43, 0.86));
+      color: var(--text);
+      min-height: 48px;
+      padding: 0 12px;
+      font-size: 0.92rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      box-shadow: var(--ui-shadow);
+      cursor: pointer;
+      transition: transform 120ms ease, border-color 140ms ease, background 160ms ease;
+      touch-action: manipulation;
+    }
+
+    .btn:active { transform: scale(0.985); }
+    .btn.active {
+      border-color: rgba(153, 244, 255, 0.46);
+      background: linear-gradient(180deg, rgba(20, 54, 95, 0.95), rgba(11, 28, 55, 0.92));
+      box-shadow: 0 0 20px rgba(108, 200, 255, 0.14), var(--ui-shadow);
+    }
+
+    .btn.small-label {
+      font-size: 0.84rem;
+    }
+
+    .overlay {
+      position: absolute;
+      inset: 0;
+      z-index: 8;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      background: linear-gradient(180deg, rgba(2, 7, 15, 0.34), rgba(2, 7, 15, 0.7));
+      backdrop-filter: blur(8px);
+    }
+
+    .overlay[hidden] { display: none; }
+
+    .card {
+      width: min(100%, 420px);
+      border-radius: 24px;
+      padding: 22px 18px 18px;
+      background: linear-gradient(180deg, rgba(10, 27, 49, 0.92), rgba(7, 19, 35, 0.94));
+      border: 1px solid rgba(152, 233, 255, 0.16);
+      box-shadow: 0 18px 44px rgba(0,0,0,0.36), inset 0 1px 0 rgba(255,255,255,0.06);
+    }
+
+    .card h2 {
+      margin: 0 0 8px;
+      font-size: 1.22rem;
+    }
+
+    .card p {
+      margin: 0;
+      color: var(--sub);
+      line-height: 1.6;
+      font-size: 0.93rem;
+    }
+
+    .hint-list {
+      margin: 14px 0 18px;
+      padding-left: 1.1em;
+      color: var(--sub);
+      font-size: 0.92rem;
+      line-height: 1.55;
+    }
+
+    .start-btn {
+      width: 100%;
+      min-height: 54px;
+      border-radius: 18px;
+      border: 1px solid rgba(153, 244, 255, 0.3);
+      background: linear-gradient(180deg, rgba(24, 67, 118, 0.96), rgba(12, 34, 67, 0.96));
+      color: #f2fdff;
+      font-size: 1rem;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      box-shadow: 0 14px 36px rgba(41, 97, 170, 0.28);
+      cursor: pointer;
+    }
+
+    .legend {
+      position: absolute;
+      left: 14px;
+      bottom: 14px;
+      z-index: 4;
+      padding: 8px 10px;
+      border-radius: 12px;
+      background: rgba(7, 18, 34, 0.44);
+      border: 1px solid rgba(152, 233, 255, 0.08);
+      color: rgba(219, 246, 255, 0.58);
+      font-size: 0.74rem;
+      line-height: 1.45;
+      pointer-events: none;
+      backdrop-filter: blur(4px);
+    }
+
+    @media (max-width: 560px) {
+      .app { padding-left: 10px; padding-right: 10px; }
+      .stage-shell { padding: 10px; border-radius: 22px; }
+      .grid { gap: 7px; padding: 7px; }
+      .control-row.primary { grid-template-columns: repeat(3, 1fr); }
+      .control-row.secondary { grid-template-columns: repeat(3, 1fr); }
+      .btn { min-height: 46px; }
+      .legend { display: none; }
+      .subtitle { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="header">
+      <div class="title-wrap">
+        <h1 class="title">Luminaria v0.1</h1>
+        <div class="subtitle">4×8｜四角出發｜全域刷向｜Preset B 開場</div>
+      </div>
+      <div class="status"><span class="status-dot" id="statusDot"></span><span id="statusText">未開始</span></div>
+    </div>
+
+    <div class="stage-shell">
+      <div class="stage" id="stage">
+        <canvas id="fxCanvas"></canvas>
+        <div class="grid" id="grid"></div>
+        <div class="legend">點一下單格旋轉｜按住連轉｜下方可全場刷向</div>
+      </div>
+      <div class="overlay" id="startOverlay">
+        <div class="card">
+          <h2>Luminaria v0.1</h2>
+          <p>先把核心玩法做正確：32 格箭頭、四角起始、全場同步刷向、雙預設與柔和音色。</p>
+          <ul class="hint-list">
+            <li>點一下任一格：該格順時針旋轉一格</li>
+            <li>按住任一格：約 0.22 秒後開始持續旋轉</li>
+            <li>下方按鈕可把全場同步刷成同一方向</li>
+          </ul>
+          <button class="start-btn" id="startBtn">開始</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="controls">
+      <div class="control-row primary">
+        <button class="btn" id="rotateAllBtn">↺</button>
+        <button class="btn" data-global-dir="0">↑</button>
+        <button class="btn" data-global-dir="2">→</button>
+        <button class="btn" data-global-dir="4">↓</button>
+        <button class="btn" data-global-dir="6">←</button>
+        <button class="btn" id="resetBtn">重置</button>
+      </div>
+      <div class="control-row secondary">
+        <button class="btn active small-label" id="presetBBtn">Preset B</button>
+        <button class="btn small-label" id="presetABtn">Preset A</button>
+        <button class="btn" id="pauseBtn">暫停</button>
+        <button class="btn small-label" id="restartBtn">重新開始</button>
+        <button class="btn small-label" id="helpBtn">說明</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (() => {
+      const COLS = 4;
+      const ROWS = 8;
+      const DIRS = [
+        { dx: 0, dy: -1, symbol: '↑' },
+        { dx: 1, dy: -1, symbol: '↗' },
+        { dx: 1, dy: 0, symbol: '→' },
+        { dx: 1, dy: 1, symbol: '↘' },
+        { dx: 0, dy: 1, symbol: '↓' },
+        { dx: -1, dy: 1, symbol: '↙' },
+        { dx: -1, dy: 0, symbol: '←' },
+        { dx: -1, dy: -1, symbol: '↖' }
+      ];
+
+      const PRESET_A = [
+        [3, 4, 4, 5],
+        [2, 3, 5, 6],
+        [1, 2, 6, 7],
+        [0, 1, 7, 0],
+        [4, 3, 5, 4],
+        [1, 2, 6, 7],
+        [2, 1, 7, 6],
+        [1, 0, 0, 7]
+      ];
+
+      const PRESET_B = [
+        [2, 3, 5, 6],
+        [1, 2, 4, 7],
+        [0, 1, 6, 5],
+        [3, 0, 7, 6],
+        [2, 1, 7, 4],
+        [5, 2, 0, 7],
+        [1, 4, 2, 5],
+        [0, 1, 7, 6]
+      ];
+
+      const NOTE_GRID = [
+        ['D3', 'F3', 'A3', 'E4'],
+        ['D3', 'F3', 'A3', 'E4'],
+        ['F3', 'A3', 'C4', 'E4'],
+        ['F3', 'A3', 'C4', 'E4'],
+        ['C3', 'E3', 'G3', 'D4'],
+        ['C3', 'E3', 'G3', 'D4'],
+        ['A2', 'C3', 'E3', 'B3'],
+        ['A2', 'C3', 'E3', 'B3']
+      ];
+
+      const NOTE_FREQ = {
+        'A2': 110.00,
+        'B3': 246.94,
+        'C3': 130.81,
+        'C4': 261.63,
+        'D3': 146.83,
+        'D4': 293.66,
+        'E3': 164.81,
+        'E4': 329.63,
+        'F3': 174.61,
+        'G3': 196.00,
+        'A3': 220.00
+      };
+
+      const VOICE_SPECS = [
+        { name: 'LT', interval: 1200, gain: 0.23, detune: -4, glow: 'rgba(136, 219, 255, 0.95)', fill: '#8ee5ff', tail: '#70bfff', size: 1.2 },
+        { name: 'RT', interval: 900,  gain: 0.18, detune: 0,  glow: 'rgba(173, 244, 255, 0.9)', fill: '#b9f6ff', tail: '#80e7ff', size: 1.0 },
+        { name: 'LB', interval: 650,  gain: 0.15, detune: 4,  glow: 'rgba(183, 199, 255, 0.84)', fill: '#d0ddff', tail: '#93b4ff', size: 0.95 },
+        { name: 'RB', interval: 450,  gain: 0.12, detune: 9,  glow: 'rgba(236, 245, 255, 0.82)', fill: '#f2fbff', tail: '#b1d9ff', size: 0.88 }
+      ];
+
+      const CORNERS = [
+        { x: 0, y: 0 },
+        { x: COLS - 1, y: 0 },
+        { x: 0, y: ROWS - 1 },
+        { x: COLS - 1, y: ROWS - 1 }
+      ];
+
+      const HOLD_DELAY = 220;
+      const HOLD_STEP = 100;
+
+      const stage = document.getElementById('stage');
+      const gridEl = document.getElementById('grid');
+      const canvas = document.getElementById('fxCanvas');
+      const ctx = canvas.getContext('2d');
+      const startOverlay = document.getElementById('startOverlay');
+      const startBtn = document.getElementById('startBtn');
+      const rotateAllBtn = document.getElementById('rotateAllBtn');
+      const resetBtn = document.getElementById('resetBtn');
+      const restartBtn = document.getElementById('restartBtn');
+      const pauseBtn = document.getElementById('pauseBtn');
+      const presetABtn = document.getElementById('presetABtn');
+      const presetBBtn = document.getElementById('presetBBtn');
+      const helpBtn = document.getElementById('helpBtn');
+      const statusDot = document.getElementById('statusDot');
+      const statusText = document.getElementById('statusText');
+
+      const cells = [];
+      const cellButtons = [];
+      const particles = [];
+      const voices = [];
+
+      let currentPreset = 'B';
+      let isStarted = false;
+      let isRunning = false;
+      let audio = null;
+      let lastTime = performance.now();
+      let stageRect = { width: 1, height: 1, left: 0, top: 0 };
+      let uiFlashAt = 0;
+
+      function clonePreset(name) {
+        const src = name === 'A' ? PRESET_A : PRESET_B;
+        return src.map(row => row.slice());
+      }
+
+      function wrap(v, max) {
+        return (v + max) % max;
+      }
+
+      function indexOfCell(x, y) {
+        return y * COLS + x;
+      }
+
+      function cellCenter(x, y) {
+        const innerPadding = 8;
+        const gap = 8;
+        const width = stageRect.width - innerPadding * 2;
+        const height = stageRect.height - innerPadding * 2;
+        const cellW = (width - gap * (COLS - 1)) / COLS;
+        const cellH = (height - gap * (ROWS - 1)) / ROWS;
+        return {
+          x: innerPadding + x * (cellW + gap) + cellW / 2,
+          y: innerPadding + y * (cellH + gap) + cellH / 2,
+          cellW,
+          cellH,
+          gap
+        };
+      }
+
+      function createGrid() {
+        gridEl.innerHTML = '';
+        for (let y = 0; y < ROWS; y++) {
+          for (let x = 0; x < COLS; x++) {
+            const btn = document.createElement('button');
+            btn.className = 'cell';
+            btn.setAttribute('aria-label', `cell-${x}-${y}`);
+            btn.dataset.x = String(x);
+            btn.dataset.y = String(y);
+            btn.innerHTML = '<span class="arrow">↑</span><span class="note-hint"></span>';
+            gridEl.appendChild(btn);
+            cellButtons.push(btn);
+
+            const cell = {
+              x,
+              y,
+              dir: 0,
+              note: NOTE_GRID[y][x],
+              freq: NOTE_FREQ[NOTE_GRID[y][x]],
+              button: btn,
+              arrowEl: btn.querySelector('.arrow'),
+              noteEl: btn.querySelector('.note-hint')
+            };
+            cell.noteEl.textContent = cell.note;
+            cells.push(cell);
+            bindCellInput(cell);
+          }
+        }
+      }
+
+      function bindCellInput(cell) {
+        let holdTimer = null;
+        let repeatTimer = null;
+        let didHold = false;
+
+        const clearTimers = () => {
+          if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; }
+          if (repeatTimer) { clearInterval(repeatTimer); repeatTimer = null; }
+        };
+
+        const endInteraction = () => {
+          clearTimers();
+          if (!didHold) rotateCell(cell.x, cell.y, 1, true);
+          didHold = false;
+        };
+
+        cell.button.addEventListener('pointerdown', (e) => {
+          e.preventDefault();
+          didHold = false;
+          clearTimers();
+          holdTimer = setTimeout(() => {
+            didHold = true;
+            rotateCell(cell.x, cell.y, 1, true);
+            repeatTimer = setInterval(() => rotateCell(cell.x, cell.y, 1, true), HOLD_STEP);
+          }, HOLD_DELAY);
+        });
+
+        cell.button.addEventListener('pointerup', (e) => {
+          e.preventDefault();
+          endInteraction();
+        });
+
+        cell.button.addEventListener('pointercancel', () => {
+          clearTimers();
+          didHold = false;
+        });
+
+        cell.button.addEventListener('pointerleave', () => {
+          clearTimers();
+          if (!didHold) return;
+        });
+
+        cell.button.addEventListener('contextmenu', (e) => e.preventDefault());
+      }
+
+      function updateCellVisual(x, y) {
+        const cell = cells[indexOfCell(x, y)];
+        cell.arrowEl.textContent = DIRS[cell.dir].symbol;
+      }
+
+      function updateAllCellVisuals() {
+        for (const cell of cells) updateCellVisual(cell.x, cell.y);
+      }
+
+      function markCellPulse(x, y) {
+        const btn = cells[indexOfCell(x, y)].button;
+        btn.classList.remove('pulse');
+        void btn.offsetWidth;
+        btn.classList.add('pulse');
+        setTimeout(() => btn.classList.remove('pulse'), 380);
+      }
+
+      function markRotateFlash(x, y) {
+        const btn = cells[indexOfCell(x, y)].button;
+        btn.classList.remove('rotate-flash');
+        void btn.offsetWidth;
+        btn.classList.add('rotate-flash');
+        setTimeout(() => btn.classList.remove('rotate-flash'), 160);
+      }
+
+      function flashAllCells() {
+        uiFlashAt = performance.now();
+        for (const btn of cellButtons) {
+          btn.classList.remove('global-flash');
+          void btn.offsetWidth;
+          btn.classList.add('global-flash');
+          setTimeout(() => btn.classList.remove('global-flash'), 260);
+        }
+      }
+
+      function loadPreset(name) {
+        currentPreset = name;
+        const preset = clonePreset(name);
+        for (let y = 0; y < ROWS; y++) {
+          for (let x = 0; x < COLS; x++) {
+            cells[indexOfCell(x, y)].dir = preset[y][x];
+          }
+        }
+        updateAllCellVisuals();
+        presetABtn.classList.toggle('active', name === 'A');
+        presetBBtn.classList.toggle('active', name === 'B');
+      }
+
+      function rotateCell(x, y, step = 1, playUi = false) {
+        const cell = cells[indexOfCell(x, y)];
+        cell.dir = wrap(cell.dir + step, 8);
+        updateCellVisual(x, y);
+        markRotateFlash(x, y);
+        if (playUi) playUiTick(0.18, 420 + cell.dir * 16);
+      }
+
+      function setAllDirections(dir) {
+        for (const cell of cells) cell.dir = dir;
+        updateAllCellVisuals();
+        flashAllCells();
+        playUiSweep(dir);
+      }
+
+      function rotateAllDirections() {
+        for (const cell of cells) cell.dir = wrap(cell.dir + 1, 8);
+        updateAllCellVisuals();
+        flashAllCells();
+        playUiSweep();
+      }
+
+      function resetVoices(triggerStartNotes = true) {
+        voices.length = 0;
+        for (let i = 0; i < VOICE_SPECS.length; i++) {
+          const start = CORNERS[i];
+          const voice = {
+            idx: i,
+            spec: VOICE_SPECS[i],
+            x: start.x,
+            y: start.y,
+            nextX: start.x,
+            nextY: start.y,
+            elapsed: 0,
+            justWarped: false
+          };
+          const next = nextPosition(start.x, start.y);
+          voice.nextX = next.x;
+          voice.nextY = next.y;
+          voices.push(voice);
+          if (triggerStartNotes) triggerCell(start.x, start.y, i, true);
+        }
+      }
+
+      function resetBoard(triggerNotes = true) {
+        loadPreset(currentPreset);
+        resetVoices(triggerNotes);
+        if (triggerNotes) playUiTick(0.24, 320);
+      }
+
+      function restartFlow() {
+        resetVoices(true);
+      }
+
+      function nextPosition(x, y) {
+        const dir = DIRS[cells[indexOfCell(x, y)].dir];
+        return {
+          x: wrap(x + dir.dx, COLS),
+          y: wrap(y + dir.dy, ROWS)
+        };
+      }
+
+      function triggerCell(x, y, voiceIdx, isStart = false) {
+        markCellPulse(x, y);
+        const cell = cells[indexOfCell(x, y)];
+        playNote(cell.freq, voiceIdx, isStart ? 0.85 : 1.0);
+      }
+
+      function updateStatus() {
+        if (!isStarted) {
+          statusText.textContent = '未開始';
+          statusDot.classList.remove('running');
+          return;
+        }
+        if (isRunning) {
+          statusText.textContent = `運行中｜${currentPreset}`;
+          statusDot.classList.add('running');
+        } else {
+          statusText.textContent = `已暫停｜${currentPreset}`;
+          statusDot.classList.remove('running');
+        }
+      }
+
+      function setupParticles() {
+        particles.length = 0;
+        for (let i = 0; i < 28; i++) {
+          particles.push({
+            x: Math.random(),
+            y: Math.random(),
+            r: 0.6 + Math.random() * 1.7,
+            vx: (Math.random() - 0.5) * 0.002,
+            vy: (Math.random() - 0.5) * 0.003,
+            a: 0.15 + Math.random() * 0.35
+          });
+        }
+      }
+
+      function resizeCanvas() {
+        const dpr = Math.max(1, Math.min(window.devicePixelRatio || 1, 2));
+        stageRect = stage.getBoundingClientRect();
+        canvas.width = Math.round(stageRect.width * dpr);
+        canvas.height = Math.round(stageRect.height * dpr);
+        canvas.style.width = stageRect.width + 'px';
+        canvas.style.height = stageRect.height + 'px';
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      }
+
+      function moveVoices(dt) {
+        if (!isStarted || !isRunning) return;
+        for (const voice of voices) {
+          voice.elapsed += dt;
+          const interval = voice.spec.interval;
+          while (voice.elapsed >= interval) {
+            voice.elapsed -= interval;
+            voice.x = voice.nextX;
+            voice.y = voice.nextY;
+            triggerCell(voice.x, voice.y, voice.idx, false);
+            const next = nextPosition(voice.x, voice.y);
+            voice.justWarped = Math.abs(next.x - voice.x) > 1 || Math.abs(next.y - voice.y) > 1;
+            voice.nextX = next.x;
+            voice.nextY = next.y;
+          }
+        }
+      }
+
+      function drawBackgroundGlow() {
+        const grad = ctx.createRadialGradient(stageRect.width * 0.5, stageRect.height * 0.48, 10, stageRect.width * 0.5, stageRect.height * 0.48, Math.max(stageRect.width, stageRect.height) * 0.6);
+        grad.addColorStop(0, 'rgba(69, 127, 176, 0.08)');
+        grad.addColorStop(1, 'rgba(6, 18, 35, 0)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, stageRect.width, stageRect.height);
+      }
+
+      function drawParticles(dt) {
+        for (const p of particles) {
+          p.x += p.vx * dt;
+          p.y += p.vy * dt;
+          if (p.x < -0.05) p.x = 1.05;
+          if (p.x > 1.05) p.x = -0.05;
+          if (p.y < -0.05) p.y = 1.05;
+          if (p.y > 1.05) p.y = -0.05;
+          ctx.beginPath();
+          ctx.fillStyle = `rgba(182, 219, 255, ${p.a})`;
+          ctx.arc(p.x * stageRect.width, p.y * stageRect.height, p.r, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+
+      function drawVoice(voice) {
+        const from = cellCenter(voice.x, voice.y);
+        const to = cellCenter(voice.nextX, voice.nextY);
+        const dir = DIRS[cells[indexOfCell(voice.x, voice.y)].dir];
+        const t = Math.min(1, voice.elapsed / voice.spec.interval);
+        let px, py, alpha = 1;
+        const wrapped = Math.abs(voice.nextX - voice.x) > 1 || Math.abs(voice.nextY - voice.y) > 1;
+
+        if (!wrapped) {
+          px = from.x + (to.x - from.x) * t;
+          py = from.y + (to.y - from.y) * t;
+        } else {
+          const stepX = from.cellW + from.gap;
+          const stepY = from.cellH + from.gap;
+          if (t < 0.5) {
+            const local = t / 0.5;
+            px = from.x + dir.dx * stepX * local;
+            py = from.y + dir.dy * stepY * local;
+            alpha = 1 - local * 0.8;
+          } else {
+            const local = (t - 0.5) / 0.5;
+            px = to.x - dir.dx * stepX * (1 - local);
+            py = to.y - dir.dy * stepY * (1 - local);
+            alpha = 0.2 + local * 0.8;
+          }
+        }
+
+        const radius = Math.min(from.cellW, from.cellH) * 0.18 * voice.spec.size;
+        const tailLen = radius * 2.2;
+        const tx = -dir.dx * tailLen * 0.7;
+        const ty = -dir.dy * tailLen * 0.7;
+
+        ctx.save();
+        ctx.globalAlpha = alpha;
+
+        const tailGrad = ctx.createLinearGradient(px, py, px + tx, py + ty);
+        tailGrad.addColorStop(0, voice.spec.tail.replace(')', ', 0.32)').replace('rgb', 'rgba'));
+        tailGrad.addColorStop(1, 'rgba(120, 180, 255, 0)');
+        ctx.strokeStyle = tailGrad;
+        ctx.lineWidth = Math.max(2, radius * 0.85);
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(px, py);
+        ctx.lineTo(px + tx, py + ty);
+        ctx.stroke();
+
+        const glow = ctx.createRadialGradient(px, py, radius * 0.4, px, py, radius * 2.8);
+        glow.addColorStop(0, voice.spec.glow);
+        glow.addColorStop(1, 'rgba(120, 180, 255, 0)');
+        ctx.fillStyle = glow;
+        ctx.beginPath();
+        ctx.arc(px, py, radius * 2.8, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = voice.spec.fill;
+        ctx.beginPath();
+        ctx.arc(px, py, radius, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = 'rgba(255,255,255,0.85)';
+        ctx.beginPath();
+        ctx.arc(px - radius * 0.25, py - radius * 0.25, radius * 0.22, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.restore();
+      }
+
+      function drawScene(dt) {
+        ctx.clearRect(0, 0, stageRect.width, stageRect.height);
+        drawBackgroundGlow();
+        drawParticles(dt);
+        for (const voice of voices) drawVoice(voice);
+      }
+
+      function raf(now) {
+        const dt = Math.min(32, now - lastTime);
+        lastTime = now;
+        moveVoices(dt);
+        drawScene(dt);
+        requestAnimationFrame(raf);
+      }
+
+      function setupAudio() {
+        if (audio) return audio;
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (!AudioCtx) return null;
+        const ctxAudio = new AudioCtx();
+        const master = ctxAudio.createGain();
+        master.gain.value = 0.55;
+
+        const filter = ctxAudio.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.value = 1800;
+        filter.Q.value = 0.2;
+
+        const delay = ctxAudio.createDelay(0.55);
+        delay.delayTime.value = 0.21;
+        const fb = ctxAudio.createGain();
+        fb.gain.value = 0.22;
+        const wet = ctxAudio.createGain();
+        wet.gain.value = 0.18;
+        const dry = ctxAudio.createGain();
+        dry.gain.value = 0.95;
+
+        const comp = ctxAudio.createDynamicsCompressor();
+        comp.threshold.value = -22;
+        comp.knee.value = 14;
+        comp.ratio.value = 2.2;
+        comp.attack.value = 0.006;
+        comp.release.value = 0.18;
+
+        dry.connect(filter);
+        wet.connect(delay);
+        delay.connect(fb);
+        fb.connect(delay);
+        delay.connect(filter);
+        filter.connect(comp);
+        comp.connect(master);
+        master.connect(ctxAudio.destination);
+
+        audio = { ctx: ctxAudio, dry, wet };
+        return audio;
+      }
+
+      function ensureAudio() {
+        const a = setupAudio();
+        if (!a) return null;
+        if (a.ctx.state === 'suspended') a.ctx.resume();
+        return a;
+      }
+
+      function playNote(freq, voiceIdx, velocity = 1) {
+        const a = ensureAudio();
+        if (!a) return;
+        const spec = VOICE_SPECS[voiceIdx];
+        const now = a.ctx.currentTime;
+
+        const env = a.ctx.createGain();
+        const wetSend = a.ctx.createGain();
+        wetSend.gain.value = 0.34;
+
+        const osc1 = a.ctx.createOscillator();
+        osc1.type = 'sine';
+        osc1.frequency.value = freq;
+        osc1.detune.value = spec.detune;
+
+        const osc2 = a.ctx.createOscillator();
+        osc2.type = 'triangle';
+        osc2.frequency.value = freq * 2;
+        osc2.detune.value = spec.detune * 0.45;
+
+        const osc3 = a.ctx.createOscillator();
+        osc3.type = 'sine';
+        osc3.frequency.value = freq * 3.01;
+        osc3.detune.value = spec.detune * 0.2;
+
+        const mix2 = a.ctx.createGain();
+        mix2.gain.value = 0.08;
+        const mix3 = a.ctx.createGain();
+        mix3.gain.value = 0.018;
+
+        env.gain.setValueAtTime(0.0001, now);
+        env.gain.linearRampToValueAtTime(spec.gain * velocity, now + 0.018);
+        env.gain.exponentialRampToValueAtTime(Math.max(0.0001, spec.gain * velocity * 0.55), now + 0.19);
+        env.gain.exponentialRampToValueAtTime(0.0001, now + 0.62);
+
+        osc1.connect(env);
+        osc2.connect(mix2); mix2.connect(env);
+        osc3.connect(mix3); mix3.connect(env);
+        env.connect(a.dry);
+        env.connect(wetSend);
+        wetSend.connect(a.wet);
+
+        osc1.start(now); osc2.start(now); osc3.start(now);
+        osc1.stop(now + 0.66); osc2.stop(now + 0.66); osc3.stop(now + 0.66);
+      }
+
+      function playUiTick(level = 0.14, freq = 360) {
+        const a = ensureAudio();
+        if (!a) return;
+        const now = a.ctx.currentTime;
+        const osc = a.ctx.createOscillator();
+        osc.type = 'sine';
+        osc.frequency.value = freq;
+        const gain = a.ctx.createGain();
+        gain.gain.setValueAtTime(0.0001, now);
+        gain.gain.linearRampToValueAtTime(level, now + 0.01);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.12);
+        osc.connect(gain);
+        gain.connect(a.dry);
+        osc.start(now);
+        osc.stop(now + 0.14);
+      }
+
+      function playUiSweep(dir = null) {
+        const base = dir == null ? 300 : 280 + dir * 22;
+        playUiTick(0.12, base);
+        setTimeout(() => playUiTick(0.08, base + 44), 36);
+      }
+
+      function startExperience() {
+        ensureAudio();
+        isStarted = true;
+        isRunning = true;
+        startOverlay.hidden = true;
+        resetBoard(true);
+        updateStatus();
+      }
+
+      function togglePause() {
+        if (!isStarted) return;
+        isRunning = !isRunning;
+        pauseBtn.textContent = isRunning ? '暫停' : '播放';
+        if (isRunning) playUiTick(0.16, 340);
+        else playUiTick(0.12, 240);
+        updateStatus();
+      }
+
+      function showHelp() {
+        if (!startOverlay.hidden) return;
+        startOverlay.hidden = false;
+        if (isStarted) {
+          const card = startOverlay.querySelector('.card');
+          card.querySelector('h2').textContent = '操作說明';
+          card.querySelector('p').textContent = '目前是 v0.1 原型版，先優先還原核心玩法與觸控手感。';
+          card.querySelector('.hint-list').innerHTML = `
+            <li>點一下單格：該格順時針旋轉一格</li>
+            <li>按住單格：約 0.22 秒後開始持續旋轉</li>
+            <li>↺：全場八向輪轉；↑→↓←：全場同步刷向</li>
+          `;
+          startBtn.textContent = '回到遊戲';
+        }
+      }
+
+      function hideHelp() {
+        if (!isStarted) return;
+        startOverlay.hidden = true;
+        const card = startOverlay.querySelector('.card');
+        card.querySelector('h2').textContent = 'Luminaria v0.1';
+        card.querySelector('p').textContent = '先把核心玩法做正確：32 格箭頭、四角起始、全場同步刷向、雙預設與柔和音色。';
+        card.querySelector('.hint-list').innerHTML = `
+          <li>點一下任一格：該格順時針旋轉一格</li>
+          <li>按住任一格：約 0.22 秒後開始持續旋轉</li>
+          <li>下方按鈕可把全場同步刷成同一方向</li>
+        `;
+        startBtn.textContent = isStarted ? '回到遊戲' : '開始';
+      }
+
+      startBtn.addEventListener('click', () => {
+        if (!isStarted) startExperience();
+        else hideHelp();
+      });
+
+      rotateAllBtn.addEventListener('click', () => rotateAllDirections());
+      resetBtn.addEventListener('click', () => {
+        resetBoard(true);
+        if (isStarted) playUiTick(0.18, 320);
+      });
+      restartBtn.addEventListener('click', () => {
+        restartFlow();
+        if (isStarted) playUiTick(0.16, 300);
+      });
+      pauseBtn.addEventListener('click', togglePause);
+      presetABtn.addEventListener('click', () => {
+        loadPreset('A');
+        if (isStarted) resetVoices(true);
+        playUiSweep(1);
+        updateStatus();
+      });
+      presetBBtn.addEventListener('click', () => {
+        loadPreset('B');
+        if (isStarted) resetVoices(true);
+        playUiSweep(5);
+        updateStatus();
+      });
+      helpBtn.addEventListener('click', showHelp);
+
+      document.querySelectorAll('[data-global-dir]').forEach(btn => {
+        btn.addEventListener('click', () => setAllDirections(Number(btn.dataset.globalDir)));
+      });
+
+      startOverlay.addEventListener('click', (e) => {
+        if (e.target === startOverlay && isStarted) hideHelp();
+      });
+
+      const resizeObserver = new ResizeObserver(() => resizeCanvas());
+      resizeObserver.observe(stage);
+      window.addEventListener('resize', resizeCanvas);
+
+      createGrid();
+      loadPreset('B');
+      resetVoices(false);
+      setupParticles();
+      resizeCanvas();
+      updateStatus();
+      requestAnimationFrame(raf);
+    })();
+  </script>
+</body>
+</html>
