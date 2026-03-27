@@ -1,0 +1,870 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+  <title>Lumiloop v0.1</title>
+  <style>
+    :root {
+      --bg1: #02030a;
+      --bg2: #17082f;
+      --bg3: #39115c;
+      --panel: rgba(8, 10, 20, 0.42);
+      --stroke: rgba(255,255,255,0.14);
+      --text: rgba(255,255,255,0.92);
+      --sub: rgba(255,255,255,0.64);
+      --accent: rgba(169, 146, 255, 0.9);
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 18% 12%, rgba(120, 80, 255, 0.35), transparent 28%),
+        radial-gradient(circle at 82% 18%, rgba(32, 176, 255, 0.18), transparent 24%),
+        radial-gradient(circle at 74% 84%, rgba(255, 70, 170, 0.22), transparent 25%),
+        linear-gradient(180deg, var(--bg3) 0%, #150934 36%, var(--bg2) 60%, var(--bg1) 100%);
+      color: var(--text);
+      font-family: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif;
+      touch-action: none;
+      overscroll-behavior: none;
+    }
+
+    body {
+      position: fixed;
+      inset: 0;
+    }
+
+    canvas {
+      display: block;
+      width: 100vw;
+      height: 100vh;
+      touch-action: none;
+    }
+
+    .hud {
+      position: fixed;
+      inset: env(safe-area-inset-top, 0) 0 auto 0;
+      padding: calc(12px + env(safe-area-inset-top, 0)) 14px 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      pointer-events: none;
+      z-index: 20;
+    }
+
+    .titleBlock, .miniHelp {
+      background: var(--panel);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border: 1px solid var(--stroke);
+      border-radius: 18px;
+      padding: 10px 12px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.18);
+    }
+
+    .titleBlock {
+      max-width: min(70vw, 380px);
+    }
+
+    .title {
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+    }
+
+    .subtitle {
+      margin-top: 4px;
+      font-size: 12px;
+      line-height: 1.5;
+      color: var(--sub);
+    }
+
+    .miniHelp {
+      max-width: min(40vw, 220px);
+      font-size: 12px;
+      line-height: 1.45;
+      color: var(--sub);
+      text-align: right;
+    }
+
+    .controls {
+      position: fixed;
+      left: 50%;
+      bottom: calc(16px + env(safe-area-inset-bottom, 0));
+      transform: translateX(-50%);
+      display: flex;
+      gap: 10px;
+      z-index: 30;
+    }
+
+    .btn {
+      appearance: none;
+      border: 1px solid rgba(255,255,255,0.12);
+      background: rgba(8, 10, 20, 0.44);
+      color: var(--text);
+      padding: 12px 14px;
+      min-width: 84px;
+      border-radius: 16px;
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+      touch-action: manipulation;
+    }
+
+    .btn:active {
+      transform: translateY(1px) scale(0.985);
+    }
+
+    .overlay {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      z-index: 50;
+      background:
+        radial-gradient(circle at center, rgba(98, 63, 194, 0.28), rgba(1, 2, 10, 0.84));
+      transition: opacity 280ms ease;
+    }
+
+    .overlay.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .card {
+      width: min(92vw, 460px);
+      background: rgba(10, 11, 24, 0.68);
+      border: 1px solid rgba(255,255,255,0.14);
+      border-radius: 26px;
+      padding: 22px 20px 20px;
+      text-align: center;
+      box-shadow: 0 24px 60px rgba(0,0,0,0.34);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+    }
+
+    .card h1 {
+      margin: 0;
+      font-size: 28px;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+    }
+
+    .card p {
+      margin: 12px 0 0;
+      font-size: 14px;
+      line-height: 1.7;
+      color: var(--sub);
+    }
+
+    .startBtn {
+      margin-top: 18px;
+      width: 100%;
+      appearance: none;
+      border: 0;
+      border-radius: 18px;
+      padding: 16px 18px;
+      font-size: 16px;
+      font-weight: 800;
+      color: white;
+      background:
+        linear-gradient(135deg, rgba(142, 97, 255, 0.96), rgba(68, 208, 255, 0.9));
+      box-shadow: 0 14px 40px rgba(78, 91, 255, 0.34);
+      touch-action: manipulation;
+    }
+
+    .footnote {
+      margin-top: 10px;
+      font-size: 11px;
+      color: rgba(255,255,255,0.48);
+    }
+
+    @media (max-width: 680px) {
+      .hud {
+        padding: calc(10px + env(safe-area-inset-top, 0)) 10px 0;
+        gap: 8px;
+      }
+      .miniHelp {
+        display: none;
+      }
+      .titleBlock {
+        max-width: calc(100vw - 20px);
+      }
+      .controls {
+        gap: 8px;
+      }
+      .btn {
+        min-width: 74px;
+        padding: 11px 12px;
+        font-size: 13px;
+      }
+      .card h1 {
+        font-size: 24px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="stage"></canvas>
+
+  <div class="hud">
+    <div class="titleBlock">
+      <div class="title">Lumiloop v0.1</div>
+      <div class="subtitle">手指沿著光環繞圈滑動，讓它旋轉發聲。順時針與逆時針會改變聲音性格；點內圈可急停。</div>
+    </div>
+    <div class="miniHelp">多個光環可同時疊音。<br>速度越快，聲音越亮、空間感越強。</div>
+  </div>
+
+  <div class="controls">
+    <button class="btn" id="shuffleBtn">重排</button>
+    <button class="btn" id="muteBtn">靜音</button>
+    <button class="btn" id="calmBtn">歸零</button>
+  </div>
+
+  <div class="overlay" id="overlay">
+    <div class="card">
+      <h1>電子浮游・致敬實驗</h1>
+      <p>這是手機版 v0.1 原型。<br>點一下啟動聲音後，用手指沿著發光圓環繞圈滑動，就能把它們轉起來並疊出空靈和聲。</p>
+      <button class="startBtn" id="startBtn">點一下開始</button>
+      <div class="footnote">為了符合手機瀏覽器規則，聲音需要由你主動點擊後啟動。</div>
+    </div>
+  </div>
+
+  <script>
+    (() => {
+      const canvas = document.getElementById('stage');
+      const ctx = canvas.getContext('2d');
+      const overlay = document.getElementById('overlay');
+      const startBtn = document.getElementById('startBtn');
+      const shuffleBtn = document.getElementById('shuffleBtn');
+      const muteBtn = document.getElementById('muteBtn');
+      const calmBtn = document.getElementById('calmBtn');
+
+      const DPR = Math.min(window.devicePixelRatio || 1, 2);
+      let W = 0;
+      let H = 0;
+      let centerX = 0;
+      let centerY = 0;
+      let t = 0;
+      let started = false;
+      let audioReady = false;
+      let muted = false;
+
+      const pointers = new Map();
+      const rings = [];
+      const particles = [];
+      const ambientBubbles = [];
+
+      const palette = [
+        ['#dca6ff', '#8f5cff'],
+        ['#7fe7ff', '#4e91ff'],
+        ['#ff8ad5', '#ff5f99'],
+        ['#ffc76f', '#ff7b54'],
+        ['#9fff97', '#43e57e']
+      ];
+
+      const safeScale = [60, 62, 65, 67, 69, 72, 74, 77]; // C pentatonic-ish with lift
+      const cwVoices = [0, 7, 14];
+      const ccwVoices = [0, 5, 12];
+
+      let audioCtx = null;
+      let masterGain = null;
+      let wetGain = null;
+      let dryGain = null;
+      let analyser = null;
+
+      function midiToFreq(m) {
+        return 440 * Math.pow(2, (m - 69) / 12);
+      }
+
+      function rand(min, max) {
+        return min + Math.random() * (max - min);
+      }
+
+      function clamp(v, a, b) {
+        return Math.max(a, Math.min(b, v));
+      }
+
+      function lerp(a, b, k) {
+        return a + (b - a) * k;
+      }
+
+      function resize() {
+        W = Math.max(1, window.innerWidth);
+        H = Math.max(1, window.innerHeight);
+        centerX = W * 0.5;
+        centerY = H * 0.52;
+        canvas.width = Math.round(W * DPR);
+        canvas.height = Math.round(H * DPR);
+        canvas.style.width = W + 'px';
+        canvas.style.height = H + 'px';
+        ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+        if (!rings.length) buildRings();
+        else fitRings();
+        buildAmbientBubbles();
+      }
+
+      function buildRings() {
+        rings.length = 0;
+        const n = Math.min(W < 430 ? 4 : 5, palette.length);
+        const areaR = Math.min(W, H) * (W < 430 ? 0.23 : 0.26);
+        for (let i = 0; i < n; i++) {
+          const angle = (Math.PI * 2 * i) / n + rand(-0.25, 0.25);
+          const radius = Math.min(W, H) * rand(0.10, 0.15);
+          const x = centerX + Math.cos(angle) * areaR * rand(0.55, 1.0);
+          const y = centerY + Math.sin(angle) * areaR * rand(0.45, 1.0);
+          const thickness = radius * rand(0.24, 0.31);
+          const midi = safeScale[i % safeScale.length] + (i >= 3 ? 12 : 0);
+          rings.push(makeRing(x, y, radius, thickness, palette[i], midi, i));
+        }
+      }
+
+      function fitRings() {
+        const areaR = Math.min(W, H) * (W < 430 ? 0.23 : 0.26);
+        rings.forEach((ring, i) => {
+          const angle = ring.seedAngle;
+          ring.x = centerX + Math.cos(angle) * areaR * ring.seedDist;
+          ring.y = centerY + Math.sin(angle) * areaR * ring.seedDistY;
+          ring.radius = Math.min(W, H) * ring.seedRadius;
+          ring.thickness = ring.radius * ring.seedThickness;
+        });
+      }
+
+      function makeRing(x, y, radius, thickness, colors, midi, index) {
+        return {
+          x, y, radius, thickness,
+          innerRadius: radius - thickness * 0.86,
+          angle: rand(0, Math.PI * 2),
+          vel: 0,
+          glow: 0.25,
+          hueA: colors[0],
+          hueB: colors[1],
+          midi,
+          activePointers: new Set(),
+          shimmer: rand(0, Math.PI * 2),
+          lastEmit: 0,
+          seedAngle: Math.atan2(y - centerY, x - centerX),
+          seedDist: Math.hypot(x - centerX, y - centerY) / (Math.min(W, H) * (W < 430 ? 0.23 : 0.26) || 1),
+          seedDistY: Math.hypot(x - centerX, y - centerY) / (Math.min(W, H) * (W < 430 ? 0.23 : 0.26) || 1),
+          seedRadius: radius / Math.min(W, H),
+          seedThickness: thickness / radius,
+          synth: null,
+          index
+        };
+      }
+
+      function rebuildLayout() {
+        const n = rings.length || (W < 430 ? 4 : 5);
+        const areaR = Math.min(W, H) * (W < 430 ? 0.24 : 0.28);
+        rings.forEach((ring, i) => {
+          const angle = (Math.PI * 2 * i) / n + rand(-0.45, 0.45);
+          const radius = Math.min(W, H) * rand(0.10, 0.16);
+          ring.seedAngle = angle;
+          ring.seedDist = rand(0.55, 1.0);
+          ring.seedDistY = ring.seedDist;
+          ring.seedRadius = radius / Math.min(W, H);
+          ring.seedThickness = rand(0.24, 0.31);
+          ring.x = centerX + Math.cos(angle) * areaR * ring.seedDist;
+          ring.y = centerY + Math.sin(angle) * areaR * ring.seedDist;
+          ring.radius = radius;
+          ring.thickness = ring.radius * ring.seedThickness;
+          ring.innerRadius = ring.radius - ring.thickness * 0.86;
+          ring.vel *= 0.35;
+        });
+      }
+
+      function buildAmbientBubbles() {
+        ambientBubbles.length = 0;
+        const count = Math.round((W * H) / 36000);
+        for (let i = 0; i < count; i++) {
+          ambientBubbles.push({
+            x: rand(0, W),
+            y: rand(0, H),
+            r: rand(2, 18),
+            drift: rand(-0.05, 0.05),
+            rise: rand(0.08, 0.42),
+            alpha: rand(0.08, 0.3)
+          });
+        }
+      }
+
+      function createImpulseResponse(ctx, duration = 2.8, decay = 2.2) {
+        const rate = ctx.sampleRate;
+        const length = rate * duration;
+        const impulse = ctx.createBuffer(2, length, rate);
+        for (let ch = 0; ch < 2; ch++) {
+          const data = impulse.getChannelData(ch);
+          for (let i = 0; i < length; i++) {
+            const n = i / length;
+            data[i] = (Math.random() * 2 - 1) * Math.pow(1 - n, decay);
+          }
+        }
+        return impulse;
+      }
+
+      async function initAudio() {
+        if (audioReady) return;
+        const AC = window.AudioContext || window.webkitAudioContext;
+        audioCtx = new AC();
+        masterGain = audioCtx.createGain();
+        dryGain = audioCtx.createGain();
+        wetGain = audioCtx.createGain();
+        analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 256;
+
+        dryGain.gain.value = 0.76;
+        wetGain.gain.value = 0.28;
+        masterGain.gain.value = muted ? 0 : 0.9;
+
+        const convolver = audioCtx.createConvolver();
+        convolver.buffer = createImpulseResponse(audioCtx);
+
+        dryGain.connect(masterGain);
+        wetGain.connect(convolver);
+        convolver.connect(masterGain);
+        masterGain.connect(analyser);
+        analyser.connect(audioCtx.destination);
+
+        for (const ring of rings) {
+          ring.synth = createRingSynth(ring);
+        }
+
+        audioReady = true;
+      }
+
+      function createRingSynth(ring) {
+        const groupOut = audioCtx.createGain();
+        groupOut.gain.value = 0;
+        const filter = audioCtx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.value = 1200;
+        filter.Q.value = 0.6;
+        const trem = audioCtx.createGain();
+        trem.gain.value = 0.95;
+
+        const lfo = audioCtx.createOscillator();
+        const lfoGain = audioCtx.createGain();
+        lfo.frequency.value = rand(0.12, 0.26);
+        lfoGain.gain.value = 0.08;
+        lfo.connect(lfoGain).connect(trem.gain);
+        lfo.start();
+
+        const voices = [];
+        const baseRatios = [1, 2, 3.01];
+        const baseGains = [0.52, 0.18, 0.08];
+        for (let i = 0; i < 3; i++) {
+          const osc = audioCtx.createOscillator();
+          osc.type = i === 0 ? 'sine' : (i === 1 ? 'triangle' : 'sine');
+          const voiceGain = audioCtx.createGain();
+          voiceGain.gain.value = baseGains[i];
+          osc.connect(voiceGain).connect(filter);
+          osc.frequency.value = midiToFreq(ring.midi) * baseRatios[i];
+          osc.start();
+          voices.push({ osc, gain: voiceGain, ratio: baseRatios[i] });
+        }
+
+        filter.connect(trem).connect(groupOut);
+        groupOut.connect(dryGain);
+        groupOut.connect(wetGain);
+
+        return { groupOut, filter, voices, lfo, lfoGain };
+      }
+
+      function updateRingAudio(ring, now) {
+        if (!audioReady || !ring.synth) return;
+        const speed = Math.abs(ring.vel);
+        const dir = ring.vel >= 0 ? 1 : -1;
+        const voiceSet = dir >= 0 ? cwVoices : ccwVoices;
+        const energy = clamp(speed * 18, 0, 1);
+        const base = ring.midi + Math.sin(ring.angle * 0.75 + ring.index * 0.7) * 0.35;
+        const freqs = voiceSet.map(v => midiToFreq(base + v));
+        const targetGain = muted ? 0 : Math.pow(energy, 1.2) * 0.22;
+        const filterHz = 700 + energy * 3800 + Math.sin(now * 0.0012 + ring.index) * 130;
+        ring.synth.groupOut.gain.setTargetAtTime(targetGain, audioCtx.currentTime, 0.08);
+        ring.synth.filter.frequency.setTargetAtTime(filterHz, audioCtx.currentTime, 0.1);
+        ring.synth.filter.Q.setTargetAtTime(0.6 + energy * 3.2, audioCtx.currentTime, 0.12);
+        ring.synth.lfo.frequency.setTargetAtTime(0.08 + energy * 2.2, audioCtx.currentTime, 0.15);
+        ring.synth.lfoGain.gain.setTargetAtTime(0.02 + energy * 0.08, audioCtx.currentTime, 0.15);
+        ring.synth.voices.forEach((voice, i) => {
+          const targetFreq = freqs[i] || freqs[0] * voice.ratio;
+          voice.osc.frequency.setTargetAtTime(targetFreq, audioCtx.currentTime, 0.11);
+          const targetVG = (i === 0 ? 0.58 : i === 1 ? 0.18 : 0.09) * (0.78 + energy * 0.44);
+          voice.gain.gain.setTargetAtTime(targetVG, audioCtx.currentTime, 0.09);
+        });
+      }
+
+      function stopAllAudioSmooth() {
+        if (!audioReady) return;
+        rings.forEach(ring => {
+          if (ring.synth) ring.synth.groupOut.gain.setTargetAtTime(0, audioCtx.currentTime, 0.08);
+        });
+      }
+
+      function distance(x1, y1, x2, y2) {
+        return Math.hypot(x2 - x1, y2 - y1);
+      }
+
+      function angleAt(ring, x, y) {
+        return Math.atan2(y - ring.y, x - ring.x);
+      }
+
+      function normalizeAngle(a) {
+        while (a > Math.PI) a -= Math.PI * 2;
+        while (a < -Math.PI) a += Math.PI * 2;
+        return a;
+      }
+
+      function pickRing(x, y) {
+        let best = null;
+        let bestDiff = Infinity;
+        for (const ring of rings) {
+          const d = distance(x, y, ring.x, ring.y);
+          const ringDiff = Math.abs(d - ring.radius);
+          if (d < ring.innerRadius * 0.84) {
+            return { ring, mode: 'stop', diff: 0 };
+          }
+          if (ringDiff < ring.thickness * 1.4 && ringDiff < bestDiff) {
+            best = { ring, mode: 'spin', diff: ringDiff };
+            bestDiff = ringDiff;
+          }
+        }
+        return best;
+      }
+
+      function handlePointerDown(ev) {
+        const rect = canvas.getBoundingClientRect();
+        const x = ev.clientX - rect.left;
+        const y = ev.clientY - rect.top;
+        const target = pickRing(x, y);
+        const info = { x, y, lastX: x, lastY: y, ring: null, mode: 'none', lastAngle: 0 };
+        if (target) {
+          info.ring = target.ring;
+          info.mode = target.mode;
+          info.lastAngle = angleAt(target.ring, x, y);
+          if (target.mode === 'stop') {
+            target.ring.vel *= 0.06;
+            target.ring.glow = 0.6;
+            burst(target.ring.x, target.ring.y, target.ring.hueA, 10, 0.8);
+          } else {
+            target.ring.activePointers.add(ev.pointerId);
+            target.ring.glow = Math.max(target.ring.glow, 0.6);
+            burst(x, y, target.ring.hueA, 6, 0.55);
+          }
+        }
+        pointers.set(ev.pointerId, info);
+        try { canvas.setPointerCapture(ev.pointerId); } catch (_) {}
+      }
+
+      function handlePointerMove(ev) {
+        const p = pointers.get(ev.pointerId);
+        if (!p) return;
+        const rect = canvas.getBoundingClientRect();
+        const x = ev.clientX - rect.left;
+        const y = ev.clientY - rect.top;
+        if (p.ring && p.mode === 'spin') {
+          const ang = angleAt(p.ring, x, y);
+          const dAng = normalizeAngle(ang - p.lastAngle);
+          const travel = Math.hypot(x - p.lastX, y - p.lastY);
+          if (travel > 0.8) {
+            p.ring.vel += dAng * 0.28;
+            p.ring.vel = clamp(p.ring.vel, -0.16, 0.16);
+            p.ring.glow = Math.min(1.35, p.ring.glow + Math.abs(dAng) * 3.0 + 0.03);
+            if (Math.random() < 0.45) burst(x, y, p.ring.hueB, 1, 0.35);
+          }
+          p.lastAngle = ang;
+        }
+        p.lastX = x;
+        p.lastY = y;
+      }
+
+      function handlePointerUp(ev) {
+        const p = pointers.get(ev.pointerId);
+        if (p && p.ring) {
+          p.ring.activePointers.delete(ev.pointerId);
+        }
+        pointers.delete(ev.pointerId);
+        try { canvas.releasePointerCapture(ev.pointerId); } catch (_) {}
+      }
+
+      function burst(x, y, color, count, energy = 1) {
+        for (let i = 0; i < count; i++) {
+          const a = rand(0, Math.PI * 2);
+          const s = rand(0.2, 1.2) * energy;
+          particles.push({
+            x, y,
+            vx: Math.cos(a) * s,
+            vy: Math.sin(a) * s - rand(0.05, 0.7),
+            r: rand(1.2, 4.8) * energy,
+            life: rand(18, 42),
+            maxLife: 42,
+            color
+          });
+        }
+      }
+
+      function update(dt, now) {
+        t += dt;
+
+        for (const b of ambientBubbles) {
+          b.y -= b.rise * dt * 0.06;
+          b.x += Math.sin(now * 0.0003 + b.r * 0.1) * b.drift * dt * 0.3;
+          if (b.y < -30) {
+            b.y = H + rand(10, 60);
+            b.x = rand(0, W);
+          }
+        }
+
+        for (const ring of rings) {
+          ring.innerRadius = ring.radius - ring.thickness * 0.86;
+          ring.angle += ring.vel * dt * 0.06;
+          ring.vel *= Math.pow(0.992, dt);
+          if (Math.abs(ring.vel) < 0.00008) ring.vel = 0;
+          ring.glow = lerp(ring.glow, 0.22 + Math.abs(ring.vel) * 7.6, 0.06);
+          ring.shimmer += dt * 0.0006 * (0.3 + Math.abs(ring.vel) * 60);
+          if (Math.abs(ring.vel) > 0.02 && now - ring.lastEmit > 90) {
+            const a = ring.angle + Math.sin(ring.shimmer) * 0.5;
+            burst(ring.x + Math.cos(a) * ring.radius, ring.y + Math.sin(a) * ring.radius, ring.hueA, 2, 0.4);
+            ring.lastEmit = now;
+          }
+          updateRingAudio(ring, now);
+        }
+
+        for (let i = particles.length - 1; i >= 0; i--) {
+          const p = particles[i];
+          p.x += p.vx * dt * 0.06;
+          p.y += p.vy * dt * 0.06;
+          p.vx *= 0.992;
+          p.vy *= 0.992;
+          p.life -= dt * 0.06;
+          if (p.life <= 0) particles.splice(i, 1);
+        }
+      }
+
+      function drawBackground(now) {
+        ctx.clearRect(0, 0, W, H);
+
+        const bgGrad = ctx.createRadialGradient(centerX, centerY, Math.min(W, H) * 0.08, centerX, centerY, Math.max(W, H));
+        bgGrad.addColorStop(0, 'rgba(90, 65, 170, 0.16)');
+        bgGrad.addColorStop(0.35, 'rgba(32, 14, 75, 0.14)');
+        bgGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+        ctx.fillStyle = bgGrad;
+        ctx.fillRect(0, 0, W, H);
+
+        for (const b of ambientBubbles) {
+          ctx.save();
+          ctx.globalAlpha = b.alpha;
+          ctx.strokeStyle = 'rgba(255,255,255,0.68)';
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.arc(b.x - b.r * 0.3, b.y - b.r * 0.26, Math.max(0.8, b.r * 0.18), 0, Math.PI * 2);
+          ctx.fillStyle = 'rgba(255,255,255,0.26)';
+          ctx.fill();
+          ctx.restore();
+        }
+
+        const waveY = H * 0.76;
+        const amp = Math.min(W, H) * 0.04;
+        ctx.save();
+        ctx.globalAlpha = 0.14;
+        const waveGrad = ctx.createLinearGradient(0, waveY - amp * 2, 0, H);
+        waveGrad.addColorStop(0, 'rgba(255, 132, 218, 0.16)');
+        waveGrad.addColorStop(1, 'rgba(255, 132, 218, 0)');
+        ctx.fillStyle = waveGrad;
+        ctx.beginPath();
+        ctx.moveTo(0, H);
+        for (let x = 0; x <= W; x += 24) {
+          const y = waveY + Math.sin(x * 0.01 + now * 0.0011) * amp + Math.sin(x * 0.004 + now * 0.0005) * amp * 0.7;
+          ctx.lineTo(x, y);
+        }
+        ctx.lineTo(W, H);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+      }
+
+      function drawRing(ring, now) {
+        ctx.save();
+        ctx.translate(ring.x, ring.y);
+        ctx.rotate(ring.angle);
+
+        const outer = ring.radius;
+        const inner = ring.innerRadius;
+        const glow = clamp(ring.glow, 0.15, 1.5);
+
+        ctx.shadowBlur = 28 + glow * 28;
+        ctx.shadowColor = ring.hueB;
+
+        const ringGrad = ctx.createRadialGradient(0, 0, inner * 0.45, 0, 0, outer + ring.thickness * 0.65);
+        ringGrad.addColorStop(0, 'rgba(0,0,0,0)');
+        ringGrad.addColorStop(0.48, ring.hueA + '22');
+        ringGrad.addColorStop(0.65, ring.hueA + '66');
+        ringGrad.addColorStop(0.83, ring.hueB + 'd9');
+        ringGrad.addColorStop(1, ring.hueA + '00');
+
+        ctx.fillStyle = ringGrad;
+        ctx.beginPath();
+        ctx.arc(0, 0, outer, 0, Math.PI * 2);
+        ctx.arc(0, 0, inner, 0, Math.PI * 2, true);
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.shadowBlur = 0;
+        ctx.lineWidth = Math.max(1.4, ring.thickness * 0.09);
+        ctx.strokeStyle = 'rgba(255,255,255,0.42)';
+        ctx.beginPath();
+        ctx.arc(0, 0, outer - ring.thickness * 0.18, 0, Math.PI * 2);
+        ctx.stroke();
+
+        ctx.lineWidth = Math.max(1, ring.thickness * 0.06);
+        ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+        ctx.beginPath();
+        ctx.arc(0, 0, inner + ring.thickness * 0.12, 0, Math.PI * 2);
+        ctx.stroke();
+
+        for (let i = 0; i < 8; i++) {
+          const a = (Math.PI * 2 * i) / 8 + ring.shimmer * 0.6;
+          const rr = lerp(inner + ring.thickness * 0.15, outer - ring.thickness * 0.15, 0.3 + 0.2 * Math.sin(now * 0.001 + i + ring.index));
+          ctx.fillStyle = i % 2 ? 'rgba(255,255,255,0.18)' : ring.hueA + '77';
+          ctx.beginPath();
+          ctx.arc(Math.cos(a) * rr, Math.sin(a) * rr, Math.max(2, ring.thickness * 0.11), 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        const holeGrad = ctx.createRadialGradient(-inner * 0.14, -inner * 0.14, inner * 0.1, 0, 0, inner);
+        holeGrad.addColorStop(0, 'rgba(10, 12, 32, 0.2)');
+        holeGrad.addColorStop(1, 'rgba(0, 0, 0, 0.92)');
+        ctx.fillStyle = holeGrad;
+        ctx.beginPath();
+        ctx.arc(0, 0, inner * 0.96, 0, Math.PI * 2);
+        ctx.fill();
+
+        if (ring.activePointers.size) {
+          ctx.globalAlpha = 0.45;
+          ctx.strokeStyle = 'rgba(255,255,255,0.76)';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(0, 0, outer + ring.thickness * 0.18, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+
+        ctx.restore();
+      }
+
+      function drawParticles() {
+        for (const p of particles) {
+          const alpha = clamp(p.life / p.maxLife, 0, 1) * 0.75;
+          ctx.save();
+          ctx.globalAlpha = alpha;
+          ctx.fillStyle = p.color + 'cc';
+          ctx.shadowBlur = 14;
+          ctx.shadowColor = p.color;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+        }
+      }
+
+      function drawAudioHalo(now) {
+        if (!audioReady || !analyser) return;
+        const arr = new Uint8Array(analyser.frequencyBinCount);
+        analyser.getByteFrequencyData(arr);
+        let sum = 0;
+        for (let i = 0; i < arr.length; i++) sum += arr[i];
+        const energy = sum / (arr.length * 255);
+        const r = Math.min(W, H) * (0.19 + energy * 0.06);
+
+        ctx.save();
+        ctx.globalAlpha = 0.12 + energy * 0.12;
+        const g = ctx.createRadialGradient(centerX, centerY, r * 0.35, centerX, centerY, r * 1.7);
+        g.addColorStop(0, 'rgba(145, 110, 255, 0.28)');
+        g.addColorStop(0.62, 'rgba(80, 180, 255, 0.08)');
+        g.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, r * 1.6, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+
+      function render(now) {
+        drawBackground(now);
+        drawAudioHalo(now);
+        rings.forEach(ring => drawRing(ring, now));
+        drawParticles();
+      }
+
+      let last = performance.now();
+      function loop(now) {
+        const dt = Math.min(32, now - last);
+        last = now;
+        update(dt, now);
+        render(now);
+        requestAnimationFrame(loop);
+      }
+
+      async function startExperience() {
+        if (!audioReady) await initAudio();
+        if (audioCtx && audioCtx.state === 'suspended') await audioCtx.resume();
+        overlay.classList.add('hidden');
+        started = true;
+      }
+
+      startBtn.addEventListener('click', startExperience, { passive: true });
+
+      shuffleBtn.addEventListener('click', () => {
+        rebuildLayout();
+        burst(centerX, centerY, '#ffffff', 18, 1.3);
+      });
+
+      muteBtn.addEventListener('click', async () => {
+        if (!audioReady) await startExperience();
+        muted = !muted;
+        muteBtn.textContent = muted ? '開聲' : '靜音';
+        if (audioReady && masterGain) {
+          masterGain.gain.setTargetAtTime(muted ? 0 : 0.9, audioCtx.currentTime, 0.05);
+        }
+      });
+
+      calmBtn.addEventListener('click', () => {
+        rings.forEach(r => { r.vel *= 0.08; r.glow = 0.35; });
+        burst(centerX, centerY, '#bcd9ff', 14, 0.9);
+        stopAllAudioSmooth();
+      });
+
+      canvas.addEventListener('pointerdown', async (ev) => {
+        if (!started) await startExperience();
+        handlePointerDown(ev);
+      }, { passive: false });
+      canvas.addEventListener('pointermove', handlePointerMove, { passive: false });
+      canvas.addEventListener('pointerup', handlePointerUp, { passive: false });
+      canvas.addEventListener('pointercancel', handlePointerUp, { passive: false });
+      canvas.addEventListener('pointerleave', handlePointerUp, { passive: false });
+
+      window.addEventListener('resize', resize);
+      document.addEventListener('gesturestart', (e) => e.preventDefault(), { passive: false });
+      document.addEventListener('gesturechange', (e) => e.preventDefault(), { passive: false });
+      document.addEventListener('gestureend', (e) => e.preventDefault(), { passive: false });
+      document.addEventListener('touchmove', (e) => {
+        if (e.target === canvas) e.preventDefault();
+      }, { passive: false });
+
+      resize();
+      requestAnimationFrame(loop);
+    })();
+  </script>
+</body>
+</html>
