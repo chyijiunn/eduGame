@@ -3,12 +3,12 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
-  <title>Lumiloop v0.13</title>
+  <title>Lumiloop v0.1</title>
   <style>
     :root {
       --bg1: #02030a;
-      --bg2: #12092a;
-      --bg3: #351063;
+      --bg2: #17082f;
+      --bg3: #39115c;
       --panel: rgba(8, 10, 20, 0.42);
       --stroke: rgba(255,255,255,0.14);
       --text: rgba(255,255,255,0.92);
@@ -26,8 +26,8 @@
       background:
         radial-gradient(circle at 18% 12%, rgba(120, 80, 255, 0.35), transparent 28%),
         radial-gradient(circle at 82% 18%, rgba(32, 176, 255, 0.18), transparent 24%),
-        radial-gradient(circle at 74% 84%, rgba(255, 70, 170, 0.18), transparent 25%),
-        linear-gradient(180deg, var(--bg3) 0%, #130830 36%, var(--bg2) 60%, var(--bg1) 100%);
+        radial-gradient(circle at 74% 84%, rgba(255, 70, 170, 0.22), transparent 25%),
+        linear-gradient(180deg, var(--bg3) 0%, #150934 36%, var(--bg2) 60%, var(--bg1) 100%);
       color: var(--text);
       font-family: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif;
       touch-action: none;
@@ -68,7 +68,7 @@
     }
 
     .titleBlock {
-      max-width: min(72vw, 420px);
+      max-width: min(70vw, 380px);
     }
 
     .title {
@@ -85,7 +85,7 @@
     }
 
     .miniHelp {
-      max-width: min(40vw, 240px);
+      max-width: min(40vw, 220px);
       font-size: 12px;
       line-height: 1.45;
       color: var(--sub);
@@ -95,7 +95,7 @@
     .controls {
       position: fixed;
       left: 50%;
-      bottom: calc(14px + env(safe-area-inset-bottom, 0));
+      bottom: calc(16px + env(safe-area-inset-bottom, 0));
       transform: translateX(-50%);
       display: flex;
       gap: 10px;
@@ -219,10 +219,10 @@
 
   <div class="hud">
     <div class="titleBlock">
-      <div class="title">Lumiloop v0.13</div>
-      <div class="subtitle">已回復 v0.1 的轉動判定，並把音高上升改成 4 段速度等級。四圈維持分散配置，較適合小手機操作。</div>
+      <div class="title">Lumiloop v0.1</div>
+      <div class="subtitle">手指沿著光環繞圈滑動，讓它旋轉發聲。順時針與逆時針會改變聲音性格；點內圈可急停。</div>
     </div>
-    <div class="miniHelp">這版回復 0.1 手感。<br>音高改成 4 段速度級距。</div>
+    <div class="miniHelp">多個光環可同時疊音。<br>速度越快，聲音越亮、空間感越強。</div>
   </div>
 
   <div class="controls">
@@ -234,7 +234,7 @@
   <div class="overlay" id="overlay">
     <div class="card">
       <h1>電子浮游・致敬實驗</h1>
-      <p>這是手機版 v0.13。<br>已回復 v0.1 的可轉動規則，並把音高上升改為 4 個明確速度等級。</p>
+      <p>這是手機版 v0.1 原型。<br>點一下啟動聲音後，用手指沿著發光圓環繞圈滑動，就能把它們轉起來並疊出空靈和聲。</p>
       <button class="startBtn" id="startBtn">點一下開始</button>
       <div class="footnote">為了符合手機瀏覽器規則，聲音需要由你主動點擊後啟動。</div>
     </div>
@@ -259,7 +259,6 @@
       let started = false;
       let audioReady = false;
       let muted = false;
-      let layoutVariant = 0;
 
       const pointers = new Map();
       const rings = [];
@@ -267,13 +266,16 @@
       const ambientBubbles = [];
 
       const palette = [
-        ['#dcb7ff', '#966dff'],
-        ['#95e5ff', '#4ea0ff'],
-        ['#ffaddc', '#ff6ea8'],
-        ['#ffc88e', '#ff8a5c']
+        ['#dca6ff', '#8f5cff'],
+        ['#7fe7ff', '#4e91ff'],
+        ['#ff8ad5', '#ff5f99'],
+        ['#ffc76f', '#ff7b54'],
+        ['#9fff97', '#43e57e']
       ];
 
-      const lowToneSet = [45, 50, 52, 57]; // A2 D3 E3 A3, open / soothing
+      const safeScale = [60, 62, 65, 67, 69, 72, 74, 77]; // C pentatonic-ish with lift
+      const cwVoices = [0, 7, 14];
+      const ccwVoices = [0, 5, 12];
 
       let audioCtx = null;
       let masterGain = null;
@@ -297,62 +299,6 @@
         return a + (b - a) * k;
       }
 
-      function getLayoutPresets() {
-        const compact = W < 430 || H < 760;
-        if (compact) {
-          return [
-            [
-              { x: 0.24, y: 0.27, r: 0.185, t: 0.25 },
-              { x: 0.77, y: 0.31, r: 0.145, t: 0.25 },
-              { x: 0.22, y: 0.66, r: 0.155, t: 0.25 },
-              { x: 0.74, y: 0.67, r: 0.145, t: 0.25 }
-            ],
-            [
-              { x: 0.22, y: 0.30, r: 0.175, t: 0.24 },
-              { x: 0.76, y: 0.24, r: 0.14, t: 0.25 },
-              { x: 0.28, y: 0.63, r: 0.15, t: 0.25 },
-              { x: 0.76, y: 0.62, r: 0.14, t: 0.25 }
-            ],
-            [
-              { x: 0.26, y: 0.24, r: 0.18, t: 0.25 },
-              { x: 0.74, y: 0.34, r: 0.145, t: 0.25 },
-              { x: 0.19, y: 0.66, r: 0.145, t: 0.25 },
-              { x: 0.72, y: 0.62, r: 0.155, t: 0.25 }
-            ]
-          ];
-        }
-        return [
-          [
-            { x: 0.25, y: 0.26, r: 0.17, t: 0.24 },
-            { x: 0.76, y: 0.28, r: 0.14, t: 0.24 },
-            { x: 0.23, y: 0.67, r: 0.15, t: 0.24 },
-            { x: 0.75, y: 0.66, r: 0.145, t: 0.24 }
-          ],
-          [
-            { x: 0.22, y: 0.32, r: 0.165, t: 0.24 },
-            { x: 0.78, y: 0.23, r: 0.135, t: 0.24 },
-            { x: 0.31, y: 0.69, r: 0.145, t: 0.24 },
-            { x: 0.77, y: 0.60, r: 0.145, t: 0.24 }
-          ],
-          [
-            { x: 0.28, y: 0.23, r: 0.17, t: 0.24 },
-            { x: 0.73, y: 0.35, r: 0.145, t: 0.24 },
-            { x: 0.18, y: 0.66, r: 0.14, t: 0.24 },
-            { x: 0.70, y: 0.63, r: 0.15, t: 0.24 }
-          ]
-        ];
-      }
-
-      function applyLayoutToRing(ring, slot) {
-        const minDim = Math.min(W, H);
-        ring.slot = { ...slot };
-        ring.x = W * slot.x;
-        ring.y = H * slot.y;
-        ring.radius = minDim * slot.r;
-        ring.thickness = ring.radius * slot.t;
-        ring.innerRadius = ring.radius - ring.thickness * 0.86;
-      }
-
       function resize() {
         W = Math.max(1, window.innerWidth);
         H = Math.max(1, window.innerHeight);
@@ -370,50 +316,70 @@
 
       function buildRings() {
         rings.length = 0;
-        const presets = getLayoutPresets();
-        const slots = presets[layoutVariant % presets.length];
-        for (let i = 0; i < 4; i++) {
-          const slot = slots[i];
-          const ring = makeRing(palette[i], lowToneSet[i], i);
-          applyLayoutToRing(ring, slot);
-          rings.push(ring);
+        const n = Math.min(W < 430 ? 4 : 5, palette.length);
+        const areaR = Math.min(W, H) * (W < 430 ? 0.23 : 0.26);
+        for (let i = 0; i < n; i++) {
+          const angle = (Math.PI * 2 * i) / n + rand(-0.25, 0.25);
+          const radius = Math.min(W, H) * rand(0.10, 0.15);
+          const x = centerX + Math.cos(angle) * areaR * rand(0.55, 1.0);
+          const y = centerY + Math.sin(angle) * areaR * rand(0.45, 1.0);
+          const thickness = radius * rand(0.24, 0.31);
+          const midi = safeScale[i % safeScale.length] + (i >= 3 ? 12 : 0);
+          rings.push(makeRing(x, y, radius, thickness, palette[i], midi, i));
         }
       }
 
       function fitRings() {
-        const presets = getLayoutPresets();
-        const slots = presets[layoutVariant % presets.length];
-        rings.forEach((ring, i) => applyLayoutToRing(ring, slots[i]));
+        const areaR = Math.min(W, H) * (W < 430 ? 0.23 : 0.26);
+        rings.forEach((ring, i) => {
+          const angle = ring.seedAngle;
+          ring.x = centerX + Math.cos(angle) * areaR * ring.seedDist;
+          ring.y = centerY + Math.sin(angle) * areaR * ring.seedDistY;
+          ring.radius = Math.min(W, H) * ring.seedRadius;
+          ring.thickness = ring.radius * ring.seedThickness;
+        });
       }
 
-      function makeRing(colors, midi, index) {
+      function makeRing(x, y, radius, thickness, colors, midi, index) {
         return {
-          x: 0,
-          y: 0,
-          radius: 0,
-          thickness: 0,
-          innerRadius: 0,
+          x, y, radius, thickness,
+          innerRadius: radius - thickness * 0.86,
           angle: rand(0, Math.PI * 2),
           vel: 0,
-          glow: 0.24,
+          glow: 0.25,
           hueA: colors[0],
           hueB: colors[1],
           midi,
           activePointers: new Set(),
           shimmer: rand(0, Math.PI * 2),
           lastEmit: 0,
+          seedAngle: Math.atan2(y - centerY, x - centerX),
+          seedDist: Math.hypot(x - centerX, y - centerY) / (Math.min(W, H) * (W < 430 ? 0.23 : 0.26) || 1),
+          seedDistY: Math.hypot(x - centerX, y - centerY) / (Math.min(W, H) * (W < 430 ? 0.23 : 0.26) || 1),
+          seedRadius: radius / Math.min(W, H),
+          seedThickness: thickness / radius,
           synth: null,
-          index,
-          slot: null
+          index
         };
       }
 
       function rebuildLayout() {
-        layoutVariant = (layoutVariant + 1) % getLayoutPresets().length;
-        fitRings();
-        rings.forEach((ring) => {
-          ring.vel *= 0.45;
-          ring.glow = Math.max(ring.glow, 0.45);
+        const n = rings.length || (W < 430 ? 4 : 5);
+        const areaR = Math.min(W, H) * (W < 430 ? 0.24 : 0.28);
+        rings.forEach((ring, i) => {
+          const angle = (Math.PI * 2 * i) / n + rand(-0.45, 0.45);
+          const radius = Math.min(W, H) * rand(0.10, 0.16);
+          ring.seedAngle = angle;
+          ring.seedDist = rand(0.55, 1.0);
+          ring.seedDistY = ring.seedDist;
+          ring.seedRadius = radius / Math.min(W, H);
+          ring.seedThickness = rand(0.24, 0.31);
+          ring.x = centerX + Math.cos(angle) * areaR * ring.seedDist;
+          ring.y = centerY + Math.sin(angle) * areaR * ring.seedDist;
+          ring.radius = radius;
+          ring.thickness = ring.radius * ring.seedThickness;
+          ring.innerRadius = ring.radius - ring.thickness * 0.86;
+          ring.vel *= 0.35;
         });
       }
 
@@ -432,7 +398,7 @@
         }
       }
 
-      function createImpulseResponse(ctx, duration = 3.2, decay = 2.8) {
+      function createImpulseResponse(ctx, duration = 2.8, decay = 2.2) {
         const rate = ctx.sampleRate;
         const length = rate * duration;
         const impulse = ctx.createBuffer(2, length, rate);
@@ -456,30 +422,16 @@
         analyser = audioCtx.createAnalyser();
         analyser.fftSize = 256;
 
-        dryGain.gain.value = 0.92;
-        wetGain.gain.value = 0.32;
-        masterGain.gain.value = muted ? 0 : 0.84;
+        dryGain.gain.value = 0.76;
+        wetGain.gain.value = 0.28;
+        masterGain.gain.value = muted ? 0 : 0.9;
 
         const convolver = audioCtx.createConvolver();
         convolver.buffer = createImpulseResponse(audioCtx);
 
-        const delay = audioCtx.createDelay(1.2);
-        delay.delayTime.value = 0.24;
-        const feedback = audioCtx.createGain();
-        feedback.gain.value = 0.26;
-        const delayTone = audioCtx.createBiquadFilter();
-        delayTone.type = 'lowpass';
-        delayTone.frequency.value = 1700;
-        delayTone.Q.value = 0.2;
-
         dryGain.connect(masterGain);
         wetGain.connect(convolver);
         convolver.connect(masterGain);
-
-        wetGain.connect(delay);
-        delay.connect(delayTone).connect(masterGain);
-        delayTone.connect(feedback).connect(delay);
-
         masterGain.connect(analyser);
         analyser.connect(audioCtx.destination);
 
@@ -493,92 +445,61 @@
       function createRingSynth(ring) {
         const groupOut = audioCtx.createGain();
         groupOut.gain.value = 0;
+        const filter = audioCtx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.value = 1200;
+        filter.Q.value = 0.6;
+        const trem = audioCtx.createGain();
+        trem.gain.value = 0.95;
 
-        const lowpass = audioCtx.createBiquadFilter();
-        lowpass.type = 'lowpass';
-        lowpass.frequency.value = 980;
-        lowpass.Q.value = 0.9;
+        const lfo = audioCtx.createOscillator();
+        const lfoGain = audioCtx.createGain();
+        lfo.frequency.value = rand(0.12, 0.26);
+        lfoGain.gain.value = 0.08;
+        lfo.connect(lfoGain).connect(trem.gain);
+        lfo.start();
 
-        const bandpass = audioCtx.createBiquadFilter();
-        bandpass.type = 'bandpass';
-        bandpass.frequency.value = 420;
-        bandpass.Q.value = 0.5;
-
-        const mix = audioCtx.createGain();
-        mix.gain.value = 1;
-
-        const shimmer = audioCtx.createGain();
-        shimmer.gain.value = 0.94;
-        const shimmerLfo = audioCtx.createOscillator();
-        const shimmerLfoGain = audioCtx.createGain();
-        shimmerLfo.frequency.value = rand(0.05, 0.12);
-        shimmerLfoGain.gain.value = 0.03;
-        shimmerLfo.connect(shimmerLfoGain).connect(shimmer.gain);
-        shimmerLfo.start();
-
-        const voiceCfg = [
-          { type: 'sine', interval: 0, gain: 0.26, detune: -4 },
-          { type: 'sine', interval: 0, gain: 0.23, detune: 4 },
-          { type: 'sine', interval: -12, gain: 0.17, detune: 0 },
-          { type: 'triangle', interval: 7, gain: 0.07, detune: 0 }
-        ];
-
-        const voices = voiceCfg.map(cfg => {
+        const voices = [];
+        const baseRatios = [1, 2, 3.01];
+        const baseGains = [0.52, 0.18, 0.08];
+        for (let i = 0; i < 3; i++) {
           const osc = audioCtx.createOscillator();
-          osc.type = cfg.type;
-          osc.detune.value = cfg.detune;
-          const gain = audioCtx.createGain();
-          gain.gain.value = cfg.gain;
-          osc.connect(gain).connect(lowpass);
+          osc.type = i === 0 ? 'sine' : (i === 1 ? 'triangle' : 'sine');
+          const voiceGain = audioCtx.createGain();
+          voiceGain.gain.value = baseGains[i];
+          osc.connect(voiceGain).connect(filter);
+          osc.frequency.value = midiToFreq(ring.midi) * baseRatios[i];
           osc.start();
-          return { osc, gain, ...cfg };
-        });
+          voices.push({ osc, gain: voiceGain, ratio: baseRatios[i] });
+        }
 
-        lowpass.connect(bandpass);
-        lowpass.connect(mix);
-        bandpass.connect(mix);
-        mix.connect(shimmer).connect(groupOut);
+        filter.connect(trem).connect(groupOut);
         groupOut.connect(dryGain);
         groupOut.connect(wetGain);
 
-        return { groupOut, lowpass, bandpass, mix, voices, shimmerLfo, shimmerLfoGain };
+        return { groupOut, filter, voices, lfo, lfoGain };
       }
 
       function updateRingAudio(ring, now) {
         if (!audioReady || !ring.synth) return;
         const speed = Math.abs(ring.vel);
-        const currentTime = audioCtx.currentTime;
-        const audible = speed > 0.0025;
-
-        let level = 0;
-        if (speed >= 0.014) level = 1;
-        if (speed >= 0.038) level = 2;
-        if (speed >= 0.075) level = 3;
-
-        const pitchSteps = [0, 2, 4, 7];
-        const filterSteps = [620, 860, 1160, 1480];
-        const gainSteps = [0.088, 0.096, 0.106, 0.116];
-        const qSteps = [0.78, 1.0, 1.22, 1.45];
-        const drift = Math.sin(now * 0.00018 + ring.index * 1.6 + ring.angle * 0.18) * 0.08;
-        const directionBias = ring.vel >= 0 ? 0.18 : -0.08;
-        const base = ring.midi + drift + directionBias + pitchSteps[level];
-        const bandpassHz = midiToFreq(base + 12) * (1.18 + level * 0.08);
-        const targetGain = muted ? 0 : (audible ? gainSteps[level] : 0);
-
-        ring.synth.groupOut.gain.setTargetAtTime(targetGain, currentTime, 0.08);
-        ring.synth.lowpass.frequency.setTargetAtTime(filterSteps[level] + ring.index * 28, currentTime, 0.11);
-        ring.synth.lowpass.Q.setTargetAtTime(qSteps[level], currentTime, 0.13);
-        ring.synth.bandpass.frequency.setTargetAtTime(bandpassHz, currentTime, 0.11);
-        ring.synth.bandpass.Q.setTargetAtTime(0.38 + level * 0.24, currentTime, 0.13);
-        ring.synth.shimmerLfo.frequency.setTargetAtTime(0.05 + level * 0.045, currentTime, 0.15);
-        ring.synth.shimmerLfoGain.gain.setTargetAtTime(0.02 + level * 0.006, currentTime, 0.15);
-
-        ring.synth.voices.forEach((voice) => {
-          const freq = midiToFreq(base + voice.interval);
-          voice.osc.frequency.setTargetAtTime(freq, currentTime, 0.09);
-          const lift = voice.interval === -12 ? 0.98 : (voice.interval === 7 ? 0.82 : 1);
-          const targetVG = voice.gain * (0.9 + level * 0.035) * lift;
-          voice.gain.gain.setTargetAtTime(targetVG, currentTime, 0.1);
+        const dir = ring.vel >= 0 ? 1 : -1;
+        const voiceSet = dir >= 0 ? cwVoices : ccwVoices;
+        const energy = clamp(speed * 18, 0, 1);
+        const base = ring.midi + Math.sin(ring.angle * 0.75 + ring.index * 0.7) * 0.35;
+        const freqs = voiceSet.map(v => midiToFreq(base + v));
+        const targetGain = muted ? 0 : Math.pow(energy, 1.2) * 0.22;
+        const filterHz = 700 + energy * 3800 + Math.sin(now * 0.0012 + ring.index) * 130;
+        ring.synth.groupOut.gain.setTargetAtTime(targetGain, audioCtx.currentTime, 0.08);
+        ring.synth.filter.frequency.setTargetAtTime(filterHz, audioCtx.currentTime, 0.1);
+        ring.synth.filter.Q.setTargetAtTime(0.6 + energy * 3.2, audioCtx.currentTime, 0.12);
+        ring.synth.lfo.frequency.setTargetAtTime(0.08 + energy * 2.2, audioCtx.currentTime, 0.15);
+        ring.synth.lfoGain.gain.setTargetAtTime(0.02 + energy * 0.08, audioCtx.currentTime, 0.15);
+        ring.synth.voices.forEach((voice, i) => {
+          const targetFreq = freqs[i] || freqs[0] * voice.ratio;
+          voice.osc.frequency.setTargetAtTime(targetFreq, audioCtx.currentTime, 0.11);
+          const targetVG = (i === 0 ? 0.58 : i === 1 ? 0.18 : 0.09) * (0.78 + energy * 0.44);
+          voice.gain.gain.setTargetAtTime(targetVG, audioCtx.currentTime, 0.09);
         });
       }
 
@@ -621,7 +542,6 @@
       }
 
       function handlePointerDown(ev) {
-        ev.preventDefault();
         const rect = canvas.getBoundingClientRect();
         const x = ev.clientX - rect.left;
         const y = ev.clientY - rect.top;
@@ -648,7 +568,6 @@
       function handlePointerMove(ev) {
         const p = pointers.get(ev.pointerId);
         if (!p) return;
-        ev.preventDefault();
         const rect = canvas.getBoundingClientRect();
         const x = ev.clientX - rect.left;
         const y = ev.clientY - rect.top;
@@ -669,7 +588,6 @@
       }
 
       function handlePointerUp(ev) {
-        ev.preventDefault();
         const p = pointers.get(ev.pointerId);
         if (p && p.ring) {
           p.ring.activePointers.delete(ev.pointerId);
@@ -709,13 +627,13 @@
         for (const ring of rings) {
           ring.innerRadius = ring.radius - ring.thickness * 0.86;
           ring.angle += ring.vel * dt * 0.06;
-          ring.vel *= Math.pow(0.9935, dt);
+          ring.vel *= Math.pow(0.992, dt);
           if (Math.abs(ring.vel) < 0.00008) ring.vel = 0;
-          ring.glow = lerp(ring.glow, 0.22 + Math.abs(ring.vel) * 7.2, 0.06);
-          ring.shimmer += dt * 0.0005 * (0.32 + Math.abs(ring.vel) * 54);
-          if (Math.abs(ring.vel) > 0.018 && now - ring.lastEmit > 92) {
+          ring.glow = lerp(ring.glow, 0.22 + Math.abs(ring.vel) * 7.6, 0.06);
+          ring.shimmer += dt * 0.0006 * (0.3 + Math.abs(ring.vel) * 60);
+          if (Math.abs(ring.vel) > 0.02 && now - ring.lastEmit > 90) {
             const a = ring.angle + Math.sin(ring.shimmer) * 0.5;
-            burst(ring.x + Math.cos(a) * ring.radius, ring.y + Math.sin(a) * ring.radius, ring.hueA, 2, 0.38);
+            burst(ring.x + Math.cos(a) * ring.radius, ring.y + Math.sin(a) * ring.radius, ring.hueA, 2, 0.4);
             ring.lastEmit = now;
           }
           updateRingAudio(ring, now);
@@ -760,9 +678,9 @@
         const waveY = H * 0.76;
         const amp = Math.min(W, H) * 0.04;
         ctx.save();
-        ctx.globalAlpha = 0.12;
+        ctx.globalAlpha = 0.14;
         const waveGrad = ctx.createLinearGradient(0, waveY - amp * 2, 0, H);
-        waveGrad.addColorStop(0, 'rgba(255, 132, 218, 0.12)');
+        waveGrad.addColorStop(0, 'rgba(255, 132, 218, 0.16)');
         waveGrad.addColorStop(1, 'rgba(255, 132, 218, 0)');
         ctx.fillStyle = waveGrad;
         ctx.beginPath();
@@ -786,7 +704,7 @@
         const inner = ring.innerRadius;
         const glow = clamp(ring.glow, 0.15, 1.5);
 
-        ctx.shadowBlur = 28 + glow * 26;
+        ctx.shadowBlur = 28 + glow * 28;
         ctx.shadowColor = ring.hueB;
 
         const ringGrad = ctx.createRadialGradient(0, 0, inner * 0.45, 0, 0, outer + ring.thickness * 0.65);
@@ -819,7 +737,7 @@
         for (let i = 0; i < 8; i++) {
           const a = (Math.PI * 2 * i) / 8 + ring.shimmer * 0.6;
           const rr = lerp(inner + ring.thickness * 0.15, outer - ring.thickness * 0.15, 0.3 + 0.2 * Math.sin(now * 0.001 + i + ring.index));
-          ctx.fillStyle = i % 2 ? 'rgba(255,255,255,0.16)' : ring.hueA + '77';
+          ctx.fillStyle = i % 2 ? 'rgba(255,255,255,0.18)' : ring.hueA + '77';
           ctx.beginPath();
           ctx.arc(Math.cos(a) * rr, Math.sin(a) * rr, Math.max(2, ring.thickness * 0.11), 0, Math.PI * 2);
           ctx.fill();
@@ -860,19 +778,19 @@
         }
       }
 
-      function drawAudioHalo() {
+      function drawAudioHalo(now) {
         if (!audioReady || !analyser) return;
         const arr = new Uint8Array(analyser.frequencyBinCount);
         analyser.getByteFrequencyData(arr);
         let sum = 0;
         for (let i = 0; i < arr.length; i++) sum += arr[i];
         const energy = sum / (arr.length * 255);
-        const r = Math.min(W, H) * (0.18 + energy * 0.05);
+        const r = Math.min(W, H) * (0.19 + energy * 0.06);
 
         ctx.save();
-        ctx.globalAlpha = 0.1 + energy * 0.1;
+        ctx.globalAlpha = 0.12 + energy * 0.12;
         const g = ctx.createRadialGradient(centerX, centerY, r * 0.35, centerX, centerY, r * 1.7);
-        g.addColorStop(0, 'rgba(145, 110, 255, 0.24)');
+        g.addColorStop(0, 'rgba(145, 110, 255, 0.28)');
         g.addColorStop(0.62, 'rgba(80, 180, 255, 0.08)');
         g.addColorStop(1, 'rgba(0,0,0,0)');
         ctx.fillStyle = g;
@@ -884,7 +802,7 @@
 
       function render(now) {
         drawBackground(now);
-        drawAudioHalo();
+        drawAudioHalo(now);
         rings.forEach(ring => drawRing(ring, now));
         drawParticles();
       }
@@ -917,7 +835,7 @@
         muted = !muted;
         muteBtn.textContent = muted ? '開聲' : '靜音';
         if (audioReady && masterGain) {
-          masterGain.gain.setTargetAtTime(muted ? 0 : 0.84, audioCtx.currentTime, 0.05);
+          masterGain.gain.setTargetAtTime(muted ? 0 : 0.9, audioCtx.currentTime, 0.05);
         }
       });
 
