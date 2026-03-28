@@ -8,12 +8,12 @@ luminaria 原為任天堂公司旗下 NDS 主機《電子浮游生物》作品�
 piano:{name:'鋼琴 Piano',partials:[[1,'triangle',1.00],[2,'sine',0.42]],attack:.002,decay:1.45,sustain:.045,filterType:'lowpass',filterFreq:4200,q:.85,wet:.30,noise:.14,noiseType:'bandpass',noiseFreq:3200,noiseQ:2.1,noiseDecay:.038,spread:.024}
 ```
 
-### 參數代表的意義
+### 參數意義
 
-#### `name`
+1. `name`
 音色在下拉選單顯示的名稱。
 
-#### `customType`
+1.  `customType`
 表示這個音色不是單純走一般合成器邏輯，而是有專用函式。
 例如：
 - `bowl`：誦缽
@@ -23,7 +23,7 @@ piano:{name:'鋼琴 Piano',partials:[[1,'triangle',1.00],[2,'sine',0.42]],attack
 - `humanVoice`：男低音
 - `leaves`：落葉
 
-#### `partials`
+1. `partials`
 決定主體泛音結構。格式為：
 ```js
 [倍頻, 波形, 音量]
@@ -37,135 +37,135 @@ piano:{name:'鋼琴 Piano',partials:[[1,'triangle',1.00],[2,'sine',0.42]],attack
 - `square` 較簧片感
 - `sawtooth` 較亮、較刺激
 
-#### `attack`
+1. `attack`
 起音時間。越小越像敲擊、撥弦；越大越像氣流、墊底音。
 
-#### `decay`
+1. `decay`
 從最大音量衰減到尾音的時間。越大，聲音拖得越久。
 
-#### `sustain`
+1. `sustain`
 衰減後留下來的尾音比例。越高，聲音越能撐住。
 
-#### `filterType`
+1. `filterType`
 濾波器種類，常見有：
 - `lowpass`：保留低頻，削高頻
 - `highpass`：保留高頻，削低頻
 - `bandpass`：只保留一段頻率
 
-#### `filterFreq`
+1. `filterFreq`
 濾波器中心或截止頻率。
 - 提高：更亮、更清楚
 - 降低：更悶、更厚
 
-#### `q`
+1. `q`
 濾波器共振強度。
 - 高：某個頻段更突出、更有性格
 - 低：較自然、較平順
 
-#### `wet`
+1. `wet`
 送進殘響/空間效果的比例。
 - 低：乾、近、直接
 - 高：濕、遠、空靈
 
-#### `noise`
+1. `noise`
 額外噪音量。常用來模擬：
 - 觸鍵感
 - 敲擊感
 - 摩擦感
 - 風聲、水聲、葉片聲
 
-#### `noiseType`
+1. `noiseType`
 噪音濾波方式，常見用 `bandpass` 聚焦在特定頻段。
 
-#### `noiseFreq`
+1. `noiseFreq`
 噪音集中在哪個頻段。
 - 高一點：更亮、更脆
 - 低一點：更厚、更悶
 
-#### `noiseQ`
+1. `noiseQ`
 噪音濾波的集中程度。越高越像集中在某種材質表面。
 
-#### `noiseDecay`
+1. `noiseDecay`
 噪音成分消失速度。短一點像瞬間敲擊，長一點像沙沙聲或水流。
 
-#### `spread`
+1. `spread`
 左右或多聲部之間的微小展開量。
 - 高：更寬、更有空間
 - 低：更集中、更單點
 
-#### `vibratoRate`
+1. `vibratoRate`
 顫音速度。單位可理解為每秒幾次起伏。
 
-#### `vibratoDepth`
+1. `vibratoDepth`
 顫音深度。越大，音高晃動越明顯。
 
 ### 常見調整方向
 
-#### 更像真鋼琴
+1. 更像真鋼琴
 - 增加 `partials`
 - `attack` 維持很短
 - `filterFreq` 提高一些
 - `noise` 稍微增加，模擬琴槌
 - `wet` 不宜過高
 
-#### 更像刷弦吉他
+1. 更像刷弦吉他
 - 主體不只靠 `partials`
 - 還要在播放邏輯加入數個音的時間差（strum）
 - `noise` 可稍高，強化撥弦感
 - `filterFreq` 不宜太低
 
-#### 更像誦缽
+1. 更像誦缽
 - `decay` 拉長
 - `wet` 提高
 - 低頻保留較多
 - 泛音比例不要太刺
 
-#### 更像男低音
+1. 更像男低音
 - 基本頻率要大幅降低
 - `filterFreq` 與 formant 頻段都要往下
 - `attack` 不宜太短
 - `vibratoDepth` 不要太大，不然會抖得太誇張
 
-#### 更像自然環境音
+1. 更像自然環境音
 - 需要 `customType` 專用邏輯
 - 單靠 `partials` 通常不夠
 - 常要結合噪音、掃頻、延遲、不同層次的 envelope
 
-### 直接調整時的建議順序
+### 直接調整時順序
 1. 先決定主體材質：`partials`
 2. 再決定起音與尾音：`attack` / `decay` / `sustain`
 3. 再調明亮度：`filterType` / `filterFreq` / `q`
 4. 再補材質細節：`noise` 系列
 5. 最後補空間感：`wet` / `spread`
 
-### 目前頁面音色分類建議
-#### 樂器類
-- 鋼琴 Piano
-- 吉他 Guitar Strum
-- 藍調口琴 Blues Harp
-- 鐵琴 Glockenspiel
-- 誦缽 Singing Bowl
-- 竹音 Bamboo
-- 玻璃 Glass
-- 管風琴 Organ
-- 木琴 Marimba
+### 音色分類
+- 樂器類
+	- 鋼琴 Piano
+	- 吉他 Guitar Strum
+	- 藍調口琴 Blues Harp
+	- 鐵琴 Glockenspiel
+	- 誦缽 Singing Bowl
+	- 竹音 Bamboo
+	- 玻璃 Glass
+	- 管風琴 Organ
+	- 木琴 Marimba
 
-#### 氛圍 / 自然 / 人聲類
-- 水晶 Crystal
-- 落葉 Fallen Leaves
-- 山鳴 Mountain Echo
-- 鳥轉 Bird Calls
-- 雨滴 Raindrops
-- 男低音 Basso Profondo
-- 暖霧 Pad
+- 氛圍 / 自然 / 人聲類
+	- 水晶 Crystal
+	- 落葉 Fallen Leaves
+	- 山鳴 Mountain Echo
+	- 鳥轉 Bird Calls
+	- 雨滴 Raindrops
+	- 男低音 Basso Profondo
+	- 暖霧 Pad
 
 ### 備註
 有些音色（例如吉他、鳥轉、山鳴、落葉）如果想再更像真實聲響，通常不只要改參數，也要一起改對應的播放函式。單改 `TIMBRES` 參數，只能改到一定程度。
 
 ## 版本
-- 0.24 刪除水流和浪潮，並新增落葉（模擬葉子掉落的聲音，再不同音接上就是不同材質地面的聲響），並將音色中的樂器類別都往上移動，其他音色往下，人聲的部份再修正，改為原本再降兩個到四個八度，改名就稱為男低音。
-根據使用者是否有瀏覽器暫存，若沒有暫存資料，第一次點入時呈現浮動視窗，說明介面，點選關閉後以後不會再出現。內容：
-並新增一個 readme.md 說明音色下的各個參數代表的意義，以及如何調整
+- 0.27 出問題，落葉雨滴都會使藻類停住不動。修正男低音在高一個八度
+- 0.26 男低音太低，請高一個八度。落葉不太行，你可否直接讓它接觸到箭頭時，就發出不同的落葉聲音來代替就好，就是把每個音階改成不同的落葉，或者吹動落葉會有嘻嘻蘇蘇的聲音。雨滴很像彈簧聲，應該模擬成水滴入水的聲音，你再試試看
+- 0.25 刪除水流和浪潮，並新增落葉（模擬葉子掉落的聲音，再不同音接上就是不同材質地面的聲響），並將音色中的樂器類別都往上移動，其他音色往下，人聲的部份再修正，改為原本再降兩個到四個八度，改名就稱為男低音。根據使用者是否有瀏覽器暫存，若沒有暫存資料，第一次點入時呈現浮動視窗，說明介面，點選關閉後以後不會再出現
 - 0.23 浪潮聲音太短，延續時間要更久。人聲單獨拉高音高，直接上升兩個八度。新增水流、雨滴兩音色。新增瀏覽器暫存功能，除非按下重置，否則紀錄藻類運動位置與狀態、箭頭路線、旋轉狀態、各種音色和速度紀錄
 - 0.22 浪潮不像，只是雜音一堆。鳥轉不管哪個音階按鈕都一樣，都像小雞叫，請參雜不同鳥鳴。山鳴整個沒聲音，那些藻類會停下來。鐵琴還行，幫我刪除鐘琴改成誦缽（要能有顯著殘響，盡力低頻）
 - 0.21 新增鐵琴、浪潮（盡可能模擬）、山鳴（模擬山中縹緲音調）、鳥轉（各種鳥鳴聲），修改人聲讓它更像人聲
