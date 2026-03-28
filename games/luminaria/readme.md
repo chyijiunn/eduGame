@@ -144,13 +144,14 @@ piano:{name:'鋼琴 Piano',partials:[[1,'triangle',1.00],[2,'sine',0.42]],attack
 	- 吉他 Guitar Strum
 	- 藍調口琴 Blues Harp
 	- 鐵琴 Glockenspiel
-	- 誦缽 Singing Bowl
-	- 竹音 Bamboo
-	- 玻璃 Glass
+
 	- 管風琴 Organ
 	- 木琴 Marimba
 
 - 氛圍 / 自然 / 人聲類
+	- 誦缽 Singing Bowl
+	- 竹音 Bamboo
+	- 玻璃 Glass
 	- 水晶 Crystal
 	- 落葉 Fallen Leaves
 	- 山鳴 Mountain Echo
