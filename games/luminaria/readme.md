@@ -9,7 +9,7 @@ luminaria 原為任天堂公司旗下 NDS 主機《電子浮游生物》作品�
 piano:{name:'鋼琴 Piano',partials:[[1,'triangle',1.00],[2,'sine',0.42]],attack:.002,decay:1.45,sustain:.045,filterType:'lowpass',filterFreq:4200,q:.85,wet:.30,noise:.14,noiseType:'bandpass',noiseFreq:3200,noiseQ:2.1,noiseDecay:.038,spread:.024}
 ```
 
-### 音色物件基本格式（v0.2 擴充版）
+### 音色物件基本格式
 ```js
 piano:{
   name:'鋼琴 Piano',
