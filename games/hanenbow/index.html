@@ -3,7 +3,7 @@
 <head><script src="/eduGame/ga4.js"></script>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>v0.2</title>
+  <title>v0.22</title>
   <style>
     :root{
       --bg0:#06121a;
@@ -433,7 +433,7 @@
     ----------------------------------------------------------------
     若要改預設值，優先修改本區常數即可。
   */
-  const STORAGE_KEY = 'hanenbow_v020_state';
+  const STORAGE_KEY = 'hanenbow_v022_state';
   const DEFAULT_GRAVITY = 900;
   const DEFAULT_INTERVAL_MS = null;
   const DEFAULT_PARTICLE_SIZE = 11;
@@ -456,6 +456,8 @@
   const HIT_COOLDOWN_MS = 70;
   const LEAF_HEAT_WINDOW_MS = 650;
   const LEAF_COOL_RATE = 0.42;
+  const LEAF_COMBO_DECAY_RATE = 0.96;
+  const LEAF_PULSE_DECAY_RATE = 1.32;
   const PARTICLE_LIFE_SEC = 14;
   const COLLISION_SUBSTEP_PIXELS = 8;
   const COLLISION_MAX_SUBSTEPS = 12;
@@ -470,6 +472,7 @@
   const MAX_NOTES_PER_SEC = 54;
   const IMPACT_MAX_BURSTS = 72;
   const BLOOM_MAX_BURSTS = 56;
+  const RIPPLE_MAX_COUNT = 24;
   const BACKGROUND_ORBS = 14;
 
   const canvas = document.getElementById('scene');
@@ -513,6 +516,7 @@
     angle: -28 * Math.PI / 180,
     radius: EMITTER_RADIUS,
     handleDist: 116,
+    firePulse: 0,
   };
 
   const CHORD_LIBRARY = [
@@ -584,6 +588,7 @@
   let nextLeafSeq = 1;
   let impactBursts = [];
   let bloomBursts = [];
+  let ripples = [];
 
   function clamp(v,min,max){ return Math.max(min, Math.min(max, v)); }
   function dist(ax,ay,bx,by){ return Math.hypot(ax-bx, ay-by); }
@@ -637,8 +642,11 @@
     p.vy += Math.sin(leaf.angle) * 14;
     if(ts - p.lastHitAt > HIT_COOLDOWN_MS || p.lastLeafId !== leaf.id){
       const impact = clamp(Math.abs(dot) / 360, .28, 1);
-      const repeatBoost = ts - (leaf.lastStruckAt || -9999) < LEAF_HEAT_WINDOW_MS ? .34 : .16;
+      const repeated = ts - (leaf.lastStruckAt || -9999) < LEAF_HEAT_WINDOW_MS;
+      leaf.combo = repeated ? clamp((leaf.combo || 0) + 1, 0, 6) : 1;
+      const repeatBoost = repeated ? (.26 + leaf.combo * .07) : .16;
       leaf.energy = clamp((leaf.energy || 0) + repeatBoost, 0, 1);
+      leaf.bloomPulse = clamp((leaf.bloomPulse || 0) + (repeated ? .56 : .30) + impact * .34, 0, 1.8);
       leaf.lastStruckAt = ts;
       spawnImpactEffect(hit.x, hit.y, leaf, impact, p);
       spawnBloomEffect(leaf, hit.x, hit.y, impact);
@@ -662,6 +670,10 @@
       if(p.x < p.r){ p.x = p.r; p.vx = Math.abs(p.vx) * .94; }
       if(p.x > state.width - p.r){ p.x = state.width - p.r; p.vx = -Math.abs(p.vx) * .94; }
       if(p.y < p.r){ p.y = p.r; p.vy = Math.abs(p.vy) * .9; }
+      if(p.y >= state.height - p.r * .7){
+        splashAtBottom(p);
+        break;
+      }
     }
     p.life += dt;
   }
@@ -794,6 +806,8 @@
         root: rootMidi,
         enabled: true,
         energy: 0,
+        combo: 0,
+        bloomPulse: 0,
         lastStruckAt: -9999,
         spawnSeq,
       };
@@ -813,6 +827,8 @@
       root: rootMidi,
       enabled: true,
       energy: 0,
+      combo: 0,
+      bloomPulse: 0,
       lastStruckAt: -9999,
       spawnSeq,
     };
@@ -1266,6 +1282,7 @@
     const speed = currentLaunchSpeed() * rangeFactor;
     const vx = Math.cos(emitter.angle) * speed;
     const vy = Math.sin(emitter.angle) * speed;
+    emitter.firePulse = 1;
     particles.push({
       x: emitter.x + Math.cos(emitter.angle) * (emitter.radius + state.particleSize + 2),
       y: emitter.y + Math.sin(emitter.angle) * (emitter.radius + state.particleSize + 2),
@@ -1284,8 +1301,11 @@
   }
 
   function update(dt, ts){
+    emitter.firePulse = Math.max(0, (emitter.firePulse || 0) - dt * 3.4);
     leaves.forEach(leaf => {
       leaf.energy = Math.max(0, (leaf.energy || 0) - LEAF_COOL_RATE * dt);
+      leaf.combo = Math.max(0, (leaf.combo || 0) - LEAF_COMBO_DECAY_RATE * dt);
+      leaf.bloomPulse = Math.max(0, (leaf.bloomPulse || 0) - LEAF_PULSE_DECAY_RATE * dt);
     });
     impactBursts = impactBursts.filter(burst => {
       burst.life += dt;
@@ -1299,6 +1319,10 @@
     bloomBursts = bloomBursts.filter(bloom => {
       bloom.life += dt;
       return bloom.life < bloom.maxLife;
+    });
+    ripples = ripples.filter(ripple => {
+      ripple.life += dt;
+      return ripple.life < ripple.maxLife;
     });
 
     if(state.intervalMs != null){
@@ -1320,7 +1344,36 @@
       updateParticleWithSubsteps(p, dt, ts);
     }
 
-    particles = particles.filter(p => p.x > -120 && p.x < state.width + 120 && p.y < state.height + 120 && p.life < PARTICLE_LIFE_SEC);
+    particles = particles.filter(p => !p.dead && p.x > -120 && p.x < state.width + 120 && p.y < state.height + 120 && p.life < PARTICLE_LIFE_SEC);
+  }
+
+
+  function drawRipples(){
+    for(const ripple of ripples){
+      const t = ripple.life / ripple.maxLife;
+      const fade = 1 - t;
+      const radius = ripple.radius + t * (34 + ripple.radius * .9);
+      const inner = ripple.radius * .3 + t * 8;
+      ctx.save();
+      ctx.strokeStyle = `hsla(${ripple.hue}, 96%, 82%, ${fade * ripple.alpha})`;
+      ctx.lineWidth = Math.max(.8, 2.6 - t * 1.5);
+      ctx.beginPath();
+      ctx.ellipse(ripple.x, ripple.y - 1, radius, radius * .22, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.strokeStyle = `hsla(${ripple.hue + 12}, 90%, 92%, ${fade * ripple.alpha * .55})`;
+      ctx.lineWidth = Math.max(.6, 1.6 - t * .9);
+      ctx.beginPath();
+      ctx.ellipse(ripple.x, ripple.y - 1, inner + radius * .46, (inner + radius * .46) * .18, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      const glow = ctx.createRadialGradient(ripple.x, ripple.y - 4, 0, ripple.x, ripple.y - 1, radius * 1.1);
+      glow.addColorStop(0, `hsla(${ripple.hue}, 100%, 88%, ${fade * .16})`);
+      glow.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = glow;
+      ctx.beginPath();
+      ctx.ellipse(ripple.x, ripple.y - 2, radius * 1.06, radius * .28, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
   }
 
   function drawBackground(){
@@ -1357,85 +1410,179 @@
   }
 
   function drawLeaf(leaf){
-    const {ax, ay, bx, by} = segEndpoints(leaf);
-    const [base0,base1] = leafPalette(leaf);
+    const curve = leafCurveData(leaf);
+    const {ax, ay, bx, by, cx, cy} = curve;
+    const [base0, base1] = leafPalette(leaf);
     const energy = clamp(leaf.energy || 0, 0, 1);
-    const c0 = heatHex(base0, energy);
-    const c1 = heatHex(base1, energy);
+    const combo = clamp((leaf.combo || 0) / 5, 0, 1);
+    const bloom = clamp(leaf.bloomPulse || 0, 0, 1.8);
+    const c0 = heatHex(base0, Math.min(1, energy + combo * .18));
+    const c1 = heatHex(base1, Math.min(1, energy + combo * .18));
     const alpha = leaf.enabled ? .98 : .26;
-    const mid = { x:(ax + bx) * .5, y:(ay + by) * .5 };
+    const mid = quadPoint(ax, ay, cx, cy, bx, by, .5);
+    const tanMidVec = quadTangent(ax, ay, cx, cy, bx, by, .5);
+    const tangentMid = normalizeVec(tanMidVec.x, tanMidVec.y);
+    const normMid = { x: -tangentMid.y, y: tangentMid.x };
     const grad = ctx.createLinearGradient(ax, ay, bx, by);
     grad.addColorStop(0, hexWithAlpha(c0, alpha));
     grad.addColorStop(.5, hexWithAlpha(mixHex(c0, c1, .5), alpha));
     grad.addColorStop(1, hexWithAlpha(c1, alpha));
-    const nx = -Math.sin(leaf.angle);
-    const ny = Math.cos(leaf.angle);
 
     ctx.save();
     ctx.lineCap = 'round';
-    ctx.strokeStyle = hexWithAlpha(mixHex(c0, c1, .5), .18 + energy * .12);
-    ctx.lineWidth = 16 + energy * 4;
-    ctx.shadowBlur = 18 + energy * 18;
-    ctx.shadowColor = hexWithAlpha(c0, .12 + energy * .22);
+    ctx.lineJoin = 'round';
+
+    ctx.strokeStyle = hexWithAlpha(mixHex(c0, c1, .5), .18 + energy * .14 + combo * .16);
+    ctx.lineWidth = 17 + energy * 4 + combo * 3;
+    ctx.shadowBlur = 20 + energy * 18 + combo * 12;
+    ctx.shadowColor = hexWithAlpha(mixHex(c0, c1, .25), .16 + energy * .22 + combo * .10);
     ctx.beginPath();
     ctx.moveTo(ax, ay);
-    ctx.lineTo(bx, by);
+    ctx.quadraticCurveTo(cx, cy, bx, by);
     ctx.stroke();
 
     ctx.shadowBlur = 0;
     ctx.strokeStyle = grad;
-    ctx.lineWidth = 8.5 + energy * 1.8;
+    ctx.lineWidth = 10 + energy * 2.2 + combo * 1.4;
     ctx.beginPath();
     ctx.moveTo(ax, ay);
-    ctx.lineTo(bx, by);
+    ctx.quadraticCurveTo(cx, cy, bx, by);
     ctx.stroke();
 
-    ctx.strokeStyle = hexWithAlpha('#f7fff7', .16 + energy * .16);
-    ctx.lineWidth = 1.3;
+    ctx.strokeStyle = hexWithAlpha('#f7fff7', .20 + energy * .14 + combo * .06);
+    ctx.lineWidth = 1.7 + energy * .4;
     ctx.beginPath();
     ctx.moveTo(ax, ay);
-    ctx.lineTo(bx, by);
+    ctx.quadraticCurveTo(cx, cy, bx, by);
     ctx.stroke();
 
-    const budSize = 6 + energy * 1.2;
-    drawPetalCluster(ax, ay, leaf.angle + Math.PI, budSize, c0, c1, .68, 3);
-    drawPetalCluster(bx, by, leaf.angle, budSize, c1, c0, .68, 3);
-    ctx.fillStyle = hexWithAlpha(mixHex(c0, c1, .5), .34 + energy * .18);
+    const sheathOffset = 3.8 + energy * 2.1 + combo * 1.3;
+    ctx.strokeStyle = hexWithAlpha(mixHex(c0, '#f8fffc', .42), .12 + energy * .10 + combo * .08);
+    ctx.lineWidth = 2.2;
     ctx.beginPath();
-    ctx.arc(mid.x, mid.y, 4.4 + energy * .8, 0, Math.PI * 2);
+    ctx.moveTo(ax + normMid.x * sheathOffset * .2, ay + normMid.y * sheathOffset * .2);
+    ctx.quadraticCurveTo(cx + normMid.x * sheathOffset, cy + normMid.y * sheathOffset, bx + normMid.x * sheathOffset * .2, by + normMid.y * sheathOffset * .2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(ax - normMid.x * sheathOffset * .2, ay - normMid.y * sheathOffset * .2);
+    ctx.quadraticCurveTo(cx - normMid.x * sheathOffset, cy - normMid.y * sheathOffset, bx - normMid.x * sheathOffset * .2, by - normMid.y * sheathOffset * .2);
+    ctx.stroke();
+
+    const startTanVec = quadTangent(ax, ay, cx, cy, bx, by, .06);
+    const startTan = normalizeVec(startTanVec.x, startTanVec.y);
+    const endTanVec = quadTangent(ax, ay, cx, cy, bx, by, .94);
+    const endTan = normalizeVec(endTanVec.x, endTanVec.y);
+    const budSize = 7 + energy * 1.2 + combo * 2.2;
+    drawPetalCluster(ax, ay, Math.atan2(-startTan.y, -startTan.x), budSize, c0, c1, .66 + combo * .14, 3);
+    drawPetalCluster(bx, by, Math.atan2(endTan.y, endTan.x), budSize, c1, c0, .66 + combo * .14, 3);
+
+    ctx.fillStyle = hexWithAlpha(mixHex(c0, c1, .5), .28 + energy * .22 + combo * .12);
+    ctx.beginPath();
+    ctx.arc(mid.x, mid.y, 4.6 + energy * .8 + combo * .9, 0, Math.PI * 2);
     ctx.fill();
 
-    const veinCount = 3;
+    const veinCount = 3 + Math.round(combo * 2);
     for(let i=1;i<=veinCount;i++){
       const t = i / (veinCount + 1);
-      const px = lerp(ax, bx, t);
-      const py = lerp(ay, by, t);
+      const p = quadPoint(ax, ay, cx, cy, bx, by, t);
+      const tanVec = quadTangent(ax, ay, cx, cy, bx, by, t);
+      const tan = normalizeVec(tanVec.x, tanVec.y);
+      const normal = { x: -tan.y, y: tan.x };
       const sign = i % 2 === 0 ? 1 : -1;
-      const len = 7 + energy * 3;
-      ctx.strokeStyle = hexWithAlpha('#f7fff7', .10 + energy * .08);
+      const len = 8 + energy * 3 + combo * 4;
+      ctx.strokeStyle = hexWithAlpha('#f7fff7', .10 + energy * .08 + combo * .08);
       ctx.lineWidth = 1.05;
       ctx.beginPath();
-      ctx.moveTo(px, py);
-      ctx.lineTo(px + nx * len * sign, py + ny * len * sign);
+      ctx.moveTo(p.x, p.y);
+      ctx.lineTo(p.x + normal.x * len * sign + tan.x * 2.5, p.y + normal.y * len * sign + tan.y * 2.5);
       ctx.stroke();
     }
 
-    if(energy > .26){
-      drawPetalCluster(mid.x, mid.y, leaf.angle - Math.PI / 2, 8 + energy * 11, c0, c1, .26 + energy * .38, 5);
-    }
-
-    for(const bloom of bloomBursts){
-      if(bloom.leafId !== leaf.id) continue;
-      const lifeT = bloom.life / bloom.maxLife;
-      const fade = 1 - lifeT;
-      const scale = bloom.size * (.58 + lifeT * .62);
-      drawPetalCluster(bloom.x, bloom.y, bloom.angle, scale, bloom.c0, bloom.c1, fade * .82, 5);
-      ctx.strokeStyle = hexWithAlpha(bloom.c1, fade * .22);
-      ctx.lineWidth = 1.2;
+    const comboRaw = clamp(leaf.combo || 0, 0, 6);
+    const branchCount = Math.max(0, Math.min(8, Math.floor(comboRaw * 1.35 - .2) + (energy > .72 ? 1 : 0)));
+    for(let i=0;i<branchCount;i++){
+      const t = clamp(.18 + (i + 1) / (branchCount + 2) * .64 + Math.sin((leaf.id + i) * .37) * .018, .16, .84);
+      const p = quadPoint(ax, ay, cx, cy, bx, by, t);
+      const tanVec = quadTangent(ax, ay, cx, cy, bx, by, t);
+      const tan = normalizeVec(tanVec.x, tanVec.y);
+      const normal = { x: -tan.y, y: tan.x };
+      const sign = (i + (curve.bend > 0 ? 0 : 1)) % 2 === 0 ? 1 : -1;
+      const growth = clamp(.42 + combo * .82 + bloom * .26 - i * .04, .22, 1.82);
+      const branchLen = (12 + energy * 7 + combo * 18 + i * 2.4) * growth;
+      const cx2 = p.x + normal.x * branchLen * sign * .54 + tan.x * branchLen * .18;
+      const cy2 = p.y + normal.y * branchLen * sign * .54 + tan.y * branchLen * .18;
+      const ex = p.x + normal.x * branchLen * sign + tan.x * (5 + combo * 3);
+      const ey = p.y + normal.y * branchLen * sign + tan.y * (5 + combo * 3);
+      const branchGrad = ctx.createLinearGradient(p.x, p.y, ex, ey);
+      branchGrad.addColorStop(0, hexWithAlpha(mixHex(c0, c1, .5), .34 + combo * .12));
+      branchGrad.addColorStop(1, hexWithAlpha('#f7fff7', .10 + combo * .24));
+      ctx.strokeStyle = branchGrad;
+      ctx.lineWidth = 2.1 + combo * .8 - i * .16;
       ctx.beginPath();
-      ctx.moveTo(bloom.x, bloom.y);
-      ctx.lineTo(bloom.x + nx * (9 + bloom.size * .2), bloom.y + ny * (9 + bloom.size * .2));
+      ctx.moveTo(p.x, p.y);
+      ctx.quadraticCurveTo(cx2, cy2, ex, ey);
       ctx.stroke();
+      const tipAngle = Math.atan2(ey - cy2, ex - cx2);
+      const tipSize = 5.4 + combo * 3.1 + bloom * 1.9 - i * .26;
+      drawPetalCluster(ex, ey, tipAngle, tipSize, c0, c1, .30 + combo * .28, Math.min(7, 4 + Math.round(combo * 2.2)));
+      if(comboRaw >= 3){
+        const subLen = 8 + comboRaw * 2.6 - i * .4;
+        const leftA = tipAngle - (.58 + combo * .12);
+        const rightA = tipAngle + (.58 + combo * .12);
+        [[leftA,.78],[rightA,.92]].forEach(([a,scale]) => {
+          const sx = ex + Math.cos(a) * subLen * .78;
+          const sy = ey + Math.sin(a) * subLen * .78;
+          ctx.strokeStyle = hexWithAlpha(mixHex(c0, c1, .5), .18 + combo * .18);
+          ctx.lineWidth = 1.15 + combo * .26;
+          ctx.beginPath();
+          ctx.moveTo(ex, ey);
+          ctx.quadraticCurveTo(ex + Math.cos(a) * subLen * .34 + tan.x * 2.4, ey + Math.sin(a) * subLen * .34 + tan.y * 2.4, sx, sy);
+          ctx.stroke();
+          drawPetalCluster(sx, sy, a, tipSize * (.52 + scale * .2), c1, '#fffaf5', .20 + combo * .18, Math.min(8, 3 + Math.round(comboRaw)));
+        });
+      }
+      if(comboRaw >= 5){
+        drawPetalCluster(ex, ey, tipAngle, tipSize * 1.28, '#fffef8', c1, .22 + combo * .22, Math.min(9, 5 + Math.round(comboRaw)));
+      }
+    }
+
+    if(energy > .18 || combo > .12){
+      const crownSize = 7 + energy * 9 + combo * 8 + bloom * 3;
+      drawPetalCluster(mid.x, mid.y, leaf.angle - Math.PI / 2, crownSize, c0, c1, .18 + energy * .26 + combo * .32, 5 + Math.round(combo * 2));
+      if(comboRaw >= 4){
+        drawPetalCluster(mid.x, mid.y, leaf.angle - Math.PI / 2 + .24, crownSize * 1.18, '#fffef8', c1, .16 + combo * .20, 6 + Math.round(comboRaw * .4));
+      }
+    }
+
+    for(const bloomBurst of bloomBursts){
+      if(bloomBurst.leafId !== leaf.id) continue;
+      const lifeT = bloomBurst.life / bloomBurst.maxLife;
+      const fade = 1 - lifeT;
+      const scale = bloomBurst.size * (.58 + lifeT * .62);
+      drawPetalCluster(bloomBurst.x, bloomBurst.y, bloomBurst.angle, scale, bloomBurst.c0, bloomBurst.c1, fade * .84, bloomBurst.petals || 5);
+      const bx2 = bloomBurst.x + Math.cos(bloomBurst.angle) * bloomBurst.branchLength * (.42 + lifeT * .52);
+      const by2 = bloomBurst.y + Math.sin(bloomBurst.angle) * bloomBurst.branchLength * (.42 + lifeT * .52);
+      ctx.strokeStyle = hexWithAlpha(bloomBurst.c1, fade * (.22 + (bloomBurst.combo || 1) * .04));
+      ctx.lineWidth = 1.2 + (bloomBurst.combo || 1) * .22;
+      ctx.beginPath();
+      ctx.moveTo(bloomBurst.x, bloomBurst.y);
+      ctx.quadraticCurveTo((bloomBurst.x + bx2) * .5 + normMid.x * 4, (bloomBurst.y + by2) * .5 + normMid.y * 4, bx2, by2);
+      ctx.stroke();
+      if((bloomBurst.combo || 1) >= 3){
+        const sx = bloomBurst.x + Math.cos(bloomBurst.angle) * bloomBurst.branchLength * .24;
+        const sy = bloomBurst.y + Math.sin(bloomBurst.angle) * bloomBurst.branchLength * .24;
+        ctx.strokeStyle = hexWithAlpha(bloomBurst.c0, fade * .18);
+        ctx.lineWidth = 1.05;
+        ctx.beginPath();
+        ctx.moveTo(sx, sy);
+        ctx.lineTo(sx - Math.sin(bloomBurst.angle) * 7, sy + Math.cos(bloomBurst.angle) * 7);
+        ctx.stroke();
+        if((bloomBurst.combo || 1) >= 5){
+          const tx = bx2 + Math.cos(bloomBurst.angle) * 5;
+          const ty = by2 + Math.sin(bloomBurst.angle) * 5;
+          drawPetalCluster(tx, ty, bloomBurst.angle, scale * .62, '#fffef9', bloomBurst.c1, fade * .54, Math.min(9, 5 + Math.round(bloomBurst.combo || 1)));
+        }
+      }
     }
 
     if(state.showLabels){
@@ -1443,12 +1590,12 @@
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillStyle = leaf.enabled ? 'rgba(255,255,255,.95)' : 'rgba(255,255,255,.42)';
-      ctx.fillText(leafLabel(leaf), leaf.x, leaf.y - 16);
+      ctx.fillText(leafLabel(leaf), mid.x, mid.y - 18 - combo * 6);
     }
     ctx.restore();
   }
 
-  function hexToRgb(hex){
+function hexToRgb(hex){
     const h = hex.replace('#','');
     const n = parseInt(h, 16);
     return { r:(n>>16)&255, g:(n>>8)&255, b:n&255 };
@@ -1559,16 +1706,154 @@
 
   function spawnBloomEffect(leaf, x, y, impact){
     const [c0, c1] = leafPalette(leaf);
-    bloomBursts.push({
-      leafId: leaf.id,
-      x, y,
-      angle: leaf.angle + (Math.random() - .5) * .45,
-      life: 0,
-      maxLife: .85 + impact * .35,
-      size: 12 + impact * 10 + Math.random() * 6,
-      c0, c1,
-    });
+    const combo = Math.max(1, Math.round(leaf.combo || 1));
+    const burstCount = 1 + (combo >= 3 ? 1 : 0) + (combo >= 5 ? 1 : 0);
+    for(let i=0;i<burstCount;i++){
+      const spread = (i - (burstCount - 1) * .5) * (.34 + combo * .08);
+      bloomBursts.push({
+        leafId: leaf.id,
+        x, y,
+        angle: leaf.angle + spread + (Math.random() - .5) * .16,
+        life: 0,
+        maxLife: .88 + impact * .38 + combo * .06,
+        size: 12 + impact * 10 + combo * 3 + Math.random() * 6,
+        petals: Math.min(8, 4 + combo),
+        combo,
+        branchLength: 8 + combo * 7 + impact * 8,
+        c0, c1,
+      });
+    }
     while(bloomBursts.length > BLOOM_MAX_BURSTS) bloomBursts.shift();
+  }
+
+  function spawnRipple(x, strength = 1){
+    ripples.push({
+      x: clamp(x, 24, state.width - 24),
+      y: state.height - 2,
+      life: 0,
+      maxLife: .92 + strength * .2,
+      radius: 10 + strength * 6,
+      alpha: .34 + strength * .22,
+      hue: 192 + Math.random() * 18,
+    });
+    while(ripples.length > RIPPLE_MAX_COUNT) ripples.shift();
+  }
+
+  function playWaterDropChord(strength = 1){
+    const ac = initAudio();
+    if(!ac) return;
+    const allowed = reserveAudioBudget(3);
+    if(!allowed) return;
+    const now = ac.currentTime;
+    const notes = [72, 79, 86].slice(0, allowed);
+    notes.forEach((midi, idx) => {
+      const start = now + idx * .028;
+      const osc = ac.createOscillator();
+      osc.type = idx === 0 ? 'sine' : 'triangle';
+      osc.frequency.setValueAtTime(midiToFreq(midi) * (idx === 0 ? .5 : 1), start);
+      osc.frequency.exponentialRampToValueAtTime(midiToFreq(midi), start + .08 + idx * .01);
+      const bp = ac.createBiquadFilter();
+      bp.type = 'bandpass';
+      bp.frequency.value = idx === 0 ? 380 : 1800 + idx * 420;
+      bp.Q.value = idx === 0 ? 1.1 : 1.8;
+      const env = ac.createGain();
+      const peak = (.14 - idx * .026) * Math.min(1.2, .72 + strength * .4);
+      env.gain.setValueAtTime(.0001, start);
+      env.gain.linearRampToValueAtTime(peak, start + .005);
+      env.gain.exponentialRampToValueAtTime(.0001, start + .44 + idx * .06);
+      const wetSend = ac.createGain();
+      wetSend.gain.value = .18 + idx * .04;
+      osc.connect(bp); bp.connect(env); env.connect(audio.dry); env.connect(wetSend); wetSend.connect(audio.wet);
+      osc.start(start); osc.stop(start + .5 + idx * .06);
+    });
+    const src = ac.createBufferSource();
+    src.buffer = getNoiseBuffer();
+    const bp = ac.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.value = 1300;
+    bp.Q.value = 1.4;
+    const gain = ac.createGain();
+    gain.gain.setValueAtTime(.016 * Math.min(1.2, .8 + strength * .3), now);
+    gain.gain.exponentialRampToValueAtTime(.0001, now + .11);
+    const wetSend = ac.createGain(); wetSend.gain.value = .10;
+    src.connect(bp); bp.connect(gain); gain.connect(audio.dry); gain.connect(wetSend); wetSend.connect(audio.wet);
+    src.start(now); src.stop(now + .12);
+  }
+
+  function splashAtBottom(p){
+    const strength = clamp((p.r - 6) / 18 + Math.abs(p.vy) / 900, .35, 1.25);
+    spawnRipple(p.x, strength);
+    playWaterDropChord(strength);
+    for(let i=0;i<3;i++){
+      impactBursts.push({
+        x: clamp(p.x + (Math.random() - .5) * 10, 0, state.width),
+        y: state.height - 6,
+        vx: (Math.random() - .5) * 26,
+        vy: -24 - Math.random() * 28,
+        life: 0,
+        maxLife: .24 + Math.random() * .12,
+        size: 2.8 + Math.random() * 2.2,
+        c0: '#d9fbff',
+        c1: '#9fe8ff',
+        spin: (Math.random() - .5) * 1.6,
+      });
+    }
+    while(impactBursts.length > IMPACT_MAX_BURSTS) impactBursts.shift();
+    p.dead = true;
+  }
+
+  function quadPoint(ax, ay, cx, cy, bx, by, t){
+    const mt = 1 - t;
+    return {
+      x: mt * mt * ax + 2 * mt * t * cx + t * t * bx,
+      y: mt * mt * ay + 2 * mt * t * cy + t * t * by,
+    };
+  }
+  function quadTangent(ax, ay, cx, cy, bx, by, t){
+    return {
+      x: 2 * (1 - t) * (cx - ax) + 2 * t * (bx - cx),
+      y: 2 * (1 - t) * (cy - ay) + 2 * t * (by - cy),
+    };
+  }
+  function normalizeVec(x, y){
+    const d = Math.hypot(x, y) || 1;
+    return { x: x / d, y: y / d };
+  }
+  function leafCurveData(leaf){
+    const {ax, ay, bx, by} = segEndpoints(leaf);
+    const midX = (ax + bx) * .5;
+    const midY = (ay + by) * .5;
+    const n = segNormal(leaf);
+    const seed = Math.sin(leaf.id * .00073 + leaf.root * .17);
+    const bendDir = seed >= 0 ? 1 : -1;
+    const bend = (leaf.length * (.042 + Math.abs(seed) * .028) + 4 + (leaf.energy || 0) * 9 + Math.max(0, (leaf.combo || 0) - 1) * 3.8) * bendDir;
+    return {
+      ax, ay, bx, by,
+      cx: midX + n.x * bend,
+      cy: midY + n.y * bend,
+      bend,
+    };
+  }
+  function drawBudPetal(x, y, angle, length, width, c0, c1, alpha){
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(angle);
+    const grad = ctx.createLinearGradient(0, 6, 0, -length);
+    grad.addColorStop(0, hexWithAlpha(c0, alpha * .64));
+    grad.addColorStop(.38, hexWithAlpha(c1, alpha));
+    grad.addColorStop(1, hexWithAlpha('#fffef8', alpha * .82));
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.moveTo(0, 5);
+    ctx.quadraticCurveTo(width * .95, -length * .10, width * .38, -length * .80);
+    ctx.quadraticCurveTo(0, -length, -width * .38, -length * .80);
+    ctx.quadraticCurveTo(-width * .95, -length * .10, 0, 5);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = hexWithAlpha('#ffffff', alpha * .28);
+    ctx.lineWidth = 1.05;
+    ctx.stroke();
+    ctx.restore();
   }
 
   function emitterHandle(){
@@ -1582,67 +1867,92 @@
   function drawEmitter(){
     const h = emitterHandle();
     const pulse = .5 + .5 * Math.sin(performance.now() * .0034);
+    const bloom = .84 + pulse * .16;
+    const fire = Math.sin((emitter.firePulse || 0) * Math.PI);
+    const open = Math.pow(fire, .62);
+    const recoil = open * 7;
+    const stemGrad = ctx.createLinearGradient(emitter.x, emitter.y, h.x, h.y);
+    stemGrad.addColorStop(0, 'rgba(158,255,208,.18)');
+    stemGrad.addColorStop(.55, 'rgba(220,255,235,.34)');
+    stemGrad.addColorStop(1, state.deleteMode ? 'rgba(255,190,190,.46)' : 'rgba(255,246,190,.42)');
     ctx.save();
     ctx.lineCap = 'round';
-    ctx.strokeStyle = state.deleteMode ? 'rgba(255,170,170,.34)' : 'rgba(236,255,243,.34)';
-    ctx.lineWidth = 2;
-    ctx.setLineDash([3, 8]);
+    ctx.strokeStyle = stemGrad;
+    ctx.lineWidth = 3.4;
+    ctx.beginPath();
+    ctx.moveTo(emitter.x, emitter.y);
+    ctx.lineTo(h.x, h.y);
+    ctx.stroke();
+
+    ctx.strokeStyle = state.deleteMode ? 'rgba(255,170,170,.36)' : 'rgba(236,255,243,.24)';
+    ctx.lineWidth = 1.6;
+    ctx.setLineDash([4, 8]);
     ctx.beginPath();
     ctx.moveTo(emitter.x, emitter.y);
     ctx.lineTo(h.x, h.y);
     ctx.stroke();
     ctx.setLineDash([]);
 
-    const halo = ctx.createRadialGradient(emitter.x, emitter.y, 0, emitter.x, emitter.y, 52 + pulse * 8);
-    halo.addColorStop(0, 'rgba(255,255,255,.14)');
-    halo.addColorStop(.42, 'rgba(181,255,219,.16)');
+    const halo = ctx.createRadialGradient(emitter.x, emitter.y, 0, emitter.x, emitter.y, 60 + pulse * 12 + open * 14);
+    halo.addColorStop(0, 'rgba(255,255,255,.12)');
+    halo.addColorStop(.30, `rgba(181,255,219,${.18 + open * .18})`);
     halo.addColorStop(1, 'rgba(181,255,219,0)');
     ctx.fillStyle = halo;
     ctx.beginPath();
-    ctx.arc(emitter.x, emitter.y, 54 + pulse * 6, 0, Math.PI * 2);
+    ctx.arc(emitter.x, emitter.y, 60 + pulse * 7 + open * 8, 0, Math.PI * 2);
     ctx.fill();
 
-    drawPetalCluster(emitter.x, emitter.y, emitter.angle - Math.PI * .5, 18 + pulse * 2.4, '#b8f6c8', '#ffd4ec', .42, 4);
-    drawPetalCluster(emitter.x, emitter.y, emitter.angle + Math.PI * .25, 12 + pulse * 1.6, '#e4fff0', '#b8f6c8', .28, 3);
+    const baseAngle = emitter.angle + Math.PI * .5;
+    const sideSpread = .55 + open * .44;
+    const sideLength = 28 + pulse * 2.6 + open * 9;
+    const centerLength = 32 + pulse * 3.2 + open * 12;
+    const cradleLength = 38 + pulse * 3 + open * 10;
+    drawBudPetal(emitter.x - Math.cos(emitter.angle) * recoil * .28, emitter.y + 3.5, baseAngle, cradleLength, 16 + open * 2, '#7fb58f', '#defbe4', .46 + open * .12);
+    drawBudPetal(emitter.x - Math.cos(emitter.angle) * recoil * .36, emitter.y + 2.5, baseAngle - sideSpread, sideLength, 13.5 + open * 2.4, '#99ddb0', '#ffd3ea', .88);
+    drawBudPetal(emitter.x - Math.cos(emitter.angle) * recoil * .36, emitter.y + 2.5, baseAngle + sideSpread, sideLength, 13.5 + open * 2.4, '#99ddb0', '#ffe4f2', .88);
+    drawBudPetal(emitter.x + Math.cos(emitter.angle) * open * 1.5, emitter.y - 4.5, baseAngle, centerLength, 12.2 + open * 3.6, '#cbffd6', '#fff6fb', .98);
+    if(open > .08){
+      drawBudPetal(emitter.x + Math.cos(emitter.angle) * (4 + open * 4), emitter.y - 6.2, baseAngle - .18, 21 + open * 7, 8.8 + open * 2.4, '#f3ffc8', '#fffef6', .48 + open * .22);
+    }
 
-    const core = ctx.createRadialGradient(emitter.x - 4, emitter.y - 6, 2, emitter.x, emitter.y, 22);
+    ctx.fillStyle = 'rgba(106,174,120,.78)';
+    ctx.beginPath();
+    ctx.ellipse(emitter.x - Math.cos(emitter.angle) * recoil * .25, emitter.y + 10, 14.8, 10.1, emitter.angle, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = `rgba(255,255,255,${.92 + open * .04})`;
+    ctx.beginPath();
+    ctx.arc(emitter.x + Math.cos(emitter.angle) * (2 + open * 5), emitter.y - 5.2, 5.8 + pulse * .7 + open * .8, 0, Math.PI * 2);
+    ctx.fill();
+
+    const core = ctx.createRadialGradient(emitter.x - 3, emitter.y - 6, 1.5, emitter.x + Math.cos(emitter.angle) * open * 5, emitter.y - 1, 20 + open * 6);
     core.addColorStop(0, 'rgba(255,255,255,.98)');
-    core.addColorStop(.32, 'rgba(164,255,215,.98)');
+    core.addColorStop(.26, `rgba(164,255,215,${.94 + open * .04})`);
     core.addColorStop(1, 'rgba(164,255,215,0)');
     ctx.fillStyle = core;
     ctx.beginPath();
-    ctx.arc(emitter.x, emitter.y, 22, 0, Math.PI * 2);
+    ctx.arc(emitter.x, emitter.y, 19 + pulse * .9 + open * 4.2, 0, Math.PI * 2);
     ctx.fill();
 
-    ctx.fillStyle = 'rgba(164,255,215,.98)';
-    ctx.beginPath();
-    ctx.arc(emitter.x, emitter.y, emitter.radius * .82, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = 'rgba(255,255,255,.92)';
-    ctx.beginPath();
-    ctx.arc(emitter.x - 4, emitter.y - 5, 4.6, 0, Math.PI * 2);
-    ctx.fill();
-
-    const pollen = ctx.createRadialGradient(h.x - 1, h.y - 1, 0, h.x, h.y, 14);
+    const pollen = ctx.createRadialGradient(h.x - 1, h.y - 1, 0, h.x, h.y, 15.5 + open * 3);
     pollen.addColorStop(0, 'rgba(255,255,255,.98)');
-    pollen.addColorStop(.36, 'rgba(255,239,173,.98)');
+    pollen.addColorStop(.34, 'rgba(255,239,173,.98)');
     pollen.addColorStop(1, 'rgba(255,239,173,0)');
     ctx.fillStyle = pollen;
     ctx.beginPath();
-    ctx.arc(h.x, h.y, 13, 0, Math.PI * 2);
+    ctx.arc(h.x, h.y, 14.5 + open * 1.4, 0, Math.PI * 2);
     ctx.fill();
     ctx.fillStyle = 'rgba(255,226,146,.96)';
     ctx.beginPath();
-    ctx.arc(h.x, h.y, 8.5, 0, Math.PI * 2);
+    ctx.arc(h.x, h.y, 8.8 * bloom + open * 1.8, 0, Math.PI * 2);
     ctx.fill();
-    ctx.fillStyle = 'rgba(255,255,255,.9)';
+    ctx.fillStyle = 'rgba(255,255,255,.92)';
     ctx.beginPath();
-    ctx.arc(h.x - 2, h.y - 2.5, 2.8, 0, Math.PI * 2);
+    ctx.arc(h.x - 2.1, h.y - 2.5, 2.9 + open * .6, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
   }
 
-  function drawParticles(){
+function drawParticles(){
     for(const p of particles){
       const ang = Math.atan2(p.vy || 0, p.vx || 1);
       const speed = Math.hypot(p.vx || 0, p.vy || 0);
@@ -1700,6 +2010,7 @@
   function render(){
     ctx.clearRect(0, 0, state.width, state.height);
     drawBackground();
+    drawRipples();
     leaves.forEach(drawLeaf);
     drawParticles();
     drawEmitter();
