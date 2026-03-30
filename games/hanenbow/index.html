@@ -1,0 +1,789 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Hanenbow v0.11</title>
+  <style>
+    :root{
+      --bg0:#030c16;
+      --bg1:#0a1c2d;
+      --bg2:#13334c;
+      --ink:#e8fbff;
+      --sub:rgba(232,251,255,.72);
+      --panel:rgba(8,20,34,.90);
+      --line:#98e5ff;
+      --safe-top:env(safe-area-inset-top,0px);
+      --safe-bottom:env(safe-area-inset-bottom,0px);
+    }
+    *{box-sizing:border-box}
+    html,body{
+      margin:0;
+      width:100%;
+      height:100%;
+      overflow:hidden;
+      background:
+        radial-gradient(circle at 18% 10%, rgba(145,255,228,.12), transparent 22%),
+        radial-gradient(circle at 78% 14%, rgba(105,183,255,.16), transparent 24%),
+        linear-gradient(180deg, var(--bg2), var(--bg1) 44%, var(--bg0));
+      color:var(--ink);
+      font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+      user-select:none;
+      -webkit-tap-highlight-color:transparent;
+      touch-action:none;
+    }
+    #app{position:relative;width:100%;height:100%}
+    canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+    .topbar{
+      position:absolute;
+      top:calc(10px + var(--safe-top));
+      right:10px;
+      z-index:20;
+      display:flex;
+      gap:8px;
+    }
+    .icon-btn{
+      width:42px;
+      height:42px;
+      border:none;
+      border-radius:14px;
+      background:rgba(8,20,34,.72);
+      color:var(--ink);
+      font-size:1.3rem;
+      line-height:1;
+      cursor:pointer;
+      backdrop-filter:blur(10px);
+      box-shadow:0 10px 30px rgba(0,0,0,.24), inset 0 1px 0 rgba(255,255,255,.06);
+    }
+    .icon-btn:active{transform:scale(.98)}
+    .modal{
+      position:absolute;
+      inset:0;
+      z-index:40;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:16px;
+      background:rgba(2,8,14,.48);
+      backdrop-filter:blur(8px);
+    }
+    .modal[hidden]{display:none}
+    .sheet{
+      width:min(100%, 460px);
+      max-height:min(88vh, 760px);
+      overflow:auto;
+      border-radius:22px;
+      background:linear-gradient(180deg, rgba(12,27,45,.96), rgba(8,20,34,.96));
+      border:1px solid rgba(152,229,255,.14);
+      box-shadow:0 16px 44px rgba(0,0,0,.34), inset 0 1px 0 rgba(255,255,255,.05);
+      padding:16px;
+    }
+    .sheet-head{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      margin-bottom:14px;
+    }
+    .sheet-title{margin:0;font-size:1rem;font-weight:800;letter-spacing:.02em}
+    .close-btn{
+      width:34px;height:34px;border:none;border-radius:999px;
+      background:rgba(255,255,255,.06);color:var(--ink);font-size:1.1rem;cursor:pointer;
+    }
+    .grid{display:grid;gap:12px}
+    .field{display:grid;gap:6px}
+    .field label{font-size:.82rem;color:var(--sub)}
+    .range-row{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center}
+    .value{min-width:58px;text-align:right;font-weight:700;font-size:.85rem}
+    input[type="range"], select, button.ctrl{
+      width:100%;min-height:42px;border-radius:14px;border:1px solid rgba(152,229,255,.15);
+      background:rgba(11,25,42,.94);color:var(--ink);font-size:.92rem;
+    }
+    input[type="range"]{padding:0 6px}
+    select, button.ctrl{padding:0 12px;font-weight:700}
+    .action-row{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+    .hint{font-size:.78rem;color:var(--sub);line-height:1.5}
+    @media (max-width:560px){
+      .sheet{padding:14px}
+      .action-row{grid-template-columns:1fr}
+    }
+  </style>
+</head>
+<body>
+<div id="app">
+  <canvas id="scene"></canvas>
+  <div class="topbar">
+    <button class="icon-btn" id="moreBtn" aria-label="更多">⋯</button>
+  </div>
+
+  <div class="modal" id="settingsModal" hidden>
+    <div class="sheet">
+      <div class="sheet-head">
+        <h2 class="sheet-title">更多</h2>
+        <button class="close-btn" id="closeBtn" aria-label="關閉">×</button>
+      </div>
+      <div class="grid">
+        <div class="field">
+          <label for="gravityRange">重力</label>
+          <div class="range-row">
+            <input id="gravityRange" type="range" min="240" max="1800" step="20" value="900">
+            <div class="value" id="gravityOut">900</div>
+          </div>
+        </div>
+        <div class="field">
+          <label for="intervalRange">連發間隔（ms）</label>
+          <div class="range-row">
+            <input id="intervalRange" type="range" min="80" max="1400" step="10" value="340">
+            <div class="value" id="intervalOut">340</div>
+          </div>
+        </div>
+        <div class="field">
+          <label for="sizeRange">粒子大小</label>
+          <div class="range-row">
+            <input id="sizeRange" type="range" min="6" max="24" step="1" value="11">
+            <div class="value" id="sizeOut">11</div>
+          </div>
+        </div>
+        <div class="field">
+          <label for="speedRange">初速度</label>
+          <div class="range-row">
+            <input id="speedRange" type="range" min="160" max="1200" step="10" value="520">
+            <div class="value" id="speedOut">520</div>
+          </div>
+        </div>
+        <div class="field">
+          <label for="timbreSelect">音色</label>
+          <select id="timbreSelect">
+            <option value="piano" selected>鋼琴 Piano</option>
+            <option value="glass">玻璃 Glass</option>
+            <option value="glock">鐵琴 Glockenspiel</option>
+            <option value="organ">風琴 Organ</option>
+            <option value="pad">Pad</option>
+            <option value="marimba">木琴 Marimba</option>
+            <option value="bamboo">竹音 Bamboo</option>
+            <option value="choir">人聲 Choir</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="autoToggle">連發</label>
+          <select id="autoToggle">
+            <option value="off" selected>關</option>
+            <option value="on">開</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="paletteSelect">和弦庫</label>
+          <select id="paletteSelect">
+            <option value="full" selected>內建 16 種</option>
+            <option value="bright">偏明亮</option>
+            <option value="dark">偏陰暗</option>
+            <option value="open">偏開放</option>
+          </select>
+        </div>
+        <div class="action-row">
+          <button class="ctrl" id="shuffleBtn">重排線段和弦</button>
+          <button class="ctrl" id="clearBtn">清空粒子</button>
+          <button class="ctrl" id="resetBtn">重置場景</button>
+        </div>
+        <div class="hint">拖曳發射器可移動位置；拖曳發射器前方小圓點可改角度；點一下發射器會發射一顆。拖曳線段中點可移動，拖曳端點可改角度與長度，點一下線段會切換到下一個和弦。</div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+(() => {
+  const canvas = document.getElementById('scene');
+  const ctx = canvas.getContext('2d');
+  const moreBtn = document.getElementById('moreBtn');
+  const settingsModal = document.getElementById('settingsModal');
+  const closeBtn = document.getElementById('closeBtn');
+  const gravityRange = document.getElementById('gravityRange');
+  const intervalRange = document.getElementById('intervalRange');
+  const sizeRange = document.getElementById('sizeRange');
+  const speedRange = document.getElementById('speedRange');
+  const timbreSelect = document.getElementById('timbreSelect');
+  const autoToggle = document.getElementById('autoToggle');
+  const paletteSelect = document.getElementById('paletteSelect');
+  const gravityOut = document.getElementById('gravityOut');
+  const intervalOut = document.getElementById('intervalOut');
+  const sizeOut = document.getElementById('sizeOut');
+  const speedOut = document.getElementById('speedOut');
+  const shuffleBtn = document.getElementById('shuffleBtn');
+  const clearBtn = document.getElementById('clearBtn');
+  const resetBtn = document.getElementById('resetBtn');
+
+  const state = {
+    gravity: 900,
+    intervalMs: 340,
+    particleSize: 11,
+    launchSpeed: 520,
+    timbre: 'piano',
+    autoFire: false,
+    width: 1,
+    height: 1,
+    lastTs: performance.now(),
+    spawnAcc: 0,
+  };
+
+  const emitter = {
+    x: 0,
+    y: 0,
+    angle: -28 * Math.PI / 180,
+    radius: 18,
+    handleDist: 92,
+  };
+
+  const CHORD_LIBRARY = [
+    { name:'Maj', intervals:[0,4,7] },
+    { name:'Min', intervals:[0,3,7] },
+    { name:'Sus2', intervals:[0,2,7] },
+    { name:'Sus4', intervals:[0,5,7] },
+    { name:'Dim', intervals:[0,3,6] },
+    { name:'Aug', intervals:[0,4,8] },
+    { name:'6', intervals:[0,4,7,9] },
+    { name:'m6', intervals:[0,3,7,9] },
+    { name:'7', intervals:[0,4,7,10] },
+    { name:'Maj7', intervals:[0,4,7,11] },
+    { name:'m7', intervals:[0,3,7,10] },
+    { name:'Add9', intervals:[0,4,7,14] },
+    { name:'mAdd9', intervals:[0,3,7,14] },
+    { name:'Power', intervals:[0,7,12] },
+    { name:'Quartal', intervals:[0,5,10] },
+    { name:'Cluster', intervals:[0,1,7] },
+  ];
+  const PALETTES = {
+    full: [...CHORD_LIBRARY.keys()],
+    bright: [0,2,3,5,6,9,11,13,14],
+    dark: [1,4,7,8,10,12,15],
+    open: [2,3,6,11,13,14],
+  };
+  const ROOTS = [45, 48, 50, 52, 55, 57, 60, 62, 64, 67, 69, 72];
+
+  const TIMBRES = {
+    piano:  { attack:.002, decay:1.6, sustain:.04, filter:'lowpass', freq:3300, q:.8, wet:.20, partials:[[1,'triangle',1],[2,'sine',.42],[3,'sine',.18],[4,'sine',.09]], noise:.08 },
+    glass:  { attack:.004, decay:1.1, sustain:.06, filter:'highpass', freq:1200, q:1.0, wet:.28, partials:[[1,'sine',1],[3,'sine',.24],[6,'sine',.08]], noise:0 },
+    glock:  { attack:.002, decay:1.25, sustain:.03, filter:'highpass', freq:1800, q:1.1, wet:.26, partials:[[1,'triangle',1],[2,'sine',.30],[4.1,'sine',.16]], noise:.03 },
+    organ:  { attack:.012, decay:1.0, sustain:.45, filter:'lowpass', freq:1500, q:.4, wet:.12, partials:[[1,'sine',1],[2,'sine',.42],[3,'sine',.16]], noise:0 },
+    pad:    { attack:.040, decay:1.4, sustain:.38, filter:'lowpass', freq:1400, q:.3, wet:.26, partials:[[1,'sine',1],[2,'triangle',.16],[3,'sine',.08]], noise:0 },
+    marimba:{ attack:.002, decay:.45, sustain:.03, filter:'bandpass', freq:760, q:1.7, wet:.08, partials:[[1,'triangle',1],[3,'sine',.14],[5,'sine',.04]], noise:.05 },
+    bamboo: { attack:.003, decay:.52, sustain:.04, filter:'bandpass', freq:980, q:1.4, wet:.10, partials:[[1,'triangle',1],[2.4,'sine',.20],[4.8,'sine',.07]], noise:.05 },
+    choir:  { attack:.055, decay:2.0, sustain:.30, filter:'bandpass', freq:720, q:.95, wet:.28, partials:[[1,'triangle',1],[2,'sine',.22],[.5,'sine',.11]], noise:0 },
+  };
+
+  const audio = {
+    ctx: null,
+    master: null,
+    dry: null,
+    wet: null,
+    filter: null,
+    delay: null,
+    noiseBuffer: null,
+  };
+
+  let particles = [];
+  let leaves = [];
+  let drag = null;
+
+  function clamp(v,min,max){ return Math.max(min, Math.min(max, v)); }
+  function dist(ax,ay,bx,by){ return Math.hypot(ax-bx, ay-by); }
+  function lerp(a,b,t){ return a + (b-a)*t; }
+  function midiToFreq(m){ return 440 * Math.pow(2, (m-69)/12); }
+  function signedAngle(x1,y1,x2,y2){ return Math.atan2(y2-y1, x2-x1); }
+  function segEndpoints(seg){
+    const dx = Math.cos(seg.angle) * seg.length * .5;
+    const dy = Math.sin(seg.angle) * seg.length * .5;
+    return { ax: seg.x - dx, ay: seg.y - dy, bx: seg.x + dx, by: seg.y + dy };
+  }
+  function segNormal(seg){
+    return { x: -Math.sin(seg.angle), y: Math.cos(seg.angle) };
+  }
+  function closestPointOnSegment(px,py, ax,ay,bx,by){
+    const abx = bx-ax, aby = by-ay;
+    const len2 = abx*abx + aby*aby || 1;
+    let t = ((px-ax)*abx + (py-ay)*aby) / len2;
+    t = clamp(t, 0, 1);
+    return { x: ax + abx*t, y: ay + aby*t, t };
+  }
+  function randomOf(arr){ return arr[Math.floor(Math.random() * arr.length)]; }
+
+  function updateOutputs(){
+    gravityOut.textContent = String(state.gravity);
+    intervalOut.textContent = String(state.intervalMs);
+    sizeOut.textContent = String(state.particleSize);
+    speedOut.textContent = String(state.launchSpeed);
+  }
+
+  function resize(){
+    const dpr = Math.max(1, window.devicePixelRatio || 1);
+    state.width = window.innerWidth;
+    state.height = window.innerHeight;
+    canvas.width = Math.floor(state.width * dpr);
+    canvas.height = Math.floor(state.height * dpr);
+    canvas.style.width = state.width + 'px';
+    canvas.style.height = state.height + 'px';
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    if(!emitter.x && !emitter.y) resetScene();
+    else {
+      emitter.x = clamp(emitter.x, 40, state.width - 40);
+      emitter.y = clamp(emitter.y, 40, state.height - 40);
+    }
+  }
+
+  function resetScene(){
+    emitter.x = state.width * .22;
+    emitter.y = state.height * .18;
+    emitter.angle = -28 * Math.PI / 180;
+    particles = [];
+    buildLeaves();
+  }
+
+  function buildLeaves(){
+    const palette = PALETTES[paletteSelect.value] || PALETTES.full;
+    const cols = state.width < state.height ? 3 : 4;
+    const rows = state.width < state.height ? 4 : 3;
+    const marginX = state.width * .14;
+    const marginTop = state.height * .23;
+    const spanX = state.width - marginX * 2;
+    const spanY = state.height * .52;
+    leaves = [];
+    let idx = 0;
+    for(let r=0;r<rows;r++){
+      for(let c=0;c<cols;c++){
+        const x = marginX + (cols === 1 ? .5 : c/(cols-1)) * spanX + (Math.random()-.5)*28;
+        const y = marginTop + (rows === 1 ? .5 : r/(rows-1)) * spanY + (Math.random()-.5)*24;
+        const angle = (-28 + (Math.random()*56)) * Math.PI / 180;
+        const length = clamp(Math.min(state.width, state.height) * (.16 + Math.random() * .07), 110, 190);
+        leaves.push({
+          id: idx,
+          x, y, angle, length,
+          chordIndex: palette[idx % palette.length],
+          root: ROOTS[idx % ROOTS.length],
+          hue: 120 + ((idx * 31) % 90),
+        });
+        idx++;
+      }
+    }
+  }
+
+  function shuffleChords(){
+    const palette = [...(PALETTES[paletteSelect.value] || PALETTES.full)];
+    for(let i=palette.length-1;i>0;i--){
+      const j = Math.floor(Math.random()*(i+1));
+      [palette[i], palette[j]] = [palette[j], palette[i]];
+    }
+    leaves.forEach((leaf, i) => { leaf.chordIndex = palette[i % palette.length]; });
+  }
+
+  function initAudio(){
+    if(audio.ctx) return audio.ctx;
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if(!AC) return null;
+    const ac = new AC();
+    const master = ac.createGain(); master.gain.value = .62;
+    const dry = ac.createGain(); dry.gain.value = .95;
+    const wet = ac.createGain(); wet.gain.value = .22;
+    const filter = ac.createBiquadFilter(); filter.type = 'lowpass'; filter.frequency.value = 3000; filter.Q.value = .4;
+    const delay = ac.createDelay(.6); delay.delayTime.value = .18;
+    const fb = ac.createGain(); fb.gain.value = .22;
+    const comp = ac.createDynamicsCompressor();
+    comp.threshold.value = -22; comp.knee.value = 14; comp.ratio.value = 2.2; comp.attack.value = .006; comp.release.value = .18;
+    dry.connect(filter); wet.connect(delay); delay.connect(fb); fb.connect(delay); delay.connect(filter); filter.connect(comp); comp.connect(master); master.connect(ac.destination);
+    audio.ctx = ac; audio.master = master; audio.dry = dry; audio.wet = wet; audio.filter = filter; audio.delay = delay;
+    return ac;
+  }
+
+  async function resumeAudio(){
+    const ac = initAudio();
+    if(ac && ac.state === 'suspended'){
+      try{ await ac.resume(); }catch(_e){}
+    }
+  }
+
+  function getNoiseBuffer(){
+    const ac = initAudio();
+    if(!ac) return null;
+    if(audio.noiseBuffer && audio.noiseBuffer.sampleRate === ac.sampleRate) return audio.noiseBuffer;
+    const len = Math.floor(ac.sampleRate * .3);
+    const buffer = ac.createBuffer(1, len, ac.sampleRate);
+    const data = buffer.getChannelData(0);
+    for(let i=0;i<len;i++) data[i] = Math.random()*2 - 1;
+    audio.noiseBuffer = buffer;
+    return buffer;
+  }
+
+  function applyTimbreSettings(){
+    const ac = initAudio(); if(!ac) return;
+    const t = TIMBRES[state.timbre];
+    audio.filter.type = t.filter;
+    audio.filter.frequency.setTargetAtTime(t.freq, ac.currentTime, .03);
+    audio.filter.Q.setTargetAtTime(t.q, ac.currentTime, .03);
+    audio.wet.gain.setTargetAtTime(t.wet, ac.currentTime, .03);
+  }
+
+  function playNote(freq, velocity=1, detuneCents=0){
+    const ac = initAudio(); if(!ac) return;
+    const t = TIMBRES[state.timbre];
+    const now = ac.currentTime;
+    const env = ac.createGain();
+    const peak = .12 * velocity;
+    env.gain.setValueAtTime(.0001, now);
+    env.gain.linearRampToValueAtTime(peak, now + t.attack);
+    env.gain.exponentialRampToValueAtTime(Math.max(.0001, peak * t.sustain), now + t.decay * .45 + t.attack);
+    env.gain.exponentialRampToValueAtTime(.0001, now + t.decay + .05);
+    const wetSend = ac.createGain(); wetSend.gain.value = Math.min(.42, t.wet + .04);
+    const f = ac.createBiquadFilter();
+    f.type = t.filter; f.frequency.value = t.freq; f.Q.value = t.q;
+    env.connect(f); f.connect(audio.dry); f.connect(wetSend); wetSend.connect(audio.wet);
+
+    for(const [mul,wave,gainMul] of t.partials){
+      const osc = ac.createOscillator();
+      osc.type = wave;
+      osc.frequency.value = freq * mul;
+      osc.detune.value = detuneCents + (Math.random()*2-1)*4;
+      const g = ac.createGain(); g.gain.value = gainMul;
+      osc.connect(g); g.connect(env);
+      osc.start(now); osc.stop(now + t.decay + .08);
+    }
+    if(t.noise > 0){
+      const src = ac.createBufferSource(); src.buffer = getNoiseBuffer();
+      const bp = ac.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = Math.max(800, t.freq * .8); bp.Q.value = 1.8;
+      const ng = ac.createGain();
+      ng.gain.setValueAtTime(t.noise * velocity, now);
+      ng.gain.exponentialRampToValueAtTime(.0001, now + .04);
+      src.connect(bp); bp.connect(ng); ng.connect(env);
+      src.start(now); src.stop(now + .05);
+    }
+  }
+
+  function playChord(leaf, impact=1){
+    const chord = CHORD_LIBRARY[leaf.chordIndex % CHORD_LIBRARY.length];
+    const spread = chord.intervals.length > 3 ? 4 : 7;
+    chord.intervals.forEach((interval, i) => {
+      const midi = leaf.root + interval + (i >= 3 ? -12 : 0);
+      const detune = (i - (chord.intervals.length - 1) / 2) * spread;
+      playNote(midiToFreq(midi), clamp(.74 * impact - i * .08, .18, .95), detune);
+    });
+  }
+
+  function fireParticle(){
+    resumeAudio();
+    const vx = Math.cos(emitter.angle) * state.launchSpeed;
+    const vy = Math.sin(emitter.angle) * state.launchSpeed;
+    particles.push({
+      x: emitter.x + Math.cos(emitter.angle) * (emitter.radius + state.particleSize + 2),
+      y: emitter.y + Math.sin(emitter.angle) * (emitter.radius + state.particleSize + 2),
+      vx, vy,
+      r: state.particleSize,
+      life: 0,
+      hue: 160 + Math.random()*60,
+      lastHitAt: -999,
+    });
+  }
+
+  function update(dt, ts){
+    if(state.autoFire){
+      state.spawnAcc += dt * 1000;
+      while(state.spawnAcc >= state.intervalMs){
+        state.spawnAcc -= state.intervalMs;
+        fireParticle();
+      }
+    }
+    for(const p of particles){
+      p.vy += state.gravity * dt;
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      p.life += dt;
+
+      for(const leaf of leaves){
+        const {ax,ay,bx,by} = segEndpoints(leaf);
+        const hit = closestPointOnSegment(p.x, p.y, ax, ay, bx, by);
+        let dx = p.x - hit.x;
+        let dy = p.y - hit.y;
+        let d = Math.hypot(dx, dy);
+        if(d < p.r + 3){
+          if(d < .0001){
+            const n0 = segNormal(leaf);
+            dx = n0.x; dy = n0.y; d = 1;
+          }
+          let nx = dx / d;
+          let ny = dy / d;
+          const dot = p.vx * nx + p.vy * ny;
+          if(dot < 0){
+            p.x = hit.x + nx * (p.r + 3.2);
+            p.y = hit.y + ny * (p.r + 3.2);
+            p.vx = (p.vx - 2 * dot * nx) * .96;
+            p.vy = (p.vy - 2 * dot * ny) * .92;
+            p.vx += Math.cos(leaf.angle) * 14;
+            p.vy += Math.sin(leaf.angle) * 14;
+            if(ts - p.lastHitAt > 65){
+              const impact = clamp(Math.abs(dot) / 360, .28, 1);
+              playChord(leaf, impact);
+              p.lastHitAt = ts;
+            }
+          }
+        }
+      }
+
+      if(p.x < p.r){ p.x = p.r; p.vx = Math.abs(p.vx) * .94; }
+      if(p.x > state.width - p.r){ p.x = state.width - p.r; p.vx = -Math.abs(p.vx) * .94; }
+      if(p.y < p.r){ p.y = p.r; p.vy = Math.abs(p.vy) * .9; }
+    }
+    particles = particles.filter(p => p.y < state.height + 120 && p.life < 14);
+  }
+
+  function drawBackground(){
+    const g = ctx.createRadialGradient(state.width*.5, state.height*.45, 20, state.width*.5, state.height*.45, Math.max(state.width, state.height)*.7);
+    g.addColorStop(0, 'rgba(80,145,190,.08)');
+    g.addColorStop(1, 'rgba(5,15,28,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0,0,state.width,state.height);
+    for(let i=0;i<22;i++){
+      const x = (i*191 % 997) / 997 * state.width;
+      const y = (i*337 % 991) / 991 * state.height;
+      ctx.beginPath();
+      ctx.fillStyle = 'rgba(255,255,255,.05)';
+      ctx.arc(x,y,1.5 + (i%3),0,Math.PI*2);
+      ctx.fill();
+    }
+  }
+
+  function drawLeaf(leaf){
+    const {ax,ay,bx,by} = segEndpoints(leaf);
+    const grad = ctx.createLinearGradient(ax, ay, bx, by);
+    grad.addColorStop(0, `hsla(${leaf.hue}, 72%, 72%, .95)`);
+    grad.addColorStop(.5, `hsla(${leaf.hue + 18}, 76%, 62%, .98)`);
+    grad.addColorStop(1, `hsla(${leaf.hue + 34}, 72%, 72%, .95)`);
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = grad;
+    ctx.lineWidth = 8;
+    ctx.shadowBlur = 14;
+    ctx.shadowColor = `hsla(${leaf.hue}, 90%, 70%, .34)`;
+    ctx.beginPath();
+    ctx.moveTo(ax, ay);
+    ctx.lineTo(bx, by);
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = 'rgba(255,255,255,.22)';
+    ctx.beginPath(); ctx.arc(leaf.x, leaf.y, 4.2, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(ax, ay, 5.6, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(bx, by, 5.6, 0, Math.PI*2); ctx.fill();
+    ctx.restore();
+  }
+
+  function drawEmitter(){
+    const hx = emitter.x + Math.cos(emitter.angle) * emitter.handleDist;
+    const hy = emitter.y + Math.sin(emitter.angle) * emitter.handleDist;
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = 'rgba(190,240,255,.45)';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([5,7]);
+    ctx.beginPath();
+    ctx.moveTo(emitter.x, emitter.y);
+    ctx.lineTo(hx, hy);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    const rg = ctx.createRadialGradient(emitter.x-4, emitter.y-6, 4, emitter.x, emitter.y, 40);
+    rg.addColorStop(0, 'rgba(255,255,255,.95)');
+    rg.addColorStop(.28, 'rgba(126,236,255,.96)');
+    rg.addColorStop(1, 'rgba(126,236,255,0)');
+    ctx.fillStyle = rg;
+    ctx.beginPath();
+    ctx.arc(emitter.x, emitter.y, 40, 0, Math.PI*2);
+    ctx.fill();
+
+    ctx.fillStyle = 'rgba(118,238,255,.98)';
+    ctx.beginPath();
+    ctx.arc(emitter.x, emitter.y, emitter.radius, 0, Math.PI*2);
+    ctx.fill();
+
+    ctx.fillStyle = 'rgba(255,255,255,.88)';
+    ctx.beginPath();
+    ctx.arc(emitter.x - 5, emitter.y - 6, 5, 0, Math.PI*2);
+    ctx.fill();
+
+    ctx.fillStyle = 'rgba(255,218,126,.96)';
+    ctx.beginPath();
+    ctx.arc(hx, hy, 10, 0, Math.PI*2);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,.92)';
+    ctx.beginPath();
+    ctx.arc(hx - 2.5, hy - 3, 3, 0, Math.PI*2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawParticles(){
+    for(const p of particles){
+      const glow = ctx.createRadialGradient(p.x, p.y, 2, p.x, p.y, p.r*3.4);
+      glow.addColorStop(0, `hsla(${p.hue},100%,80%,.98)`);
+      glow.addColorStop(1, `hsla(${p.hue},100%,65%,0)`);
+      ctx.fillStyle = glow;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r * 3.2, 0, Math.PI*2);
+      ctx.fill();
+      ctx.fillStyle = `hsla(${p.hue},100%,72%,.98)`;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI*2);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,.95)';
+      ctx.beginPath();
+      ctx.arc(p.x - p.r*.28, p.y - p.r*.28, Math.max(1.5,p.r*.24), 0, Math.PI*2);
+      ctx.fill();
+    }
+  }
+
+  function render(){
+    ctx.clearRect(0,0,state.width,state.height);
+    drawBackground();
+    leaves.forEach(drawLeaf);
+    drawParticles();
+    drawEmitter();
+  }
+
+  function frame(ts){
+    const dt = Math.min(.03, (ts - state.lastTs) / 1000);
+    state.lastTs = ts;
+    update(dt, ts);
+    render();
+    requestAnimationFrame(frame);
+  }
+
+  function canvasPoint(e){
+    const rect = canvas.getBoundingClientRect();
+    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+  }
+
+  function emitterHandle(){
+    return {
+      x: emitter.x + Math.cos(emitter.angle) * emitter.handleDist,
+      y: emitter.y + Math.sin(emitter.angle) * emitter.handleDist,
+    };
+  }
+
+  function hitTestEmitter(x,y){
+    const h = emitterHandle();
+    if(dist(x,y,h.x,h.y) <= 16) return { type:'handle' };
+    if(dist(x,y,emitter.x,emitter.y) <= emitter.radius + 10) return { type:'emitter' };
+    return null;
+  }
+
+  function hitTestLeaf(x,y){
+    for(let i=leaves.length-1;i>=0;i--){
+      const leaf = leaves[i];
+      const {ax,ay,bx,by} = segEndpoints(leaf);
+      if(dist(x,y,leaf.x,leaf.y) <= 12) return { type:'leaf-center', leaf };
+      if(dist(x,y,ax,ay) <= 13) return { type:'leaf-a', leaf };
+      if(dist(x,y,bx,by) <= 13) return { type:'leaf-b', leaf };
+      const cp = closestPointOnSegment(x,y,ax,ay,bx,by);
+      if(dist(x,y,cp.x,cp.y) <= 12) return { type:'leaf-line', leaf };
+    }
+    return null;
+  }
+
+  function cycleLeafChord(leaf){
+    const pool = PALETTES[paletteSelect.value] || PALETTES.full;
+    const idx = pool.indexOf(leaf.chordIndex);
+    leaf.chordIndex = pool[(idx + 1 + pool.length) % pool.length];
+  }
+
+  function onPointerDown(e){
+    resumeAudio();
+    if(!settingsModal.hidden) return;
+    const p = canvasPoint(e);
+    const emitterHit = hitTestEmitter(p.x,p.y);
+    if(emitterHit){
+      drag = {
+        mode: emitterHit.type,
+        startX: p.x,
+        startY: p.y,
+        moved: false,
+        startEmitterX: emitter.x,
+        startEmitterY: emitter.y,
+        pointerId: e.pointerId,
+      };
+      canvas.setPointerCapture(e.pointerId);
+      return;
+    }
+    const leafHit = hitTestLeaf(p.x,p.y);
+    if(leafHit){
+      drag = {
+        mode: leafHit.type,
+        leaf: leafHit.leaf,
+        startX: p.x,
+        startY: p.y,
+        moved: false,
+        pointerId: e.pointerId,
+        startLeafX: leafHit.leaf.x,
+        startLeafY: leafHit.leaf.y,
+        startAngle: leafHit.leaf.angle,
+        startLength: leafHit.leaf.length,
+      };
+      canvas.setPointerCapture(e.pointerId);
+    }
+  }
+
+  function onPointerMove(e){
+    if(!drag || drag.pointerId !== e.pointerId) return;
+    const p = canvasPoint(e);
+    if(dist(p.x,p.y,drag.startX,drag.startY) > 5) drag.moved = true;
+    if(drag.mode === 'emitter'){
+      emitter.x = clamp(drag.startEmitterX + (p.x - drag.startX), 30, state.width - 30);
+      emitter.y = clamp(drag.startEmitterY + (p.y - drag.startY), 30, state.height - 30);
+    } else if(drag.mode === 'handle'){
+      emitter.angle = signedAngle(emitter.x, emitter.y, p.x, p.y);
+    } else if(drag.mode === 'leaf-center' || drag.mode === 'leaf-line'){
+      drag.leaf.x = clamp(drag.startLeafX + (p.x - drag.startX), 40, state.width - 40);
+      drag.leaf.y = clamp(drag.startLeafY + (p.y - drag.startY), 60, state.height - 40);
+    } else if(drag.mode === 'leaf-a' || drag.mode === 'leaf-b'){
+      const cx = drag.leaf.x;
+      const cy = drag.leaf.y;
+      drag.leaf.angle = signedAngle(cx, cy, p.x, p.y);
+      drag.leaf.length = clamp(dist(cx, cy, p.x, p.y) * 2, 80, 260);
+    }
+  }
+
+  function onPointerUp(e){
+    if(!drag || drag.pointerId !== e.pointerId) return;
+    const p = canvasPoint(e);
+    if(!drag.moved){
+      if(drag.mode === 'emitter') fireParticle();
+      else if(drag.mode === 'leaf-center' || drag.mode === 'leaf-line' || drag.mode === 'leaf-a' || drag.mode === 'leaf-b') cycleLeafChord(drag.leaf);
+    }
+    drag = null;
+  }
+
+  gravityRange.addEventListener('input', () => { state.gravity = Number(gravityRange.value); updateOutputs(); });
+  intervalRange.addEventListener('input', () => { state.intervalMs = Number(intervalRange.value); updateOutputs(); });
+  sizeRange.addEventListener('input', () => { state.particleSize = Number(sizeRange.value); updateOutputs(); });
+  speedRange.addEventListener('input', () => { state.launchSpeed = Number(speedRange.value); updateOutputs(); });
+  timbreSelect.addEventListener('change', () => { state.timbre = timbreSelect.value; applyTimbreSettings(); });
+  autoToggle.addEventListener('change', () => { state.autoFire = autoToggle.value === 'on'; state.spawnAcc = 0; });
+  paletteSelect.addEventListener('change', buildLeaves);
+  shuffleBtn.addEventListener('click', shuffleChords);
+  clearBtn.addEventListener('click', () => { particles = []; });
+  resetBtn.addEventListener('click', resetScene);
+
+  moreBtn.addEventListener('click', () => { settingsModal.hidden = false; });
+  closeBtn.addEventListener('click', () => { settingsModal.hidden = true; });
+  settingsModal.addEventListener('click', (e) => { if(e.target === settingsModal) settingsModal.hidden = true; });
+
+  canvas.addEventListener('pointerdown', onPointerDown);
+  canvas.addEventListener('pointermove', onPointerMove);
+  canvas.addEventListener('pointerup', onPointerUp);
+  canvas.addEventListener('pointercancel', onPointerUp);
+  window.addEventListener('resize', resize);
+  document.addEventListener('visibilitychange', () => { state.lastTs = performance.now(); });
+
+  initAudio();
+  applyTimbreSettings();
+  updateOutputs();
+  resize();
+  buildLeaves();
+  requestAnimationFrame((ts) => { state.lastTs = ts; frame(ts); });
+})();
+</script>
+</body>
+</html>
