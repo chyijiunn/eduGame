@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>地磚縫草生長模擬 v0.1</title>
+  <style>
+    :root{
+      --bg:#11161b;
+      --panel:#182028cc;
+      --line:#2e3a45;
+      --text:#e9f1f3;
+      --muted:#9fb0ba;
+      --accent:#74d38a;
+      --water:#5bbcff;
+      --heat:#ff7b57;
+      --soil:#4d3b2c;
+      --tile:#8f9aa2;
+      --tile2:#6f7980;
+    }
+    *{box-sizing:border-box}
+    html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font-family:"Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif;overflow:hidden}
+    #app{display:flex;flex-direction:column;height:100%}
+    header{padding:10px 14px;border-bottom:1px solid #23303a;background:linear-gradient(180deg,#131a20,#0d1216)}
+    header h1{margin:0;font-size:18px;letter-spacing:.5px}
+    header .sub{margin-top:4px;font-size:12px;color:var(--muted)}
+    main{flex:1;display:grid;grid-template-columns:320px 1fr;min-height:0}
+    .panel{background:var(--panel);backdrop-filter: blur(8px);border-right:1px solid #23303a;padding:12px;overflow:auto}
+    .section{border:1px solid #25323c;border-radius:14px;padding:10px 12px;margin-bottom:12px;background:#121920c7}
+    .section h2{margin:0 0 8px;font-size:14px}
+    .section p{margin:6px 0 0;font-size:12px;line-height:1.5;color:var(--muted)}
+    .row{display:flex;gap:8px;align-items:center;margin:8px 0}
+    .row label{font-size:13px;min-width:80px}
+    .row output{font-size:12px;color:var(--muted);min-width:56px;text-align:right}
+    input[type=range]{width:100%}
+    .btns{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+    button{
+      border:none;border-radius:12px;padding:10px 12px;background:#26323b;color:var(--text);
+      font-size:13px;font-weight:700;cursor:pointer;box-shadow:inset 0 0 0 1px #32424d;
+    }
+    button:hover{filter:brightness(1.08)}
+    button.active{background:#395d48;box-shadow:inset 0 0 0 1px #4d8a61}
+    .stats{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+    .stat{padding:10px;border-radius:12px;background:#0f151a;border:1px solid #23303a}
+    .stat b{display:block;font-size:18px;margin-top:2px}
+    .hint{font-size:12px;color:var(--muted);line-height:1.6}
+    .canvasWrap{position:relative;min-height:0}
+    canvas{display:block;width:100%;height:100%;touch-action:none;background:radial-gradient(circle at 50% 30%, #1a242b, #0e1317 60%)}
+    .overlay{
+      position:absolute;left:12px;right:12px;bottom:12px;display:flex;gap:8px;flex-wrap:wrap;
+      pointer-events:none;
+    }
+    .tag{background:#10161ccb;border:1px solid #22303a;border-radius:999px;padding:6px 10px;font-size:12px;color:#d9e6ea}
+    .success{
+      position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+      font-size:54px;font-weight:900;letter-spacing:2px;color:#d8ffe0;text-shadow:0 0 30px rgba(116,211,138,.45);
+      background:rgba(10,18,14,.28);backdrop-filter:blur(2px);opacity:0;pointer-events:none;transition:.25s;
+    }
+    .success.show{opacity:1}
+    .mobileToggle{display:none}
+    @media (max-width: 900px){
+      main{grid-template-columns:1fr}
+      .panel{position:absolute;left:10px;top:10px;bottom:10px;width:min(320px,calc(100% - 20px));z-index:10;border:1px solid #23303a;border-radius:18px;transform:translateX(-110%);transition:.25s}
+      .panel.open{transform:none}
+      .mobileToggle{display:block;position:absolute;left:12px;top:12px;z-index:11}
+      .mobileToggle button{background:#162028e8}
+    }
+  </style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>地磚縫草生長模擬 v0.1</h1>
+    <div class="sub">目標：讓草從地下活下來，並成功長到縫隙露出地表。</div>
+  </header>
+  <main>
+    <aside class="panel" id="panel">
+      <div class="section">
+        <h2>操作模式</h2>
+        <div class="btns">
+          <button id="modeRain" class="active">☔ 下雨</button>
+          <button id="modeShade">🌫 降溫/遮陰</button>
+          <button id="modeRemove">🧽 清除效果</button>
+          <button id="btnReset">↺ 重置關卡</button>
+        </div>
+        <p>在畫面上點擊或拖曳。雨水會補充水分；遮陰會降低蒸發與溫度；清除可擦掉你放的雨雲/遮陰區。</p>
+      </div>
+
+      <div class="section">
+        <h2>環境控制</h2>
+        <div class="row"><label for="sun">日照強度</label><input id="sun" type="range" min="0" max="100" value="64"><output id="sunOut">64%</output></div>
+        <div class="row"><label for="rainRate">自然降雨</label><input id="rainRate" type="range" min="0" max="100" value="18"><output id="rainOut">18%</output></div>
+        <div class="row"><label for="speed">模擬速度</label><input id="speed" type="range" min="1" max="4" value="2"><output id="speedOut">2x</output></div>
+        <p>陽光越強，地磚表面越熱、蒸發越快。適量的自然降雨可以幫助根在地下擴散，但太少就難以突破。</p>
+      </div>
+
+      <div class="section">
+        <h2>目前狀態</h2>
+        <div class="stats">
+          <div class="stat">根總長<b id="rootLen">0</b></div>
+          <div class="stat">活力<b id="vigor">100%</b></div>
+          <div class="stat">地表芽數<b id="shoots">0</b></div>
+          <div class="stat">目標縫隙<b id="goal">未達成</b></div>
+        </div>
+      </div>
+
+      <div class="section">
+        <h2>玩法重點</h2>
+        <div class="hint">
+          草根喜歡往「比較濕、比較不熱」的地方探索，但葉與芽又需要找到有光的縫隙才能冒出來。<br>
+          你要在「光、熱、水」三者之間取得平衡。<br><br>
+          建議玩法：先讓地下形成一條保水路徑，再在目標縫隙附近降一點熱，等根到位後讓日照稍微提高，幫芽往上衝。
+        </div>
+      </div>
+    </aside>
+
+    <div class="canvasWrap">
+      <div class="mobileToggle"><button id="togglePanel">☰ 控制</button></div>
+      <canvas id="cv"></canvas>
+      <div class="overlay">
+        <div class="tag">藍色 = 水分</div>
+        <div class="tag">紅色 = 熱</div>
+        <div class="tag">綠色線 = 根</div>
+        <div class="tag">亮綠芽 = 成功冒出</div>
+      </div>
+      <div id="success" class="success">突破縫隙！</div>
+    </div>
+  </main>
+</div>
+<script>
+(() => {
+  const canvas = document.getElementById('cv');
+  const ctx = canvas.getContext('2d');
+  const panel = document.getElementById('panel');
+  const successEl = document.getElementById('success');
+
+  const ui = {
+    sun: document.getElementById('sun'),
+    rainRate: document.getElementById('rainRate'),
+    speed: document.getElementById('speed'),
+    sunOut: document.getElementById('sunOut'),
+    rainOut: document.getElementById('rainOut'),
+    speedOut: document.getElementById('speedOut'),
+    rootLen: document.getElementById('rootLen'),
+    vigor: document.getElementById('vigor'),
+    shoots: document.getElementById('shoots'),
+    goal: document.getElementById('goal'),
+    modeRain: document.getElementById('modeRain'),
+    modeShade: document.getElementById('modeShade'),
+    modeRemove: document.getElementById('modeRemove'),
+    btnReset: document.getElementById('btnReset'),
+    togglePanel: document.getElementById('togglePanel'),
+  };
+
+  const grid = { cols: 34, rows: 22, cell: 24, ox: 0, oy: 0 };
+  let cells = [];
+  let roots = [];
+  let shoots = [];
+  let mode = 'rain';
+  let running = true;
+  let won = false;
+  let pointerDown = false;
+  let vigor = 1;
+  let targetGapCol = 17;
+  let rootBudget = 0;
+
+  function setMode(next){
+    mode = next;
+    ui.modeRain.classList.toggle('active', mode === 'rain');
+    ui.modeShade.classList.toggle('active', mode === 'shade');
+    ui.modeRemove.classList.toggle('active', mode === 'remove');
+  }
+
+  function resize(){
+    const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = Math.round(rect.width * dpr);
+    canvas.height = Math.round(rect.height * dpr);
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    grid.cell = Math.floor(Math.min(rect.width / grid.cols, rect.height / grid.rows));
+    grid.ox = Math.floor((rect.width - grid.cell * grid.cols) / 2);
+    grid.oy = Math.floor((rect.height - grid.cell * grid.rows) / 2);
+  }
+
+  function idx(c,r){ return r * grid.cols + c; }
+  function inBounds(c,r){ return c>=0 && c<grid.cols && r>=0 && r<grid.rows; }
+  function get(c,r){ return inBounds(c,r) ? cells[idx(c,r)] : null; }
+
+  function makeLevel(){
+    cells = new Array(grid.cols * grid.rows).fill(null).map((_, i) => {
+      const c = i % grid.cols;
+      const r = (i / grid.cols) | 0;
+      const surfaceRow = 8;
+      const above = r < surfaceRow;
+      const tile = r === surfaceRow;
+      const gap = tile && (c === targetGapCol || c === 7 || c === 27);
+      const below = r > surfaceRow;
+      return {
+        c, r,
+        water: below ? 0.45 + (Math.random() * 0.08) : 0.08,
+        heat: above ? 0.4 : 0.18,
+        tile: tile && !gap,
+        gap,
+        shade: 0,
+        rain: 0,
+        soil: below,
+        surface: above,
+      };
+    });
+
+    // 一些地下稍微保水 / 乾燥差異，形成可玩路徑
+    for(let r=10;r<grid.rows;r++){
+      for(let c=0;c<grid.cols;c++){
+        const cell = get(c,r);
+        const distToTarget = Math.abs(c - targetGapCol);
+        cell.water += Math.max(0, 0.14 - distToTarget * 0.008);
+        if (c < 5 || c > 29) cell.water -= 0.08;
+        if (r > 17) cell.water += 0.08;
+        cell.water = clamp(cell.water,0,1);
+      }
+    }
+
+    roots = [{ c: 16, r: 19, parent: -1, energy: 1, exposed: false }];
+    shoots = [];
+    vigor = 1;
+    won = false;
+    rootBudget = 0;
+    successEl.classList.remove('show');
+  }
+
+  function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
+  function lerp(a,b,t){ return a + (b-a)*t; }
+  function rand(a,b){ return a + Math.random() * (b-a); }
+
+  function applyBrush(px, py){
+    const { c, r } = screenToCell(px, py);
+    for(let rr = r - 2; rr <= r + 2; rr++){
+      for(let cc = c - 2; cc <= c + 2; cc++){
+        if(!inBounds(cc,rr)) continue;
+        const cell = get(cc,rr);
+        const d = Math.hypot(cc - c, rr - r);
+        if(d > 2.3) continue;
+        const t = clamp(1 - d / 2.3, 0, 1);
+        if(mode === 'rain'){
+          cell.rain = clamp(cell.rain + 0.25 * t, 0, 1);
+          cell.water = clamp(cell.water + 0.08 * t, 0, 1);
+        } else if(mode === 'shade'){
+          cell.shade = clamp(cell.shade + 0.22 * t, 0, 1);
+          cell.heat = clamp(cell.heat - 0.08 * t, 0, 1);
+        } else if(mode === 'remove'){
+          cell.shade = clamp(cell.shade - 0.28 * t, 0, 1);
+          cell.rain = clamp(cell.rain - 0.28 * t, 0, 1);
+        }
+      }
+    }
+  }
+
+  function screenToCell(x,y){
+    const c = Math.floor((x - grid.ox) / grid.cell);
+    const r = Math.floor((y - grid.oy) / grid.cell);
+    return { c, r };
+  }
+
+  function updateEnvironment(dt){
+    const sun = ui.sun.value / 100;
+    const rainRate = ui.rainRate.value / 100;
+    const speed = +ui.speed.value;
+
+    for(const cell of cells){
+      // 自然降雨主要打在上層與縫隙附近，水往下擴散會在後面處理
+      if(cell.r < 9){
+        cell.water = clamp(cell.water + rainRate * 0.003 * dt * (1 + cell.rain * 1.6), 0, 1);
+      }
+
+      const shadeEffect = 1 - cell.shade * 0.72;
+      const tileBoost = cell.tile ? 1.28 : 1;
+      const gapBoost = cell.gap ? 0.88 : 1;
+      const undergroundCool = cell.soil ? 0.6 : 1;
+      const targetHeat = clamp(sun * 0.9 * tileBoost * gapBoost * shadeEffect * undergroundCool, 0, 1);
+      cell.heat = lerp(cell.heat, targetHeat, 0.04 * dt);
+
+      let evap = (0.002 + sun * 0.006) * (1 + cell.heat * 0.8) * (1 - cell.shade * 0.55);
+      if(cell.soil) evap *= 0.45;
+      if(cell.tile) evap *= 0.72;
+      cell.water = clamp(cell.water - evap * dt + cell.rain * 0.0015 * dt, 0, 1);
+
+      cell.shade = clamp(cell.shade - 0.0008 * dt, 0, 1);
+      cell.rain = clamp(cell.rain - 0.0012 * dt, 0, 1);
+    }
+
+    // 水分擴散：上下左右簡化 diffusion
+    const waterNext = cells.map(c => c.water);
+    for(let r=0;r<grid.rows;r++){
+      for(let c=0;c<grid.cols;c++){
+        const cell = get(c,r);
+        const i = idx(c,r);
+        const ns = [[1,0],[-1,0],[0,1],[0,-1]];
+        for(const [dx,dy] of ns){
+          const nb = get(c+dx,r+dy);
+          if(!nb) continue;
+          let flow = (cell.water - nb.water) * 0.017 * dt;
+          if(dy === 1) flow += 0.0015 * dt; // 水向下微偏移
+          if(cell.tile || nb.tile) flow *= 0.55;
+          waterNext[i] -= flow;
+        }
+      }
+    }
+    for(let i=0;i<cells.length;i++) cells[i].water = clamp(waterNext[i], 0, 1);
+
+    // 活力: 根平均環境
+    let sum = 0;
+    for(const r of roots){
+      const cell = get(r.c, r.r);
+      if(!cell) continue;
+      const score = clamp(cell.water * 0.85 + (1 - cell.heat) * 0.6 - 0.18, 0, 1);
+      sum += score;
+    }
+    const avg = sum / Math.max(1, roots.length);
+    vigor = clamp(lerp(vigor, avg * 1.1, 0.06 * dt), 0, 1);
+
+    // 成長 budget
+    rootBudget += (0.07 + vigor * 0.23) * speed * dt;
+  }
+
+  function canOccupy(cell){
+    return !!cell && !cell.tile;
+  }
+
+  function growRoots(){
+    if(won) return;
+    let tries = 0;
+    while(rootBudget > 1 && tries < 10){
+      tries++;
+      rootBudget -= 1;
+      const frontier = roots.slice(-Math.min(160, roots.length));
+      let best = null;
+      for(let k=0;k<28;k++){
+        const parentIndex = roots.length - 1 - ((Math.random() * frontier.length) | 0);
+        const parent = roots[parentIndex];
+        const dirs = [[1,0],[-1,0],[0,1],[0,-1],[1,-1],[-1,-1],[1,1],[-1,1]];
+        for(const [dx,dy] of dirs){
+          const c = parent.c + dx;
+          const r = parent.r + dy;
+          const cell = get(c,r);
+          if(!canOccupy(cell)) continue;
+          if(roots.some(n => n.c === c && n.r === r)) continue;
+
+          let score = 0;
+          score += cell.water * 1.6;
+          score += (1 - cell.heat) * 0.9;
+          score += Math.max(0, (grid.rows - r) * 0.015); // 稍微鼓勵往上探索
+          score += (cell.gap ? 0.5 : 0);
+          score -= Math.abs(c - targetGapCol) * 0.018; // 主目標偏好
+          score -= (cell.surface ? 0.08 : 0);
+          score += rand(-0.08, 0.08);
+          if(!best || score > best.score){
+            best = { c, r, parent: parentIndex, score };
+          }
+        }
+      }
+      if(best && best.score > 0.18){
+        roots.push({ c: best.c, r: best.r, parent: best.parent, energy: clamp(best.score, 0, 1), exposed: false });
+        const cell = get(best.c, best.r);
+        cell.water = clamp(cell.water - 0.025, 0, 1);
+
+        // 長到縫隙下方，嘗試冒芽
+        if(cell.gap || (cell.r === 9 && Math.abs(cell.c - targetGapCol) <= 1)){
+          const top = get(best.c, 8);
+          const exitCell = get(best.c, 7);
+          if((top && top.gap) || (exitCell && exitCell.surface)){
+            const light = ui.sun.value / 100;
+            const chance = clamp(light * 0.7 + cell.water * 0.5 - cell.heat * 0.2, 0, 1);
+            if(Math.random() < chance){
+              shoots.push({ c: best.c, r: 8, h: rand(0.3, 0.9) });
+              if(best.c === targetGapCol){
+                won = true;
+                successEl.classList.add('show');
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  function draw(){
+    const w = canvas.clientWidth, h = canvas.clientHeight;
+    ctx.clearRect(0,0,w,h);
+
+    // background grid area
+    for(const cell of cells){
+      const x = grid.ox + cell.c * grid.cell;
+      const y = grid.oy + cell.r * grid.cell;
+
+      let base;
+      if(cell.tile) base = [143,154,162];
+      else if(cell.gap && cell.r === 8) base = [54,48,44];
+      else if(cell.soil) base = [77,59,44];
+      else base = [27,36,42];
+
+      const water = cell.water;
+      const heat = cell.heat;
+      const shade = cell.shade;
+
+      let r = base[0], g = base[1], b = base[2];
+      r = lerp(r, 91, water * 0.08);
+      g = lerp(g, 188, water * 0.35);
+      b = lerp(b, 255, water * 0.55);
+      r = lerp(r, 255, heat * 0.45);
+      g = lerp(g, 110, heat * 0.25);
+      b = lerp(b, 87, heat * 0.12);
+      r = lerp(r, 110, shade * 0.18);
+      g = lerp(g, 160, shade * 0.18);
+      b = lerp(b, 145, shade * 0.18);
+
+      ctx.fillStyle = `rgb(${r|0},${g|0},${b|0})`;
+      ctx.fillRect(x,y,grid.cell+1,grid.cell+1);
+
+      if(cell.tile){
+        ctx.strokeStyle = 'rgba(255,255,255,.08)';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(x+0.5,y+0.5,grid.cell,grid.cell);
+      }
+
+      if(cell.gap && cell.r === 8){
+        ctx.fillStyle = 'rgba(20,22,20,.6)';
+        ctx.fillRect(x+grid.cell*0.3,y,grid.cell*0.4,grid.cell+1);
+      }
+    }
+
+    // 目標縫隙高亮
+    {
+      const x = grid.ox + targetGapCol * grid.cell;
+      const y = grid.oy + 8 * grid.cell;
+      ctx.strokeStyle = 'rgba(220,255,200,.9)';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(x+4,y+2,grid.cell-8,grid.cell-4);
+      ctx.fillStyle = 'rgba(220,255,200,.15)';
+      ctx.fillRect(x+4,y+2,grid.cell-8,grid.cell-4);
+    }
+
+    // roots
+    ctx.lineCap = 'round';
+    for(let i=1;i<roots.length;i++){
+      const r = roots[i];
+      const p = roots[r.parent];
+      if(!p) continue;
+      const x1 = grid.ox + p.c * grid.cell + grid.cell/2;
+      const y1 = grid.oy + p.r * grid.cell + grid.cell/2;
+      const x2 = grid.ox + r.c * grid.cell + grid.cell/2;
+      const y2 = grid.oy + r.r * grid.cell + grid.cell/2;
+      const thick = 1.2 + Math.max(0, 2.6 - (roots.length - i) * 0.01);
+      ctx.strokeStyle = `rgba(118, 224, 133, ${0.34 + r.energy * 0.45})`;
+      ctx.lineWidth = thick;
+      ctx.beginPath();
+      ctx.moveTo(x1,y1);
+      ctx.lineTo(x2,y2);
+      ctx.stroke();
+    }
+    for(const r of roots.slice(-90)){
+      const x = grid.ox + r.c * grid.cell + grid.cell/2;
+      const y = grid.oy + r.r * grid.cell + grid.cell/2;
+      ctx.fillStyle = 'rgba(170,255,190,.95)';
+      ctx.beginPath(); ctx.arc(x,y,1.7,0,Math.PI*2); ctx.fill();
+    }
+
+    // shoots
+    for(const s of shoots){
+      const x = grid.ox + s.c * grid.cell + grid.cell/2;
+      const y = grid.oy + 8 * grid.cell + grid.cell * 0.85;
+      ctx.strokeStyle = 'rgba(120,255,150,.95)';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x, y - grid.cell * (0.8 + s.h));
+      ctx.stroke();
+      ctx.fillStyle = 'rgba(170,255,185,.95)';
+      ctx.beginPath();
+      ctx.ellipse(x - 4, y - grid.cell * (0.75 + s.h), 5, 2.5, -0.6, 0, Math.PI*2);
+      ctx.ellipse(x + 4, y - grid.cell * (0.6 + s.h), 5, 2.5, 0.6, 0, Math.PI*2);
+      ctx.fill();
+    }
+
+    // subtle labels
+    ctx.fillStyle = 'rgba(235,245,248,.9)';
+    ctx.font = '12px sans-serif';
+    ctx.fillText('地表', grid.ox + 8, grid.oy + 8*grid.cell - 8);
+    ctx.fillText('地下土壤', grid.ox + 8, grid.oy + 10*grid.cell + 14);
+  }
+
+  function updateUI(){
+    ui.sunOut.textContent = `${ui.sun.value}%`;
+    ui.rainOut.textContent = `${ui.rainRate.value}%`;
+    ui.speedOut.textContent = `${ui.speed.value}x`;
+    ui.rootLen.textContent = roots.length;
+    ui.vigor.textContent = `${Math.round(vigor * 100)}%`;
+    ui.shoots.textContent = shoots.length;
+    ui.goal.textContent = won ? '已突破' : '未達成';
+  }
+
+  let last = performance.now();
+  function frame(now){
+    const dt0 = Math.min(1.5, (now - last) / 16.6667);
+    last = now;
+    if(running){
+      const steps = 1;
+      for(let i=0;i<steps;i++){
+        updateEnvironment(dt0);
+        growRoots();
+      }
+      // 過熱衰退
+      if(vigor < 0.08 && roots.length > 1 && Math.random() < 0.08){
+        roots.splice(Math.max(1, roots.length - 2), 1);
+      }
+    }
+    draw();
+    updateUI();
+    requestAnimationFrame(frame);
+  }
+
+  function pointerPos(e){
+    const rect = canvas.getBoundingClientRect();
+    const p = e.touches ? e.touches[0] : e;
+    return { x: p.clientX - rect.left, y: p.clientY - rect.top };
+  }
+
+  function onPointerDown(e){
+    pointerDown = true;
+    const p = pointerPos(e);
+    applyBrush(p.x, p.y);
+  }
+  function onPointerMove(e){
+    if(!pointerDown) return;
+    const p = pointerPos(e);
+    applyBrush(p.x, p.y);
+  }
+  function onPointerUp(){ pointerDown = false; }
+
+  ui.modeRain.onclick = () => setMode('rain');
+  ui.modeShade.onclick = () => setMode('shade');
+  ui.modeRemove.onclick = () => setMode('remove');
+  ui.btnReset.onclick = () => makeLevel();
+  ui.togglePanel.onclick = () => panel.classList.toggle('open');
+
+  canvas.addEventListener('mousedown', onPointerDown);
+  canvas.addEventListener('mousemove', onPointerMove);
+  window.addEventListener('mouseup', onPointerUp);
+  canvas.addEventListener('touchstart', e => { onPointerDown(e); e.preventDefault(); }, { passive:false });
+  canvas.addEventListener('touchmove', e => { onPointerMove(e); e.preventDefault(); }, { passive:false });
+  window.addEventListener('touchend', onPointerUp, { passive:true });
+
+  window.addEventListener('resize', () => { resize(); draw(); });
+
+  resize();
+  makeLevel();
+  updateUI();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
