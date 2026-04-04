@@ -1,0 +1,766 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>地磚縫草生長模擬 v0.11</title>
+  <style>
+    :root{
+      --bg:#10161b; --panel:#182028d8; --line:#28333d; --text:#eef6f7; --muted:#9eb0bb;
+      --accent:#76dc8f; --water:#64c3ff; --heat:#ff835e; --warn:#ffcd62; --danger:#ff6b6b;
+      --soil:#493729; --sky:#172127; --tile:#909ba5;
+    }
+    *{box-sizing:border-box}
+    html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:"Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif}
+    #app{display:flex;flex-direction:column;height:100%}
+    header{padding:10px 14px;border-bottom:1px solid #20303a;background:linear-gradient(180deg,#11181e,#0c1115)}
+    header h1{margin:0;font-size:18px}
+    header .sub{margin-top:4px;font-size:12px;color:var(--muted)}
+    main{flex:1;display:grid;grid-template-columns:340px 1fr;min-height:0}
+    .panel{background:var(--panel);backdrop-filter:blur(10px);border-right:1px solid #23303a;padding:12px;overflow:auto}
+    .section{border:1px solid #25323c;border-radius:14px;padding:11px 12px;margin-bottom:12px;background:#121a21bf}
+    .section h2{margin:0 0 8px;font-size:14px}
+    .mini{font-size:12px;color:var(--muted);line-height:1.55}
+    .btns{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+    .btns3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+    button{
+      border:none;border-radius:12px;padding:10px 12px;background:#26323b;color:var(--text);font-size:13px;
+      font-weight:700;cursor:pointer;box-shadow:inset 0 0 0 1px #34434f;
+    }
+    button:hover{filter:brightness(1.07)}
+    button.active{background:#365c46;box-shadow:inset 0 0 0 1px #4b8a61}
+    button:disabled{opacity:.45;cursor:not-allowed}
+    .row{display:flex;gap:8px;align-items:center;margin:8px 0}
+    .row label{font-size:13px;min-width:78px}
+    .row output{font-size:12px;color:var(--muted);min-width:50px;text-align:right}
+    input[type=range]{width:100%}
+    .stats{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+    .stat{padding:10px;border-radius:12px;background:#0f151a;border:1px solid #23303a}
+    .stat b{display:block;font-size:17px;margin-top:2px}
+    .pillrow{display:flex;gap:8px;flex-wrap:wrap}
+    .pill{padding:6px 10px;border-radius:999px;background:#10161c;border:1px solid #22303a;font-size:12px}
+    .canvasWrap{position:relative;min-height:0}
+    canvas{display:block;width:100%;height:100%;touch-action:none;background:radial-gradient(circle at 50% 26%, #1b262d, #0d1216 60%)}
+    .overlay{position:absolute;left:12px;right:12px;bottom:12px;display:flex;gap:8px;flex-wrap:wrap;pointer-events:none}
+    .tag{background:#10161ccb;border:1px solid #22303a;border-radius:999px;padding:6px 10px;font-size:12px;color:#d9e6ea}
+    .bigMsg{
+      position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;
+      background:rgba(7,12,14,.36);backdrop-filter:blur(2px);opacity:0;pointer-events:none;transition:.25s;text-align:center;padding:20px;
+    }
+    .bigMsg.show{opacity:1;pointer-events:auto}
+    .bigMsg h3{margin:0;font-size:48px;letter-spacing:2px}
+    .bigMsg p{margin:10px 0 0;font-size:15px}
+    .bigMsg .stars{font-size:28px;letter-spacing:4px;color:#ffe28b;margin-top:10px}
+    .corner{position:absolute;right:12px;top:12px;display:flex;gap:8px;z-index:4}
+    .mobileToggle{display:none}
+    .warn{color:var(--warn)}
+    .danger{color:var(--danger)}
+    @media (max-width:900px){
+      main{grid-template-columns:1fr}
+      .panel{
+        position:absolute;left:10px;top:10px;bottom:10px;width:min(340px,calc(100% - 20px));z-index:10;
+        border:1px solid #23303a;border-radius:18px;transform:translateX(-110%);transition:.25s
+      }
+      .panel.open{transform:none}
+      .mobileToggle{display:block;position:absolute;left:12px;top:12px;z-index:11}
+      .mobileToggle button{background:#162028e8}
+    }
+  </style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>地磚縫草生長模擬 v0.11</h1>
+    <div class="sub">加入關卡制：每關的熱、水、地磚與可用資源都不同。你要找出草根真正能活下來的路。</div>
+  </header>
+  <main>
+    <aside class="panel" id="panel">
+      <div class="section">
+        <h2>關卡</h2>
+        <div class="btns">
+          <button id="prevLevel">← 上一關</button>
+          <button id="nextLevel">下一關 →</button>
+        </div>
+        <div style="margin-top:10px">
+          <div id="levelNo" class="mini">第 1 關</div>
+          <div id="levelTitle" style="font-size:18px;font-weight:800;margin-top:2px">縫隙初探</div>
+          <div id="levelDesc" class="mini" style="margin-top:6px"></div>
+        </div>
+      </div>
+
+      <div class="section">
+        <h2>操作模式</h2>
+        <div class="btns">
+          <button id="modeRain" class="active">☔ 降雨區</button>
+          <button id="modeShade">🌫 遮陰區</button>
+          <button id="modeRemove">🧽 擦除區域</button>
+          <button id="btnReset">↺ 重開本關</button>
+        </div>
+        <p class="mini">在畫面上點擊或拖曳放置效果。這次不是無限放技能，每關都有資源限制，所以位置比亂灑更重要。</p>
+      </div>
+
+      <div class="section">
+        <h2>環境</h2>
+        <div class="row"><label for="sun">日照強度</label><input id="sun" type="range" min="0" max="100" value="60"><output id="sunOut">60%</output></div>
+        <div class="row"><label for="rainRate">自然降雨</label><input id="rainRate" type="range" min="0" max="100" value="18"><output id="rainOut">18%</output></div>
+        <div class="row"><label for="speed">模擬速度</label><input id="speed" type="range" min="1" max="4" value="2"><output id="speedOut">2x</output></div>
+        <div class="mini">部分關卡會鎖住基礎環境，讓你只能用有限的人工干預去救草。</div>
+      </div>
+
+      <div class="section">
+        <h2>資源與狀態</h2>
+        <div class="stats">
+          <div class="stat">根總長<b id="rootLen">0</b></div>
+          <div class="stat">活力<b id="vigor">100%</b></div>
+          <div class="stat">剩餘雨量<b id="rainBudget">0</b></div>
+          <div class="stat">剩餘遮陰<b id="shadeBudget">0</b></div>
+          <div class="stat">剩餘時間<b id="timeLeft">0</b></div>
+          <div class="stat">目標縫隙<b id="goal">未達成</b></div>
+        </div>
+        <div class="pillrow" style="margin-top:8px">
+          <div class="pill">★ 3 星：快速且省資源</div>
+          <div class="pill">★ 2 星：普通過關</div>
+          <div class="pill">★ 1 星：勉強突破</div>
+        </div>
+      </div>
+
+      <div class="section">
+        <h2>這關要怎麼想</h2>
+        <div id="challengeText" class="mini"></div>
+      </div>
+    </aside>
+
+    <div class="canvasWrap">
+      <div class="mobileToggle"><button id="togglePanel">☰ 控制</button></div>
+      <div class="corner">
+        <button id="pauseBtn">暫停</button>
+      </div>
+      <canvas id="cv"></canvas>
+      <div class="overlay">
+        <div class="tag">藍色 = 水分</div>
+        <div class="tag">紅色 = 熱</div>
+        <div class="tag">綠線 = 根</div>
+        <div class="tag">亮框 = 目標縫隙</div>
+      </div>
+      <div id="msg" class="bigMsg">
+        <h3 id="msgTitle">突破！</h3>
+        <div id="msgStars" class="stars">★★★</div>
+        <p id="msgBody">你找到草真正能活的路。</p>
+        <div style="margin-top:14px" class="btns3">
+          <button id="retryFromMsg">重玩本關</button>
+          <button id="closeMsg">繼續看</button>
+          <button id="nextFromMsg">下一關</button>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+(() => {
+  const canvas = document.getElementById('cv');
+  const ctx = canvas.getContext('2d');
+  const panel = document.getElementById('panel');
+  const msg = document.getElementById('msg');
+
+  const ui = {
+    sun: document.getElementById('sun'),
+    rainRate: document.getElementById('rainRate'),
+    speed: document.getElementById('speed'),
+    sunOut: document.getElementById('sunOut'),
+    rainOut: document.getElementById('rainOut'),
+    speedOut: document.getElementById('speedOut'),
+    rootLen: document.getElementById('rootLen'),
+    vigor: document.getElementById('vigor'),
+    rainBudget: document.getElementById('rainBudget'),
+    shadeBudget: document.getElementById('shadeBudget'),
+    timeLeft: document.getElementById('timeLeft'),
+    goal: document.getElementById('goal'),
+    levelNo: document.getElementById('levelNo'),
+    levelTitle: document.getElementById('levelTitle'),
+    levelDesc: document.getElementById('levelDesc'),
+    challengeText: document.getElementById('challengeText'),
+    modeRain: document.getElementById('modeRain'),
+    modeShade: document.getElementById('modeShade'),
+    modeRemove: document.getElementById('modeRemove'),
+    btnReset: document.getElementById('btnReset'),
+    prevLevel: document.getElementById('prevLevel'),
+    nextLevel: document.getElementById('nextLevel'),
+    togglePanel: document.getElementById('togglePanel'),
+    pauseBtn: document.getElementById('pauseBtn'),
+    msgTitle: document.getElementById('msgTitle'),
+    msgBody: document.getElementById('msgBody'),
+    msgStars: document.getElementById('msgStars'),
+    retryFromMsg: document.getElementById('retryFromMsg'),
+    closeMsg: document.getElementById('closeMsg'),
+    nextFromMsg: document.getElementById('nextFromMsg'),
+  };
+
+  const grid = { cols: 34, rows: 22, cell: 24, ox: 0, oy: 0, surfaceRow: 8 };
+  let cells = [];
+  let roots = [];
+  let shoots = [];
+  let mode = 'rain';
+  let running = true;
+  let pointerDown = false;
+  let won = false;
+  let lost = false;
+  let vigor = 1;
+  let targetGapCol = 17;
+  let rootBudget = 0;
+  let timeLeft = 0;
+  let currentLevelIndex = 0;
+  let rainBudget = 0, shadeBudget = 0;
+  let maxRainBudget = 0, maxShadeBudget = 0;
+  let bestStars = JSON.parse(localStorage.getItem('grassTileLevelStars_v011') || '{}');
+
+  const levels = [
+    {
+      title:'縫隙初探',
+      desc:'基本教學關。路線大致可行，但你要學會先保水、再讓芽往上衝。',
+      challenge:'先在地下中段補一點水，讓根往目標縫隙靠近；接近縫隙時再稍微遮陰，降低地磚過熱。',
+      sun:58, rain:18, time:95, targetGap:17, start:{c:15,r:19},
+      rainBudget:18, shadeBudget:14,
+      wetBands:[{r1:11,r2:20,c1:12,c2:21,bonus:.13}],
+      hotZones:[{r1:7,r2:10,c1:13,c2:21,heat:.10}],
+      blockedGaps:[7,27],
+      lockedEnv:false
+    },
+    {
+      title:'灼熱走廊',
+      desc:'目標縫隙附近超熱，亂灑雨很快蒸發。必須先做出「地下冷濕通道」。',
+      challenge:'不要把雨直接丟在最上面，那裡蒸發太快。先把水丟在地表下 2~4 格，配合少量遮陰打通最後一段。',
+      sun:78, rain:7, time:95, targetGap:23, start:{c:7,r:19},
+      rainBudget:16, shadeBudget:12,
+      wetBands:[{r1:14,r2:20,c1:5,c2:13,bonus:.12},{r1:12,r2:19,c1:15,c2:20,bonus:.08}],
+      hotZones:[{r1:6,r2:10,c1:18,c2:27,heat:.22},{r1:10,r2:14,c1:20,c2:25,heat:.12}],
+      extraTiles:[{r:9,c1:11,c2:18}],
+      blockedGaps:[7,17,27],
+      lockedEnv:true
+    },
+    {
+      title:'暴雨積水',
+      desc:'水很多，但某些區域會積水爛根。太濕不見得更好。',
+      challenge:'避開深藍積水區，讓根從比較穩定的側邊繞上去。這關往右下補水通常是浪費。',
+      sun:46, rain:40, time:110, targetGap:10, start:{c:26,r:18},
+      rainBudget:10, shadeBudget:8,
+      wetBands:[{r1:12,r2:20,c1:18,c2:31,bonus:.22},{r1:13,r2:20,c1:4,c2:11,bonus:.10}],
+      floodZones:[{r1:14,r2:20,c1:20,c2:29,water:.28}],
+      hotZones:[{r1:7,r2:10,c1:7,c2:13,heat:.08}],
+      blockedGaps:[17,27],
+      lockedEnv:false
+    },
+    {
+      title:'城市熱島',
+      desc:'上層幾乎都是熱磚，只有少數陰影縫能存活。這關要很節省。',
+      challenge:'先讓根在深層蓄力，最後再快速往上。遮陰不要平均鋪，請集中在目標縫隙附近與必經拐點。',
+      sun:84, rain:5, time:120, targetGap:28, start:{c:4,r:20},
+      rainBudget:14, shadeBudget:9,
+      wetBands:[{r1:16,r2:21,c1:2,c2:11,bonus:.10},{r1:17,r2:21,c1:18,c2:31,bonus:.06}],
+      hotZones:[{r1:6,r2:13,c1:8,c2:31,heat:.24},{r1:9,r2:15,c1:17,c2:30,heat:.12}],
+      extraTiles:[{r:10,c1:9,c2:29},{r:11,c1:12,c2:26}],
+      blockedGaps:[7,10,17],
+      lockedEnv:true
+    },
+  ];
+
+  function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
+  function lerp(a,b,t){ return a + (b-a) * t; }
+  function rand(a,b){ return a + Math.random() * (b-a); }
+
+  function setMode(next){
+    mode = next;
+    ui.modeRain.classList.toggle('active', mode === 'rain');
+    ui.modeShade.classList.toggle('active', mode === 'shade');
+    ui.modeRemove.classList.toggle('active', mode === 'remove');
+  }
+
+  function resize(){
+    const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = Math.round(rect.width * dpr);
+    canvas.height = Math.round(rect.height * dpr);
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    grid.cell = Math.floor(Math.min(rect.width / grid.cols, rect.height / grid.rows));
+    grid.ox = Math.floor((rect.width - grid.cell * grid.cols) / 2);
+    grid.oy = Math.floor((rect.height - grid.cell * grid.rows) / 2);
+  }
+
+  function idx(c,r){ return r * grid.cols + c; }
+  function inBounds(c,r){ return c>=0 && c<grid.cols && r>=0 && r<grid.rows; }
+  function get(c,r){ return inBounds(c,r) ? cells[idx(c,r)] : null; }
+
+  function applyRectToMap(rect, fn){
+    for(let r=rect.r1;r<=rect.r2;r++){
+      for(let c=rect.c1;c<=rect.c2;c++){
+        const cell = get(c,r);
+        if(cell) fn(cell);
+      }
+    }
+  }
+
+  function setupLevel(level){
+    targetGapCol = level.targetGap;
+    timeLeft = level.time;
+    rainBudget = maxRainBudget = level.rainBudget;
+    shadeBudget = maxShadeBudget = level.shadeBudget;
+    ui.sun.value = level.sun;
+    ui.rainRate.value = level.rain;
+    ui.sun.disabled = !!level.lockedEnv;
+    ui.rainRate.disabled = !!level.lockedEnv;
+    ui.levelNo.textContent = `第 ${currentLevelIndex + 1} / ${levels.length} 關`;
+    ui.levelTitle.textContent = level.title;
+    ui.levelDesc.textContent = level.desc;
+    ui.challengeText.textContent = level.challenge;
+    ui.prevLevel.disabled = currentLevelIndex === 0;
+    ui.nextLevel.disabled = currentLevelIndex === levels.length - 1;
+  }
+
+  function makeLevel(){
+    const level = levels[currentLevelIndex];
+    setupLevel(level);
+    won = false; lost = false; vigor = 1; rootBudget = 0; shoots = [];
+    hideMessage();
+
+    cells = new Array(grid.cols * grid.rows).fill(null).map((_, i) => {
+      const c = i % grid.cols;
+      const r = (i / grid.cols) | 0;
+      const above = r < grid.surfaceRow;
+      const tile = r === grid.surfaceRow;
+      const gap = tile && (c === targetGapCol || c === 7 || c === 17 || c === 27 || c === 10);
+      return {
+        c,r,
+        water: r > grid.surfaceRow ? 0.40 + Math.random() * 0.05 : 0.07,
+        heat: above ? 0.36 : 0.16,
+        tile: tile,
+        gap,
+        shade:0,
+        rain:0,
+        soil:r > grid.surfaceRow,
+        surface:above,
+        barrier:false
+      };
+    });
+
+    // 地磚列：只有 gap 留空；可額外封住一些 gap
+    for(let c=0;c<grid.cols;c++){
+      const cell = get(c, grid.surfaceRow);
+      if(!cell) continue;
+      const blocked = (level.blockedGaps || []).includes(c);
+      cell.tile = !cell.gap || blocked;
+      if(blocked) cell.gap = false;
+    }
+
+    // baseline 地下保水差異
+    for(let r=9;r<grid.rows;r++){
+      for(let c=0;c<grid.cols;c++){
+        const cell = get(c,r);
+        const distToTarget = Math.abs(c - targetGapCol);
+        cell.water += Math.max(0, 0.08 - distToTarget * 0.004);
+        if(r > 16) cell.water += 0.05;
+        if(c < 3 || c > 30) cell.water -= 0.04;
+      }
+    }
+
+    // level shapes
+    (level.wetBands || []).forEach(b => applyRectToMap(b, cell => cell.water += b.bonus));
+    (level.floodZones || []).forEach(z => applyRectToMap(z, cell => cell.water += z.water));
+    (level.hotZones || []).forEach(z => applyRectToMap(z, cell => cell.heat += z.heat));
+    (level.extraTiles || []).forEach(z => {
+      for(let c=z.c1;c<=z.c2;c++){
+        const cell = get(c, z.r);
+        if(cell){ cell.tile = true; cell.gap = false; }
+      }
+    });
+
+    // keep top air cells cooler/wetter? no
+    for(const cell of cells){
+      cell.water = clamp(cell.water, 0, 1);
+      cell.heat = clamp(cell.heat, 0, 1);
+    }
+
+    roots = [{ c: level.start.c, r: level.start.r, parent: -1, energy: 1 }];
+  }
+
+  function screenToCell(x,y){
+    return {
+      c: Math.floor((x - grid.ox) / grid.cell),
+      r: Math.floor((y - grid.oy) / grid.cell)
+    };
+  }
+
+  function applyBrush(px, py){
+    const { c, r } = screenToCell(px, py);
+    for(let rr = r - 2; rr <= r + 2; rr++){
+      for(let cc = c - 2; cc <= c + 2; cc++){
+        if(!inBounds(cc,rr)) continue;
+        const cell = get(cc,rr);
+        const d = Math.hypot(cc - c, rr - r);
+        if(d > 2.3) continue;
+        const t = clamp(1 - d / 2.3, 0, 1);
+        if(mode === 'rain'){
+          if(rainBudget <= 0) return;
+          const cost = 0.26 * t;
+          if(rainBudget - cost < -0.02) continue;
+          rainBudget = Math.max(0, rainBudget - cost);
+          cell.rain = clamp(cell.rain + 0.36 * t, 0, 1);
+          cell.water = clamp(cell.water + 0.12 * t, 0, 1);
+        }else if(mode === 'shade'){
+          if(shadeBudget <= 0) return;
+          const cost = 0.22 * t;
+          if(shadeBudget - cost < -0.02) continue;
+          shadeBudget = Math.max(0, shadeBudget - cost);
+          cell.shade = clamp(cell.shade + 0.28 * t, 0, 1);
+          cell.heat = clamp(cell.heat - 0.09 * t, 0, 1);
+        }else if(mode === 'remove'){
+          cell.shade = clamp(cell.shade - 0.30 * t, 0, 1);
+          cell.rain = clamp(cell.rain - 0.30 * t, 0, 1);
+        }
+      }
+    }
+  }
+
+  function updateEnvironment(dt){
+    const sun = ui.sun.value / 100;
+    const rainRate = ui.rainRate.value / 100;
+    const speed = +ui.speed.value;
+    timeLeft = Math.max(0, timeLeft - dt * 0.16 * speed);
+
+    for(const cell of cells){
+      if(cell.r < 9){
+        cell.water = clamp(cell.water + rainRate * 0.0026 * dt * (1 + cell.rain * 1.5), 0, 1);
+      }
+
+      const shadeEffect = 1 - cell.shade * 0.72;
+      const tileBoost = cell.tile ? 1.34 : 1;
+      const gapBoost = cell.gap ? 0.86 : 1;
+      const undergroundCool = cell.soil ? 0.62 : 1;
+      const targetHeat = clamp(sun * 0.92 * tileBoost * gapBoost * shadeEffect * undergroundCool, 0, 1);
+      cell.heat = lerp(cell.heat, targetHeat, 0.042 * dt);
+
+      let evap = (0.0019 + sun * 0.0068) * (1 + cell.heat * 0.85) * (1 - cell.shade * 0.58);
+      if(cell.soil) evap *= 0.45;
+      if(cell.tile) evap *= 0.72;
+      cell.water = clamp(cell.water - evap * dt + cell.rain * 0.0016 * dt, 0, 1);
+
+      // 積水懲罰：太濕且不夠熱，會變成根不想去的泥濘
+      if(cell.soil && cell.water > 0.88){
+        cell.heat = clamp(cell.heat - 0.01 * dt, 0, 1);
+      }
+
+      cell.shade = clamp(cell.shade - 0.0008 * dt, 0, 1);
+      cell.rain = clamp(cell.rain - 0.0012 * dt, 0, 1);
+    }
+
+    const waterNext = cells.map(c => c.water);
+    for(let r=0;r<grid.rows;r++){
+      for(let c=0;c<grid.cols;c++){
+        const cell = get(c,r);
+        const i = idx(c,r);
+        const ns = [[1,0],[-1,0],[0,1],[0,-1]];
+        for(const [dx,dy] of ns){
+          const nb = get(c+dx,r+dy);
+          if(!nb) continue;
+          let flow = (cell.water - nb.water) * 0.017 * dt;
+          if(dy === 1) flow += 0.0015 * dt;
+          if(cell.tile || nb.tile) flow *= 0.55;
+          waterNext[i] -= flow;
+        }
+      }
+    }
+    for(let i=0;i<cells.length;i++) cells[i].water = clamp(waterNext[i], 0, 1);
+
+    let sum = 0;
+    for(const r of roots){
+      const cell = get(r.c, r.r);
+      if(!cell) continue;
+      const floodPenalty = cell.water > 0.87 ? (cell.water - 0.87) * 3.2 : 0;
+      const score = clamp(cell.water * 0.86 + (1 - cell.heat) * 0.62 - 0.22 - floodPenalty, 0, 1);
+      sum += score;
+    }
+    const avg = sum / Math.max(1, roots.length);
+    vigor = clamp(lerp(vigor, avg * 1.14, 0.058 * dt), 0, 1);
+    rootBudget += (0.06 + vigor * 0.22) * speed * dt;
+  }
+
+  function canOccupy(cell){
+    return !!cell && !cell.tile;
+  }
+
+  function growRoots(){
+    if(won || lost) return;
+    let tries = 0;
+    while(rootBudget > 1 && tries < 10){
+      tries++;
+      rootBudget -= 1;
+      const frontier = roots.slice(-Math.min(180, roots.length));
+      let best = null;
+      for(let k=0;k<30;k++){
+        const parentIndex = roots.length - 1 - ((Math.random() * frontier.length) | 0);
+        const parent = roots[parentIndex];
+        const dirs = [[1,0],[-1,0],[0,1],[0,-1],[1,-1],[-1,-1],[1,1],[-1,1]];
+        for(const [dx,dy] of dirs){
+          const c = parent.c + dx, r = parent.r + dy;
+          const cell = get(c,r);
+          if(!canOccupy(cell)) continue;
+          if(roots.some(n => n.c === c && n.r === r)) continue;
+
+          const floodPenalty = cell.water > 0.90 ? 0.5 : 0;
+          let score = 0;
+          score += cell.water * 1.55;
+          score += (1 - cell.heat) * 0.96;
+          score += Math.max(0, (grid.rows - r) * 0.018);
+          score += (cell.gap ? 0.62 : 0);
+          score -= Math.abs(c - targetGapCol) * 0.017;
+          score -= floodPenalty;
+          score -= (cell.surface ? 0.10 : 0);
+          score += rand(-0.08, 0.08);
+
+          if(!best || score > best.score) best = { c, r, parent: parentIndex, score };
+        }
+      }
+      if(best && best.score > 0.16){
+        roots.push({ c: best.c, r: best.r, parent: best.parent, energy: clamp(best.score, 0, 1) });
+        const cell = get(best.c, best.r);
+        cell.water = clamp(cell.water - 0.025, 0, 1);
+
+        if(cell.gap || (cell.r === 9 && Math.abs(cell.c - targetGapCol) <= 1)){
+          const top = get(best.c, 8);
+          const exitCell = get(best.c, 7);
+          if((top && top.gap) || (exitCell && exitCell.surface)){
+            const light = ui.sun.value / 100;
+            const chance = clamp(light * 0.68 + cell.water * 0.54 - cell.heat * 0.18, 0, 1);
+            if(Math.random() < chance){
+              shoots.push({ c: best.c, h: rand(0.3, 0.9) });
+              if(best.c === targetGapCol){
+                won = true;
+                finishLevel(true);
+                return;
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  function finishLevel(isWin){
+    running = false;
+    const level = levels[currentLevelIndex];
+    if(isWin){
+      const timeRatio = timeLeft / level.time;
+      const resRatio = (rainBudget / maxRainBudget + shadeBudget / maxShadeBudget) * 0.5;
+      let stars = 1;
+      if(timeRatio > 0.34 && resRatio > 0.22) stars = 2;
+      if(timeRatio > 0.55 && resRatio > 0.45) stars = 3;
+      bestStars[currentLevelIndex] = Math.max(bestStars[currentLevelIndex] || 0, stars);
+      localStorage.setItem('grassTileLevelStars_v011', JSON.stringify(bestStars));
+      showMessage(
+        '突破成功！',
+        '★'.repeat(stars) + '☆'.repeat(3 - stars),
+        `你讓草成功穿過第 ${currentLevelIndex + 1} 關。剩餘時間 ${Math.ceil(timeLeft)} 秒，剩餘資源 ${(rainBudget + shadeBudget).toFixed(1)}。`,
+        true
+      );
+    }else{
+      showMessage(
+        '這株草撐不住了',
+        '— — —',
+        timeLeft <= 0 ? '時間到了，根還沒找到可行路徑。' : '根系活力幾乎耗盡，熱與缺水把它卡死了。',
+        false
+      );
+    }
+  }
+
+  function showMessage(title, stars, body, canNext){
+    ui.msgTitle.textContent = title;
+    ui.msgStars.textContent = stars;
+    ui.msgBody.textContent = body;
+    ui.nextFromMsg.disabled = !canNext || currentLevelIndex === levels.length - 1;
+    msg.classList.add('show');
+  }
+  function hideMessage(){ msg.classList.remove('show'); }
+
+  function draw(){
+    const w = canvas.clientWidth, h = canvas.clientHeight;
+    ctx.clearRect(0,0,w,h);
+
+    for(const cell of cells){
+      const x = grid.ox + cell.c * grid.cell;
+      const y = grid.oy + cell.r * grid.cell;
+      let base;
+      if(cell.tile) base = [144,155,164];
+      else if(cell.gap && cell.r === 8) base = [57,50,45];
+      else if(cell.soil) base = [73,56,41];
+      else base = [25,36,43];
+
+      let r = base[0], g = base[1], b = base[2];
+      r = lerp(r, 91, cell.water * 0.08);
+      g = lerp(g, 188, cell.water * 0.35);
+      b = lerp(b, 255, cell.water * 0.56);
+      r = lerp(r, 255, cell.heat * 0.46);
+      g = lerp(g, 110, cell.heat * 0.24);
+      b = lerp(b, 87, cell.heat * 0.12);
+      r = lerp(r, 110, cell.shade * 0.18);
+      g = lerp(g, 160, cell.shade * 0.18);
+      b = lerp(b, 145, cell.shade * 0.18);
+
+      ctx.fillStyle = `rgb(${r|0},${g|0},${b|0})`;
+      ctx.fillRect(x,y,grid.cell+1,grid.cell+1);
+
+      if(cell.tile){
+        ctx.strokeStyle = 'rgba(255,255,255,.08)';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(x+0.5,y+0.5,grid.cell,grid.cell);
+      }
+      if(cell.gap && cell.r === 8){
+        ctx.fillStyle = 'rgba(18,20,18,.65)';
+        ctx.fillRect(x+grid.cell*0.3,y,grid.cell*0.4,grid.cell+1);
+      }
+    }
+
+    // goal
+    {
+      const x = grid.ox + targetGapCol * grid.cell;
+      const y = grid.oy + 8 * grid.cell;
+      ctx.strokeStyle = 'rgba(223,255,205,.95)';
+      ctx.lineWidth = 2.2;
+      ctx.strokeRect(x+3,y+2,grid.cell-6,grid.cell-4);
+      ctx.fillStyle = 'rgba(223,255,205,.16)';
+      ctx.fillRect(x+3,y+2,grid.cell-6,grid.cell-4);
+    }
+
+    // roots
+    ctx.lineCap = 'round';
+    for(let i=1;i<roots.length;i++){
+      const r = roots[i], p = roots[r.parent];
+      if(!p) continue;
+      const x1 = grid.ox + p.c * grid.cell + grid.cell/2;
+      const y1 = grid.oy + p.r * grid.cell + grid.cell/2;
+      const x2 = grid.ox + r.c * grid.cell + grid.cell/2;
+      const y2 = grid.oy + r.r * grid.cell + grid.cell/2;
+      ctx.strokeStyle = `rgba(118,224,133,${0.34 + r.energy * 0.45})`;
+      ctx.lineWidth = 1.1 + Math.max(0, 2.4 - (roots.length - i) * 0.01);
+      ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+    }
+    for(const r of roots.slice(-100)){
+      const x = grid.ox + r.c * grid.cell + grid.cell/2;
+      const y = grid.oy + r.r * grid.cell + grid.cell/2;
+      ctx.fillStyle = 'rgba(175,255,190,.95)';
+      ctx.beginPath(); ctx.arc(x,y,1.7,0,Math.PI*2); ctx.fill();
+    }
+
+    // shoots
+    for(const s of shoots){
+      const x = grid.ox + s.c * grid.cell + grid.cell/2;
+      const y = grid.oy + 8 * grid.cell + grid.cell * 0.86;
+      ctx.strokeStyle = 'rgba(120,255,150,.95)';
+      ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(x, y - grid.cell * (0.8 + s.h)); ctx.stroke();
+      ctx.fillStyle = 'rgba(170,255,185,.95)';
+      ctx.beginPath();
+      ctx.ellipse(x - 4, y - grid.cell * (0.75 + s.h), 5, 2.5, -0.6, 0, Math.PI*2);
+      ctx.ellipse(x + 4, y - grid.cell * (0.6 + s.h), 5, 2.5, 0.6, 0, Math.PI*2);
+      ctx.fill();
+    }
+
+    // labels
+    ctx.fillStyle = 'rgba(235,245,248,.9)';
+    ctx.font = '12px sans-serif';
+    ctx.fillText('地表', grid.ox + 8, grid.oy + 8*grid.cell - 8);
+    ctx.fillText('地下土壤', grid.ox + 8, grid.oy + 10*grid.cell + 14);
+
+    // timer strip
+    const total = levels[currentLevelIndex].time;
+    const ratio = clamp(timeLeft / total, 0, 1);
+    const x = grid.ox, y = grid.oy - 18, w2 = grid.cols * grid.cell;
+    ctx.fillStyle = 'rgba(255,255,255,.08)';
+    ctx.fillRect(x, y, w2, 8);
+    ctx.fillStyle = ratio > .45 ? 'rgba(114,220,143,.95)' : ratio > .2 ? 'rgba(255,205,98,.95)' : 'rgba(255,107,107,.95)';
+    ctx.fillRect(x, y, w2 * ratio, 8);
+  }
+
+  function updateUI(){
+    ui.sunOut.textContent = `${ui.sun.value}%`;
+    ui.rainOut.textContent = `${ui.rainRate.value}%`;
+    ui.speedOut.textContent = `${ui.speed.value}x`;
+    ui.rootLen.textContent = roots.length;
+    ui.vigor.innerHTML = `<span class="${vigor < .18 ? 'danger' : vigor < .34 ? 'warn' : ''}">${Math.round(vigor * 100)}%</span>`;
+    ui.rainBudget.textContent = rainBudget.toFixed(1);
+    ui.shadeBudget.textContent = shadeBudget.toFixed(1);
+    ui.timeLeft.innerHTML = `<span class="${timeLeft < 18 ? 'danger' : timeLeft < 35 ? 'warn' : ''}">${Math.ceil(timeLeft)}s</span>`;
+    ui.goal.textContent = won ? '已突破' : (lost ? '失敗' : '未達成');
+    ui.pauseBtn.textContent = running ? '暫停' : '繼續';
+  }
+
+  let last = performance.now();
+  function frame(now){
+    const dt0 = Math.min(1.5, (now - last) / 16.6667);
+    last = now;
+    if(running && !msg.classList.contains('show')){
+      updateEnvironment(dt0);
+      growRoots();
+
+      if(vigor < 0.07 && roots.length > 1 && Math.random() < 0.08){
+        roots.splice(Math.max(1, roots.length - 2), 1);
+      }
+      if(!won && (timeLeft <= 0 || (vigor < 0.04 && roots.length < 6))){
+        lost = true;
+        finishLevel(false);
+      }
+    }
+    draw();
+    updateUI();
+    requestAnimationFrame(frame);
+  }
+
+  function pointerPos(e){
+    const rect = canvas.getBoundingClientRect();
+    const t = e.touches ? e.touches[0] : e;
+    return { x: t.clientX - rect.left, y: t.clientY - rect.top };
+  }
+  function onPointerDown(e){
+    pointerDown = true;
+    const p = pointerPos(e);
+    applyBrush(p.x,p.y);
+  }
+  function onPointerMove(e){
+    if(!pointerDown || !running) return;
+    const p = pointerPos(e);
+    applyBrush(p.x,p.y);
+  }
+  function onPointerUp(){ pointerDown = false; }
+
+  function gotoLevel(i){
+    currentLevelIndex = clamp(i, 0, levels.length - 1);
+    makeLevel();
+    running = true;
+  }
+
+  ui.modeRain.onclick = () => setMode('rain');
+  ui.modeShade.onclick = () => setMode('shade');
+  ui.modeRemove.onclick = () => setMode('remove');
+  ui.btnReset.onclick = () => gotoLevel(currentLevelIndex);
+  ui.prevLevel.onclick = () => gotoLevel(currentLevelIndex - 1);
+  ui.nextLevel.onclick = () => gotoLevel(currentLevelIndex + 1);
+  ui.pauseBtn.onclick = () => { running = !running; };
+  ui.retryFromMsg.onclick = () => gotoLevel(currentLevelIndex);
+  ui.closeMsg.onclick = () => hideMessage();
+  ui.nextFromMsg.onclick = () => { if(currentLevelIndex < levels.length - 1) gotoLevel(currentLevelIndex + 1); };
+  ui.togglePanel.onclick = () => panel.classList.toggle('open');
+
+  canvas.addEventListener('mousedown', onPointerDown);
+  canvas.addEventListener('mousemove', onPointerMove);
+  window.addEventListener('mouseup', onPointerUp);
+  canvas.addEventListener('touchstart', e => { onPointerDown(e); e.preventDefault(); }, {passive:false});
+  canvas.addEventListener('touchmove', e => { onPointerMove(e); e.preventDefault(); }, {passive:false});
+  canvas.addEventListener('touchend', onPointerUp, {passive:true});
+  window.addEventListener('resize', resize);
+
+  resize();
+  setMode('rain');
+  gotoLevel(0);
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
