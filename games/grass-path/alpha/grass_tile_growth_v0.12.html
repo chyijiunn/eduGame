@@ -1,0 +1,965 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>地磚縫草生長模擬 v0.12</title>
+<style>
+  :root{
+    --bg:#0d1317; --panel:#152028e8; --line:#2a3945; --text:#eef6f7; --muted:#9bb0bb;
+    --accent:#79dd8f; --water:#65c8ff; --heat:#ff8762; --tile:#9fa8af; --tileDark:#7f8992;
+    --soil:#4d3a2a; --soil2:#34271d; --grass:#7ee56b; --root:#8cffaf; --shadow:rgba(0,0,0,.22);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font-family:"Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif;overflow:hidden}
+  #app{display:flex;flex-direction:column;height:100%}
+  header{padding:10px 14px;border-bottom:1px solid #1f2b33;background:linear-gradient(180deg,#121a20,#0c1115)}
+  header h1{margin:0;font-size:18px}
+  header .sub{margin-top:4px;font-size:12px;color:var(--muted)}
+  main{flex:1;display:grid;grid-template-columns:340px 1fr;min-height:0}
+  .panel{padding:12px;border-right:1px solid #22303a;background:var(--panel);overflow:auto}
+  .section{background:#10181fcc;border:1px solid #26343d;border-radius:15px;padding:11px 12px;margin-bottom:12px}
+  .section h2{margin:0 0 8px;font-size:14px}
+  .mini{font-size:12px;color:var(--muted);line-height:1.55}
+  .row{display:flex;align-items:center;gap:10px;margin:8px 0}
+  .row label{min-width:70px;font-size:13px}
+  .row output{font-size:12px;color:var(--muted);min-width:58px;text-align:right}
+  input[type=range]{width:100%}
+  .btns{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .btns3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+  button{
+    border:none;border-radius:12px;padding:10px 12px;background:#26323b;color:var(--text);font-size:13px;
+    font-weight:700;cursor:pointer;box-shadow:inset 0 0 0 1px #34434f;
+  }
+  button:hover{filter:brightness(1.08)}
+  button.active{background:#345744;box-shadow:inset 0 0 0 1px #4c8a65}
+  .stats{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .stat{padding:10px;border-radius:12px;background:#0d1419;border:1px solid #23303a}
+  .stat span{font-size:12px;color:var(--muted)}
+  .stat b{display:block;font-size:18px;margin-top:2px}
+  .canvasWrap{position:relative;min-height:0}
+  canvas{display:block;width:100%;height:100%;touch-action:none;background:radial-gradient(circle at 50% 18%, #18242c, #0a0f13 60%)}
+  .overlay{position:absolute;left:12px;right:12px;bottom:12px;display:flex;gap:8px;flex-wrap:wrap;pointer-events:none}
+  .tag{background:#0f161bcc;border:1px solid #24313a;border-radius:999px;padding:6px 10px;font-size:12px}
+  .corner{position:absolute;right:12px;top:12px;display:flex;gap:8px;z-index:4}
+  .corner button{background:#121a20d8}
+  .bigMsg{
+    position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;
+    background:rgba(7,12,14,.38);backdrop-filter:blur(2px);opacity:0;pointer-events:none;transition:.2s;text-align:center;padding:20px
+  }
+  .bigMsg.show{opacity:1;pointer-events:auto}
+  .bigMsg h3{font-size:46px;margin:0}
+  .bigMsg p{font-size:15px;margin:10px 0 0}
+  .stars{font-size:28px;letter-spacing:5px;color:#ffe28b;margin-top:10px}
+  .pillrow{display:flex;flex-wrap:wrap;gap:8px}
+  .pill{padding:6px 10px;border-radius:999px;background:#0c1318;border:1px solid #22303a;font-size:12px}
+  .ok{color:#99f9ad}.warn{color:#ffd56b}.danger{color:#ff8d8d}
+  .mobileToggle{display:none}
+  @media (max-width: 920px){
+    main{grid-template-columns:1fr}
+    .panel{
+      position:absolute;left:10px;top:10px;bottom:10px;width:min(340px,calc(100% - 20px));z-index:10;
+      border:1px solid #22303a;border-radius:18px;transform:translateX(-110%);transition:.25s
+    }
+    .panel.open{transform:none}
+    .mobileToggle{display:block;position:absolute;left:12px;top:12px;z-index:11}
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>地磚縫草生長模擬 v0.12</h1>
+    <div class="sub">預設改成較慢的「真實時間感」；可用拉桿一路加速到 100×。新增俯視 / 側視切換、拖拉地磚、透明地磚。</div>
+  </header>
+  <main>
+    <aside class="panel" id="panel">
+      <div class="section">
+        <h2>關卡</h2>
+        <div class="btns3">
+          <button data-level="0">1</button>
+          <button data-level="1">2</button>
+          <button data-level="2">3</button>
+        </div>
+        <div class="mini" id="levelDesc" style="margin-top:8px;"></div>
+      </div>
+
+      <div class="section">
+        <h2>操作</h2>
+        <div class="btns">
+          <button id="btnRain">☔ 下雨</button>
+          <button id="btnShade">🌫 遮陰 4 秒</button>
+          <button id="btnReset">↺ 重開本關</button>
+          <button id="btnPause">⏸ 暫停</button>
+        </div>
+        <div class="mini" style="margin-top:8px;">
+          俯視模式可直接拖拉上方地磚位置。透明地磚開啟後，可看到被遮住區域與草的路徑。
+        </div>
+      </div>
+
+      <div class="section">
+        <h2>時間 / 視角</h2>
+        <div class="row">
+          <label>模擬速度</label>
+          <input id="speed" type="range" min="1" max="100" step="1" value="4" />
+          <output id="speedOut">4×</output>
+        </div>
+        <div class="btns">
+          <button id="btnTop" class="active">俯視</button>
+          <button id="btnSide">側視剖面</button>
+          <button id="btnTransparent">地磚透明：關</button>
+          <button id="btnRoots">根系高亮：開</button>
+        </div>
+      </div>
+
+      <div class="section">
+        <h2>參數</h2>
+        <div class="row">
+          <label>陽光</label>
+          <input id="sun" type="range" min="0" max="100" step="1" value="55" />
+          <output id="sunOut">55%</output>
+        </div>
+        <div class="row">
+          <label>蒸發</label>
+          <input id="evap" type="range" min="0" max="100" step="1" value="42" />
+          <output id="evapOut">42%</output>
+        </div>
+        <div class="mini">葉片喜歡有光，但地磚蓄熱會讓表層土更乾。根會偏向濕、涼、且能通往縫隙的方向探索。</div>
+      </div>
+
+      <div class="section">
+        <h2>即時狀態</h2>
+        <div class="stats">
+          <div class="stat"><span>剩餘時間</span><b id="timeStat">60.0s</b></div>
+          <div class="stat"><span>突破進度</span><b id="goalStat">0%</b></div>
+          <div class="stat"><span>平均含水</span><b id="waterStat">0%</b></div>
+          <div class="stat"><span>表層熱度</span><b id="heatStat">0%</b></div>
+        </div>
+        <div class="pillrow" style="margin-top:8px">
+          <div class="pill">藍 = 水分</div>
+          <div class="pill">紅 = 熱</div>
+          <div class="pill">綠線 = 根</div>
+          <div class="pill">亮綠 = 嫩芽</div>
+        </div>
+      </div>
+
+      <div class="section">
+        <h2>這版改動</h2>
+        <div class="mini">
+          1. 預設速度放慢，讓草像真的在慢慢爬。<br>
+          2. 拉桿可直接加速到 100×。<br>
+          3. 可切換俯視 / 側視剖面。<br>
+          4. 可拖拉地磚，改變陰影與熱區。<br>
+          5. 地磚可透明，看遮蔽下方的生長過程。
+        </div>
+      </div>
+    </aside>
+
+    <section class="canvasWrap">
+      <div class="mobileToggle"><button id="btnPanel">☰</button></div>
+      <canvas id="cv"></canvas>
+      <div class="corner">
+        <button id="btnPrev">← 上一關</button>
+        <button id="btnNext">下一關 →</button>
+      </div>
+      <div class="overlay">
+        <div class="tag" id="hintTag">把地磚拖到能幫根降溫、但不要完全堵死縫隙的位置。</div>
+      </div>
+      <div class="bigMsg" id="bigMsg">
+        <h3 id="bigTitle">成功</h3>
+        <p id="bigText"></p>
+        <div class="stars" id="stars"></div>
+        <div style="margin-top:16px"><button id="btnContinue">下一步</button></div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script>
+(() => {
+  const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
+  const panel = document.getElementById('panel');
+
+  const W = 18, H = 12;
+  const rootDirs = [[1,0],[-1,0],[0,1],[0,-1]];
+  const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
+  const lerp = (a,b,t)=>a+(b-a)*t;
+
+  const levels = [
+    {
+      name:'暖地初探',
+      desc:'先熟悉：讓根靠近較濕、較涼的區域，再從右上方縫隙冒出芽。',
+      time:65, start:{x:2,y:9}, target:{x:13,y:1},
+      sun:52, evap:38,
+      tiles:[{x:3,y:1,w:4,h:2},{x:8,y:1,w:3,h:2},{x:12,y:1,w:3,h:2}],
+      rocks:[{x:6,y:6},{x:7,y:6}],
+      wetBands:[{x1:1,y1:7,x2:7,y2:10,a:.35},{x1:11,y1:6,x2:15,y2:10,a:.18}],
+      hotBands:[{x1:9,y1:2,x2:15,y2:4,a:.22}]
+    },
+    {
+      name:'熱島錯位',
+      desc:'中央地磚很熱，但若拖得好，可以創造一條陰影冷路。',
+      time:75, start:{x:2,y:10}, target:{x:15,y:1},
+      sun:62, evap:48,
+      tiles:[{x:4,y:1,w:5,h:2},{x:10,y:1,w:5,h:2}],
+      rocks:[{x:9,y:7},{x:10,y:7},{x:11,y:7}],
+      wetBands:[{x1:1,y1:8,x2:5,y2:11,a:.30},{x1:13,y1:5,x2:16,y2:11,a:.17}],
+      hotBands:[{x1:6,y1:2,x2:12,y2:5,a:.30}]
+    },
+    {
+      name:'縫隙迷局',
+      desc:'縫隙只在很窄的位置，地磚位置要配合根的探索節奏。',
+      time:90, start:{x:1,y:10}, target:{x:9,y:1},
+      sun:58, evap:52,
+      tiles:[{x:2,y:1,w:4,h:2},{x:7,y:1,w:3,h:2},{x:11,y:1,w:5,h:2}],
+      rocks:[{x:5,y:8},{x:6,y:8},{x:10,y:6},{x:11,y:6}],
+      wetBands:[{x1:0,y1:8,x2:4,y2:11,a:.28},{x1:8,y1:5,x2:12,y2:11,a:.15}],
+      hotBands:[{x1:12,y1:2,x2:17,y2:6,a:.27}]
+    }
+  ];
+
+  const state = {
+    levelIndex: 0,
+    water: [],
+    heat: [],
+    roots: [],
+    sprouts: [],
+    visit: [],
+    scoreMap: [],
+    t: 0,
+    remain: 60,
+    paused: false,
+    won: false,
+    lost: false,
+    shadeUntil: 0,
+    view: 'top',
+    transparent: false,
+    rootsHighlight: true,
+    speed: 4,
+    sun: 55,
+    evap: 42,
+    dragTileIndex: -1,
+    dragOffset: {x:0,y:0},
+    cam: {scale:1, ox:0, oy:0},
+  };
+
+  const ui = {
+    speed:document.getElementById('speed'),
+    speedOut:document.getElementById('speedOut'),
+    sun:document.getElementById('sun'),
+    sunOut:document.getElementById('sunOut'),
+    evap:document.getElementById('evap'),
+    evapOut:document.getElementById('evapOut'),
+    btnRain:document.getElementById('btnRain'),
+    btnShade:document.getElementById('btnShade'),
+    btnReset:document.getElementById('btnReset'),
+    btnPause:document.getElementById('btnPause'),
+    btnTop:document.getElementById('btnTop'),
+    btnSide:document.getElementById('btnSide'),
+    btnTransparent:document.getElementById('btnTransparent'),
+    btnRoots:document.getElementById('btnRoots'),
+    btnPrev:document.getElementById('btnPrev'),
+    btnNext:document.getElementById('btnNext'),
+    btnContinue:document.getElementById('btnContinue'),
+    btnPanel:document.getElementById('btnPanel'),
+    timeStat:document.getElementById('timeStat'),
+    goalStat:document.getElementById('goalStat'),
+    waterStat:document.getElementById('waterStat'),
+    heatStat:document.getElementById('heatStat'),
+    bigMsg:document.getElementById('bigMsg'),
+    bigTitle:document.getElementById('bigTitle'),
+    bigText:document.getElementById('bigText'),
+    stars:document.getElementById('stars'),
+    hintTag:document.getElementById('hintTag'),
+    levelDesc:document.getElementById('levelDesc')
+  };
+
+  function make2D(fill=0){
+    return Array.from({length:H}, ()=>Array(W).fill(fill));
+  }
+
+  function applyLevelData() {
+    const lv = levels[state.levelIndex];
+    state.water = make2D(0.14);
+    state.heat = make2D(0.18);
+    state.visit = make2D(0);
+    state.scoreMap = make2D(0);
+    state.roots = [{x:lv.start.x, y:lv.start.y, parent:-1, age:0, energy:1, alive:true}];
+    state.sprouts = [];
+    state.t = 0;
+    state.remain = lv.time;
+    state.paused = false;
+    state.won = false;
+    state.lost = false;
+    state.shadeUntil = 0;
+    state.sun = lv.sun;
+    state.evap = lv.evap;
+    ui.sun.value = lv.sun;
+    ui.evap.value = lv.evap;
+    refreshSliderLabels();
+    seedEnvironment(lv);
+    renderLevelButtons();
+    ui.levelDesc.textContent = `${lv.name}：${lv.desc}`;
+    ui.hintTag.textContent = state.view === 'top' ? '把地磚拖到能幫根降溫、但不要完全堵死縫隙的位置。' : '側視可以看見邊緣與土層裡根的生長；透明地磚更容易觀察。';
+  }
+
+  function seedEnvironment(lv){
+    for(let y=0;y<H;y++){
+      for(let x=0;x<W;x++){
+        const depth = y/(H-1);
+        state.water[y][x] = 0.08 + depth*0.16 + (Math.random()*0.02);
+        state.heat[y][x] = 0.12 + (1-depth)*0.10 + (Math.random()*0.03);
+      }
+    }
+    for(const b of lv.wetBands){
+      for(let y=b.y1;y<=b.y2;y++) for(let x=b.x1;x<=b.x2;x++) if(inBounds(x,y)) state.water[y][x]+=b.a*(0.8+Math.random()*0.25);
+    }
+    for(const b of lv.hotBands){
+      for(let y=b.y1;y<=b.y2;y++) for(let x=b.x1;x<=b.x2;x++) if(inBounds(x,y)) state.heat[y][x]+=b.a*(0.8+Math.random()*0.25);
+    }
+  }
+
+  function inBounds(x,y){ return x>=0 && y>=0 && x<W && y<H; }
+
+  function getTiles(){ return levels[state.levelIndex].tiles; }
+
+  function isRock(x,y){
+    return levels[state.levelIndex].rocks.some(r=>r.x===x && r.y===y);
+  }
+
+  function tileAt(x,y){
+    return getTiles().find(t => x>=t.x && x<t.x+t.w && y>=t.y && y<t.y+t.h);
+  }
+
+  function hasShade(x,y){
+    if (y < 4 && tileAt(x,1)) return true;
+    return !!tileAt(x,y<3?1:y);
+  }
+
+  function nearTileEdge(x,y){
+    const tiles = getTiles();
+    for(const t of tiles){
+      if (x>=t.x-1 && x<=t.x+t.w && y>=t.y-1 && y<=t.y+t.h) {
+        const inside = x>=t.x && x<t.x+t.w && y>=t.y && y<t.y+t.h;
+        if(!inside) return true;
+      }
+    }
+    return false;
+  }
+
+  function refreshSliderLabels(){
+    ui.speedOut.textContent = `${state.speed}×`;
+    ui.sunOut.textContent = `${state.sun}%`;
+    ui.evapOut.textContent = `${state.evap}%`;
+  }
+
+  function setView(view){
+    state.view = view;
+    ui.btnTop.classList.toggle('active', view==='top');
+    ui.btnSide.classList.toggle('active', view==='side');
+    ui.hintTag.textContent = view === 'top'
+      ? '俯視可直接拖拉地磚。透明模式可看到遮蔽下方的水熱分布與根路徑。'
+      : '側視剖面會看到土層、地磚邊緣與草往縫隙探出的過程。';
+  }
+
+  function showMsg(title, text, stars=''){
+    ui.bigTitle.textContent = title;
+    ui.bigText.textContent = text;
+    ui.stars.textContent = stars;
+    ui.bigMsg.classList.add('show');
+  }
+  function hideMsg(){ ui.bigMsg.classList.remove('show'); }
+
+  function calcStars(){
+    const ratio = state.remain / levels[state.levelIndex].time;
+    if (ratio > .55) return '★★★';
+    if (ratio > .28) return '★★☆';
+    return '★☆☆';
+  }
+
+  function update(dtReal){
+    if(state.paused || state.won || state.lost) return;
+    let dt = dtReal * state.speed;
+    state.t += dt;
+    state.remain -= dt;
+    if(state.remain <= 0){
+      state.remain = 0;
+      state.lost = true;
+      showMsg('失敗', '時間到了，草還沒找到足夠穩定的冷濕路徑。試著重新拖拉地磚。');
+      return;
+    }
+
+    const lv = levels[state.levelIndex];
+    const sun = state.sun/100;
+    const evap = state.evap/100;
+    const shadedBonus = state.t < state.shadeUntil ? 0.28 : 0;
+
+    for(let y=0;y<H;y++){
+      for(let x=0;x<W;x++){
+        const depth = y/(H-1);
+        const tile = tileAt(x, y<3 ? 1 : y);
+        const cover = tile ? 0.55 : 0;
+        const edgeCool = nearTileEdge(x,y) ? 0.03 : 0;
+        const topExposure = (1-depth) * (0.02 + sun*0.07);
+        const evapor = (1-depth) * (0.003 + evap*0.018) * (1-cover*0.7) * (1-shadedBonus*0.65);
+        const rainGain = 0;
+
+        // water diffusion
+        let neighborWater = 0, n = 0, neighborHeat = 0;
+        for (const [dx,dy] of rootDirs){
+          const nx=x+dx, ny=y+dy;
+          if(inBounds(nx,ny)){ neighborWater += state.water[ny][nx]; neighborHeat += state.heat[ny][nx]; n++; }
+        }
+        const wAvg = n?neighborWater/n:state.water[y][x];
+        const hAvg = n?neighborHeat/n:state.heat[y][x];
+
+        state.water[y][x] += (wAvg - state.water[y][x]) * 0.18 * dt;
+        state.water[y][x] -= evapor * dt;
+        state.water[y][x] += depth*0.003*dt;
+        state.water[y][x] = clamp(state.water[y][x], 0, 1);
+
+        state.heat[y][x] += (hAvg - state.heat[y][x]) * 0.12 * dt;
+        state.heat[y][x] += (topExposure - cover*0.013 - edgeCool - shadedBonus*0.018) * dt;
+        if(tile && y<=2) state.heat[y][x] += 0.008 * sun * dt; // 地磚蓄熱
+        state.heat[y][x] = clamp(state.heat[y][x], 0, 1);
+      }
+    }
+
+    // root growth
+    const attempts = Math.max(1, Math.floor(1 + state.speed * 0.18));
+    for(let k=0;k<attempts;k++){
+      growRoots(dt);
+      if(state.won || state.lost) break;
+    }
+
+    // sprouts animation
+    for(const s of state.sprouts) s.len = Math.min(1, s.len + dt*0.8);
+  }
+
+  function scoreCell(x,y){
+    const w = state.water[y][x];
+    const h = state.heat[y][x];
+    const shade = hasShade(x,y) ? .08 : 0;
+    const edge = nearTileEdge(x,y) ? .07 : 0;
+    const goal = levels[state.levelIndex].target;
+    const distGoal = Math.hypot(goal.x - x, goal.y - y);
+    const goalBias = clamp(1 - distGoal / 14, 0, 1) * 0.22;
+    const topPenalty = y < 1 ? 0.14 : 0;
+    const rockPenalty = isRock(x,y) ? 0.9 : 0;
+    return w*0.62 + (1-h)*0.42 + shade + edge + goalBias - topPenalty - rockPenalty;
+  }
+
+  function growRoots(dt){
+    const candidates = state.roots.filter(r => r.alive);
+    if(!candidates.length){
+      state.lost = true;
+      showMsg('失敗', '根系在過熱或過乾區域耗盡了活力。');
+      return;
+    }
+    // 前端優先，讓成長更像「往前爬」
+    const tip = candidates.reduce((a,b)=> (a.age < b.age ? a : b));
+    const x = tip.x, y = tip.y;
+
+    let best = null;
+    let bestScore = -1e9;
+    for(const [dx,dy] of rootDirs){
+      const nx=x+dx, ny=y+dy;
+      if(!inBounds(nx,ny) || isRock(nx,ny)) continue;
+      const crowded = state.visit[ny][nx] * 0.22;
+      const s = scoreCell(nx,ny) - crowded + (Math.random()-0.5)*0.05;
+      if(s > bestScore){ bestScore = s; best = {x:nx,y:ny}; }
+    }
+    if(!best || bestScore < -0.3){
+      tip.alive = false;
+      return;
+    }
+
+    const localWater = state.water[best.y][best.x];
+    const localHeat = state.heat[best.y][best.x];
+    if(localWater < 0.05 || localHeat > 0.92){
+      tip.alive = false;
+      return;
+    }
+
+    if(state.visit[best.y][best.x] < 0.95 || Math.random() < 0.15){
+      state.roots.unshift({x:best.x,y:best.y,parent:0,age:0,energy:1,alive:true});
+      state.visit[best.y][best.x] = clamp(state.visit[best.y][best.x] + 0.30, 0, 1);
+      state.water[best.y][best.x] = clamp(state.water[best.y][best.x] - 0.01, 0, 1);
+    } else {
+      tip.alive = false;
+    }
+
+    // branching near moist cool edges
+    if(localWater > 0.22 && localHeat < 0.48 && nearTileEdge(best.x,best.y) && Math.random() < 0.12){
+      for(const [dx,dy] of rootDirs){
+        const bx=best.x+dx, by=best.y+dy;
+        if(inBounds(bx,by) && !isRock(bx,by) && state.visit[by][bx] < 0.35){
+          state.roots.unshift({x:bx,y:by,parent:0,age:0,energy:1,alive:true});
+          state.visit[by][bx] = clamp(state.visit[by][bx] + 0.18, 0, 1);
+          break;
+        }
+      }
+    }
+
+    for(const r of state.roots) r.age += dt;
+
+    const target = levels[state.levelIndex].target;
+    const dist = Math.hypot(best.x-target.x, best.y-target.y);
+    if(dist < 1.1 && best.y <= 2 && localWater > 0.10 && localHeat < 0.68){
+      state.won = true;
+      state.sprouts.push({x:target.x, y:target.y, len:0});
+      showMsg('突破成功', '草找到一條又濕又不會被烤乾的路，順利從縫隙鑽出。', calcStars());
+    } else if(best.y <= 2 && Math.abs(best.x-target.x) <= 1.2 && localWater > 0.10 && localHeat < 0.70 && Math.random()<0.08){
+      state.sprouts.push({x:best.x, y:best.y, len:0});
+    }
+  }
+
+  function rain(){
+    for(let x=0;x<W;x++){
+      const center = Math.floor(Math.random()*W);
+      for(let y=0;y<H;y++){
+        const dist = Math.abs(x-center);
+        const gain = Math.max(0, 0.18 - dist*0.018) * (1-y/H*0.18);
+        state.water[y][x] = clamp(state.water[y][x] + gain, 0, 1);
+        state.heat[y][x] = clamp(state.heat[y][x] - gain*0.3, 0, 1);
+      }
+    }
+  }
+
+  function resize(){
+    const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+    const rect = cv.getBoundingClientRect();
+    cv.width = Math.round(rect.width * dpr);
+    cv.height = Math.round(rect.height * dpr);
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+  }
+
+  function cellRectTop(x,y, area){
+    const pad = 24;
+    const boardW = area.w - pad*2;
+    const boardH = area.h - pad*2;
+    const cw = boardW / W;
+    const ch = boardH / H;
+    return {x:area.x+pad+x*cw, y:area.y+pad+y*ch, w:cw, h:ch};
+  }
+
+  function draw(){
+    const rect = cv.getBoundingClientRect();
+    ctx.clearRect(0,0,rect.width,rect.height);
+    const area = {x:0,y:0,w:rect.width,h:rect.height};
+
+    if(state.view === 'top') drawTop(area);
+    else drawSide(area);
+
+    updateStats();
+  }
+
+  function drawTop(area){
+    // board
+    const pad = 24;
+    const boardW = area.w - pad*2;
+    const boardH = area.h - pad*2;
+    const cw = boardW / W;
+    const ch = boardH / H;
+
+    // cells
+    for(let y=0;y<H;y++){
+      for(let x=0;x<W;x++){
+        const r = cellRectTop(x,y,area);
+        const water = state.water[y][x];
+        const heat = state.heat[y][x];
+        const soil = 42 + Math.floor(36*(1-y/H));
+        const base = `rgb(${soil+12}, ${soil-4}, ${soil-16})`;
+        ctx.fillStyle = base;
+        ctx.fillRect(r.x, r.y, r.w+0.5, r.h+0.5);
+
+        if(water>0.02){
+          ctx.fillStyle = `rgba(101,200,255,${water*0.78})`;
+          ctx.fillRect(r.x, r.y, r.w+0.5, r.h+0.5);
+        }
+        if(heat>0.02){
+          ctx.fillStyle = `rgba(255,110,82,${heat*0.55})`;
+          ctx.fillRect(r.x, r.y, r.w+0.5, r.h+0.5);
+        }
+        ctx.strokeStyle = 'rgba(255,255,255,.05)';
+        ctx.strokeRect(r.x, r.y, r.w, r.h);
+      }
+    }
+
+    // target seam glow
+    const tgt = levels[state.levelIndex].target;
+    const tr = cellRectTop(tgt.x, 0, area);
+    ctx.fillStyle = 'rgba(143,255,171,.22)';
+    ctx.fillRect(tr.x, tr.y, tr.w, ch*3);
+    ctx.strokeStyle = 'rgba(143,255,171,.95)';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(tr.x+2, tr.y+2, tr.w-4, ch*2.6);
+
+    // tiles
+    for(const [i,t] of getTiles().entries()){
+      const r = cellRectTop(t.x, t.y, area);
+      const rw = t.w * cw, rh = t.h * ch;
+      ctx.save();
+      ctx.globalAlpha = state.transparent ? 0.35 : 0.95;
+      const grad = ctx.createLinearGradient(r.x,r.y,r.x,r.y+rh);
+      grad.addColorStop(0, '#b4bcc4');
+      grad.addColorStop(1, '#858f98');
+      ctx.fillStyle = grad;
+      roundRect(ctx, r.x+2, r.y+2, rw-4, rh-4, 9, true, false);
+      ctx.restore();
+
+      ctx.strokeStyle = i===state.dragTileIndex ? '#fff6b5' : 'rgba(255,255,255,.18)';
+      ctx.lineWidth = 2;
+      roundRect(ctx, r.x+2, r.y+2, rw-4, rh-4, 9, false, true);
+
+      if(!state.transparent){
+        ctx.fillStyle = 'rgba(0,0,0,.18)';
+        ctx.fillRect(r.x+6, r.y+rh-9, rw-12, 4);
+      }
+    }
+
+    // rocks
+    for(const rock of levels[state.levelIndex].rocks){
+      const r = cellRectTop(rock.x, rock.y, area);
+      ctx.fillStyle = '#2a3138';
+      roundRect(ctx, r.x+5, r.y+5, r.w-10, r.h-10, 8, true, false);
+    }
+
+    // roots
+    ctx.save();
+    ctx.lineCap = 'round';
+    for(const rt of state.roots){
+      const r = cellRectTop(rt.x, rt.y, area);
+      const cx = r.x + r.w/2, cy = r.y + r.h/2;
+      const a = 0.20 + state.visit[rt.y][rt.x] * 0.8;
+      ctx.strokeStyle = state.rootsHighlight ? `rgba(140,255,175,${a})` : `rgba(134,209,152,${a*0.65})`;
+      ctx.lineWidth = state.rootsHighlight ? 3.0 : 2.0;
+      if(rt.parent >= 0 && state.roots[rt.parent]){
+        const pr = cellRectTop(state.roots[rt.parent].x, state.roots[rt.parent].y, area);
+        ctx.beginPath();
+        ctx.moveTo(pr.x+pr.w/2, pr.y+pr.h/2);
+        ctx.lineTo(cx, cy);
+        ctx.stroke();
+      } else {
+        ctx.beginPath(); ctx.arc(cx,cy,3.2,0,Math.PI*2); ctx.fillStyle='rgba(156,255,183,.9)'; ctx.fill();
+      }
+    }
+    ctx.restore();
+
+    // sprouts
+    for(const sp of state.sprouts){
+      const r = cellRectTop(sp.x, Math.max(0, sp.y-1), area);
+      const baseX = r.x + r.w/2, baseY = r.y + r.h*0.7;
+      ctx.strokeStyle = 'rgba(111,255,105,.95)';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(baseX, baseY);
+      ctx.quadraticCurveTo(baseX+6, baseY-r.h*0.9*sp.len, baseX+2, baseY-r.h*1.6*sp.len);
+      ctx.stroke();
+      ctx.fillStyle = 'rgba(147,255,123,.95)';
+      ctx.beginPath();
+      ctx.ellipse(baseX+4, baseY-r.h*1.5*sp.len, 5, 3, -.4, 0, Math.PI*2);
+      ctx.fill();
+    }
+
+    // labels
+    ctx.fillStyle = 'rgba(255,255,255,.85)';
+    ctx.font = '12px sans-serif';
+    ctx.fillText('表層', area.x+8, area.y+16);
+  }
+
+  function drawSide(area){
+    const left = 52, right = 32, top = 56, bottom = 36;
+    const soilTop = area.y + top;
+    const soilBottom = area.h - bottom;
+    const soilH = soilBottom - soilTop;
+    const colW = (area.w - left - right) / W;
+    const depthH = soilH / H;
+
+    // sky and soil
+    const skyGrad = ctx.createLinearGradient(0,0,0,soilTop);
+    skyGrad.addColorStop(0, '#1a2630');
+    skyGrad.addColorStop(1, '#11181e');
+    ctx.fillStyle = skyGrad;
+    ctx.fillRect(0,0,area.w,soilTop);
+
+    const soilGrad = ctx.createLinearGradient(0,soilTop,0,soilBottom);
+    soilGrad.addColorStop(0, '#5a4330');
+    soilGrad.addColorStop(1, '#2d2118');
+    ctx.fillStyle = soilGrad;
+    ctx.fillRect(left,soilTop,area.w-left-right,soilH);
+
+    // columns
+    for(let x=0;x<W;x++){
+      for(let y=0;y<H;y++){
+        const px = left + x*colW, py = soilTop + y*depthH;
+        const water = state.water[y][x], heat = state.heat[y][x];
+        ctx.fillStyle = `rgba(96,73,55,.65)`;
+        ctx.fillRect(px, py, colW+0.5, depthH+0.5);
+        if(water>0.02){ ctx.fillStyle = `rgba(101,200,255,${water*0.75})`; ctx.fillRect(px,py,colW+0.5,depthH+0.5); }
+        if(heat>0.02){ ctx.fillStyle = `rgba(255,110,82,${heat*0.42})`; ctx.fillRect(px,py,colW+0.5,depthH+0.5); }
+      }
+    }
+
+    // tile blocks at top
+    for(const [i,t] of getTiles().entries()){
+      const x = left + t.x*colW, y = soilTop - 24, w = t.w*colW, h = 20;
+      ctx.save();
+      ctx.globalAlpha = state.transparent ? 0.28 : 0.96;
+      const grad = ctx.createLinearGradient(x,y,x,y+h);
+      grad.addColorStop(0,'#b6bec7'); grad.addColorStop(1,'#7e8791');
+      ctx.fillStyle = grad;
+      roundRect(ctx, x+1, y+1, w-2, h, 7, true, false);
+      ctx.restore();
+      ctx.strokeStyle = i===state.dragTileIndex ? '#ffe48c' : 'rgba(255,255,255,.18)';
+      ctx.lineWidth = 2;
+      roundRect(ctx, x+1, y+1, w-2, h, 7, false, true);
+
+      // edge shadows
+      if(!state.transparent){
+        ctx.fillStyle = 'rgba(0,0,0,.17)';
+        ctx.fillRect(x+3, y+h+1, 4, 6);
+        ctx.fillRect(x+w-7, y+h+1, 4, 6);
+      }
+    }
+
+    // target seam
+    const tgt = levels[state.levelIndex].target;
+    const tx = left + tgt.x*colW + colW*0.48;
+    ctx.strokeStyle = 'rgba(160,255,170,.95)';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(tx, soilTop-26);
+    ctx.lineTo(tx, soilTop+4);
+    ctx.stroke();
+
+    // rocks
+    for(const rock of levels[state.levelIndex].rocks){
+      const px = left + rock.x*colW + 3, py = soilTop + rock.y*depthH + 4;
+      ctx.fillStyle = '#2a3138';
+      roundRect(ctx, px, py, colW-6, depthH-8, 7, true, false);
+    }
+
+    // root network
+    ctx.save();
+    ctx.lineCap = 'round';
+    for(const rt of state.roots){
+      const x = left + rt.x*colW + colW/2;
+      const y = soilTop + rt.y*depthH + depthH/2;
+      const a = 0.22 + state.visit[rt.y][rt.x]*0.82;
+      ctx.strokeStyle = state.rootsHighlight ? `rgba(142,255,173,${a})` : `rgba(126,211,146,${a*0.65})`;
+      ctx.lineWidth = state.rootsHighlight ? 2.7 : 1.9;
+      if(rt.parent >= 0 && state.roots[rt.parent]){
+        const p = state.roots[rt.parent];
+        const px = left + p.x*colW + colW/2;
+        const py = soilTop + p.y*depthH + depthH/2;
+        ctx.beginPath();
+        ctx.moveTo(px,py);
+        // slight curve to look organic
+        const cx = lerp(px,x,0.5) + Math.sin((px+py+x+y)*0.02)*4;
+        const cy = lerp(py,y,0.5);
+        ctx.quadraticCurveTo(cx,cy,x,y);
+        ctx.stroke();
+      }
+    }
+    ctx.restore();
+
+    // visible grass at edges and sprouts
+    for(const sp of state.sprouts){
+      const baseX = left + sp.x*colW + colW/2;
+      const baseY = soilTop;
+      const len = 20 + sp.len*24;
+      ctx.strokeStyle = 'rgba(110,255,104,.96)';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(baseX, baseY+4);
+      ctx.quadraticCurveTo(baseX+4, baseY-len*0.5, baseX+1, baseY-len);
+      ctx.stroke();
+      ctx.fillStyle = 'rgba(156,255,118,.95)';
+      ctx.beginPath();
+      ctx.ellipse(baseX+5, baseY-len+4, 6, 3.5, -0.5, 0, Math.PI*2);
+      ctx.fill();
+    }
+
+    // little side-edge grass under tile edges
+    for(const t of getTiles()){
+      const edgeXs = [t.x, t.x+t.w-1];
+      for(const ex of edgeXs){
+        for(let y=1;y<5;y++){
+          if(state.visit[y][ex] > 0.15){
+            const baseX = left + ex*colW + (ex===t.x?4:colW-4);
+            const baseY = soilTop + y*depthH + depthH*0.35;
+            const len = 4 + state.visit[y][ex]*14;
+            ctx.strokeStyle = `rgba(119,255,106,${0.35+state.visit[y][ex]*0.7})`;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(baseX, baseY);
+            ctx.quadraticCurveTo(baseX + (ex===t.x?-5:5), baseY-len*0.5, baseX + (ex===t.x?-2:2), baseY-len);
+            ctx.stroke();
+          }
+        }
+      }
+    }
+
+    // axis labels
+    ctx.fillStyle = 'rgba(255,255,255,.82)';
+    ctx.font = '12px sans-serif';
+    ctx.fillText('地表', 12, soilTop+4);
+    ctx.fillText('土層', 12, soilTop+26);
+  }
+
+  function updateStats(){
+    let water = 0, heat = 0, count = 0, progress = 0;
+    const tgt = levels[state.levelIndex].target;
+    for(let y=0;y<H;y++) for(let x=0;x<W;x++){
+      water += state.water[y][x]; heat += state.heat[y][x]; count++;
+      const d = Math.hypot(x-tgt.x,y-tgt.y);
+      if(state.visit[y][x] > 0.1) progress = Math.max(progress, clamp(1-d/15,0,1));
+    }
+    ui.timeStat.textContent = `${state.remain.toFixed(1)}s`;
+    ui.goalStat.textContent = `${Math.round((state.won?1:progress)*100)}%`;
+    ui.waterStat.textContent = `${Math.round(water/count*100)}%`;
+    ui.heatStat.textContent = `${Math.round(heat/count*100)}%`;
+    ui.btnPause.textContent = state.paused ? '▶ 繼續' : '⏸ 暫停';
+  }
+
+  function roundRect(ctx,x,y,w,h,r,fill,stroke){
+    ctx.beginPath();
+    ctx.moveTo(x+r,y);
+    ctx.arcTo(x+w,y,x+w,y+h,r);
+    ctx.arcTo(x+w,y+h,x,y+h,r);
+    ctx.arcTo(x,y+h,x,y,r);
+    ctx.arcTo(x,y,x+w,y,r);
+    if(fill) ctx.fill();
+    if(stroke) ctx.stroke();
+  }
+
+  // interactions
+  function eventPos(e){
+    const rect = cv.getBoundingClientRect();
+    const pt = e.touches ? e.touches[0] : e;
+    return {x: pt.clientX - rect.left, y: pt.clientY - rect.top};
+  }
+
+  function hitTile(pos){
+    const rect = cv.getBoundingClientRect();
+    const area = {x:0,y:0,w:rect.width,h:rect.height};
+    if(state.view === 'top'){
+      const pad = 24, boardW = area.w-pad*2, boardH = area.h-pad*2, cw=boardW/W, ch=boardH/H;
+      for(const [i,t] of getTiles().entries()){
+        const x = pad + t.x*cw, y = pad + t.y*ch, w=t.w*cw, h=t.h*ch;
+        if(pos.x>=x && pos.x<=x+w && pos.y>=y && pos.y<=y+h){
+          return {index:i, offsetX:pos.x-x, cw};
+        }
+      }
+    } else {
+      const left=52,right=32,top=56,bottom=36, soilTop=top, soilBottom=area.h-bottom, soilH=soilBottom-soilTop, colW=(area.w-left-right)/W;
+      for(const [i,t] of getTiles().entries()){
+        const x = left + t.x*colW, y = soilTop-24, w=t.w*colW, h=20;
+        if(pos.x>=x && pos.x<=x+w && pos.y>=y && pos.y<=y+h){
+          return {index:i, offsetX:pos.x-x, colW};
+        }
+      }
+    }
+    return null;
+  }
+
+  function moveDraggedTile(pos){
+    if(state.dragTileIndex < 0) return;
+    const tiles = getTiles();
+    const t = tiles[state.dragTileIndex];
+    const rect = cv.getBoundingClientRect();
+    if(state.view === 'top'){
+      const pad=24, cw=(rect.width-pad*2)/W;
+      const newX = Math.round((pos.x - pad - state.dragOffset.x)/cw);
+      t.x = clamp(newX, 0, W-t.w);
+    } else {
+      const left=52,right=32, colW=(rect.width-left-right)/W;
+      const newX = Math.round((pos.x - left - state.dragOffset.x)/colW);
+      t.x = clamp(newX, 0, W-t.w);
+    }
+  }
+
+  cv.addEventListener('pointerdown', e=>{
+    const hit = hitTile(eventPos(e));
+    if(hit){
+      state.dragTileIndex = hit.index;
+      state.dragOffset.x = hit.offsetX;
+      cv.setPointerCapture(e.pointerId);
+    }
+  });
+  cv.addEventListener('pointermove', e=>{
+    if(state.dragTileIndex >= 0) moveDraggedTile(eventPos(e));
+  });
+  cv.addEventListener('pointerup', e=>{
+    state.dragTileIndex = -1;
+    try{ cv.releasePointerCapture(e.pointerId); }catch(_){}
+  });
+  cv.addEventListener('pointercancel', ()=>{ state.dragTileIndex = -1; });
+
+  // UI hooks
+  ui.speed.addEventListener('input', ()=>{ state.speed = +ui.speed.value; refreshSliderLabels(); });
+  ui.sun.addEventListener('input', ()=>{ state.sun = +ui.sun.value; refreshSliderLabels(); });
+  ui.evap.addEventListener('input', ()=>{ state.evap = +ui.evap.value; refreshSliderLabels(); });
+
+  ui.btnRain.onclick = ()=>rain();
+  ui.btnShade.onclick = ()=> state.shadeUntil = state.t + 4;
+  ui.btnReset.onclick = ()=>{ hideMsg(); applyLevelData(); };
+  ui.btnPause.onclick = ()=> state.paused = !state.paused;
+  ui.btnTop.onclick = ()=>setView('top');
+  ui.btnSide.onclick = ()=>setView('side');
+  ui.btnTransparent.onclick = ()=>{
+    state.transparent = !state.transparent;
+    ui.btnTransparent.textContent = `地磚透明：${state.transparent?'開':'關'}`;
+    ui.btnTransparent.classList.toggle('active', state.transparent);
+  };
+  ui.btnRoots.onclick = ()=>{
+    state.rootsHighlight = !state.rootsHighlight;
+    ui.btnRoots.textContent = `根系高亮：${state.rootsHighlight?'開':'關'}`;
+    ui.btnRoots.classList.toggle('active', state.rootsHighlight);
+  };
+  ui.btnPrev.onclick = ()=>{ state.levelIndex = (state.levelIndex + levels.length - 1) % levels.length; hideMsg(); applyLevelData(); };
+  ui.btnNext.onclick = ()=>{ state.levelIndex = (state.levelIndex + 1) % levels.length; hideMsg(); applyLevelData(); };
+  ui.btnContinue.onclick = ()=>{ 
+    hideMsg();
+    if(state.won){ state.levelIndex = (state.levelIndex + 1) % levels.length; applyLevelData(); }
+    else { applyLevelData(); }
+  };
+  ui.btnPanel.onclick = ()=> panel.classList.toggle('open');
+
+  document.querySelectorAll('[data-level]').forEach(btn=>{
+    btn.onclick = ()=>{
+      state.levelIndex = +btn.dataset.level;
+      hideMsg();
+      applyLevelData();
+    };
+  });
+
+  function renderLevelButtons(){
+    document.querySelectorAll('[data-level]').forEach(btn=>{
+      btn.classList.toggle('active', +btn.dataset.level === state.levelIndex);
+    });
+  }
+
+  window.addEventListener('resize', ()=>{ resize(); draw(); });
+
+  let last = performance.now();
+  function frame(now){
+    const dtReal = Math.min(0.05, (now-last)/1000);
+    last = now;
+    update(dtReal);
+    draw();
+    requestAnimationFrame(frame);
+  }
+
+  // boot
+  state.speed = +ui.speed.value;
+  refreshSliderLabels();
+  applyLevelData();
+  setView('top');
+  resize();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
