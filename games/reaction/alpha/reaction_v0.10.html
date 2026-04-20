@@ -1,0 +1,942 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>reaction</title>
+<style>
+  :root{
+    --bg:#0b1220;
+    --panel:#111a2bdd;
+    --panel2:#18243acc;
+    --line:#d9e7ff;
+    --water:#4ea9ff22;
+    --water2:#88d0ff33;
+    --a:#ffb14d;
+    --b:#59a6ff;
+    --c:#c07dff;
+    --d:#59d39f;
+    --muted:#b5c5dd;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%;overflow:hidden;background:radial-gradient(circle at 50% 20%, #17233d 0%, #0d1525 42%, #080d18 100%);font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#eef6ff}
+  #app{position:fixed;inset:0;overflow:hidden}
+  canvas{display:block;width:100%;height:100%}
+  #simCanvas{touch-action:none}
+
+  .hud{
+    position:fixed;inset:0;pointer-events:none;
+  }
+  .topLeft{
+    position:absolute;left:max(12px, env(safe-area-inset-left));top:max(12px, env(safe-area-inset-top));
+    display:flex;gap:8px;align-items:center;pointer-events:none;flex-wrap:wrap;max-width:min(58vw,560px);
+  }
+  .chip{
+    padding:8px 10px;border-radius:999px;background:rgba(17,26,43,.55);backdrop-filter:blur(10px);
+    border:1px solid rgba(217,231,255,.12);font-size:12px;display:flex;gap:8px;align-items:center;
+    box-shadow:0 10px 30px rgba(0,0,0,.2);
+  }
+  .dot{width:10px;height:10px;border-radius:50%}
+
+  .chartWrap{
+    position:absolute;right:max(12px, env(safe-area-inset-right));top:max(12px, env(safe-area-inset-top));
+    width:min(32vw, 340px);height:min(32vh, 260px);min-width:210px;min-height:150px;
+    background:linear-gradient(180deg, rgba(17,26,43,.72), rgba(17,26,43,.48));
+    border:1px solid rgba(217,231,255,.14);border-radius:22px;backdrop-filter:blur(12px);
+    box-shadow:0 20px 40px rgba(0,0,0,.25);overflow:hidden;pointer-events:none;
+  }
+  .chartHead{display:flex;justify-content:space-between;align-items:center;padding:10px 12px 0 12px;font-size:12px;color:var(--muted)}
+  .legend{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .legendItem{display:flex;gap:6px;align-items:center}
+  .legendLine{width:14px;height:3px;border-radius:3px}
+  #chartCanvas{width:100%;height:calc(100% - 32px)}
+
+  .bottomBar{
+    position:absolute;left:max(12px, env(safe-area-inset-left));right:max(12px, env(safe-area-inset-right));
+    bottom:max(12px, env(safe-area-inset-bottom));display:flex;justify-content:center;pointer-events:none;
+  }
+  .dock{
+    pointer-events:auto;display:flex;gap:10px;padding:10px;border-radius:24px;
+    background:rgba(17,26,43,.66);backdrop-filter:blur(14px);border:1px solid rgba(217,231,255,.12);
+    box-shadow:0 20px 44px rgba(0,0,0,.3);
+  }
+  .btn{
+    border:none;outline:none;background:linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.03));
+    color:#f2f7ff;border-radius:18px;min-width:58px;height:58px;padding:0 12px;display:flex;align-items:center;justify-content:center;
+    font-size:18px;font-weight:700;cursor:pointer;box-shadow:inset 0 1px 0 rgba(255,255,255,.08), 0 8px 22px rgba(0,0,0,.22);
+    border:1px solid rgba(255,255,255,.08);
+  }
+  .btn:active{transform:translateY(1px) scale(.985)}
+  .btn svg{width:24px;height:24px;display:block}
+  .btnA{color:var(--a)} .btnB{color:var(--b)} .btnDanger{color:#ffd2d2} .btnMore{color:#d9e7ff}
+  .btnSmall{min-width:46px;height:46px;font-size:14px;border-radius:15px}
+  .btnTiny{min-width:42px;height:42px;font-size:13px;border-radius:14px}
+  .btn.active{box-shadow:0 0 0 2px rgba(89,211,159,.35), inset 0 1px 0 rgba(255,255,255,.08), 0 8px 22px rgba(0,0,0,.22);}
+
+  #scrim{
+    position:fixed;inset:0;background:rgba(4,10,18,.34);backdrop-filter:blur(4px);opacity:0;pointer-events:none;transition:opacity .18s ease;
+  }
+  #scrim.show{opacity:1;pointer-events:auto}
+
+  #panel{
+    position:fixed;left:50%;bottom:calc(max(84px, env(safe-area-inset-bottom) + 84px));transform:translateX(-50%) translateY(18px) scale(.98);
+    width:min(720px, calc(100vw - 24px));padding:14px;background:linear-gradient(180deg, rgba(18,28,45,.92), rgba(12,19,32,.9));
+    border:1px solid rgba(217,231,255,.12);border-radius:26px;box-shadow:0 30px 80px rgba(0,0,0,.4);
+    opacity:0;pointer-events:none;transition:opacity .18s ease, transform .18s ease;backdrop-filter:blur(16px);
+  }
+  #panel.show{opacity:1;pointer-events:auto;transform:translateX(-50%) translateY(0) scale(1)}
+  .panelGrid{display:grid;grid-template-columns:repeat(4, minmax(0,1fr));gap:12px}
+  .group{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:20px;padding:12px}
+  .groupHead{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;color:#dfeaff;font-size:13px}
+  .row{display:flex;gap:8px;flex-wrap:wrap}
+  .badge{padding:4px 8px;border-radius:999px;font-size:12px;color:#d4e0f7;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08)}
+  .hint{font-size:11px;color:#9eb2d4;margin-top:8px;line-height:1.4}
+  .sp{display:flex;gap:8px;flex-wrap:wrap}
+  .subBtn{flex:1 1 auto}
+  .subBtn span{opacity:.88}
+
+  @media (max-width: 900px){
+    .chartWrap{width:min(42vw, 300px);height:min(26vh, 220px);min-width:180px}
+    .panelGrid{grid-template-columns:repeat(2, minmax(0,1fr))}
+  }
+  @media (max-width: 640px){
+    .chartWrap{right:10px;top:10px;width:min(48vw, 240px);height:min(24vh, 180px);min-width:165px;min-height:126px;border-radius:18px}
+    .chartHead{padding:8px 10px 0 10px;font-size:11px}
+    .legendLine{width:11px}
+    .dock{gap:8px;padding:8px;border-radius:22px}
+    .btn{min-width:54px;height:54px}
+    #panel{bottom:calc(max(76px, env(safe-area-inset-bottom) + 76px));border-radius:22px}
+    .group{padding:10px;border-radius:18px}
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <canvas id="simCanvas"></canvas>
+  <div class="hud">
+    <div class="topLeft">
+      <div class="chip"><span class="dot" style="background:var(--a)"></span><span id="countA">A 0</span></div>
+      <div class="chip"><span class="dot" style="background:var(--b)"></span><span id="countB">B 0</span></div>
+      <div class="chip"><span class="dot" style="background:var(--c)"></span><span id="countC">C 0</span></div>
+      <div class="chip"><span class="dot" style="background:var(--d)"></span><span id="countD">D 0</span></div>
+    </div>
+
+    <div class="chartWrap">
+      <div class="chartHead">
+        <div class="legend">
+          <div class="legendItem"><span class="legendLine" style="background:var(--a)"></span><span>A</span></div>
+          <div class="legendItem"><span class="legendLine" style="background:var(--b)"></span><span>B</span></div>
+          <div class="legendItem"><span class="legendLine" style="background:var(--c)"></span><span>C</span></div>
+        </div>
+        <div id="statusMini">25°C</div>
+      </div>
+      <canvas id="chartCanvas"></canvas>
+    </div>
+
+    <div class="bottomBar">
+      <div class="dock">
+        <button class="btn btnA" id="addA" title="放入 A">A</button>
+        <button class="btn btnB" id="addB" title="放入 B">B</button>
+        <button class="btn btnDanger" id="clearBtn" title="清空">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M7 6l1 14h8l1-14"/>
+          </svg>
+        </button>
+        <button class="btn btnMore" id="moreBtn" title="更多">
+          <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="6" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="18" cy="12" r="1.8"/></svg>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div id="scrim"></div>
+
+  <div id="panel" aria-hidden="true">
+    <div class="panelGrid">
+      <div class="group">
+        <div class="groupHead"><span>濃度</span><span class="badge" id="waterBadge">50%</span></div>
+        <div class="row">
+          <button class="btn btnSmall subBtn" id="addWater" title="加水">💧+</button>
+          <button class="btn btnSmall subBtn" id="removeWater" title="去水">💧−</button>
+        </div>
+        <div class="hint">加水稀釋，去水濃縮。</div>
+      </div>
+
+      <div class="group">
+        <div class="groupHead"><span>溫度</span><span class="badge" id="tempBadge">25°C</span></div>
+        <div class="row">
+          <button class="btn btnSmall subBtn" id="coolBtn" title="降溫">🧊</button>
+          <button class="btn btnSmall subBtn" id="heatBtn" title="升溫">🔥</button>
+        </div>
+        <div class="hint">每增加 10°C，反應速率約加倍。</div>
+      </div>
+
+      <div class="group">
+        <div class="groupHead"><span>催化劑</span><span class="badge" id="catBadge">OFF</span></div>
+        <div class="row">
+          <button class="btn btnSmall subBtn" id="toggleCatalyst" title="加入 / 移除催化劑 D">D</button>
+        </div>
+        <div class="hint">D 會暫時附著在 A 或 B 上，促進形成 C，反應後再脫離。</div>
+      </div>
+
+      <div class="group">
+        <div class="groupHead"><span>表面積</span><span class="badge" id="surfaceBadge">1/1</span></div>
+        <div class="sp">
+          <button class="btn btnTiny surfaceBtn" data-surface="1">1/1</button>
+          <button class="btn btnTiny surfaceBtn" data-surface="2">1/2</button>
+          <button class="btn btnTiny surfaceBtn" data-surface="3">1/3</button>
+          <button class="btn btnTiny surfaceBtn" data-surface="4">1/4</button>
+        </div>
+        <div class="hint">分得越細，總量不變，但接觸機會上升。</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  const simCanvas = document.getElementById('simCanvas');
+  const simCtx = simCanvas.getContext('2d');
+  const chartCanvas = document.getElementById('chartCanvas');
+  const chartCtx = chartCanvas.getContext('2d');
+
+  const $ = (id) => document.getElementById(id);
+  const counts = { A: $('countA'), B: $('countB'), C: $('countC'), D: $('countD') };
+  const statusMini = $('statusMini');
+  const tempBadge = $('tempBadge');
+  const waterBadge = $('waterBadge');
+  const catBadge = $('catBadge');
+  const surfaceBadge = $('surfaceBadge');
+  const panel = $('panel');
+  const scrim = $('scrim');
+  const moreBtn = $('moreBtn');
+  const catalystBtn = $('toggleCatalyst');
+
+  const COLORS = {
+    A: '#ffb14d',
+    B: '#59a6ff',
+    C: '#c07dff',
+    D: '#59d39f'
+  };
+
+  let dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+
+  const world = {
+    scale: 1,
+    x: 0,
+    y: 0,
+    targetScale: 1,
+    minScale: 0.55,
+    maxScale: 2.4,
+  };
+
+  const beaker = {
+    x: 0,
+    y: 0,
+    w: 420,
+    h: 560,
+    wall: 24,
+    liquidFill: 0.50,
+  };
+
+  const state = {
+    particles: [],
+    nextId: 1,
+    temperature: 25,
+    surfaceDiv: 1,
+    catalystOn: false,
+    lastTs: 0,
+    spawnCooldown: 0,
+    reactionsSinceSample: 0,
+    chart: [],
+    chartT: 0,
+    flash: 0,
+  };
+
+  const pointers = new Map();
+  let pinchStart = null;
+  let lastSinglePointer = null;
+
+  function resizeCanvas() {
+    dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+    const rect1 = simCanvas.getBoundingClientRect();
+    simCanvas.width = Math.round(rect1.width * dpr);
+    simCanvas.height = Math.round(rect1.height * dpr);
+    simCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    const rect2 = chartCanvas.getBoundingClientRect();
+    chartCanvas.width = Math.round(rect2.width * dpr);
+    chartCanvas.height = Math.round(rect2.height * dpr);
+    chartCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    if (world.x === 0 && world.y === 0) centerWorld();
+  }
+
+  function centerWorld() {
+    const vw = simCanvas.clientWidth;
+    const vh = simCanvas.clientHeight;
+    world.x = vw * 0.47;
+    world.y = vh * 0.52;
+  }
+
+  function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+  function rand(min, max) { return min + Math.random() * (max - min); }
+  function dist(ax, ay, bx, by) { const dx = bx - ax, dy = by - ay; return Math.hypot(dx, dy); }
+  function tempRateMultiplier() { return Math.pow(2, (state.temperature - 25) / 10); }
+  function surfaceRateMultiplier() { return Math.sqrt(state.surfaceDiv); }
+  function waterPercent() { return Math.round(beaker.liquidFill * 100); }
+
+  function getBounds() {
+    const left = beaker.x - beaker.w / 2 + beaker.wall;
+    const right = beaker.x + beaker.w / 2 - beaker.wall;
+    const bottom = beaker.y + beaker.h / 2 - beaker.wall;
+    const fullTop = beaker.y - beaker.h / 2 + beaker.wall + 26;
+    const liquidHeight = (beaker.h - beaker.wall * 2 - 28) * beaker.liquidFill;
+    const liquidTop = bottom - liquidHeight;
+    return { left, right, bottom, liquidTop };
+  }
+
+  function updateBadges() {
+    tempBadge.textContent = `${state.temperature}°C`;
+    statusMini.textContent = `${state.temperature}°C`;
+    waterBadge.textContent = `${waterPercent()}%`;
+    surfaceBadge.textContent = `1/${state.surfaceDiv}`;
+    catBadge.textContent = state.catalystOn ? 'ON' : 'OFF';
+    catalystBtn.classList.toggle('active', state.catalystOn);
+    document.querySelectorAll('.surfaceBtn').forEach(btn => btn.classList.toggle('active', Number(btn.dataset.surface) === state.surfaceDiv));
+  }
+
+  function particleCounts() {
+    let A = 0, B = 0, C = 0, D = 0;
+    for (const p of state.particles) {
+      if (p.dead) continue;
+      if (p.type === 'D') {
+        if (!p.attachedTo) D++;
+      } else if (p.type === 'A') A++;
+      else if (p.type === 'B') B++;
+      else if (p.type === 'C') C++;
+    }
+    counts.A.textContent = `A ${A}`;
+    counts.B.textContent = `B ${B}`;
+    counts.C.textContent = `C ${C}`;
+    counts.D.textContent = `D ${D}`;
+  }
+
+  function spawnParticle(type, x, y, opts = {}) {
+    const p = {
+      id: state.nextId++,
+      type,
+      x, y,
+      vx: opts.vx ?? rand(-26, 26),
+      vy: opts.vy ?? rand(-26, 26),
+      r: opts.r ?? 9,
+      color: COLORS[type],
+      dead: false,
+      activated: false,
+      activatedUntil: 0,
+      catalystId: null,
+      attachedTo: null,
+      pulse: rand(0, Math.PI * 2),
+      bornAt: state.chartT,
+    };
+    state.particles.push(p);
+    return p;
+  }
+
+  function randomLiquidPosition(margin = 12) {
+    const b = getBounds();
+    return {
+      x: rand(b.left + margin, b.right - margin),
+      y: rand(b.liquidTop + margin, b.bottom - margin),
+    };
+  }
+
+  function addBatch(type, batches = 1) {
+    const div = state.surfaceDiv;
+    const piecesPerBatch = 4 * div;
+    const r = 12 / Math.sqrt(div);
+    for (let b = 0; b < batches; b++) {
+      const center = randomLiquidPosition(28);
+      for (let i = 0; i < piecesPerBatch; i++) {
+        const a = (Math.PI * 2 * i) / piecesPerBatch + rand(-0.3, 0.3);
+        const rr = rand(0, 18);
+        const x = center.x + Math.cos(a) * rr;
+        const y = center.y + Math.sin(a) * rr;
+        spawnParticle(type, x, y, {
+          r,
+          vx: rand(-24, 24),
+          vy: rand(-24, 24),
+        });
+      }
+    }
+    particleCounts();
+  }
+
+  function ensureCatalysts() {
+    state.particles = state.particles.filter(p => !(p.type === 'D' && !state.catalystOn && !p.attachedTo));
+    if (!state.catalystOn) {
+      for (const p of state.particles) {
+        if (p.type === 'D') p.dead = true;
+      }
+      state.particles = state.particles.filter(p => !p.dead);
+      particleCounts();
+      return;
+    }
+    const freeD = state.particles.filter(p => p.type === 'D' && !p.attachedTo && !p.dead).length;
+    const need = Math.max(0, 3 - freeD);
+    for (let i = 0; i < need; i++) {
+      const pos = randomLiquidPosition(28);
+      spawnParticle('D', pos.x, pos.y, { r: 8, vx: rand(-22, 22), vy: rand(-22, 22) });
+    }
+    particleCounts();
+  }
+
+  function togglePanel(force) {
+    const show = force ?? !panel.classList.contains('show');
+    panel.classList.toggle('show', show);
+    scrim.classList.toggle('show', show);
+    panel.setAttribute('aria-hidden', show ? 'false' : 'true');
+  }
+
+  function releaseCatalyst(catalyst, host, angle = Math.random() * Math.PI * 2) {
+    if (!catalyst || catalyst.dead) return;
+    catalyst.attachedTo = null;
+    catalyst.x = host.x + Math.cos(angle) * (host.r + catalyst.r + 4);
+    catalyst.y = host.y + Math.sin(angle) * (host.r + catalyst.r + 4);
+    catalyst.vx = host.vx + Math.cos(angle) * 16;
+    catalyst.vy = host.vy + Math.sin(angle) * 16;
+    host.activated = false;
+    host.catalystId = null;
+  }
+
+  function attachCatalyst(host, catalyst) {
+    if (!host || !catalyst || host.type === 'C' || host.type === 'D') return;
+    if (host.activated || catalyst.attachedTo) return;
+    host.activated = true;
+    host.activatedUntil = state.chartT + 4.0;
+    host.catalystId = catalyst.id;
+    catalyst.attachedTo = host.id;
+    catalyst.vx = 0;
+    catalyst.vy = 0;
+  }
+
+  function getCatalystById(id) {
+    return state.particles.find(p => p.id === id && !p.dead) || null;
+  }
+
+  function react(a, b) {
+    if (a.dead || b.dead) return;
+    const x = (a.x + b.x) * 0.5;
+    const y = (a.y + b.y) * 0.5;
+    const vx = (a.vx + b.vx) * 0.5;
+    const vy = (a.vy + b.vy) * 0.5;
+    const cr = Math.max(10, Math.sqrt(a.r * a.r + b.r * b.r) * 0.92);
+
+    const catA = a.activated ? getCatalystById(a.catalystId) : null;
+    const catB = b.activated ? getCatalystById(b.catalystId) : null;
+
+    a.dead = true;
+    b.dead = true;
+
+    const c = spawnParticle('C', x, y, { r: cr, vx, vy });
+    c.vx += rand(-8, 8);
+    c.vy += rand(-8, 8);
+
+    if (catA) {
+      catA.attachedTo = null;
+      catA.x = x + rand(-14, 14);
+      catA.y = y + rand(-14, 14);
+      catA.vx = vx + rand(-14, 14);
+      catA.vy = vy + rand(-14, 14);
+    }
+    if (catB) {
+      catB.attachedTo = null;
+      catB.x = x + rand(-14, 14);
+      catB.y = y + rand(-14, 14);
+      catB.vx = vx + rand(-14, 14);
+      catB.vy = vy + rand(-14, 14);
+    }
+
+    state.reactionsSinceSample += 1;
+    state.flash = 0.6;
+  }
+
+  function handleCollisions(dt) {
+    const arr = state.particles;
+    for (let i = 0; i < arr.length; i++) {
+      const p = arr[i];
+      if (p.dead) continue;
+      for (let j = i + 1; j < arr.length; j++) {
+        const q = arr[j];
+        if (q.dead) continue;
+        if (p.attachedTo || q.attachedTo) continue;
+        const dx = q.x - p.x;
+        const dy = q.y - p.y;
+        const d = Math.hypot(dx, dy);
+        const minD = p.r + q.r;
+        if (d >= minD || d === 0) continue;
+
+        const nx = dx / d;
+        const ny = dy / d;
+        const overlap = minD - d;
+        p.x -= nx * overlap * 0.5;
+        p.y -= ny * overlap * 0.5;
+        q.x += nx * overlap * 0.5;
+        q.y += ny * overlap * 0.5;
+
+        const rvx = q.vx - p.vx;
+        const rvy = q.vy - p.vy;
+        const sepVel = rvx * nx + rvy * ny;
+        if (sepVel < 0) {
+          const impulse = -1.02 * sepVel;
+          p.vx -= impulse * nx * 0.5;
+          p.vy -= impulse * ny * 0.5;
+          q.vx += impulse * nx * 0.5;
+          q.vy += impulse * ny * 0.5;
+        }
+
+        const pq = `${p.type}${q.type}`;
+        const isAB = pq === 'AB' || pq === 'BA';
+        const isPD = (p.type === 'D' && (q.type === 'A' || q.type === 'B')) || (q.type === 'D' && (p.type === 'A' || p.type === 'B'));
+
+        if (state.catalystOn && isPD) {
+          if (p.type === 'D') attachCatalyst(q, p);
+          else attachCatalyst(p, q);
+          continue;
+        }
+
+        if (isAB) {
+          let catalystFactor = 1;
+          if (p.activated || q.activated) catalystFactor = 3.2;
+          const k = 0.22 * tempRateMultiplier() * surfaceRateMultiplier() * catalystFactor;
+          const chance = 1 - Math.exp(-k * dt);
+          if (Math.random() < chance) {
+            react(p.type === 'A' ? p : q, p.type === 'B' ? p : q);
+          }
+        }
+      }
+    }
+
+    state.particles = state.particles.filter(p => !p.dead);
+  }
+
+  function keepInsideLiquid(p) {
+    const b = getBounds();
+    const left = b.left + p.r;
+    const right = b.right - p.r;
+    const top = b.liquidTop + p.r;
+    const bottom = b.bottom - p.r;
+
+    if (p.x < left) { p.x = left; p.vx = Math.abs(p.vx) * 0.9; }
+    if (p.x > right) { p.x = right; p.vx = -Math.abs(p.vx) * 0.9; }
+    if (p.y < top) { p.y = top; p.vy = Math.abs(p.vy) * 0.9; }
+    if (p.y > bottom) { p.y = bottom; p.vy = -Math.abs(p.vy) * 0.9; }
+  }
+
+  function update(dt) {
+    state.chartT += dt;
+    state.flash = Math.max(0, state.flash - dt);
+
+    const drift = 14 + state.temperature * 0.25;
+    const damp = 0.995;
+
+    for (const p of state.particles) {
+      if (p.dead) continue;
+      if (p.type === 'D' && p.attachedTo) {
+        const host = state.particles.find(x => x.id === p.attachedTo && !x.dead);
+        if (!host) {
+          p.attachedTo = null;
+        } else {
+          p.x = host.x + Math.cos(state.chartT * 8 + host.id) * (host.r + 5);
+          p.y = host.y + Math.sin(state.chartT * 8 + host.id) * (host.r + 5);
+          if (host.activatedUntil <= state.chartT) releaseCatalyst(p, host);
+          continue;
+        }
+      }
+
+      const jitterMul = p.type === 'C' ? 0.5 : 1;
+      p.vx += rand(-drift, drift) * dt * jitterMul;
+      p.vy += rand(-drift, drift) * dt * jitterMul;
+      p.vx *= damp;
+      p.vy *= damp;
+      const speedLimit = (p.type === 'D' ? 58 : p.type === 'C' ? 42 : 52) * (0.9 + state.temperature * 0.01);
+      const sp = Math.hypot(p.vx, p.vy);
+      if (sp > speedLimit) {
+        p.vx = (p.vx / sp) * speedLimit;
+        p.vy = (p.vy / sp) * speedLimit;
+      }
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      keepInsideLiquid(p);
+    }
+
+    handleCollisions(dt);
+
+    if (state.chartT >= (state.lastSampleAt || 0) + 0.25) {
+      const now = state.chartT;
+      const rate = state.reactionsSinceSample / 0.25;
+      const cCount = state.particles.filter(p => p.type === 'C' && !p.dead).length;
+      state.chart.push({ t: now, aRate: rate, bRate: rate, cCount });
+      state.reactionsSinceSample = 0;
+      state.lastSampleAt = now;
+      while (state.chart.length && now - state.chart[0].t > 60) state.chart.shift();
+      particleCounts();
+    }
+  }
+
+  function drawBeaker(ctx) {
+    const { w, h } = beaker;
+    const x = beaker.x - w / 2;
+    const y = beaker.y - h / 2;
+    const radius = 34;
+    const b = getBounds();
+
+    ctx.save();
+    ctx.lineWidth = 5;
+    ctx.strokeStyle = 'rgba(228,241,255,0.92)';
+    ctx.fillStyle = 'rgba(255,255,255,0.02)';
+    ctx.shadowColor = 'rgba(123,189,255,0.12)';
+    ctx.shadowBlur = 20;
+
+    ctx.beginPath();
+    ctx.moveTo(x + 24, y + 8);
+    ctx.lineTo(x + 24, y + h - radius);
+    ctx.quadraticCurveTo(x + 24, y + h - 8, x + 24 + radius, y + h - 8);
+    ctx.lineTo(x + w - 24 - radius, y + h - 8);
+    ctx.quadraticCurveTo(x + w - 24, y + h - 8, x + w - 24, y + h - radius);
+    ctx.lineTo(x + w - 24, y + 8);
+    ctx.stroke();
+
+    ctx.fillStyle = 'rgba(60,120,200,0.03)';
+    ctx.fillRect(x + 24, y + 14, w - 48, h - 20);
+
+    const liquidX = b.left;
+    const liquidY = b.liquidTop;
+    const liquidW = b.right - b.left;
+    const liquidH = b.bottom - b.liquidTop;
+
+    const grad = ctx.createLinearGradient(0, liquidY, 0, b.bottom);
+    grad.addColorStop(0, 'rgba(96,195,255,0.18)');
+    grad.addColorStop(1, 'rgba(49,125,255,0.12)');
+    ctx.fillStyle = grad;
+    roundRect(ctx, liquidX, liquidY, liquidW, liquidH, 20, true, false);
+
+    const topGrad = ctx.createLinearGradient(0, liquidY - 8, 0, liquidY + 10);
+    topGrad.addColorStop(0, 'rgba(180,235,255,0.22)');
+    topGrad.addColorStop(1, 'rgba(180,235,255,0.02)');
+    ctx.fillStyle = topGrad;
+    ctx.beginPath();
+    ctx.ellipse(beaker.x, liquidY + 1.5, liquidW / 2, 7, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.shadowBlur = 0;
+    const markerY = y + h * 0.5;
+    ctx.setLineDash([8, 9]);
+    ctx.strokeStyle = 'rgba(220,235,255,0.17)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(x + 42, markerY);
+    ctx.lineTo(x + w - 42, markerY);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+  }
+
+  function roundRect(ctx, x, y, w, h, r, fill, stroke) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    if (fill) ctx.fill();
+    if (stroke) ctx.stroke();
+  }
+
+  function drawParticles(ctx) {
+    for (const p of state.particles) {
+      if (p.dead || p.attachedTo) continue;
+      const glow = p.type === 'C' ? 16 : p.type === 'D' ? 14 : 10;
+      ctx.save();
+      ctx.shadowBlur = glow;
+      ctx.shadowColor = p.color;
+      if (p.type === 'D') {
+        ctx.strokeStyle = p.color;
+        ctx.lineWidth = 2.8;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.globalAlpha = 0.45;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, Math.max(2, p.r * 0.32), 0, Math.PI * 2);
+        ctx.fillStyle = p.color;
+        ctx.fill();
+      } else {
+        const rad = ctx.createRadialGradient(p.x - p.r * 0.35, p.y - p.r * 0.35, p.r * 0.2, p.x, p.y, p.r * 1.1);
+        rad.addColorStop(0, 'rgba(255,255,255,0.92)');
+        rad.addColorStop(0.28, p.color);
+        rad.addColorStop(1, shade(p.color, -25));
+        ctx.fillStyle = rad;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        ctx.fill();
+
+        if (p.activated) {
+          ctx.shadowBlur = 0;
+          ctx.strokeStyle = COLORS.D;
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.r + 4 + Math.sin(state.chartT * 10 + p.id) * 1.2, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+      }
+      ctx.restore();
+    }
+  }
+
+  function shade(hex, amt) {
+    let c = hex.replace('#', '');
+    const n = parseInt(c, 16);
+    let r = (n >> 16) + amt;
+    let g = ((n >> 8) & 255) + amt;
+    let b = (n & 255) + amt;
+    r = clamp(r, 0, 255); g = clamp(g, 0, 255); b = clamp(b, 0, 255);
+    return `rgb(${r},${g},${b})`;
+  }
+
+  function drawReactionGlow(ctx) {
+    if (state.flash <= 0) return;
+    const alpha = state.flash * 0.18;
+    const b = getBounds();
+    const g = ctx.createRadialGradient(beaker.x, (b.liquidTop + b.bottom) * 0.5, 20, beaker.x, (b.liquidTop + b.bottom) * 0.5, 240);
+    g.addColorStop(0, `rgba(192,125,255,${alpha})`);
+    g.addColorStop(1, 'rgba(192,125,255,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(beaker.x - 260, beaker.y - 260, 520, 520);
+  }
+
+  function render() {
+    const vw = simCanvas.clientWidth;
+    const vh = simCanvas.clientHeight;
+    simCtx.clearRect(0, 0, vw, vh);
+
+    const bgGrad = simCtx.createRadialGradient(vw * 0.45, vh * 0.34, 0, vw * 0.45, vh * 0.34, Math.max(vw, vh) * 0.9);
+    bgGrad.addColorStop(0, 'rgba(42,67,110,0.24)');
+    bgGrad.addColorStop(1, 'rgba(8,13,24,0)');
+    simCtx.fillStyle = bgGrad;
+    simCtx.fillRect(0, 0, vw, vh);
+
+    simCtx.save();
+    simCtx.translate(world.x, world.y);
+    simCtx.scale(world.scale, world.scale);
+
+    drawReactionGlow(simCtx);
+    drawBeaker(simCtx);
+    drawParticles(simCtx);
+
+    simCtx.restore();
+
+    drawChart();
+  }
+
+  function drawChart() {
+    const w = chartCanvas.clientWidth;
+    const h = chartCanvas.clientHeight;
+    chartCtx.clearRect(0, 0, w, h);
+
+    const padL = 12, padR = 10, padT = 8, padB = 14;
+    const gw = w - padL - padR;
+    const gh = h - padT - padB;
+
+    chartCtx.fillStyle = 'rgba(255,255,255,0.015)';
+    chartCtx.fillRect(0, 0, w, h);
+
+    chartCtx.strokeStyle = 'rgba(220,235,255,0.08)';
+    chartCtx.lineWidth = 1;
+    for (let i = 0; i <= 3; i++) {
+      const y = padT + (gh * i) / 3;
+      chartCtx.beginPath();
+      chartCtx.moveTo(padL, y);
+      chartCtx.lineTo(w - padR, y);
+      chartCtx.stroke();
+    }
+
+    if (state.chart.length < 2) return;
+    const minT = state.chart[0].t;
+    const maxT = state.chart[state.chart.length - 1].t;
+    const maxRate = Math.max(1, ...state.chart.map(d => Math.max(d.aRate, d.bRate)), ...state.chart.map(d => d.cCount * 0.08));
+    const scaleX = (t) => padL + ((t - minT) / Math.max(0.001, maxT - minT)) * gw;
+    const scaleY = (v) => padT + gh - (v / maxRate) * gh;
+
+    drawLine(chartCtx, state.chart, d => scaleX(d.t), d => scaleY(d.aRate), COLORS.A, 2.2, false);
+    drawLine(chartCtx, state.chart, d => scaleX(d.t), d => scaleY(d.bRate), COLORS.B, 2.2, false);
+    drawLine(chartCtx, state.chart, d => scaleX(d.t), d => scaleY(d.cCount * 0.08), COLORS.C, 2.8, true);
+  }
+
+  function drawLine(ctx, data, fx, fy, color, width, glow) {
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = width;
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    if (glow) {
+      ctx.shadowBlur = 10;
+      ctx.shadowColor = color;
+    }
+    ctx.beginPath();
+    data.forEach((d, i) => {
+      const x = fx(d), y = fy(d);
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function screenToWorld(clientX, clientY) {
+    const rect = simCanvas.getBoundingClientRect();
+    const x = clientX - rect.left;
+    const y = clientY - rect.top;
+    return {
+      x: (x - world.x) / world.scale,
+      y: (y - world.y) / world.scale,
+    };
+  }
+
+  function zoomAt(factor, cx, cy) {
+    const before = screenToWorld(cx, cy);
+    world.scale = clamp(world.scale * factor, world.minScale, world.maxScale);
+    const afterScreenX = before.x * world.scale + world.x;
+    const afterScreenY = before.y * world.scale + world.y;
+    world.x += cx - afterScreenX;
+    world.y += cy - afterScreenY;
+  }
+
+  simCanvas.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const factor = e.deltaY < 0 ? 1.08 : 0.92;
+    zoomAt(factor, e.clientX, e.clientY);
+  }, { passive: false });
+
+  simCanvas.addEventListener('pointerdown', (e) => {
+    simCanvas.setPointerCapture(e.pointerId);
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY, px: e.clientX, py: e.clientY });
+    if (pointers.size === 1) lastSinglePointer = { x: e.clientX, y: e.clientY };
+    if (pointers.size === 2) {
+      const pts = [...pointers.values()];
+      pinchStart = {
+        d: dist(pts[0].x, pts[0].y, pts[1].x, pts[1].y),
+        cx: (pts[0].x + pts[1].x) * 0.5,
+        cy: (pts[0].y + pts[1].y) * 0.5,
+        scale: world.scale,
+        wx: world.x,
+        wy: world.y,
+      };
+    }
+  });
+
+  simCanvas.addEventListener('pointermove', (e) => {
+    if (!pointers.has(e.pointerId)) return;
+    const p = pointers.get(e.pointerId);
+    p.px = p.x; p.py = p.y;
+    p.x = e.clientX; p.y = e.clientY;
+
+    if (pointers.size === 1) {
+      world.x += p.x - p.px;
+      world.y += p.y - p.py;
+    } else if (pointers.size >= 2) {
+      const pts = [...pointers.values()];
+      const d = dist(pts[0].x, pts[0].y, pts[1].x, pts[1].y);
+      const cx = (pts[0].x + pts[1].x) * 0.5;
+      const cy = (pts[0].y + pts[1].y) * 0.5;
+      if (pinchStart && pinchStart.d > 0) {
+        const factor = d / pinchStart.d;
+        world.scale = clamp(pinchStart.scale * factor, world.minScale, world.maxScale);
+        world.x = pinchStart.wx + (cx - pinchStart.cx);
+        world.y = pinchStart.wy + (cy - pinchStart.cy);
+      }
+    }
+  });
+
+  function endPointer(id) {
+    pointers.delete(id);
+    if (pointers.size < 2) pinchStart = null;
+  }
+  simCanvas.addEventListener('pointerup', (e) => endPointer(e.pointerId));
+  simCanvas.addEventListener('pointercancel', (e) => endPointer(e.pointerId));
+  simCanvas.addEventListener('pointerleave', (e) => endPointer(e.pointerId));
+
+  moreBtn.addEventListener('click', () => togglePanel());
+  scrim.addEventListener('click', () => togglePanel(false));
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') togglePanel(false); });
+
+  $('addA').addEventListener('click', () => addBatch('A', 1));
+  $('addB').addEventListener('click', () => addBatch('B', 1));
+  $('clearBtn').addEventListener('click', () => {
+    state.particles = [];
+    state.chart = [];
+    state.reactionsSinceSample = 0;
+    state.lastSampleAt = 0;
+    state.chartT = 0;
+    if (state.catalystOn) ensureCatalysts();
+    addBatch('A', 2);
+    addBatch('B', 2);
+    particleCounts();
+  });
+
+  $('addWater').addEventListener('click', () => {
+    beaker.liquidFill = clamp(beaker.liquidFill + 0.08, 0.34, 0.82);
+    updateBadges();
+  });
+  $('removeWater').addEventListener('click', () => {
+    beaker.liquidFill = clamp(beaker.liquidFill - 0.08, 0.34, 0.82);
+    updateBadges();
+  });
+  $('coolBtn').addEventListener('click', () => {
+    state.temperature = clamp(state.temperature - 10, -5, 95);
+    updateBadges();
+  });
+  $('heatBtn').addEventListener('click', () => {
+    state.temperature = clamp(state.temperature + 10, -5, 95);
+    updateBadges();
+  });
+  catalystBtn.addEventListener('click', () => {
+    state.catalystOn = !state.catalystOn;
+    ensureCatalysts();
+    updateBadges();
+  });
+  document.querySelectorAll('.surfaceBtn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      state.surfaceDiv = Number(btn.dataset.surface);
+      updateBadges();
+    });
+  });
+
+  function seed() {
+    addBatch('A', 2);
+    addBatch('B', 2);
+    updateBadges();
+    particleCounts();
+  }
+
+  function animate(ts) {
+    if (!state.lastTs) state.lastTs = ts;
+    const dt = Math.min(0.032, (ts - state.lastTs) / 1000);
+    state.lastTs = ts;
+    update(dt);
+    render();
+    requestAnimationFrame(animate);
+  }
+
+  resizeCanvas();
+  window.addEventListener('resize', resizeCanvas);
+  seed();
+  requestAnimationFrame(animate);
+})();
+</script>
+</body>
+</html>
