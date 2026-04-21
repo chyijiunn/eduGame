@@ -4,7 +4,7 @@
 <script src="/eduGame/ga4.js"></script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>reaction v0.19aa</title>
+<title>reaction v0.21</title>
 <style>
 :root{
   --bg1:#0c1320;
@@ -348,9 +348,9 @@ canvas{display:block;width:100%;height:100%}
   const HELP_FULL = `
     <p><strong>這個模擬用粒子的碰撞來呈現 A + B ⇌ C 的化學反應。</strong></p>
     <p>畫面中的粒子會持續隨機移動。當 <strong>A 與 B 接觸</strong>時，就可能形成 <strong>C</strong>；如果開啟<strong>逆反應</strong>，<strong>C</strong> 也可能再分解回 <strong>A + B</strong>。</p>
-    <p><strong>溫度</strong>會影響粒子移動速度，也會影響平衡。本反應設定為<strong>放熱反應</strong>，因此<strong>降溫</strong>時更容易生成 <strong>C</strong>，<strong>升溫</strong>時更容易讓 <strong>C</strong> 分解。</p>
+    <p><strong>溫度</strong>會同時影響<strong>粒子移動速度</strong>、<strong>正逆反應速率</strong>與<strong>平衡位置</strong>。本反應設定為<strong>放熱反應</strong>，因此<strong>降溫</strong>時更容易生成 <strong>C</strong>，<strong>升溫</strong>時更容易讓 <strong>C</strong> 分解；但升溫時正反應與逆反應本身都會變快，只是平衡會更偏向左側。</p>
     <p>在 <strong>25°C</strong> 時，基準平衡常數設定為 <strong>K = 90</strong>。當正反應與逆反應都開啟時，系統會依照粒子數量與溫度，自動朝平衡移動。平衡時反應<strong>不會停止</strong>，而是持續進行合成與分解的<strong>動態平衡</strong>。</p>
-    <p><strong>催化劑</strong>開啟後，會先黏住 <strong>A</strong> 或 <strong>B</strong>，再更快找到另一個反應物幫助形成 <strong>C</strong>，之後脫離並繼續催化下一次反應。</p>
+    <p><strong>催化劑</strong>開啟後，會先黏住 <strong>A</strong> 或 <strong>B</strong> 來加速形成 <strong>C</strong>；若開啟<strong>逆反應</strong>，也會靠近並黏住 <strong>C</strong>，加速其分解回 <strong>A + B</strong>，之後脫離並繼續催化下一次反應。</p>
     <p><strong>粒徑</strong>改小時，代表總質量不變但顆粒變細。例如切成原來 <strong>1/2</strong> 邊長時，總表面積會增加為原來的 <strong>2 倍</strong>；切成 <strong>1/4</strong> 時，總表面積會變成 <strong>4 倍</strong>。因此畫面上除了粒子變小，也會出現更多顆粒，來表現表面積變大、反應變快。</p>
     <p>你可以用下方按鈕加入粒子，並在「更多…」中調整<strong>水量、溫度、粒徑、催化劑、正反應、逆反應</strong>。</p>
   `;
@@ -369,7 +369,7 @@ canvas{display:block;width:100%;height:100%}
     forwardEnabled: true,
     reverseEnabled: false,
     catalystEnabled: false,
-    catalystCount: 5,
+    catalystCount: 8,
     pointer: {x:0, y:0, dx:0, dy:0, active:false, lastT:0},
     chartTimer: 0,
     chartMax: 240,
@@ -463,21 +463,53 @@ canvas{display:block;width:100%;height:100%}
     return reactive;
   }
 
+  const GAS_R = 8.314;
+  const TREF_K = 298.15;
+  const KREF_25C = 90;
+  const DELTA_H = -26366;
+  const EA_COMMON = 18000;
+
   function temperatureNorm(){
     return clamp(state.tempC / 95, 0, 1);
   }
 
+  function tempKelvin(){
+    return state.tempC + 273.15;
+  }
+
+  function particleSpeedScale(){
+    const T = tempKelvin();
+    const x = clamp(state.tempC / 95, 0, 1);
+    const thermal = Math.sqrt(T / TREF_K);
+    const visual = 0.08 + 2.75 * Math.pow(x, 1.8);
+    return thermal * visual;
+  }
+
   function thermalSpeed(){
-    const t = temperatureNorm();
-    return 6 + 460 * Math.pow(t, 3.05);
+    const base = Math.max(26, state.layout ? state.layout.beaker.w * 0.15 : Math.min(window.innerWidth, window.innerHeight) * 0.11);
+    return base * particleSpeedScale();
+  }
+
+  function kineticBoost(){
+    const T = tempKelvin();
+    return Math.exp((EA_COMMON / GAS_R) * (1 / TREF_K - 1 / T));
   }
 
   function chemistryTempFactor(){
-    return Math.pow(2, (state.tempC - 25) / 10);
+    return kineticBoost();
   }
 
   function effectiveK(){
-    return 90 * Math.exp((25 - state.tempC) / 28);
+    const T = tempKelvin();
+    return KREF_25C * Math.exp((-DELTA_H / GAS_R) * (1 / T - 1 / TREF_K));
+  }
+
+  function reactionRates(){
+    const K = effectiveK();
+    const g = kineticBoost();
+    const kForward = g * K / (1 + K);
+    const kReverse = g / (1 + K);
+    return { K, g, kForward, kReverse };
   }
 
   function volumeFactor(){
@@ -583,10 +615,11 @@ canvas{display:block;width:100%;height:100%}
 
 
   function attachCatalyst(host, catalyst){
-    if (!state.catalystEnabled || !host || !catalyst || host.type === 'C' || host.type === 'K') return;
+    if (!state.catalystEnabled || !host || !catalyst || host.type === 'K') return;
+    if (host.type === 'C' && !state.reverseEnabled) return;
     if (host.activated || catalyst.attachedTo) return;
     host.activated = true;
-    host.activatedUntil = performance.now() + 7000;
+    host.activatedUntil = performance.now() + (host.type === 'C' ? 2200 : 7000);
     host.catalystId = catalyst.id;
     catalyst.attachedTo = host.id;
     catalyst.vx = 0;
@@ -848,8 +881,9 @@ canvas{display:block;width:100%;height:100%}
   function reverseSplit(pc){
     const ang = rand(Math.PI*2);
     const sep = currentParticleRadius('A') * 1.8;
-    const speed = Math.max(26, thermalSpeed()*0.18) * (0.8 + temperatureNorm()*0.9);
+    const speed = Math.max(18, thermalSpeed() * 0.22);
     const ax = Math.cos(ang), ay = Math.sin(ang);
+    const cat = pc.activated ? getParticleById(pc.catalystId) : null;
     const a = {
       id: state.nextId++,
       type:'A',
@@ -882,6 +916,7 @@ canvas{display:block;width:100%;height:100%}
     };
     state.particles = state.particles.filter(p => p !== pc);
     state.particles.push(a,b);
+    if (cat) releaseCatalyst(cat, a, ang + Math.PI * 0.5);
     confineParticleToLiquid(a);
     confineParticleToLiquid(b);
   }
@@ -896,12 +931,12 @@ canvas{display:block;width:100%;height:100%}
     const q = conc.C / Math.max(0.000001, conc.A * conc.B);
     const keff = effectiveK();
     const delta = Math.log((keff + 1e-6) / (q + 1e-6));
-    const forwardBias = 1 / (1 + Math.exp(-delta * 1.2));
-    let p = 0.1 + forwardBias * 0.9;
-    p *= clamp(0.45 + Math.log2(Math.max(0.25, chemistryTempFactor())) * 0.18, 0.25, 1.4);
+    const forwardBias = 1 / (1 + Math.exp(-delta * 1.35));
+    const rates = reactionRates();
+    let p = (0.08 + forwardBias * 0.84) * clamp(Math.pow(rates.g, 0.16), 0.88, 1.30);
     p *= clamp(Math.pow(surfaceFactor(), 0.32), 1, 1.9);
-    if (state.catalystEnabled && (nearCatalyst(pa) || nearCatalyst(pb))) p *= 1.95;
-    return Math.random() < clamp(p, 0.06, 1);
+    if (state.catalystEnabled && (nearCatalyst(pa) || nearCatalyst(pb) || pa.activated || pb.activated)) p *= 1.8;
+    return Math.random() < clamp(p, 0.04, 0.985);
   }
 
 
@@ -910,10 +945,12 @@ canvas{display:block;width:100%;height:100%}
     const q = conc.C / Math.max(0.000001, conc.A * conc.B);
     const keff = effectiveK();
     const delta = Math.log((keff + 1e-6) / (q + 1e-6));
-    const forwardBias = 1 / (1 + Math.exp(-delta * 1.2));
-    const base = 0.18 + temperatureNorm()*0.45;
-    if (!state.forwardEnabled && state.reverseEnabled) return base * 1.8;
-    return base * (0.35 + (1 - forwardBias) * 1.8);
+    const forwardBias = 1 / (1 + Math.exp(-delta * 1.35));
+    const rates = reactionRates();
+    const base = 0.12 * rates.g;
+    const catMul = state.catalystEnabled ? 1.45 : 1;
+    if (!state.forwardEnabled && state.reverseEnabled) return base * 1.65 * catMul;
+    return base * (0.18 + (1 - forwardBias) * 1.9) * catMul;
   }
 
   function elasticBounce(a,b){
@@ -956,7 +993,7 @@ canvas{display:block;width:100%;height:100%}
   function updateParticleMotion(dt){
     const rect = state.layout.liquid;
     const targetSpeed = thermalSpeed();
-    const brownian = 0.3 + temperatureNorm()*7;
+    const brownian = 0.12 + targetSpeed * 0.028;
 
     for (const p of state.particles){
       p.r = currentParticleRadius(p.type);
@@ -1055,7 +1092,10 @@ canvas{display:block;width:100%;height:100%}
           } else {
             elasticBounce(a,b);
           }
-        } else if ((a.type === 'K' && (b.type === 'A' || b.type === 'B')) || (b.type === 'K' && (a.type === 'A' || a.type === 'B'))){
+        } else if (
+          (a.type === 'K' && (b.type === 'A' || b.type === 'B' || (state.reverseEnabled && b.type === 'C'))) ||
+          (b.type === 'K' && (a.type === 'A' || a.type === 'B' || (state.reverseEnabled && a.type === 'C')))
+        ){
           const catalyst = a.type === 'K' ? a : b;
           const host = catalyst === a ? b : a;
           if (!host.activated && !catalyst.attachedTo){
@@ -1074,7 +1114,8 @@ canvas{display:block;width:100%;height:100%}
       const rate = reverseRatePerSecond();
       const candidates = state.particles.filter(p => p.type === 'C' && p.splitCooldown <= 0);
       for (const c of candidates){
-        const chance = 1 - Math.exp(-rate * dt);
+        const localCatMul = state.catalystEnabled && (c.activated || nearCatalyst(c)) ? 2.35 : 1;
+        const chance = 1 - Math.exp(-rate * localCatMul * dt);
         if (Math.random() < chance) reverseSplit(c);
       }
     }
@@ -1213,6 +1254,13 @@ canvas{display:block;width:100%;height:100%}
       sctx.arc(p.x, p.y, p.r, 0, Math.PI*2);
       sctx.fill();
       sctx.stroke();
+      if (p.activated || nearCatalyst(p)){
+        sctx.beginPath();
+        sctx.arc(p.x, p.y, p.r + 3 + Math.sin(performance.now()*0.014 + p.id)*0.6, 0, Math.PI*2);
+        sctx.strokeStyle = 'rgba(88,210,155,.36)';
+        sctx.lineWidth = 1.3;
+        sctx.stroke();
+      }
     } else if (p.type === 'K'){
       sctx.fillStyle = COLORS.K;
       sctx.beginPath();
