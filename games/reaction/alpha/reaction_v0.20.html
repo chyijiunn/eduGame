@@ -1,0 +1,1432 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<script src="/eduGame/ga4.js"></script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>reaction v0.19aa</title>
+<style>
+:root{
+  --bg1:#0c1320;
+  --bg2:#09101a;
+  --panel:rgba(17,25,40,.84);
+  --panel2:rgba(17,25,40,.62);
+  --line:rgba(227,236,255,.16);
+  --text:#eef4ff;
+  --muted:#b7c5db;
+  --a:#ffb24b;
+  --b:#56a5ff;
+  --c:rgba(194,201,212,.72);
+  --k:#58d29b;
+  --accent:#dfe9ff;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;overflow:hidden;background:
+radial-gradient(circle at 50% 18%, #192640 0%, #0d1627 42%, #070d15 100%);color:var(--text);
+font-family:system-ui,-apple-system,"Segoe UI",sans-serif}
+body{overscroll-behavior:none}
+#app{position:fixed;inset:0;overflow:hidden}
+canvas{display:block;width:100%;height:100%}
+#simCanvas{position:absolute;inset:0}
+#chartPanel{
+  position:fixed;right:max(8px, env(safe-area-inset-right));top:max(8px, env(safe-area-inset-top));
+  bottom:max(92px, calc(env(safe-area-inset-bottom) + 92px));
+  width:min(360px, 31vw);
+  min-width:228px;
+  display:flex;align-items:flex-start;gap:8px;
+  z-index:20;pointer-events:none;
+}
+#chartPanel.compact{width:32px;min-width:32px;bottom:auto;height:36px}
+#chartToggle{
+  width:32px;height:36px;min-width:32px;border:1px solid rgba(255,255,255,.12);border-radius:16px;
+  background:linear-gradient(180deg, rgba(18,26,41,.92), rgba(18,26,41,.62));
+  color:var(--text);pointer-events:auto;cursor:pointer;
+  box-shadow:0 10px 26px rgba(0,0,0,.28);
+  font-size:18px
+}
+#chartBody{
+  flex:1;display:flex;flex-direction:column;gap:6px;min-width:0;pointer-events:auto;
+  transition:opacity .22s ease, transform .22s ease, max-height .22s ease;
+}
+#chartPanel.compact #chartBody{opacity:0;transform:translateX(10px);pointer-events:none;max-height:0;overflow:hidden}
+.card{
+  background:linear-gradient(180deg, rgba(17,25,40,.84), rgba(17,25,40,.54));
+  border:1px solid rgba(255,255,255,.10);
+  border-radius:18px;
+  backdrop-filter:blur(12px);
+  box-shadow:0 18px 36px rgba(0,0,0,.24);
+}
+.chartCard{padding:6px 8px 8px}
+.chartHead{
+  display:flex;align-items:center;justify-content:space-between;
+  font-size:12px;color:var(--muted);margin-bottom:4px
+}
+.chartLabel{display:flex;align-items:center;gap:8px}
+.sw{width:11px;height:11px;border-radius:50%}
+.miniChart{width:100%;height:62px;display:block}
+.countCard{padding:8px}
+.countGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+.chip{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:8px 10px;border-radius:14px;background:rgba(255,255,255,.04);
+  border:1px solid rgba(255,255,255,.08);font-size:12px
+}
+.chip .left{display:flex;align-items:center;gap:8px;color:var(--muted)}
+.dot{width:10px;height:10px;border-radius:50%}
+#toolbar{
+  position:fixed;left:50%;transform:translateX(-50%);
+  bottom:max(10px, calc(env(safe-area-inset-bottom) + 10px));
+  display:flex;gap:8px;z-index:30;
+  padding:8px 10px;border-radius:22px;
+  background:linear-gradient(180deg, rgba(17,25,40,.84), rgba(17,25,40,.56));
+  border:1px solid rgba(255,255,255,.10);
+  box-shadow:0 20px 40px rgba(0,0,0,.24);
+  backdrop-filter:blur(12px)
+}
+.toolBtn{
+  min-width:48px;height:48px;border:none;border-radius:16px;
+  color:var(--text);cursor:pointer;font-size:17px;font-weight:700;
+  background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08)
+}
+.toolBtn.small{min-width:44px;width:44px}
+.toolBtn.active{
+  background:rgba(223,233,255,.18);
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.12), 0 6px 18px rgba(0,0,0,.16)
+}
+.toolBtn:active{transform:translateY(1px)}
+#abA{color:var(--a)} #abB{color:var(--b)}
+#forwardBtn,#reverseBtn{display:none}
+#menuBackdrop{
+  position:fixed;inset:0;background:rgba(0,0,0,.10);
+  z-index:39;display:none
+}
+#menu{
+  position:fixed;left:50%;bottom:max(78px, calc(env(safe-area-inset-bottom) + 78px));transform:translateX(-50%);
+  width:min(96vw, 560px);z-index:40;display:none;
+  padding:8px 9px 9px;border-radius:18px;
+  background:linear-gradient(180deg, rgba(17,25,40,.62), rgba(17,25,40,.34));
+  border:1px solid rgba(255,255,255,.10);
+  box-shadow:0 22px 42px rgba(0,0,0,.24);backdrop-filter:blur(18px)
+}
+.menuGrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.controlBlock{
+  min-width:0;padding:0;background:none;border:none;border-radius:0
+}
+.blockLabel{display:none}
+.controlRow{
+  display:grid;grid-template-columns:34px minmax(0,1fr) 34px;gap:3px;align-items:center;min-width:0
+}
+.controlRow.dual{
+  grid-template-columns:34px minmax(0,1fr) 34px;
+}
+.controlRow.single{
+  grid-template-columns:1fr;
+}
+.plainRead{
+  min-height:30px;display:flex;align-items:center;justify-content:center;
+  color:var(--text);font-variant-numeric:tabular-nums;font-size:11px;text-align:center;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:.01em
+}
+.miniBtn{
+  min-width:34px;height:30px;border-radius:11px;border:none;cursor:pointer;
+  color:var(--text);font-size:12px;font-weight:700;background:rgba(255,255,255,.08);
+  border:1px solid rgba(255,255,255,.08);padding:0 6px
+}
+.miniBtn.wide{width:100%;min-width:0}
+.miniBtn.on{background:rgba(88,210,155,.16)}
+#menu.show,#menuBackdrop.show{display:block}
+@media (max-aspect-ratio: 5/6){
+  #chartPanel{width:min(160px, 34vw);min-width:132px;bottom:max(92px, calc(env(safe-area-inset-bottom) + 92px))}
+  .miniChart{height:64px}
+  #toolbar{gap:6px;padding:8px}
+  .toolBtn{min-width:44px;height:44px;font-size:16px}
+  #menu{width:min(98vw, 560px);padding:7px 7px 8px}
+  .menuGrid{gap:5px}
+  .controlRow{grid-template-columns:30px minmax(0,1fr) 30px;gap:2px}
+  .controlRow.dual{grid-template-columns:30px minmax(0,1fr) 30px}
+  .miniBtn{min-width:30px;height:28px;font-size:11px;padding:0 4px}
+  .plainRead{font-size:10px;min-height:28px}
+}
+
+.helpBackdrop{
+  position:fixed;inset:0;display:none;z-index:60;
+  background:rgba(4,8,14,.28);
+  backdrop-filter:blur(8px);
+}
+.helpBackdrop.show{display:block}
+.helpCard{
+  position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+  width:min(88vw, 420px);max-height:min(76vh, 640px);overflow:auto;
+  padding:14px 14px 16px;border-radius:20px;
+  background:linear-gradient(180deg, rgba(17,25,40,.82), rgba(17,25,40,.54));
+  border:1px solid rgba(255,255,255,.12);
+  box-shadow:0 24px 54px rgba(0,0,0,.28);
+  color:var(--text);
+}
+.helpTitle{font-size:15px;font-weight:800;letter-spacing:.02em;margin:0 0 8px}
+.helpBody{font-size:13px;line-height:1.7;color:var(--muted)}
+.helpBody p{margin:0 0 8px}
+.helpBody strong{color:var(--text);font-weight:700}
+.helpHint{margin-top:10px;font-size:12px;color:var(--text);opacity:.9}
+.helpBtn{
+  padding:0 10px;border-radius:13px;border:none;cursor:pointer;
+  color:var(--text);font-size:13px;font-weight:700;background:rgba(255,255,255,.08);
+  border:1px solid rgba(255,255,255,.08)
+}
+
+</style>
+</head>
+<body>
+<div id="app">
+  <canvas id="simCanvas"></canvas>
+
+  <div id="chartPanel">
+    <button id="chartToggle" aria-label="切換圖表">▾</button>
+    <div id="chartBody">
+      <div class="card chartCard">
+        <div class="chartHead">
+          <div class="chartLabel"><span class="sw" style="background:var(--a)"></span><span>A</span></div>
+          <span id="aConcTxt">0.00 M</span>
+        </div>
+        <canvas id="chartA" class="miniChart" width="320" height="72"></canvas>
+      </div>
+      <div class="card chartCard">
+        <div class="chartHead">
+          <div class="chartLabel"><span class="sw" style="background:var(--b)"></span><span>B</span></div>
+          <span id="bConcTxt">0.00 M</span>
+        </div>
+        <canvas id="chartB" class="miniChart" width="320" height="72"></canvas>
+      </div>
+      <div class="card chartCard">
+        <div class="chartHead">
+          <div class="chartLabel"><span class="sw" style="background:rgba(194,201,212,.8)"></span><span>C</span></div>
+          <span id="cConcTxt">0.00 M</span>
+        </div>
+        <canvas id="chartC" class="miniChart" width="320" height="72"></canvas>
+      </div>
+      <div class="card countCard">
+        <div class="countGrid">
+          <div class="chip"><div class="left"><span class="dot" style="background:var(--a)"></span><span>A</span></div><strong id="countA">0</strong></div>
+          <div class="chip"><div class="left"><span class="dot" style="background:var(--b)"></span><span>B</span></div><strong id="countB">0</strong></div>
+          <div class="chip"><div class="left"><span class="dot" style="background:rgba(194,201,212,.8)"></span><span>C</span></div><strong id="countC">0</strong></div>
+          <div class="chip"><div class="left"><span class="dot" style="background:var(--k)"></span><span>催化劑</span></div><strong id="countK">0</strong></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="toolbar">
+    <button class="toolBtn" id="abA" title="加入 A">A</button>
+    <button class="toolBtn" id="abB" title="加入 B">B</button>
+    <button class="toolBtn small active" id="forwardBtn" title="正反應">→</button>
+    <button class="toolBtn small" id="reverseBtn" title="逆反應">←</button>
+    <button class="toolBtn small" id="clearBtn" title="清空">⌫</button>
+    <button class="toolBtn small" id="moreBtn" title="更多">⋯</button>
+  </div>
+
+  <div id="menuBackdrop"></div>
+  
+<div id="menu">
+  <div class="menuGrid">
+    <div class="controlBlock">
+      <div class="controlRow">
+        <button class="miniBtn" id="waterMinus">−</button>
+        <div class="plainRead" id="waterValue">水量 1/4</div>
+        <button class="miniBtn" id="waterPlus">+</button>
+      </div>
+    </div>
+    <div class="controlBlock">
+      <div class="controlRow">
+        <button class="miniBtn" id="tempMinus">−</button>
+        <div class="plainRead" id="tempValue">25℃</div>
+        <button class="miniBtn" id="tempPlus">+</button>
+      </div>
+    </div>
+    <div class="controlBlock">
+      <div class="controlRow">
+        <button class="miniBtn" id="sizeUp">x2</button>
+        <div class="plainRead" id="sizeValue">粒徑 1/4</div>
+        <button class="miniBtn" id="sizeDown">÷2</button>
+      </div>
+    </div>
+    <div class="controlBlock">
+      <div class="controlRow single">
+        <button class="miniBtn wide" id="catToggle">無催化劑</button>
+      </div>
+    </div>
+    <div class="controlBlock">
+      <div class="controlRow dual">
+        <button class="miniBtn on" id="forwardMenuBtn">→</button>
+        <div class="plainRead" id="reactionValue">正逆</div>
+        <button class="miniBtn" id="reverseMenuBtn">←</button>
+      </div>
+    </div>
+    <div class="controlBlock">
+      <div class="controlRow single">
+        <button class="helpBtn miniBtn wide" id="helpBtn" title="說明">說明</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+  <div id="helpBackdrop" class="helpBackdrop" aria-hidden="true">
+    <div id="helpCard" class="helpCard" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
+      <h2 id="helpTitle" class="helpTitle">操作提示</h2>
+      <div id="helpBody" class="helpBody"></div>
+      <div class="helpHint">點一下外側即可關閉</div>
+    </div>
+  </div>
+
+  </div>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  const simCanvas = document.getElementById('simCanvas');
+  const sctx = simCanvas.getContext('2d');
+  const chartEls = {
+    A: document.getElementById('chartA'),
+    B: document.getElementById('chartB'),
+    C: document.getElementById('chartC')
+  };
+  const chartCtx = {
+    A: chartEls.A.getContext('2d'),
+    B: chartEls.B.getContext('2d'),
+    C: chartEls.C.getContext('2d')
+  };
+
+  const el = {
+    chartPanel: document.getElementById('chartPanel'),
+    chartToggle: document.getElementById('chartToggle'),
+    countA: document.getElementById('countA'),
+    countB: document.getElementById('countB'),
+    countC: document.getElementById('countC'),
+    countK: document.getElementById('countK'),
+    aConcTxt: document.getElementById('aConcTxt'),
+    bConcTxt: document.getElementById('bConcTxt'),
+    cConcTxt: document.getElementById('cConcTxt'),
+    waterValue: document.getElementById('waterValue'),
+    tempValue: document.getElementById('tempValue'),
+    catToggle: document.getElementById('catToggle'),
+    sizeValue: document.getElementById('sizeValue'),
+    menu: document.getElementById('menu'),
+    menuBackdrop: document.getElementById('menuBackdrop'),
+    moreBtn: document.getElementById('moreBtn'),
+    forwardBtn: document.getElementById('forwardBtn'),
+    reverseBtn: document.getElementById('reverseBtn'),
+    forwardMenuBtn: document.getElementById('forwardMenuBtn'),
+    reverseMenuBtn: document.getElementById('reverseMenuBtn'),
+    helpBackdrop: document.getElementById('helpBackdrop'),
+    helpCard: document.getElementById('helpCard'),
+    helpTitle: document.getElementById('helpTitle'),
+    helpBody: document.getElementById('helpBody'),
+    helpBtn: document.getElementById('helpBtn'),
+  };
+
+  const COLORS = {
+    A: '#ffb24b',
+    B: '#56a5ff',
+    C: 'rgba(194,201,212,0.72)',
+    K: '#58d29b',
+    glass: 'rgba(236,244,255,0.95)',
+    water1: 'rgba(108,178,255,0.16)',
+    water2: 'rgba(108,178,255,0.06)',
+  };
+
+
+  const STORAGE_KEYS = {
+    introSeen: 'reaction_v018_intro_seen'
+  };
+
+  const HELP_SHORT = `
+    <p><strong>這是 A + B ⇌ C 的反應模擬。</strong></p>
+    <p>請到「更多…」調整 <strong>水量、溫度、粒徑、催化劑、正逆反應</strong>，觀察速率與平衡變化。</p>
+  `;
+
+  const HELP_FULL = `
+    <p><strong>這個模擬用粒子的碰撞來呈現 A + B ⇌ C 的化學反應。</strong></p>
+    <p>畫面中的粒子會持續隨機移動。當 <strong>A 與 B 接觸</strong>時，就可能形成 <strong>C</strong>；如果開啟<strong>逆反應</strong>，<strong>C</strong> 也可能再分解回 <strong>A + B</strong>。</p>
+    <p><strong>溫度</strong>會影響粒子移動速度，也會影響平衡。本反應設定為<strong>放熱反應</strong>，因此<strong>降溫</strong>時更容易生成 <strong>C</strong>，<strong>升溫</strong>時更容易讓 <strong>C</strong> 分解。</p>
+    <p>在 <strong>25°C</strong> 時，基準平衡常數設定為 <strong>K = 90</strong>。當正反應與逆反應都開啟時，系統會依照粒子數量與溫度，自動朝平衡移動。平衡時反應<strong>不會停止</strong>，而是持續進行合成與分解的<strong>動態平衡</strong>。</p>
+    <p><strong>催化劑</strong>開啟後，會先黏住 <strong>A</strong> 或 <strong>B</strong> 來加速形成 <strong>C</strong>；若開啟<strong>逆反應</strong>，也會靠近並黏住 <strong>C</strong>，加速其分解回 <strong>A + B</strong>，之後脫離並繼續催化下一次反應。</p>
+    <p><strong>粒徑</strong>改小時，代表總質量不變但顆粒變細。例如切成原來 <strong>1/2</strong> 邊長時，總表面積會增加為原來的 <strong>2 倍</strong>；切成 <strong>1/4</strong> 時，總表面積會變成 <strong>4 倍</strong>。因此畫面上除了粒子變小，也會出現更多顆粒，來表現表面積變大、反應變快。</p>
+    <p>你可以用下方按鈕加入粒子，並在「更多…」中調整<strong>水量、溫度、粒徑、催化劑、正反應、逆反應</strong>。</p>
+  `;
+
+  const state = {
+    particles: [],
+    ripples: [],
+    chartsOpen: true,
+    nextId: 1,
+    waterUnits: 1,
+    minWaterUnits: 0.125,
+    maxWaterUnits: 4,
+    tempC: 25,
+    sizeIndex: 2, // 1,1/2,1/4...
+    sizeScales: [1, 0.5, 0.25, 0.125, 0.0625, 0.03125, 1/64, 1/128],
+    forwardEnabled: true,
+    reverseEnabled: false,
+    catalystEnabled: false,
+    catalystCount: 8,
+    pointer: {x:0, y:0, dx:0, dy:0, active:false, lastT:0},
+    chartTimer: 0,
+    chartMax: 240,
+    history: {A:[], B:[], C:[]},
+    layout: null,
+    lastReactionSoundTime: 0,
+    reactionStreak: 0,
+    audioCtx: null,
+    lastForwardEvents: 0
+  };
+
+  function clamp(v, a, b){ return Math.max(a, Math.min(b, v)); }
+  function lerp(a,b,t){ return a + (b-a)*t; }
+  function rand(a=1,b=0){ return b + Math.random()*(a-b); }
+
+  function getAspectPortrait(){ return window.innerHeight > window.innerWidth; }
+
+  function panelWidth(){
+    if(!state.chartsOpen) return 32;
+    return getAspectPortrait() ? Math.min(156, window.innerWidth * 0.33) : Math.min(340, window.innerWidth * 0.29);
+  }
+
+  function resizeCanvas(){
+    const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+    simCanvas.width = Math.round(window.innerWidth * dpr);
+    simCanvas.height = Math.round(window.innerHeight * dpr);
+    simCanvas.style.width = window.innerWidth + 'px';
+    simCanvas.style.height = window.innerHeight + 'px';
+    sctx.setTransform(dpr,0,0,dpr,0,0);
+    state.layout = computeLayout();
+    for (const p of state.particles) confineParticleToLiquid(p);
+    resizeCharts();
+  }
+
+  function resizeCharts(){
+    const isPortrait = getAspectPortrait();
+    const w = state.chartsOpen ? Math.max(110, Math.floor(panelWidth() - 20 - 12)) : 110;
+    const h = isPortrait ? 54 : 62;
+    for (const key of ['A','B','C']){
+      chartEls[key].width = w;
+      chartEls[key].height = h;
+    }
+    drawCharts();
+  }
+
+  function computeLayout(){
+    const marginL = 12;
+    const marginT = 12;
+    const bottomReserved = 88 + (parseFloat(getComputedStyle(document.documentElement).getPropertyValue('env(safe-area-inset-bottom)')) || 0);
+    const pW = panelWidth();
+    const chartGap = 12;
+    const stage = {
+      x: marginL,
+      y: marginT,
+      w: window.innerWidth - pW - chartGap - marginL - 8,
+      h: window.innerHeight - bottomReserved - marginT - 8
+    };
+    const inner = 10;
+    stage.w = Math.max(160, stage.w);
+    stage.h = Math.max(220, stage.h);
+
+    const beakerAspect = 0.74; // width / height closer to v0.13
+    const availW = stage.w - inner*2;
+    const availH = stage.h - inner*2;
+    let bw = availW * 0.92;
+    let bh = bw / beakerAspect;
+    if (bh > availH * 0.98){
+      bh = availH * 0.98;
+      bw = bh * beakerAspect;
+    }
+    const bx = stage.x + stage.w/2 - bw/2;
+    const by = stage.y + stage.h/2 - bh/2;
+    const padX = Math.max(12, bw*0.06);
+    const padY = Math.max(10, bh*0.04);
+
+    const waterFrac = clamp(0.25 * state.waterUnits, 0.03125, 1);
+    const liquidTop = by + bh - padY - (bh - padY*1.45) * waterFrac;
+    return {
+      stage,
+      beaker: {x:bx, y:by, w:bw, h:bh, padX, padY},
+      liquid: {left: bx + padX, right: bx + bw - padX, top: liquidTop, bottom: by + bh - padY},
+    };
+  }
+
+  function currentParticleRadius(type){
+    const base = Math.max(3.8, state.layout.beaker.w * 0.024);
+    const scale = state.sizeScales[state.sizeIndex];
+    if (type === 'K') return Math.max(3.4, base * 0.42);
+    const reactive = Math.max(1.5, base * Math.pow(scale, 0.30));
+    if (type === 'C') return Math.max(1.8, reactive * 1.08);
+    return reactive;
+  }
+
+  function temperatureNorm(){
+    return clamp(state.tempC / 95, 0, 1);
+  }
+
+  function thermalSpeed(){
+    const t = temperatureNorm();
+    return 6 + 460 * Math.pow(t, 3.05);
+  }
+
+  function chemistryTempFactor(){
+    return Math.pow(2, (state.tempC - 25) / 10);
+  }
+
+  function effectiveK(){
+    return 90 * Math.exp((25 - state.tempC) / 28);
+  }
+
+  function volumeFactor(){
+    return state.waterUnits;
+  }
+
+  function reactiveParticleMass(){
+    return state.sizeScales[state.sizeIndex];
+  }
+
+  function equivalentCountFromMassUnits(massUnits){
+    return Math.max(0, Math.round(massUnits / reactiveParticleMass()));
+  }
+
+  function massUnitsFromCount(count){
+    return count * reactiveParticleMass();
+  }
+
+  function counts(){
+    const out = {A:0,B:0,C:0,K:0};
+    for (const p of state.particles) out[p.type]++;
+    return out;
+  }
+
+  function concentrations(){
+    const c = counts();
+    const vol = volumeFactor();
+    const denom = 8; // keep default 32 particles at size 1/4 = 1.00 M
+    return {
+      A: massUnitsFromCount(c.A) / denom / vol,
+      B: massUnitsFromCount(c.B) / denom / vol,
+      C: massUnitsFromCount(c.C) / denom / vol,
+      K: c.K
+    };
+  }
+
+  function surfaceFactor(){
+    const scale = state.sizeScales[state.sizeIndex];
+    return clamp(Math.pow(0.25 / scale, 0.52), 1, 8.5);
+  }
+
+  function spawnUniform(type, amount){
+    const rect = state.layout.liquid;
+    const side = Math.ceil(Math.sqrt(amount));
+    const rows = Math.ceil(amount / side);
+    const cellW = (rect.right - rect.left) / side;
+    const cellH = (rect.bottom - rect.top) / rows;
+    let placed = 0;
+    const thermal = thermalSpeed() * 0.18;
+    for (let r = 0; r < rows && placed < amount; r++){
+      for (let c = 0; c < side && placed < amount; c++){
+        const x = rect.left + cellW * (c + 0.5) + rand(cellW*0.22, -cellW*0.22);
+        const y = rect.top + cellH * (r + 0.5) + rand(cellH*0.22, -cellH*0.22);
+        const a = rand(Math.PI*2);
+        const speed = thermal * rand(1.2,0.6);
+        state.particles.push({
+          id: state.nextId++,
+          type,
+          x, y,
+          vx: Math.cos(a) * speed,
+          vy: Math.sin(a) * speed,
+          r: currentParticleRadius(type),
+          activeUntil: 0,
+          splitCooldown: 0,
+          activated:false,
+          activatedUntil:0,
+          catalystId:null,
+          attachedTo:null
+        });
+        placed++;
+      }
+    }
+  }
+
+  function resetSim(){
+    state.particles.length = 0;
+    state.ripples.length = 0;
+    state.nextId = 1;
+    spawnUniform('A', equivalentCountFromMassUnits(8));
+    syncCatalystParticles();
+    state.history.A.length = 0;
+    state.history.B.length = 0;
+    state.history.C.length = 0;
+    state.chartTimer = 0;
+    chartSample();
+    updateUI();
+  }
+
+  function syncCatalystParticles(){
+    const others = state.particles.filter(p => p.type !== 'K');
+    for (const p of others){
+      p.activated = false;
+      p.activatedUntil = 0;
+      p.catalystId = null;
+    }
+    state.particles = others;
+    if (state.catalystEnabled) spawnUniform('K', state.catalystCount);
+  }
+
+  function getParticleById(id){
+    return state.particles.find(p => p.id === id) || null;
+  }
+
+
+  function attachCatalyst(host, catalyst){
+    if (!state.catalystEnabled || !host || !catalyst || host.type === 'K') return;
+    if (host.type === 'C' && !state.reverseEnabled) return;
+    if (host.activated || catalyst.attachedTo) return;
+    host.activated = true;
+    host.activatedUntil = performance.now() + (host.type === 'C' ? 2200 : 7000);
+    host.catalystId = catalyst.id;
+    catalyst.attachedTo = host.id;
+    catalyst.vx = 0;
+    catalyst.vy = 0;
+  }
+
+  function releaseCatalyst(catalyst, host, angle = rand(Math.PI * 2)){
+    if (!catalyst || catalyst.type !== 'K') return;
+    catalyst.attachedTo = null;
+    const hr = host && host.r ? host.r : currentParticleRadius('C');
+    catalyst.x = (host ? host.x : catalyst.x) + Math.cos(angle) * (hr + catalyst.r + 5);
+    catalyst.y = (host ? host.y : catalyst.y) + Math.sin(angle) * (hr + catalyst.r + 5);
+    catalyst.vx = (host ? host.vx : 0) + Math.cos(angle) * 24;
+    catalyst.vy = (host ? host.vy : 0) + Math.sin(angle) * 24;
+    if (host && host.catalystId === catalyst.id){
+      host.activated = false;
+      host.activatedUntil = 0;
+      host.catalystId = null;
+    }
+  }
+
+  function findNearestOpposite(host, maxDist = 220){
+    const targetType = host.type === 'A' ? 'B' : host.type === 'B' ? 'A' : null;
+    if (!targetType) return null;
+    let best = null;
+    let bestD2 = maxDist * maxDist;
+    for (const p of state.particles){
+      if (p.type !== targetType || p.attachedTo) continue;
+      const dx = p.x - host.x, dy = p.y - host.y;
+      const d2 = dx*dx + dy*dy;
+      if (d2 < bestD2){
+        best = p;
+        bestD2 = d2;
+      }
+    }
+    return best;
+  }
+
+  function nearCatalyst(p, maxDist = 72){
+    const d2max = maxDist * maxDist;
+    for (const other of state.particles){
+      if (other.type !== 'K') continue;
+      if (((other.x - p.x) ** 2 + (other.y - p.y) ** 2) <= d2max) return true;
+    }
+    return false;
+  }
+
+  function confineParticleToLiquid(p){
+    p.r = currentParticleRadius(p.type);
+    const rect = state.layout.liquid;
+    const l = rect.left + p.r;
+    const r = rect.right - p.r;
+    const t = rect.top + p.r;
+    const b = rect.bottom - p.r;
+    p.x = clamp(p.x, l, r);
+    p.y = clamp(p.y, t, b);
+  }
+
+  function rebalanceReactiveParticleCounts(oldScale, newScale){
+    const reactiveTypes = ['A','B','C'];
+    for (const type of reactiveTypes){
+      const species = state.particles.filter(p => p.type === type);
+      const target = Math.max(0, Math.round(species.length * oldScale / newScale));
+      if (target > species.length){
+        spawnUniform(type, target - species.length);
+      } else if (target < species.length){
+        const removeSet = new Set();
+        const shuffled = [...species].sort(() => Math.random() - 0.5);
+        for (let i = 0; i < species.length - target; i++) removeSet.add(shuffled[i].id);
+        state.particles = state.particles.filter(p => !removeSet.has(p.id));
+      }
+    }
+  }
+
+  function adjustAllRadii(oldScale = reactiveParticleMass()){
+    const newScale = reactiveParticleMass();
+    if (Math.abs(oldScale - newScale) > 1e-9){
+      rebalanceReactiveParticleCounts(oldScale, newScale);
+    }
+    for (const p of state.particles) p.r = currentParticleRadius(p.type);
+    for (const p of state.particles) confineParticleToLiquid(p);
+    chartSample();
+    updateUI();
+  }
+
+  function toggleMenu(show){
+    el.menu.classList.toggle('show', show);
+    el.menuBackdrop.classList.toggle('show', show);
+  }
+
+
+  function setIntroSeen(){
+    try { localStorage.setItem(STORAGE_KEYS.introSeen, '1'); } catch (e) {}
+  }
+
+  function hasSeenIntro(){
+    try { return localStorage.getItem(STORAGE_KEYS.introSeen) === '1'; } catch (e) { return false; }
+  }
+
+  function showHelp(kind = 'full'){
+    const shortMode = kind === 'short';
+    if (shortMode){
+      el.helpTitle.textContent = '操作提示';
+      el.helpBody.innerHTML = HELP_SHORT;
+      setIntroSeen();
+    } else {
+      el.helpTitle.textContent = '反應模擬說明';
+      el.helpBody.innerHTML = HELP_FULL;
+    }
+    el.helpBackdrop.classList.add('show');
+    el.helpBackdrop.setAttribute('aria-hidden', 'false');
+  }
+
+  function hideHelp(){
+    el.helpBackdrop.classList.remove('show');
+    el.helpBackdrop.setAttribute('aria-hidden', 'true');
+  }
+
+  function fillFraction(){
+    return clamp(0.25 * state.waterUnits, 0.03125, 1);
+  }
+
+  function fractionText(v){
+    const eps = 1e-8;
+    if (Math.abs(v - 1) < eps) return '1';
+    const denom = Math.round(1 / v);
+    return '1/' + denom;
+  }
+
+  function sizeText(){
+    const scale = state.sizeScales[state.sizeIndex];
+    return scale >= 1 ? '粒徑 1' : '粒徑 1/' + Math.round(1 / scale);
+  }
+
+  function updateUI(){
+    const cnt = counts();
+    const conc = concentrations();
+    el.countA.textContent = cnt.A;
+    el.countB.textContent = cnt.B;
+    el.countC.textContent = cnt.C;
+    el.countK.textContent = cnt.K;
+    el.aConcTxt.textContent = conc.A.toFixed(2) + ' M';
+    el.bConcTxt.textContent = conc.B.toFixed(2) + ' M';
+    el.cConcTxt.textContent = conc.C.toFixed(2) + ' M';
+    el.waterValue.textContent = '水量 ' + fractionText(fillFraction());
+    el.tempValue.textContent = String(state.tempC) + '℃';
+    el.catToggle.textContent = state.catalystEnabled ? '有催化劑' : '無催化劑';
+    el.sizeValue.textContent = sizeText();
+    if (el.forwardBtn) el.forwardBtn.classList.toggle('active', state.forwardEnabled);
+    if (el.reverseBtn) el.reverseBtn.classList.toggle('active', state.reverseEnabled);
+    if (el.forwardMenuBtn) el.forwardMenuBtn.classList.toggle('on', state.forwardEnabled);
+    if (el.reverseMenuBtn) el.reverseMenuBtn.classList.toggle('on', state.reverseEnabled);
+    drawCharts();
+  }
+
+  function chartSample(){
+    const conc = concentrations();
+    for (const key of ['A','B','C']){
+      state.history[key].push(conc[key]);
+      if (state.history[key].length > state.chartMax) state.history[key].shift();
+    }
+    updateUI();
+  }
+
+  function drawSingleChart(ctx, data, color){
+    const w = ctx.canvas.width, h = ctx.canvas.height;
+    ctx.clearRect(0,0,w,h);
+    ctx.strokeStyle = 'rgba(227,236,255,.10)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, h-1);
+    ctx.lineTo(w, h-1);
+    ctx.stroke();
+    const maxV = Math.max(1, ...state.history.A, ...state.history.B, ...state.history.C);
+    if (!data.length) return;
+    ctx.beginPath();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2;
+    data.forEach((v, i) => {
+      const x = data.length === 1 ? 0 : i/(state.chartMax-1) * (w-1);
+      const y = h - 4 - (v/maxV) * (h-8);
+      if (i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    });
+    ctx.stroke();
+  }
+
+  function drawCharts(){
+    drawSingleChart(chartCtx.A, state.history.A, COLORS.A);
+    drawSingleChart(chartCtx.B, state.history.B, COLORS.B);
+    drawSingleChart(chartCtx.C, state.history.C, 'rgba(194,201,212,0.82)');
+  }
+
+  function initAudio(){
+    if (state.audioCtx) return;
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return;
+    state.audioCtx = new Ctx();
+  }
+
+  function playReactionTone(){
+    initAudio();
+    if (!state.audioCtx) return;
+    if (state.audioCtx.state === 'suspended') state.audioCtx.resume();
+    const now = state.audioCtx.currentTime;
+    const gap = performance.now() - state.lastReactionSoundTime;
+    if (gap < 380) state.reactionStreak++; else state.reactionStreak = 0;
+    state.lastReactionSoundTime = performance.now();
+    const semis = Math.min(state.reactionStreak, 9) * 2;
+    const freq = 460 * Math.pow(2, semis / 12);
+    const osc = state.audioCtx.createOscillator();
+    const gain = state.audioCtx.createGain();
+    const filt = state.audioCtx.createBiquadFilter();
+    filt.type = 'bandpass';
+    filt.frequency.value = freq * 1.35;
+    filt.Q.value = 6;
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(freq, now);
+    osc.frequency.exponentialRampToValueAtTime(freq*0.92, now + 0.11);
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(0.12, now + 0.016);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.12);
+    osc.connect(filt).connect(gain).connect(state.audioCtx.destination);
+    osc.start(now);
+    osc.stop(now + 0.14);
+  }
+
+  function addRipple(x,y){
+    state.ripples.push({x,y,r:2,a:0.58});
+  }
+
+  function forwardReact(pa, pb){
+    const mx = (pa.x + pb.x) / 2;
+    const my = (pa.y + pb.y) / 2;
+    const vx = (pa.vx + pb.vx) / 2;
+    const vy = (pa.vy + pb.vy) / 2;
+    const catA = pa.activated ? getParticleById(pa.catalystId) : null;
+    const catB = pb.activated ? getParticleById(pb.catalystId) : null;
+    const product = {
+      id: state.nextId++,
+      type:'C',
+      x:mx, y:my,
+      vx:vx * 0.9,
+      vy:vy * 0.9,
+      r: currentParticleRadius('C'),
+      activeUntil: 0,
+      splitCooldown: 0.45,
+      activated:false,
+      activatedUntil:0,
+      catalystId:null,
+      attachedTo:null
+    };
+    state.particles = state.particles.filter(p => p !== pa && p !== pb);
+    state.particles.push(product);
+    if (catA) releaseCatalyst(catA, product);
+    if (catB && catB !== catA) releaseCatalyst(catB, product, rand(Math.PI * 2));
+    playReactionTone();
+  }
+
+  function reverseSplit(pc){
+    const ang = rand(Math.PI*2);
+    const sep = currentParticleRadius('A') * 1.8;
+    const speed = Math.max(26, thermalSpeed()*0.18) * (0.8 + temperatureNorm()*0.9);
+    const ax = Math.cos(ang), ay = Math.sin(ang);
+    const cat = pc.activated ? getParticleById(pc.catalystId) : null;
+    const a = {
+      id: state.nextId++,
+      type:'A',
+      x: pc.x + ax*sep,
+      y: pc.y + ay*sep,
+      vx: pc.vx + ax*speed,
+      vy: pc.vy + ay*speed,
+      r: currentParticleRadius('A'),
+      activeUntil: performance.now() + 260,
+      splitCooldown: 0,
+      activated:false,
+      activatedUntil:0,
+      catalystId:null,
+      attachedTo:null
+    };
+    const b = {
+      id: state.nextId++,
+      type:'B',
+      x: pc.x - ax*sep,
+      y: pc.y - ay*sep,
+      vx: pc.vx - ax*speed,
+      vy: pc.vy - ay*speed,
+      r: currentParticleRadius('B'),
+      activeUntil: performance.now() + 260,
+      splitCooldown: 0,
+      activated:false,
+      activatedUntil:0,
+      catalystId:null,
+      attachedTo:null
+    };
+    state.particles = state.particles.filter(p => p !== pc);
+    state.particles.push(a,b);
+    if (cat) releaseCatalyst(cat, a, ang + Math.PI * 0.5);
+    confineParticleToLiquid(a);
+    confineParticleToLiquid(b);
+  }
+
+  function canForwardReact(pa, pb){
+    if (!state.forwardEnabled) return false;
+    if (performance.now() < pa.activeUntil || performance.now() < pb.activeUntil) {
+      // activeUntil here means just split cooldown shield
+    }
+    if (!state.reverseEnabled) return true;
+    const conc = concentrations();
+    const q = conc.C / Math.max(0.000001, conc.A * conc.B);
+    const keff = effectiveK();
+    const delta = Math.log((keff + 1e-6) / (q + 1e-6));
+    const forwardBias = 1 / (1 + Math.exp(-delta * 1.2));
+    let p = 0.1 + forwardBias * 0.9;
+    p *= clamp(0.45 + Math.log2(Math.max(0.25, chemistryTempFactor())) * 0.18, 0.25, 1.4);
+    p *= clamp(Math.pow(surfaceFactor(), 0.32), 1, 1.9);
+    if (state.catalystEnabled && (nearCatalyst(pa) || nearCatalyst(pb) || pa.activated || pb.activated)) p *= 1.95;
+    return Math.random() < clamp(p, 0.06, 1);
+  }
+
+
+  function reverseRatePerSecond(){
+    const conc = concentrations();
+    const q = conc.C / Math.max(0.000001, conc.A * conc.B);
+    const keff = effectiveK();
+    const delta = Math.log((keff + 1e-6) / (q + 1e-6));
+    const forwardBias = 1 / (1 + Math.exp(-delta * 1.2));
+    const base = 0.18 + temperatureNorm()*0.45;
+    const catMul = state.catalystEnabled ? 1.45 : 1;
+    if (!state.forwardEnabled && state.reverseEnabled) return base * 1.8 * catMul;
+    return base * (0.35 + (1 - forwardBias) * 1.8) * catMul;
+  }
+
+  function elasticBounce(a,b){
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    let dist = Math.hypot(dx,dy) || 0.0001;
+    const nx = dx / dist;
+    const ny = dy / dist;
+    const overlap = (a.r + b.r) - dist;
+    if (overlap > 0){
+      const push = overlap / 2 + 0.01;
+      a.x -= nx * push; a.y -= ny * push;
+      b.x += nx * push; b.y += ny * push;
+    }
+    const dvx = a.vx - b.vx;
+    const dvy = a.vy - b.vy;
+    const rel = dvx*nx + dvy*ny;
+    if (rel > 0) return;
+    const impulse = -1.92 * rel / 2;
+    a.vx += -impulse * nx;
+    a.vy += -impulse * ny;
+    b.vx += impulse * nx;
+    b.vy += impulse * ny;
+  }
+
+  function applyPointerDisturbance(p, dt){
+    const age = performance.now() - state.pointer.lastT;
+    if (age > 110) return;
+    const dx = p.x - state.pointer.x;
+    const dy = p.y - state.pointer.y;
+    const d2 = dx*dx + dy*dy;
+    const rad = 90;
+    if (d2 > rad*rad) return;
+    const dist = Math.sqrt(d2) || 0.01;
+    const strength = (1 - dist/rad) * (state.pointer.active ? 1700 : 1150);
+    p.vx += (state.pointer.dx * 0.9 - dx/dist*0.12) * strength * dt;
+    p.vy += (state.pointer.dy * 0.9 - dy/dist*0.12) * strength * dt;
+  }
+
+  function updateParticleMotion(dt){
+    const rect = state.layout.liquid;
+    const targetSpeed = thermalSpeed();
+    const brownian = 0.3 + temperatureNorm()*7;
+
+    for (const p of state.particles){
+      p.r = currentParticleRadius(p.type);
+      if (p.splitCooldown > 0) p.splitCooldown -= dt;
+
+      if (p.type === 'K' && p.attachedTo){
+        const host = getParticleById(p.attachedTo);
+        if (!host){
+          p.attachedTo = null;
+        } else {
+          p.x = host.x + Math.cos(performance.now()*0.01 + host.id) * (host.r + p.r + 4);
+          p.y = host.y + Math.sin(performance.now()*0.01 + host.id) * (host.r + p.r + 4);
+          if (host.activatedUntil <= performance.now()){
+            releaseCatalyst(p, host);
+          }
+          continue;
+        }
+      }
+
+      const jitter = brownian * (p.type === 'K' ? 0.75 : 1);
+      p.vx += rand(jitter, -jitter);
+      p.vy += rand(jitter, -jitter);
+
+      if (p.activated && (p.type === 'A' || p.type === 'B')){
+        const target = findNearestOpposite(p, 240);
+        if (target){
+          const dx = target.x - p.x, dy = target.y - p.y;
+          const d = Math.max(1, Math.hypot(dx, dy));
+          const pull = 62 * (0.6 + temperatureNorm()*1.2);
+          p.vx += dx / d * pull * dt;
+          p.vy += dy / d * pull * dt;
+        }
+        if (p.activatedUntil <= performance.now()){
+          const cat = getParticleById(p.catalystId);
+          if (cat) releaseCatalyst(cat, p);
+          else {
+            p.activated = false;
+            p.activatedUntil = 0;
+            p.catalystId = null;
+          }
+        }
+      } else if (state.catalystEnabled && p.type === 'K' && !p.attachedTo){
+        // free catalyst wanders more aggressively
+        p.vx *= 1.01;
+        p.vy *= 1.01;
+      }
+
+      applyPointerDisturbance(p, dt);
+
+      const speed = Math.hypot(p.vx,p.vy) || 0.0001;
+      const desired = targetSpeed * (p.type === 'K' ? 0.7 : p.type === 'C' ? 0.88 : (p.activated ? 1.32 : 1));
+      const adjust = p.type === 'K' ? 0.16 : 0.12;
+      p.vx *= 1 - adjust;
+      p.vy *= 1 - adjust;
+      p.vx += (p.vx / speed) * desired * adjust;
+      p.vy += (p.vy / speed) * desired * adjust;
+
+      const maxSpeed = desired * (p.activated ? 1.95 : 1.7);
+      const sp = Math.hypot(p.vx,p.vy) || 1;
+      if (sp > maxSpeed){
+        p.vx = p.vx / sp * maxSpeed;
+        p.vy = p.vy / sp * maxSpeed;
+      }
+
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+
+      const l = rect.left + p.r, r = rect.right - p.r, t = rect.top + p.r, b = rect.bottom - p.r;
+      if (p.x < l){ p.x = l; p.vx = Math.abs(p.vx); }
+      if (p.x > r){ p.x = r; p.vx = -Math.abs(p.vx); }
+      if (p.y < t){ p.y = t; p.vy = Math.abs(p.vy); }
+      if (p.y > b){ p.y = b; p.vy = -Math.abs(p.vy); }
+    }
+  }
+
+  function handleInteractions(dt){
+    let i = 0;
+    let forwardEvents = 0;
+    while (i < state.particles.length){
+      const a = state.particles[i];
+      let removedA = false;
+      for (let j = i + 1; j < state.particles.length; j++){
+        const b = state.particles[j];
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+        const rr = a.r + b.r;
+        if (dx*dx + dy*dy > rr*rr) continue;
+
+        const types = a.type + b.type;
+        if ((types === 'AB' || types === 'BA') && a.splitCooldown <= 0 && b.splitCooldown <= 0){
+          if (canForwardReact(a,b)){
+            forwardReact(a,b);
+            forwardEvents++;
+            removedA = true;
+            break;
+          } else {
+            elasticBounce(a,b);
+          }
+        } else if (
+          (a.type === 'K' && (b.type === 'A' || b.type === 'B' || (state.reverseEnabled && b.type === 'C'))) ||
+          (b.type === 'K' && (a.type === 'A' || a.type === 'B' || (state.reverseEnabled && a.type === 'C')))
+        ){
+          const catalyst = a.type === 'K' ? a : b;
+          const host = catalyst === a ? b : a;
+          if (!host.activated && !catalyst.attachedTo){
+            attachCatalyst(host, catalyst);
+          } else {
+            elasticBounce(a,b);
+          }
+        } else {
+          elasticBounce(a,b);
+        }
+      }
+      if (!removedA) i++;
+    }
+
+    if (state.reverseEnabled){
+      const rate = reverseRatePerSecond();
+      const candidates = state.particles.filter(p => p.type === 'C' && p.splitCooldown <= 0);
+      for (const c of candidates){
+        const localCatMul = state.catalystEnabled && (c.activated || nearCatalyst(c)) ? 2.35 : 1;
+        const chance = 1 - Math.exp(-rate * localCatMul * dt);
+        if (Math.random() < chance) reverseSplit(c);
+      }
+    }
+    state.lastForwardEvents = forwardEvents;
+  }
+
+  function updateRipples(dt){
+    state.ripples.length = 0;
+  }
+
+  function roundRect(ctx, x, y, w, h, r){
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+  }
+
+  function draw(){
+    const w = window.innerWidth, h = window.innerHeight;
+    sctx.clearRect(0,0,w,h);
+    const lay = state.layout;
+    const b = lay.beaker;
+    const liquid = lay.liquid;
+
+    const glow = sctx.createRadialGradient(b.x + b.w*0.5, b.y + b.h*0.42, b.w*0.08, b.x + b.w*0.5, b.y + b.h*0.46, b.w*0.86);
+    glow.addColorStop(0, 'rgba(255,255,255,.05)');
+    glow.addColorStop(1, 'rgba(255,255,255,0)');
+    sctx.fillStyle = glow;
+    sctx.fillRect(lay.stage.x, lay.stage.y, lay.stage.w, lay.stage.h);
+
+    // v0.13-like beaker
+    const left = b.x + b.padX;
+    const top = b.y + 8;
+    const right = b.x + b.w - b.padX;
+    const bottom = b.y + b.h - b.padY;
+    const radius = Math.min(28, b.w * 0.10);
+
+    sctx.save();
+    sctx.lineWidth = Math.max(3.5, b.w*0.010);
+    sctx.strokeStyle = 'rgba(228,241,255,0.92)';
+    sctx.shadowColor = 'rgba(123,189,255,0.12)';
+    sctx.shadowBlur = 22;
+    sctx.beginPath();
+    sctx.moveTo(left, top);
+    sctx.lineTo(left, bottom - radius);
+    sctx.quadraticCurveTo(left, bottom, left + radius, bottom);
+    sctx.lineTo(right - radius, bottom);
+    sctx.quadraticCurveTo(right, bottom, right, bottom - radius);
+    sctx.lineTo(right, top);
+    sctx.stroke();
+
+    const grad = sctx.createLinearGradient(0, liquid.top, 0, liquid.bottom);
+    grad.addColorStop(0, 'rgba(110,205,255,0.19)');
+    grad.addColorStop(1, 'rgba(49,125,255,0.13)');
+    sctx.fillStyle = grad;
+    roundRect(sctx, liquid.left, liquid.top, liquid.right - liquid.left, liquid.bottom - liquid.top, 18);
+    sctx.fill();
+
+    const topGlow = sctx.createLinearGradient(0, liquid.top - 9, 0, liquid.top + 10);
+    topGlow.addColorStop(0, 'rgba(180,235,255,0.24)');
+    topGlow.addColorStop(1, 'rgba(180,235,255,0.02)');
+    sctx.fillStyle = topGlow;
+    sctx.beginPath();
+    sctx.ellipse(b.x + b.w/2, liquid.top + 1.5, (liquid.right - liquid.left)/2, Math.max(6, (liquid.right - liquid.left)*0.015), 0, 0, Math.PI*2);
+    sctx.fill();
+
+    // ripples
+    sctx.beginPath();
+    roundRect(sctx, liquid.left, liquid.top, liquid.right - liquid.left, liquid.bottom - liquid.top, 18);
+    sctx.clip();
+    for (const r of state.ripples){
+      sctx.strokeStyle = 'rgba(226,236,248,' + r.a.toFixed(3) + ')';
+      sctx.lineWidth = 1.4;
+      sctx.beginPath();
+      sctx.arc(r.x, r.y, r.r, 0, Math.PI*2);
+      sctx.stroke();
+    }
+    sctx.restore();
+
+    // subtle marker line
+    sctx.setLineDash([8, 10]);
+    sctx.strokeStyle = 'rgba(220,235,255,0.15)';
+    sctx.lineWidth = 1.2;
+    const markerY = b.y + b.h * 0.50;
+    sctx.beginPath();
+    sctx.moveTo(left + 18, markerY);
+    sctx.lineTo(right - 18, markerY);
+    sctx.stroke();
+    sctx.setLineDash([]);
+
+    for (const p of state.particles){
+      drawParticle(p);
+    }
+
+    const tn = temperatureNorm();
+    if (state.tempC > 50){
+      sctx.strokeStyle = 'rgba(255,128,77,.18)';
+      sctx.lineWidth = 1.1;
+      for (let i=0;i<5;i++){
+        const x = b.x + b.w * (0.15 + i*0.17);
+        const base = b.y + b.h + 10;
+        sctx.beginPath();
+        sctx.moveTo(x, base);
+        sctx.quadraticCurveTo(x + 6, base - 12 - 12*tn, x, base - 24 - 18*tn);
+        sctx.stroke();
+      }
+    } else if (state.tempC < 18){
+      sctx.strokeStyle = 'rgba(143,209,255,.18)';
+      sctx.lineWidth = 1;
+      for (let i=0;i<4;i++){
+        const x = b.x + b.w * (0.22 + i*0.18);
+        const y = b.y - 10 - i*2;
+        sctx.beginPath();
+        sctx.moveTo(x, y);
+        sctx.lineTo(x, y+14);
+        sctx.moveTo(x-6, y+5);
+        sctx.lineTo(x+6, y+9);
+        sctx.stroke();
+      }
+    }
+  }
+
+  function drawParticle(p){
+    sctx.save();
+    if (p.type === 'C'){
+      sctx.fillStyle = COLORS.C;
+      sctx.strokeStyle = 'rgba(243,247,252,.34)';
+      sctx.lineWidth = 1;
+      sctx.beginPath();
+      sctx.arc(p.x, p.y, p.r, 0, Math.PI*2);
+      sctx.fill();
+      sctx.stroke();
+      if (p.activated || nearCatalyst(p)){
+        sctx.beginPath();
+        sctx.arc(p.x, p.y, p.r + 3 + Math.sin(performance.now()*0.014 + p.id)*0.6, 0, Math.PI*2);
+        sctx.strokeStyle = 'rgba(88,210,155,.36)';
+        sctx.lineWidth = 1.3;
+        sctx.stroke();
+      }
+    } else if (p.type === 'K'){
+      sctx.fillStyle = COLORS.K;
+      sctx.beginPath();
+      sctx.arc(p.x, p.y, p.r, 0, Math.PI*2);
+      sctx.fill();
+      sctx.strokeStyle = 'rgba(255,255,255,.25)';
+      sctx.lineWidth = 1;
+      sctx.stroke();
+    } else {
+      sctx.fillStyle = p.type === 'A' ? COLORS.A : COLORS.B;
+      sctx.beginPath();
+      sctx.arc(p.x, p.y, p.r, 0, Math.PI*2);
+      sctx.fill();
+      if (nearCatalyst(p)){
+        sctx.strokeStyle = 'rgba(88,210,155,.50)';
+        sctx.lineWidth = 1.6;
+        sctx.stroke();
+        sctx.beginPath();
+        sctx.arc(p.x, p.y, p.r + 3 + Math.sin(performance.now()*0.014 + p.id)*0.6, 0, Math.PI*2);
+        sctx.strokeStyle = 'rgba(88,210,155,.28)';
+        sctx.lineWidth = 1.2;
+        sctx.stroke();
+      }
+    }
+    sctx.restore();
+  }
+
+  function roundBeakerPath(ctx, x,y,w,h){
+    const r = Math.min(w*0.14, 22);
+    ctx.beginPath();
+    ctx.moveTo(x + w*0.13, y);
+    ctx.lineTo(x + w*0.87, y);
+    ctx.lineTo(x + w*0.93, y + h*0.86);
+    ctx.arcTo(x + w*0.93, y+h, x+w*0.5, y+h, r);
+    ctx.arcTo(x + w*0.07, y+h, x + w*0.07, y+h*0.86, r);
+    ctx.lineTo(x + w*0.07, y + h*0.18);
+  }
+
+  function roundLiquidPath(ctx, x,y,w,h,top){
+    const left = x + w*0.09;
+    const right = x + w*0.91;
+    const bottom = y + h*0.96;
+    const r = Math.min(18, w*0.12);
+    ctx.beginPath();
+    ctx.moveTo(left, top);
+    ctx.lineTo(right, top);
+    ctx.lineTo(right, bottom-r);
+    ctx.arcTo(right, bottom, x+w*0.5, bottom, r);
+    ctx.arcTo(left, bottom, left, bottom-r, r);
+    ctx.lineTo(left, top);
+    ctx.closePath();
+  }
+
+  function animate(ts){
+    if (!animate.last) animate.last = ts;
+    let dt = Math.min(0.032, (ts - animate.last) / 1000);
+    animate.last = ts;
+    state.layout = computeLayout();
+    updateParticleMotion(dt);
+    handleInteractions(dt);
+    updateRipples(dt);
+    state.chartTimer += dt;
+    if (state.chartTimer >= 0.25){
+      chartSample();
+      state.chartTimer = 0;
+    } else {
+      updateUI();
+    }
+    draw();
+    requestAnimationFrame(animate);
+  if (!hasSeenIntro()) showHelp('short');
+  }
+
+  // Controls
+  document.getElementById('abA').addEventListener('click', () => { spawnUniform('A', equivalentCountFromMassUnits(2)); chartSample(); });
+  document.getElementById('abB').addEventListener('click', () => { spawnUniform('B', equivalentCountFromMassUnits(2)); chartSample(); });
+  document.getElementById('clearBtn').addEventListener('click', () => { resetSim(); });
+  el.moreBtn.addEventListener('click', () => toggleMenu(true));
+  el.menuBackdrop.addEventListener('click', () => toggleMenu(false));
+
+  el.forwardBtn.addEventListener('click', () => {
+    state.forwardEnabled = !state.forwardEnabled;
+    if (!state.forwardEnabled && !state.reverseEnabled) state.forwardEnabled = true;
+    updateUI();
+  });
+  el.reverseBtn.addEventListener('click', () => {
+    state.reverseEnabled = !state.reverseEnabled;
+    if (!state.forwardEnabled && !state.reverseEnabled) state.reverseEnabled = true;
+    updateUI();
+  });
+  if (el.forwardMenuBtn) el.forwardMenuBtn.addEventListener('click', () => {
+    state.forwardEnabled = !state.forwardEnabled;
+    if (!state.forwardEnabled && !state.reverseEnabled) state.forwardEnabled = true;
+    updateUI();
+  });
+  if (el.reverseMenuBtn) el.reverseMenuBtn.addEventListener('click', () => {
+    state.reverseEnabled = !state.reverseEnabled;
+    if (!state.forwardEnabled && !state.reverseEnabled) state.reverseEnabled = true;
+    updateUI();
+  });
+
+  document.getElementById('waterMinus').addEventListener('click', () => {
+    state.waterUnits = clamp(state.waterUnits / 2, state.minWaterUnits, state.maxWaterUnits);
+    state.layout = computeLayout();
+    for (const p of state.particles) confineParticleToLiquid(p);
+    updateUI();
+  });
+  document.getElementById('waterPlus').addEventListener('click', () => {
+    state.waterUnits = clamp(state.waterUnits * 2, state.minWaterUnits, state.maxWaterUnits);
+    state.layout = computeLayout();
+    for (const p of state.particles) confineParticleToLiquid(p);
+    updateUI();
+  });
+
+  document.getElementById('tempMinus').addEventListener('click', () => {
+    state.tempC = clamp(state.tempC - 5, 0, 95);
+    updateUI();
+  });
+  document.getElementById('tempPlus').addEventListener('click', () => {
+    state.tempC = clamp(state.tempC + 5, 0, 95);
+    updateUI();
+  });
+
+  document.getElementById('catToggle').addEventListener('click', () => {
+    state.catalystEnabled = !state.catalystEnabled;
+    syncCatalystParticles();
+    updateUI();
+  });
+
+  document.getElementById('sizeUp').addEventListener('click', () => {
+    const oldScale = reactiveParticleMass();
+    state.sizeIndex = clamp(state.sizeIndex - 1, 0, state.sizeScales.length-1);
+    adjustAllRadii(oldScale);
+  });
+  document.getElementById('sizeDown').addEventListener('click', () => {
+    const oldScale = reactiveParticleMass();
+    state.sizeIndex = clamp(state.sizeIndex + 1, 0, state.sizeScales.length-1);
+    adjustAllRadii(oldScale);
+  });
+
+  el.chartToggle.addEventListener('click', () => {
+    state.chartsOpen = !state.chartsOpen;
+    el.chartPanel.classList.toggle('compact', !state.chartsOpen);
+    el.chartToggle.textContent = state.chartsOpen ? '▾' : '▸';
+    resizeCanvas();
+    updateUI();
+    draw();
+  });
+
+  function eventPos(ev){
+    const r = simCanvas.getBoundingClientRect();
+    return {x: ev.clientX - r.left, y: ev.clientY - r.top};
+  }
+
+  let lastPointerPos = null;
+  simCanvas.addEventListener('pointerdown', (ev) => {
+    initAudio();
+    const p = eventPos(ev);
+    lastPointerPos = p;
+    state.pointer.x = p.x; state.pointer.y = p.y;
+    state.pointer.dx = 0; state.pointer.dy = 0;
+    state.pointer.active = true;
+    state.pointer.lastT = performance.now();
+  }, {passive:true});
+
+  simCanvas.addEventListener('pointermove', (ev) => {
+    const p = eventPos(ev);
+    if (lastPointerPos){
+      state.pointer.dx = p.x - lastPointerPos.x;
+      state.pointer.dy = p.y - lastPointerPos.y;
+    } else {
+      state.pointer.dx = 0;
+      state.pointer.dy = 0;
+    }
+    state.pointer.x = p.x;
+    state.pointer.y = p.y;
+    state.pointer.lastT = performance.now();
+    state.pointer.active = ev.pointerType === 'mouse' ? true : (ev.buttons !== 0 || state.pointer.active);
+    lastPointerPos = p;
+  }, {passive:true});
+
+  window.addEventListener('pointerup', () => { state.pointer.active = false; });
+  window.addEventListener('pointercancel', () => { state.pointer.active = false; });
+  window.addEventListener('mouseleave', () => { state.pointer.active = false; });
+  window.addEventListener('resize', resizeCanvas);
+
+  if (el.helpBtn) el.helpBtn.addEventListener('click', () => { showHelp('full'); });
+  if (el.helpBackdrop) el.helpBackdrop.addEventListener('click', () => { hideHelp(); });
+  if (el.helpCard) el.helpCard.addEventListener('click', (ev) => { ev.stopPropagation(); });
+
+  // bootstrap
+  el.chartPanel.classList.remove('compact');
+  el.chartToggle.textContent = '▾';
+  resizeCanvas();
+  resetSim();
+  chartSample();
+  requestAnimationFrame(animate);
+  if (!hasSeenIntro()) showHelp('short');
+})();
+</script>
+</body>
+</html>
