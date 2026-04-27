@@ -4,7 +4,7 @@
 <script src="/eduGame/ga4.js"></script>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-<title>Ballet Pose Viewer v0.36F｜torso yaw and nose direction fixes</title>
+<title>Ballet Pose Viewer v0.36E｜neck, turn, voice, GA fixes</title>
 <style>
 :root{
   --line:rgba(255,255,255,.13);
@@ -1253,49 +1253,6 @@ function arrowBetween(arrow, a, b){
   arrow.setLength(len, .15, .08);
 }
 
-function computeBodyBasis(){
-  const leftS = toV(currentPose.leftShoulder);
-  const rightS = toV(currentPose.rightShoulder);
-  const leftH = toV(currentPose.leftHip);
-  const rightH = toV(currentPose.rightHip);
-  const chest = toV(currentPose.chest);
-  const pelvis = toV(currentPose.pelvis);
-
-  const acrossShoulder = rightS.clone().sub(leftS);
-  const acrossHip = rightH.clone().sub(leftH);
-  let xAxis = acrossShoulder.clone().add(acrossHip.multiplyScalar(.55));
-  if(xAxis.length() < .001) xAxis = new THREE.Vector3(1,0,0);
-  xAxis.normalize();
-
-  let yAxis = chest.clone().sub(pelvis);
-  if(yAxis.length() < .001) yAxis = new THREE.Vector3(0,1,0);
-  yAxis.normalize();
-
-  // 正面方向：由肩線/髖線與身體中軸推得。這讓鼻子、胸腰臀的朝向一起轉。
-  let zAxis = xAxis.clone().cross(yAxis);
-  if(zAxis.length() < .001) zAxis = new THREE.Vector3(0,0,1);
-  zAxis.normalize();
-
-  // 重新正交化，避免身體彎曲時體塊扭曲。
-  xAxis = yAxis.clone().cross(zAxis).normalize();
-
-  return { xAxis, yAxis, zAxis };
-}
-function quatFromBasis(xAxis, yAxis, zAxis){
-  const m = new THREE.Matrix4();
-  m.makeBasis(xAxis, yAxis, zAxis);
-  return new THREE.Quaternion().setFromRotationMatrix(m);
-}
-function orientBodyShell(mesh, center, xAxis, yAxis, zAxis){
-  mesh.position.copy(center);
-  mesh.quaternion.copy(quatFromBasis(xAxis, yAxis, zAxis));
-}
-function orientCylinderWithBasis(mesh, center, yAxis, zAxis){
-  mesh.position.copy(center);
-  mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), yAxis.clone().normalize());
-  // 圓柱本身對繞軸旋轉不敏感，但保留此函式便於之後加非圓形頸部。
-}
-
 const fixed = {};
 function setFixedLengths(){ for(const [a,b] of segments) fixed[a+"_"+b] = toV(base[a]).distanceTo(toV(base[b])); }
 setFixedLengths();
@@ -1393,23 +1350,21 @@ function updateActor(){
     jointMeshes[j].material = (j === selectedJoint && j !== "head") ? matJointSel : (j === "head" ? matCore : matJoint);
   }
   for(const b of boneMeshes) updateCylinder(b.mesh, currentPose[b.a], currentPose[b.b], b.r);
-  const basis = computeBodyBasis();
-  const chestCenter = toV(currentPose.spine).lerp(toV(currentPose.chest), .62);
-  const waistCenter = toV(currentPose.spine).lerp(toV(currentPose.pelvis), .48);
-  const pelvisCenter = toV(currentPose.leftHip).add(toV(currentPose.rightHip)).multiplyScalar(.5);
+  orientShell(chestShell, currentPose.spine, currentPose.chest);
+  waistShell.position.copy(toV(currentPose.spine).lerp(toV(currentPose.pelvis), .5));
+  waistShell.quaternion.copy(chestShell.quaternion);
+  pelvisShell.position.copy(toV(currentPose.leftHip).add(toV(currentPose.rightHip)).multiplyScalar(.5));
+  pelvisShell.quaternion.setFromUnitVectors(new THREE.Vector3(1,0,0), toV(currentPose.rightHip).sub(toV(currentPose.leftHip)).normalize());
+  orientShell(neckShell, currentPose.neck, currentPose.head);
 
-  // 胸、腰、臀現在會跟著肩線/髖線與身體中軸一起慢慢旋轉。
-  orientBodyShell(chestShell, chestCenter, basis.xAxis, basis.yAxis, basis.zAxis);
-  orientBodyShell(waistShell, waistCenter, basis.xAxis, basis.yAxis, basis.zAxis);
-  orientBodyShell(pelvisShell, pelvisCenter, basis.xAxis, basis.yAxis, basis.zAxis);
-
-  const neckAxis = toV(currentPose.head).sub(toV(currentPose.neck));
-  const neckCenter = toV(currentPose.neck).lerp(toV(currentPose.head), .45);
-  orientCylinderWithBasis(neckShell, neckCenter, neckAxis.length() > .001 ? neckAxis.normalize() : basis.yAxis, basis.zAxis);
-
-  // 鼻子使用身體正面方向 basis.zAxis；因此旋轉動作時鼻子會跟著身體中軸慢慢轉。
-  noseMesh.position.copy(toV(currentPose.head).add(basis.zAxis.clone().multiplyScalar(.285)));
-  noseMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), basis.zAxis);
+  const shoulderDirForNose = toV(currentPose.rightShoulder).sub(toV(currentPose.leftShoulder)).normalize();
+  let upForNose = toV(currentPose.head).sub(toV(currentPose.neck));
+  if(upForNose.length() < .001) upForNose = new THREE.Vector3(0,1,0);
+  upForNose.normalize();
+  let forwardForNose = shoulderDirForNose.clone().cross(upForNose).normalize();
+  if(forwardForNose.length() < .001) forwardForNose = new THREE.Vector3(0,0,1);
+  noseMesh.position.copy(toV(currentPose.head).add(forwardForNose.clone().multiplyScalar(.27)));
+  noseMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), forwardForNose);
 
   plateBetween(leftPalmPlate, currentPose.leftWrist, currentPose.leftHand, .34, .052);
   plateBetween(rightPalmPlate, currentPose.rightWrist, currentPose.rightHand, .34, .052);
