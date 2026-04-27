@@ -1,0 +1,1232 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Ballet Pose Viewer v0.1｜芭蕾基本動作3D演示器</title>
+  <style>
+    :root{
+      --bg:#0d1017;
+      --panel:rgba(18,22,32,.82);
+      --panel2:rgba(255,255,255,.08);
+      --line:rgba(255,255,255,.14);
+      --text:#f5f7fb;
+      --muted:#aeb7c8;
+      --accent:#f5d28c;
+      --accent2:#eec5df;
+      --danger:#ff8a8a;
+      --ok:#9be7c2;
+      --shadow:0 18px 50px rgba(0,0,0,.38);
+      --r:18px;
+    }
+    *{box-sizing:border-box}
+    html,body{
+      margin:0;
+      width:100%;
+      height:100%;
+      overflow:hidden;
+      background:radial-gradient(circle at 50% 20%, #232839 0%, #111622 45%, #080b10 100%);
+      color:var(--text);
+      font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans TC","Microsoft JhengHei",sans-serif;
+    }
+    #app{
+      position:fixed;
+      inset:0;
+      display:grid;
+      grid-template-columns:320px 1fr 340px;
+      gap:14px;
+      padding:14px;
+    }
+    #stageWrap{
+      position:relative;
+      min-width:0;
+      border:1px solid var(--line);
+      border-radius:26px;
+      overflow:hidden;
+      box-shadow:var(--shadow);
+      background:linear-gradient(180deg,rgba(255,255,255,.05),rgba(255,255,255,.015));
+    }
+    #stage{
+      position:absolute;
+      inset:0;
+      width:100%;
+      height:100%;
+      display:block;
+      touch-action:none;
+    }
+    .panel{
+      min-height:0;
+      background:var(--panel);
+      backdrop-filter:blur(18px);
+      border:1px solid var(--line);
+      border-radius:26px;
+      box-shadow:var(--shadow);
+      overflow:hidden;
+      display:flex;
+      flex-direction:column;
+    }
+    .panel header{
+      padding:16px 16px 12px;
+      border-bottom:1px solid var(--line);
+    }
+    .panel h1,.panel h2{
+      margin:0;
+      letter-spacing:.04em;
+    }
+    .panel h1{
+      font-size:19px;
+      line-height:1.25;
+    }
+    .panel h2{
+      font-size:16px;
+    }
+    .sub{
+      margin-top:7px;
+      color:var(--muted);
+      font-size:12px;
+      line-height:1.45;
+    }
+    .scroll{
+      min-height:0;
+      overflow:auto;
+      padding:14px;
+    }
+    .cat{
+      margin:0 0 16px;
+    }
+    .catTitle{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:8px;
+      color:var(--accent);
+      font-size:13px;
+      font-weight:800;
+      letter-spacing:.08em;
+      margin:0 0 8px;
+      text-transform:uppercase;
+    }
+    .gridBtns{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:8px;
+    }
+    button,select,input{
+      font:inherit;
+    }
+    button{
+      border:1px solid rgba(255,255,255,.13);
+      background:rgba(255,255,255,.08);
+      color:var(--text);
+      border-radius:14px;
+      padding:10px 12px;
+      cursor:pointer;
+      transition:.16s transform,.16s background,.16s border-color;
+      text-align:left;
+      -webkit-tap-highlight-color:transparent;
+    }
+    button:hover{
+      transform:translateY(-1px);
+      background:rgba(255,255,255,.13);
+      border-color:rgba(255,255,255,.24);
+    }
+    button.active{
+      background:linear-gradient(135deg,rgba(245,210,140,.25),rgba(238,197,223,.14));
+      border-color:rgba(245,210,140,.55);
+      color:#fff8e9;
+      box-shadow:0 0 0 1px rgba(245,210,140,.10) inset;
+    }
+    button.small{
+      padding:8px 10px;
+      border-radius:12px;
+      font-size:12px;
+      text-align:center;
+    }
+    button.icon{
+      text-align:center;
+      font-weight:800;
+    }
+    .topHud{
+      position:absolute;
+      left:14px;
+      top:14px;
+      right:14px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      pointer-events:none;
+      z-index:5;
+    }
+    .pill{
+      pointer-events:auto;
+      display:flex;
+      gap:8px;
+      align-items:center;
+      padding:8px;
+      background:rgba(9,12,18,.58);
+      border:1px solid var(--line);
+      border-radius:999px;
+      backdrop-filter:blur(14px);
+    }
+    .titlePill{
+      pointer-events:auto;
+      padding:10px 14px;
+      background:rgba(9,12,18,.58);
+      border:1px solid var(--line);
+      border-radius:999px;
+      backdrop-filter:blur(14px);
+      font-size:13px;
+      color:var(--muted);
+      white-space:nowrap;
+    }
+    .bottomHud{
+      position:absolute;
+      left:50%;
+      bottom:14px;
+      transform:translateX(-50%);
+      width:min(760px,calc(100% - 28px));
+      padding:12px;
+      background:rgba(9,12,18,.72);
+      border:1px solid var(--line);
+      border-radius:24px;
+      backdrop-filter:blur(18px);
+      z-index:5;
+      box-shadow:0 14px 34px rgba(0,0,0,.28);
+    }
+    .playRow{
+      display:grid;
+      grid-template-columns:auto 1fr auto auto;
+      gap:10px;
+      align-items:center;
+    }
+    .range{
+      width:100%;
+      accent-color:#f5d28c;
+    }
+    .speed{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      color:var(--muted);
+      font-size:12px;
+      white-space:nowrap;
+    }
+    .speed input{width:94px}
+    .infoCard{
+      padding:14px;
+      border:1px solid var(--line);
+      background:rgba(255,255,255,.055);
+      border-radius:20px;
+      margin-bottom:14px;
+    }
+    .infoCard h3{
+      margin:0 0 4px;
+      font-size:22px;
+      color:#fff5dd;
+    }
+    .infoCard .en{
+      color:var(--accent2);
+      font-size:13px;
+      margin-bottom:10px;
+    }
+    .infoCard p{
+      margin:0;
+      color:var(--muted);
+      line-height:1.62;
+      font-size:14px;
+    }
+    .list{
+      margin:10px 0 0;
+      padding-left:1.1em;
+      color:var(--muted);
+      font-size:13px;
+      line-height:1.7;
+    }
+    .tagRow{
+      display:flex;
+      flex-wrap:wrap;
+      gap:6px;
+      margin-top:10px;
+    }
+    .tag{
+      font-size:11px;
+      color:#10131a;
+      background:var(--accent);
+      border-radius:999px;
+      padding:4px 8px;
+      font-weight:700;
+    }
+    .ctrlGroup{
+      border:1px solid var(--line);
+      border-radius:20px;
+      padding:12px;
+      margin-bottom:12px;
+      background:rgba(255,255,255,.045);
+    }
+    .ctrlGroup label{
+      display:block;
+      color:var(--muted);
+      font-size:12px;
+      margin:9px 0 4px;
+    }
+    .ctrlGroup select{
+      width:100%;
+      border:1px solid rgba(255,255,255,.14);
+      border-radius:12px;
+      background:rgba(0,0,0,.25);
+      color:var(--text);
+      padding:9px 10px;
+      outline:none;
+    }
+    .sliderLine{
+      display:grid;
+      grid-template-columns:24px 1fr 42px;
+      align-items:center;
+      gap:8px;
+      color:var(--muted);
+      font-size:12px;
+    }
+    .sliderLine input{width:100%;accent-color:#f5d28c}
+    .hint{
+      color:var(--muted);
+      font-size:12px;
+      line-height:1.6;
+    }
+    .toggle{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      color:var(--muted);
+      font-size:12px;
+      margin-top:8px;
+    }
+    .toggle input{accent-color:#f5d28c}
+    .legend{
+      position:absolute;
+      right:14px;
+      top:78px;
+      background:rgba(9,12,18,.58);
+      border:1px solid var(--line);
+      border-radius:18px;
+      padding:10px 12px;
+      color:var(--muted);
+      font-size:12px;
+      line-height:1.55;
+      backdrop-filter:blur(14px);
+      z-index:4;
+      pointer-events:none;
+    }
+    .kbd{
+      color:#fff;
+      border:1px solid var(--line);
+      border-radius:7px;
+      padding:1px 5px;
+      background:rgba(255,255,255,.08);
+      font-size:11px;
+    }
+    .footerNote{
+      padding:10px 14px 14px;
+      color:rgba(255,255,255,.45);
+      font-size:11px;
+      border-top:1px solid var(--line);
+    }
+    @media(max-width:1050px){
+      #app{
+        grid-template-columns:1fr;
+        grid-template-rows:1fr auto;
+        padding:10px;
+      }
+      #stageWrap{min-height:54vh}
+      #leftPanel{
+        position:absolute;
+        left:10px;
+        top:76px;
+        bottom:86px;
+        width:min(320px,calc(100vw - 20px));
+        z-index:9;
+        transform:translateX(calc(-100% - 12px));
+        transition:.22s transform;
+      }
+      #leftPanel.open{transform:translateX(0)}
+      #rightPanel{
+        position:absolute;
+        right:10px;
+        top:76px;
+        bottom:86px;
+        width:min(340px,calc(100vw - 20px));
+        z-index:9;
+        transform:translateX(calc(100% + 12px));
+        transition:.22s transform;
+      }
+      #rightPanel.open{transform:translateX(0)}
+      #panelToggleLeft,#panelToggleRight{display:inline-block!important}
+      .bottomHud{bottom:10px}
+      .playRow{grid-template-columns:auto 1fr auto}
+      .speed{grid-column:2/4}
+      .legend{display:none}
+    }
+    @media(max-width:560px){
+      .titlePill{display:none}
+      .pill{gap:5px}
+      button.small{padding:7px 8px}
+      .bottomHud{border-radius:18px}
+      .playRow{grid-template-columns:1fr 1fr}
+      #progress{grid-column:1/3}
+      .speed{grid-column:1/3}
+    }
+  </style>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+</head>
+<body>
+<div id="app">
+  <aside class="panel" id="leftPanel">
+    <header>
+      <h1>芭蕾基本動作<br>3D 演示器 v0.1</h1>
+      <div class="sub">第一階段原型：點選術語後，以簡易3D肢體人偶示範姿勢與基本動作。</div>
+    </header>
+    <div class="scroll" id="actionList"></div>
+    <div class="footerNote">提示：第一版為教學示意，不等同專業舞者精準骨架。之後可替換成正式角色模型。</div>
+  </aside>
+
+  <main id="stageWrap">
+    <canvas id="stage"></canvas>
+
+    <div class="topHud">
+      <div class="pill">
+        <button class="small icon" id="panelToggleLeft" style="display:none">動作</button>
+        <button class="small" data-view="front">正面</button>
+        <button class="small" data-view="side">側面</button>
+        <button class="small" data-view="back">背面</button>
+        <button class="small" data-view="top">俯視</button>
+        <button class="small" id="resetCam">重置</button>
+      </div>
+      <div class="titlePill" id="currentTitle">準備位｜Preparation</div>
+      <div class="pill">
+        <button class="small icon" id="panelToggleRight" style="display:none">說明</button>
+      </div>
+    </div>
+
+    <div class="legend">
+      <div><span class="kbd">拖曳</span> 旋轉視角</div>
+      <div><span class="kbd">滾輪</span> 縮放</div>
+      <div><span class="kbd">右鍵</span> 平移</div>
+      <div>黃色小球＝可微調關節</div>
+    </div>
+
+    <div class="bottomHud">
+      <div class="playRow">
+        <button class="icon" id="playBtn">▶ 播放</button>
+        <input class="range" id="progress" type="range" min="0" max="1" step="0.001" value="0" />
+        <button class="icon" id="restartBtn">↻ 重播</button>
+        <label class="toggle"><input id="loopToggle" type="checkbox" checked />循環</label>
+        <div class="speed">
+          <span>速度</span>
+          <input id="speedRange" type="range" min="0.25" max="2" step="0.25" value="1" />
+          <span id="speedText">1x</span>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <aside class="panel" id="rightPanel">
+    <header>
+      <h2>動作說明與關節微調</h2>
+      <div class="sub">可先用預設姿勢學習，也可以用下方滑桿微調單一關節位置。</div>
+    </header>
+    <div class="scroll">
+      <section class="infoCard">
+        <h3 id="infoZh">準備位</h3>
+        <div class="en" id="infoEn">Preparation</div>
+        <p id="infoDesc">站姿穩定，手臂自然形成低圓弧，身體保持向上延伸。</p>
+        <ul class="list" id="infoTips"></ul>
+        <div class="tagRow" id="infoTags"></div>
+      </section>
+
+      <section class="ctrlGroup">
+        <h2 style="font-size:14px;margin:0 0 6px;color:var(--accent)">關節微調測試</h2>
+        <div class="hint">選擇一個關節後調整 X/Y/Z，可觀察姿勢資料如何影響肢體。這是未來「姿勢編輯器」的雛形。</div>
+        <label for="jointSelect">選擇關節</label>
+        <select id="jointSelect"></select>
+        <label>X 左右</label>
+        <div class="sliderLine"><span>X</span><input id="jointX" type="range" min="-2.5" max="2.5" step="0.01"><span id="jointXv"></span></div>
+        <label>Y 高低</label>
+        <div class="sliderLine"><span>Y</span><input id="jointY" type="range" min="0" max="5.5" step="0.01"><span id="jointYv"></span></div>
+        <label>Z 前後</label>
+        <div class="sliderLine"><span>Z</span><input id="jointZ" type="range" min="-2.5" max="2.5" step="0.01"><span id="jointZv"></span></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px">
+          <button class="small" id="resetPose">回復此動作</button>
+          <button class="small" id="copyPose">複製姿勢JSON</button>
+        </div>
+      </section>
+
+      <section class="ctrlGroup">
+        <h2 style="font-size:14px;margin:0 0 6px;color:var(--accent)">顯示設定</h2>
+        <label class="toggle"><input id="showGrid" type="checkbox" checked />顯示地板格線</label>
+        <label class="toggle"><input id="showLabels" type="checkbox" checked />顯示左右提示</label>
+        <label class="toggle"><input id="showJointNames" type="checkbox" />顯示關節名稱</label>
+      </section>
+    </div>
+  </aside>
+</div>
+
+<script type="module">
+import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+
+const canvas = document.querySelector("#stage");
+const wrap = document.querySelector("#stageWrap");
+
+const renderer = new THREE.WebGLRenderer({ canvas, antialias:true, alpha:true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.Fog(0x0b0e15, 8, 18);
+
+const camera = new THREE.PerspectiveCamera(42, 1, .1, 100);
+camera.position.set(4.7, 3.6, 6.4);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.set(0, 2.65, 0);
+controls.enableDamping = true;
+controls.dampingFactor = .08;
+controls.minDistance = 3.2;
+controls.maxDistance = 13;
+controls.maxPolarAngle = Math.PI * .92;
+
+const hemi = new THREE.HemisphereLight(0xffffff, 0x243044, 1.35);
+scene.add(hemi);
+
+const key = new THREE.DirectionalLight(0xfff1c9, 2.2);
+key.position.set(4, 7, 5);
+key.castShadow = true;
+key.shadow.mapSize.set(1024,1024);
+scene.add(key);
+
+const rim = new THREE.DirectionalLight(0xd8e8ff, .8);
+rim.position.set(-4, 3.5, -4);
+scene.add(rim);
+
+const floor = new THREE.Mesh(
+  new THREE.CircleGeometry(3.6, 96),
+  new THREE.MeshStandardMaterial({ color:0x151a24, roughness:.85, metalness:.05 })
+);
+floor.rotation.x = -Math.PI / 2;
+floor.receiveShadow = true;
+scene.add(floor);
+
+const ring = new THREE.Mesh(
+  new THREE.RingGeometry(3.58, 3.62, 128),
+  new THREE.MeshBasicMaterial({ color:0xf5d28c, transparent:true, opacity:.4, side:THREE.DoubleSide })
+);
+ring.rotation.x = -Math.PI / 2;
+ring.position.y = .004;
+scene.add(ring);
+
+const grid = new THREE.GridHelper(7.2, 24, 0xffffff, 0xffffff);
+grid.material.transparent = true;
+grid.material.opacity = .13;
+scene.add(grid);
+
+const labelsGroup = new THREE.Group();
+scene.add(labelsGroup);
+
+function makeLabel(text, pos, color="#f5d28c"){
+  const c = document.createElement("canvas");
+  c.width = 256; c.height = 96;
+  const ctx = c.getContext("2d");
+  ctx.clearRect(0,0,c.width,c.height);
+  ctx.font = "bold 42px -apple-system, BlinkMacSystemFont, sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillStyle = color;
+  ctx.shadowColor = "rgba(0,0,0,.8)";
+  ctx.shadowBlur = 12;
+  ctx.fillText(text, 128, 48);
+  const tex = new THREE.CanvasTexture(c);
+  const mat = new THREE.SpriteMaterial({ map:tex, transparent:true });
+  const sprite = new THREE.Sprite(mat);
+  sprite.position.copy(pos);
+  sprite.scale.set(1.1, .42, 1);
+  labelsGroup.add(sprite);
+  return sprite;
+}
+makeLabel("左", new THREE.Vector3(-1.55,.08,.72), "#eec5df");
+makeLabel("右", new THREE.Vector3(1.55,.08,.72), "#9be7c2");
+makeLabel("觀眾方向", new THREE.Vector3(0,.08,1.7), "#f5d28c");
+
+const jointNameGroup = new THREE.Group();
+scene.add(jointNameGroup);
+
+const matJoint = new THREE.MeshStandardMaterial({ color:0xf5d28c, roughness:.38, metalness:.05, emissive:0x3a2a10, emissiveIntensity:.15 });
+const matCore = new THREE.MeshStandardMaterial({ color:0xeeeeff, roughness:.55, metalness:.02 });
+const matLimb = new THREE.MeshStandardMaterial({ color:0xd9d7e9, roughness:.5, metalness:.02 });
+const matArm = new THREE.MeshStandardMaterial({ color:0xeec5df, roughness:.5, metalness:.02 });
+const matLeg = new THREE.MeshStandardMaterial({ color:0xbfd5ff, roughness:.5, metalness:.02 });
+const matFoot = new THREE.MeshStandardMaterial({ color:0xf5d28c, roughness:.48, metalness:.02 });
+const matLine = new THREE.MeshStandardMaterial({ color:0xffffff, roughness:.6 });
+
+const JOINTS = [
+  "head","neck","chest","spine","pelvis",
+  "leftShoulder","leftElbow","leftWrist","leftHand",
+  "rightShoulder","rightElbow","rightWrist","rightHand",
+  "leftHip","leftKnee","leftAnkle","leftToe","leftHeel",
+  "rightHip","rightKnee","rightAnkle","rightToe","rightHeel"
+];
+
+const jointLabels = {
+  head:"頭", neck:"頸", chest:"胸", spine:"脊", pelvis:"骨盆",
+  leftShoulder:"左肩", leftElbow:"左肘", leftWrist:"左腕", leftHand:"左手",
+  rightShoulder:"右肩", rightElbow:"右肘", rightWrist:"右腕", rightHand:"右手",
+  leftHip:"左髖", leftKnee:"左膝", leftAnkle:"左踝", leftToe:"左趾", leftHeel:"左跟",
+  rightHip:"右髖", rightKnee:"右膝", rightAnkle:"右踝", rightToe:"右趾", rightHeel:"右跟",
+};
+
+const segments = [
+  ["head","neck","core",.15],
+  ["neck","chest","core",.12],
+  ["chest","spine","core",.18],
+  ["spine","pelvis","core",.19],
+  ["chest","leftShoulder","core",.09],
+  ["chest","rightShoulder","core",.09],
+  ["pelvis","leftHip","core",.09],
+  ["pelvis","rightHip","core",.09],
+
+  ["leftShoulder","leftElbow","arm",.09],
+  ["leftElbow","leftWrist","arm",.075],
+  ["leftWrist","leftHand","arm",.06],
+  ["rightShoulder","rightElbow","arm",.09],
+  ["rightElbow","rightWrist","arm",.075],
+  ["rightWrist","rightHand","arm",.06],
+
+  ["leftHip","leftKnee","leg",.105],
+  ["leftKnee","leftAnkle","leg",.095],
+  ["leftAnkle","leftToe","foot",.07],
+  ["leftAnkle","leftHeel","foot",.055],
+  ["rightHip","rightKnee","leg",.105],
+  ["rightKnee","rightAnkle","leg",.095],
+  ["rightAnkle","rightToe","foot",.07],
+  ["rightAnkle","rightHeel","foot",.055],
+];
+
+const actor = new THREE.Group();
+scene.add(actor);
+
+const jointMeshes = {};
+const boneMeshes = [];
+const boneGeom = new THREE.CylinderGeometry(1,1,1,18);
+
+for (const j of JOINTS){
+  const size = j==="head" ? .23 : (j.includes("Toe")||j.includes("Heel")||j.includes("Hand") ? .07 : .095);
+  const mesh = new THREE.Mesh(new THREE.SphereGeometry(size, 24, 16), j==="head" ? matCore : matJoint);
+  mesh.castShadow = true;
+  actor.add(mesh);
+  jointMeshes[j] = mesh;
+
+  const label = makeLabel(jointLabels[j], new THREE.Vector3(0,0,0), "#ffffff");
+  label.scale.set(.42,.16,1);
+  label.visible = false;
+  jointNameGroup.add(label);
+  mesh.userData.label = label;
+}
+
+for (const [a,b,type,r] of segments){
+  let mat = matCore;
+  if(type==="arm") mat = matArm;
+  if(type==="leg") mat = matLeg;
+  if(type==="foot") mat = matFoot;
+  const mesh = new THREE.Mesh(boneGeom, mat);
+  mesh.castShadow = true;
+  actor.add(mesh);
+  boneMeshes.push({mesh,a,b,r});
+}
+
+function v(x,y,z){ return {x,y,z}; }
+function clonePose(p){
+  const out = {};
+  for(const k of JOINTS) out[k] = {...p[k]};
+  return out;
+}
+function lerp(a,b,t){ return a + (b-a)*t; }
+function smooth(t){ return t*t*(3-2*t); }
+function mixPose(a,b,t){
+  const s = smooth(t);
+  const out = {};
+  for(const k of JOINTS){
+    out[k] = {
+      x: lerp(a[k].x,b[k].x,s),
+      y: lerp(a[k].y,b[k].y,s),
+      z: lerp(a[k].z,b[k].z,s)
+    };
+  }
+  return out;
+}
+function poseFrom(base, changes){
+  const p = clonePose(base);
+  for(const [k,val] of Object.entries(changes)){
+    p[k] = {...p[k], ...val};
+  }
+  return p;
+}
+
+const base = {
+  head:v(0,4.78,0), neck:v(0,4.45,0), chest:v(0,4.05,0), spine:v(0,3.3,0), pelvis:v(0,2.58,0),
+  leftShoulder:v(-.55,4.02,0), leftElbow:v(-.66,3.22,.06), leftWrist:v(-.56,2.55,.1), leftHand:v(-.49,2.34,.12),
+  rightShoulder:v(.55,4.02,0), rightElbow:v(.66,3.22,.06), rightWrist:v(.56,2.55,.1), rightHand:v(.49,2.34,.12),
+  leftHip:v(-.28,2.53,0), leftKnee:v(-.32,1.42,0), leftAnkle:v(-.25,.34,0), leftToe:v(-.53,.15,.43), leftHeel:v(-.16,.16,-.17),
+  rightHip:v(.28,2.53,0), rightKnee:v(.32,1.42,0), rightAnkle:v(.25,.34,0), rightToe:v(.53,.15,.43), rightHeel:v(.16,.16,-.17),
+};
+
+const armsPrep = {
+  leftElbow:{x:-.43,y:3.05,z:.42}, leftWrist:{x:-.22,y:2.5,z:.72}, leftHand:{x:-.12,y:2.36,z:.75},
+  rightElbow:{x:.43,y:3.05,z:.42}, rightWrist:{x:.22,y:2.5,z:.72}, rightHand:{x:.12,y:2.36,z:.75},
+};
+const armsFirst = {
+  leftElbow:{x:-.44,y:3.55,z:.66}, leftWrist:{x:-.18,y:3.14,z:.86}, leftHand:{x:-.08,y:3.08,z:.88},
+  rightElbow:{x:.44,y:3.55,z:.66}, rightWrist:{x:.18,y:3.14,z:.86}, rightHand:{x:.08,y:3.08,z:.88},
+};
+const armsSecond = {
+  leftElbow:{x:-1.12,y:3.95,z:.08}, leftWrist:{x:-1.72,y:3.74,z:.1}, leftHand:{x:-1.94,y:3.62,z:.1},
+  rightElbow:{x:1.12,y:3.95,z:.08}, rightWrist:{x:1.72,y:3.74,z:.1}, rightHand:{x:1.94,y:3.62,z:.1},
+};
+const armsThird = {
+  leftElbow:{x:-.52,y:4.78,z:.15}, leftWrist:{x:-.3,y:5.22,z:.16}, leftHand:{x:-.1,y:5.28,z:.16},
+  rightElbow:{x:1.12,y:3.95,z:.08}, rightWrist:{x:1.72,y:3.74,z:.1}, rightHand:{x:1.94,y:3.62,z:.1},
+};
+const armsFourth = {
+  leftElbow:{x:-.52,y:4.78,z:.15}, leftWrist:{x:-.3,y:5.22,z:.16}, leftHand:{x:-.1,y:5.28,z:.16},
+  rightElbow:{x:.44,y:3.55,z:.66}, rightWrist:{x:.18,y:3.14,z:.86}, rightHand:{x:.08,y:3.08,z:.88},
+};
+const armsFifth = {
+  leftElbow:{x:-.58,y:4.77,z:.12}, leftWrist:{x:-.36,y:5.24,z:.12}, leftHand:{x:-.12,y:5.34,z:.12},
+  rightElbow:{x:.58,y:4.77,z:.12}, rightWrist:{x:.36,y:5.24,z:.12}, rightHand:{x:.12,y:5.34,z:.12},
+};
+
+function feetFirst(p=base){ return poseFrom(p, {
+  leftAnkle:{x:-.22,z:0}, leftToe:{x:-.55,z:.45}, leftHeel:{x:-.08,z:-.16},
+  rightAnkle:{x:.22,z:0}, rightToe:{x:.55,z:.45}, rightHeel:{x:.08,z:-.16},
+  leftKnee:{x:-.31}, rightKnee:{x:.31}
+});}
+function feetSecond(p=base){ return poseFrom(p, {
+  leftHip:{x:-.35}, rightHip:{x:.35}, leftKnee:{x:-.72}, rightKnee:{x:.72},
+  leftAnkle:{x:-.9}, rightAnkle:{x:.9}, leftToe:{x:-1.2,z:.42}, rightToe:{x:1.2,z:.42}, leftHeel:{x:-.72,z:-.13}, rightHeel:{x:.72,z:-.13}
+});}
+function feetThird(p=base){ return poseFrom(p, {
+  leftAnkle:{x:-.12,z:.06}, rightAnkle:{x:.12,z:-.02},
+  leftToe:{x:-.44,z:.45}, leftHeel:{x:.02,z:-.08},
+  rightToe:{x:.44,z:.31}, rightHeel:{x:-.02,z:-.2}
+});}
+function feetFourth(p=base){ return poseFrom(p, {
+  leftAnkle:{x:-.22,z:.36}, rightAnkle:{x:.22,z:-.36},
+  leftToe:{x:-.58,z:.78}, leftHeel:{x:-.04,z:.17},
+  rightToe:{x:.58,z:.05}, rightHeel:{x:.04,z:-.52}
+});}
+function feetFifth(p=base){ return poseFrom(p, {
+  leftAnkle:{x:-.12,z:.12}, rightAnkle:{x:.12,z:-.12},
+  leftToe:{x:-.48,z:.52}, leftHeel:{x:.06,z:-.02},
+  rightToe:{x:.48,z:.18}, rightHeel:{x:-.06,z:-.28}
+});}
+
+const prep = poseFrom(feetFirst(base), armsPrep);
+const firstArm = poseFrom(feetFirst(base), armsFirst);
+const secondArm = poseFrom(feetFirst(base), armsSecond);
+const thirdArm = poseFrom(feetFirst(base), armsThird);
+const fourthArm = poseFrom(feetFirst(base), armsFourth);
+const fifthArm = poseFrom(feetFirst(base), armsFifth);
+
+const plieMid = poseFrom(prep, {
+  pelvis:{y:2.14}, spine:{y:2.88}, chest:{y:3.65}, neck:{y:4.05}, head:{y:4.38},
+  leftHip:{y:2.1}, rightHip:{y:2.1},
+  leftKnee:{x:-.62,y:1.23,z:.16}, rightKnee:{x:.62,y:1.23,z:.16},
+  leftAnkle:{x:-.28,y:.34}, rightAnkle:{x:.28,y:.34}
+});
+const grandPlieMid = poseFrom(plieMid, {
+  pelvis:{y:1.78}, spine:{y:2.52}, chest:{y:3.3}, neck:{y:3.7}, head:{y:4.03},
+  leftKnee:{x:-.78,y:1.02,z:.2}, rightKnee:{x:.78,y:1.02,z:.2},
+  leftHeel:{y:.28}, rightHeel:{y:.28}
+});
+const relevePose = poseFrom(prep, {
+  pelvis:{y:2.78}, spine:{y:3.5}, chest:{y:4.25}, neck:{y:4.65}, head:{y:4.98},
+  leftHip:{y:2.73}, rightHip:{y:2.73}, leftKnee:{y:1.62}, rightKnee:{y:1.62},
+  leftAnkle:{y:.58}, rightAnkle:{y:.58}, leftHeel:{y:.54}, rightHeel:{y:.54}, leftToe:{y:.17}, rightToe:{y:.17}
+});
+const tenduFront = poseFrom(prep, {
+  leftHip:{x:-.25,z:.04}, leftKnee:{x:-.25,y:1.44,z:.22}, leftAnkle:{x:-.24,y:.31,z:.82}, leftToe:{x:-.24,y:.11,z:1.34}, leftHeel:{x:-.24,y:.22,z:.68},
+  rightAnkle:{x:.2}, rightToe:{x:.5,z:.42}
+});
+const tenduSide = poseFrom(prep, {
+  leftHip:{x:-.3}, leftKnee:{x:-.82,y:1.39,z:.08}, leftAnkle:{x:-1.42,y:.31,z:.14}, leftToe:{x:-1.96,y:.1,z:.27}, leftHeel:{x:-1.22,y:.22,z:-.02}
+});
+const tenduBack = poseFrom(prep, {
+  leftHip:{x:-.25,z:-.05}, leftKnee:{x:-.25,y:1.43,z:-.32}, leftAnkle:{x:-.24,y:.31,z:-.86}, leftToe:{x:-.24,y:.1,z:-1.34}, leftHeel:{x:-.24,y:.22,z:-.68}
+});
+const passePose = poseFrom(firstArm, {
+  leftHip:{x:-.3,y:2.55}, leftKnee:{x:-1.0,y:2.45,z:.12}, leftAnkle:{x:-.34,y:1.72,z:.2}, leftToe:{x:-.04,y:1.67,z:.12}, leftHeel:{x:-.24,y:1.77,z:.18},
+  rightKnee:{x:.32,y:1.42}, rightAnkle:{x:.25,y:.34}
+});
+const arabesquePose = poseFrom(secondArm, {
+  leftHip:{x:-.27,y:2.56,z:-.08}, leftKnee:{x:-.32,y:2.25,z:-1.05}, leftAnkle:{x:-.32,y:2.1,z:-1.82}, leftToe:{x:-.32,y:2.08,z:-2.22}, leftHeel:{x:-.32,y:2.18,z:-1.62},
+  rightElbow:{x:.95,y:4.08,z:.75}, rightWrist:{x:1.22,y:4.0,z:1.18}, rightHand:{x:1.34,y:3.94,z:1.34},
+  leftElbow:{x:-1.08,y:3.92,z:-.28}, leftWrist:{x:-1.5,y:3.78,z:-.55}, leftHand:{x:-1.66,y:3.7,z:-.66},
+  chest:{z:.08}, neck:{z:.14}, head:{z:.2}
+});
+const attitudePose = poseFrom(fourthArm, {
+  leftHip:{x:-.28,y:2.55,z:-.05}, leftKnee:{x:-.86,y:2.36,z:-.88}, leftAnkle:{x:-.48,y:2.08,z:-1.36}, leftToe:{x:-.42,y:2.07,z:-1.76}, leftHeel:{x:-.54,y:2.13,z:-1.14},
+  chest:{z:.08}, neck:{z:.14}, head:{z:.2}
+});
+const cambrePose = poseFrom(fifthArm, {
+  spine:{z:-.12}, chest:{y:4.0,z:-.34}, neck:{y:4.34,z:-.58}, head:{y:4.62,z:-.82},
+  pelvis:{z:.03},
+  leftShoulder:{z:-.18}, rightShoulder:{z:-.18},
+  leftElbow:{z:-.2}, rightElbow:{z:-.2}
+});
+
+const croisePose = poseFrom(fourthArm, {
+  pelvis:{x:.02,z:.02}, spine:{x:.04,z:.04}, chest:{x:.08,z:.08}, neck:{x:.11,z:.12}, head:{x:.16,z:.18},
+  leftShoulder:{x:-.43,z:.22}, rightShoulder:{x:.68,z:-.05},
+  leftHip:{x:-.18,z:.15}, rightHip:{x:.34,z:-.1}
+});
+const effacePose = poseFrom(secondArm, {
+  pelvis:{x:-.02,z:.02}, spine:{x:-.04,z:.06}, chest:{x:-.1,z:.1}, neck:{x:-.13,z:.14}, head:{x:-.18,z:.2},
+  leftShoulder:{x:-.7,z:-.02}, rightShoulder:{x:.42,z:.23},
+  leftHip:{x:-.34,z:-.08}, rightHip:{x:.18,z:.15}
+});
+const ecartePose = poseFrom(tenduSide, {
+  ...armsThird,
+  chest:{x:-.05,z:.08}, neck:{x:-.1,z:.12}, head:{x:-.18,z:.18}
+});
+
+const ACTIONS = [
+  {
+    id:"prep", cat:"基礎站姿", zh:"準備位", en:"Preparation", tags:["手臂","站姿"],
+    desc:"站姿穩定，手臂自然形成低圓弧，身體保持向上延伸。",
+    tips:["肩膀放鬆，不要聳肩。","手肘略有弧度，手指自然延伸。","重心落在兩腳之間。"],
+    frames:[{t:0,pose:prep},{t:1,pose:prep}]
+  },
+  {
+    id:"feet1", cat:"腳位", zh:"一位腳", en:"First position", tags:["腳位","turnout"],
+    desc:"兩腳跟接近，腳尖向外打開，是芭蕾最基礎的外開腳位。",
+    tips:["外開應從髖關節開始，不是只扭腳踝。","膝蓋方向要盡量對準腳尖。"],
+    frames:[{t:0,pose:prep},{t:.75,pose:poseFrom(feetFirst(base), armsPrep)}]
+  },
+  {
+    id:"feet2", cat:"腳位", zh:"二位腳", en:"Second position", tags:["腳位","平衡"],
+    desc:"雙腳向左右分開，保持外開與穩定重心。",
+    tips:["腳距不要過寬。","骨盆保持正中，不要左右歪斜。"],
+    frames:[{t:0,pose:prep},{t:.9,pose:poseFrom(feetSecond(base), armsSecond)}]
+  },
+  {
+    id:"feet3", cat:"腳位", zh:"三位腳", en:"Third position", tags:["腳位"],
+    desc:"一腳在前，腳跟靠近另一腳足弓位置，是較容易入門的交叉腳位。",
+    tips:["兩腳仍保持外開。","前後腳不要壓到失去平衡。"],
+    frames:[{t:0,pose:prep},{t:.9,pose:poseFrom(feetThird(base), armsPrep)}]
+  },
+  {
+    id:"feet4", cat:"腳位", zh:"四位腳", en:"Fourth position", tags:["腳位","前後空間"],
+    desc:"兩腳前後分開並保持外開，能練習前後方向的穩定。",
+    tips:["前後距離要清楚。","身體不要跟著前傾。"],
+    frames:[{t:0,pose:prep},{t:.9,pose:poseFrom(feetFourth(base), armsFourth)}]
+  },
+  {
+    id:"feet5", cat:"腳位", zh:"五位腳", en:"Fifth position", tags:["腳位","進階"],
+    desc:"前後腳高度交叉，是古典芭蕾中常見但較難穩定的腳位。",
+    tips:["初學可先用簡化角度。","膝蓋與腳尖方向仍要一致。"],
+    frames:[{t:0,pose:prep},{t:.95,pose:poseFrom(feetFifth(base), armsFifth)}]
+  },
+  {
+    id:"arm1", cat:"手位", zh:"一位手", en:"First port de bras", tags:["手位","圓弧"],
+    desc:"雙臂在身體前方形成柔和圓形，像抱著一顆球。",
+    tips:["手肘不要塌。","手腕與手指要延伸，不要僵硬。"],
+    frames:[{t:0,pose:prep},{t:.85,pose:firstArm}]
+  },
+  {
+    id:"arm2", cat:"手位", zh:"二位手", en:"Second position arms", tags:["手位","展開"],
+    desc:"雙臂向兩側打開，保持略低於肩線的柔和弧度。",
+    tips:["手臂不是完全打直。","肩膀下沉，胸口自然打開。"],
+    frames:[{t:0,pose:firstArm},{t:.85,pose:secondArm}]
+  },
+  {
+    id:"arm3", cat:"手位", zh:"三位手", en:"Third position arms", tags:["手位","非對稱"],
+    desc:"一手在上，一手側展，適合觀察左右不對稱的手臂線條。",
+    tips:["上方手臂保持圓形。","側邊手臂不要垂掉。"],
+    frames:[{t:0,pose:secondArm},{t:.85,pose:thirdArm}]
+  },
+  {
+    id:"arm4", cat:"手位", zh:"四位手", en:"Fourth position arms", tags:["手位","前上組合"],
+    desc:"一手上舉，一手在前方，形成古典芭蕾常見的斜向線條。",
+    tips:["不要因為上舉而聳肩。","身體中心仍向上。"],
+    frames:[{t:0,pose:firstArm},{t:.85,pose:fourthArm}]
+  },
+  {
+    id:"arm5", cat:"手位", zh:"五位手", en:"Fifth position arms", tags:["手位","上舉"],
+    desc:"雙臂在頭上形成橢圓弧線，保持肩頸放鬆。",
+    tips:["手臂不要貼耳朵。","肋骨不要因上舉而外翻。"],
+    frames:[{t:0,pose:firstArm},{t:.85,pose:fifthArm}]
+  },
+  {
+    id:"plie", cat:"下肢動作", zh:"Demi-plié", en:"半蹲", tags:["下肢","彎曲","基礎"],
+    desc:"膝蓋彎曲但腳跟不離地，訓練腿部控制與彈性。",
+    tips:["膝蓋朝腳尖方向彎。","身體保持直立，不要往前倒。","腳跟不離地。"],
+    frames:[{t:0,pose:prep},{t:.55,pose:plieMid},{t:1.1,pose:prep}]
+  },
+  {
+    id:"grandPlie", cat:"下肢動作", zh:"Grand plié", en:"深蹲", tags:["下肢","深蹲"],
+    desc:"比 demi-plié 更深的蹲姿，示意版會讓身體下降更多。",
+    tips:["下降與上升都要慢。","保持軀幹向上延伸。","避免膝蓋內夾。"],
+    frames:[{t:0,pose:prep},{t:.6,pose:plieMid},{t:1.1,pose:grandPlieMid},{t:1.7,pose:plieMid},{t:2.2,pose:prep}]
+  },
+  {
+    id:"tenduFront", cat:"下肢動作", zh:"Tendu devant", en:"前擦地", tags:["下肢","前方","腳尖"],
+    desc:"工作腿向前延伸，腳尖擦地到前方。",
+    tips:["支撐腿穩定。","工作腿膝蓋拉長。","腳尖延伸但不要抓地。"],
+    frames:[{t:0,pose:prep},{t:.75,pose:tenduFront},{t:1.4,pose:prep}]
+  },
+  {
+    id:"tenduSide", cat:"下肢動作", zh:"Tendu à la seconde", en:"旁擦地", tags:["下肢","側方"],
+    desc:"工作腿向旁邊延伸，呈現側向線條。",
+    tips:["骨盆不要跟著歪。","支撐腳維持穩定。"],
+    frames:[{t:0,pose:prep},{t:.75,pose:tenduSide},{t:1.4,pose:prep}]
+  },
+  {
+    id:"tenduBack", cat:"下肢動作", zh:"Tendu derrière", en:"後擦地", tags:["下肢","後方"],
+    desc:"工作腿向後延伸，訓練後方空間感與足尖線條。",
+    tips:["不要塌腰。","胸口保持自然打開。"],
+    frames:[{t:0,pose:prep},{t:.75,pose:tenduBack},{t:1.4,pose:prep}]
+  },
+  {
+    id:"releve", cat:"下肢動作", zh:"Relevé", en:"踮立", tags:["下肢","平衡"],
+    desc:"腳跟離地，身體向上提起，訓練腳踝與核心穩定。",
+    tips:["上升時不要往前倒。","腳踝保持穩定，不要外翻。"],
+    frames:[{t:0,pose:prep},{t:.7,pose:relevePose},{t:1.4,pose:prep}]
+  },
+  {
+    id:"passe", cat:"下肢動作", zh:"Passé", en:"經過位", tags:["下肢","單腳平衡"],
+    desc:"一腳腳尖靠近支撐腿膝部附近，形成單腳平衡姿勢。",
+    tips:["工作腿膝蓋向旁打開。","支撐腿不要鎖死。","骨盆保持穩定。"],
+    frames:[{t:0,pose:prep},{t:.85,pose:passePose},{t:1.55,pose:prep}]
+  },
+  {
+    id:"arabesque", cat:"造型動作", zh:"Arabesque", en:"阿拉貝斯克", tags:["造型","後腿延伸"],
+    desc:"一腿向後延伸，身體與手臂形成長線條。此為簡化示意版。",
+    tips:["後腿延伸時不要擠壓腰部。","支撐腿穩定，視線向前。"],
+    frames:[{t:0,pose:prep},{t:1.0,pose:arabesquePose},{t:2.0,pose:prep}]
+  },
+  {
+    id:"attitude", cat:"造型動作", zh:"Attitude", en:"態度姿", tags:["造型","曲腿"],
+    desc:"工作腿向後抬起並彎曲，形成帶有弧度的舞姿。",
+    tips:["膝蓋與腳尖都要有延伸感。","軀幹不要被後腿拉歪。"],
+    frames:[{t:0,pose:prep},{t:1.0,pose:attitudePose},{t:2.0,pose:prep}]
+  },
+  {
+    id:"cambre", cat:"腰部與身體", zh:"Cambré", en:"後彎", tags:["腰部","上身"],
+    desc:"上身向後形成弧線，訓練腰背延伸與控制。",
+    tips:["不是只折腰，胸椎也要延伸。","骨盆不要大幅前推。","脖子保持自然。"],
+    frames:[{t:0,pose:prep},{t:.9,pose:cambrePose},{t:1.75,pose:prep}]
+  },
+  {
+    id:"port", cat:"上肢連續動作", zh:"Port de bras", en:"手臂流動", tags:["上肢","連續"],
+    desc:"手臂由準備位經過一位、五位，再打開到二位，示範基本上肢流動。",
+    tips:["動作要連續，不是機械切換。","肩膀保持下沉。"],
+    frames:[{t:0,pose:prep},{t:.7,pose:firstArm},{t:1.45,pose:fifthArm},{t:2.2,pose:secondArm},{t:2.9,pose:prep}]
+  },
+  {
+    id:"croise", cat:"面向", zh:"Croisé", en:"交叉面向", tags:["面向","épaulement"],
+    desc:"身體略轉，呈現交叉的舞台方向。第一版用胸、肩、頭位置簡化表示。",
+    tips:["不是只有頭轉，肩與胸也參與方向。","骨盆不要過度扭轉。"],
+    frames:[{t:0,pose:prep},{t:.9,pose:croisePose}]
+  },
+  {
+    id:"efface", cat:"面向", zh:"Effacé", en:"開放面向", tags:["面向","開放線條"],
+    desc:"身體打開，線條較開放。此處以簡化肩胸方向示意。",
+    tips:["保持身體向上，不要因轉向而歪斜。"],
+    frames:[{t:0,pose:prep},{t:.9,pose:effacePose}]
+  },
+  {
+    id:"ecarte", cat:"面向", zh:"Écarté", en:"斜側伸展", tags:["面向","側方"],
+    desc:"工作腿向側方延伸，上身與手臂形成斜向開展感。",
+    tips:["視線可跟隨上方手。","骨盆仍需穩定。"],
+    frames:[{t:0,pose:prep},{t:1.0,pose:ecartePose},{t:2.0,pose:prep}]
+  },
+];
+
+const actionById = Object.fromEntries(ACTIONS.map(a=>[a.id,a]));
+let currentAction = ACTIONS[0];
+let currentPose = clonePose(prep);
+let playing = false;
+let time = 0;
+let speed = 1;
+let loop = true;
+let userEditing = false;
+
+function actionDuration(action){
+  return action.frames[action.frames.length-1].t;
+}
+function sampleAction(action, t){
+  const frames = action.frames;
+  if(t <= frames[0].t) return clonePose(frames[0].pose);
+  if(t >= frames[frames.length-1].t) return clonePose(frames[frames.length-1].pose);
+  for(let i=0;i<frames.length-1;i++){
+    const a = frames[i], b = frames[i+1];
+    if(t >= a.t && t <= b.t){
+      return mixPose(a.pose,b.pose,(t-a.t)/(b.t-a.t));
+    }
+  }
+  return clonePose(frames[frames.length-1].pose);
+}
+
+function setPose(p){
+  currentPose = clonePose(p);
+  updateActor();
+  updateJointSliders();
+}
+
+function updateCylinder(mesh, p1, p2, radius){
+  const a = new THREE.Vector3(p1.x,p1.y,p1.z);
+  const b = new THREE.Vector3(p2.x,p2.y,p2.z);
+  const mid = a.clone().add(b).multiplyScalar(.5);
+  const dir = b.clone().sub(a);
+  const len = dir.length();
+  mesh.position.copy(mid);
+  mesh.scale.set(radius, len, radius);
+  mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), dir.normalize());
+}
+
+function updateActor(){
+  for(const j of JOINTS){
+    const p = currentPose[j];
+    jointMeshes[j].position.set(p.x,p.y,p.z);
+    const label = jointMeshes[j].userData.label;
+    label.position.set(p.x, p.y+.18, p.z);
+  }
+  for(const b of boneMeshes){
+    updateCylinder(b.mesh, currentPose[b.a], currentPose[b.b], b.r);
+  }
+}
+
+function renderActions(){
+  const el = document.querySelector("#actionList");
+  const groups = {};
+  for(const a of ACTIONS){
+    if(!groups[a.cat]) groups[a.cat] = [];
+    groups[a.cat].push(a);
+  }
+  el.innerHTML = "";
+  for(const [cat, arr] of Object.entries(groups)){
+    const sec = document.createElement("section");
+    sec.className = "cat";
+    const title = document.createElement("div");
+    title.className = "catTitle";
+    title.innerHTML = `<span>${cat}</span><span>${arr.length}</span>`;
+    sec.appendChild(title);
+    const grid = document.createElement("div");
+    grid.className = "gridBtns";
+    for(const a of arr){
+      const btn = document.createElement("button");
+      btn.dataset.action = a.id;
+      btn.innerHTML = `<strong>${a.zh}</strong><br><span style="color:var(--muted);font-size:11px">${a.en}</span>`;
+      if(a.id===currentAction.id) btn.classList.add("active");
+      btn.addEventListener("click",()=>selectAction(a.id, true));
+      grid.appendChild(btn);
+    }
+    sec.appendChild(grid);
+    el.appendChild(sec);
+  }
+}
+
+function selectAction(id, autoPlay=false){
+  currentAction = actionById[id];
+  time = 0;
+  setPose(sampleAction(currentAction, 0));
+  updateInfo();
+  renderActions();
+  document.querySelector("#progress").value = 0;
+  playing = autoPlay;
+  updatePlayButton();
+  userEditing = false;
+}
+
+function updateInfo(){
+  document.querySelector("#infoZh").textContent = currentAction.zh;
+  document.querySelector("#infoEn").textContent = currentAction.en;
+  document.querySelector("#infoDesc").textContent = currentAction.desc;
+  document.querySelector("#currentTitle").textContent = `${currentAction.zh}｜${currentAction.en}`;
+  const tips = document.querySelector("#infoTips");
+  tips.innerHTML = "";
+  currentAction.tips.forEach(t=>{
+    const li = document.createElement("li");
+    li.textContent = t;
+    tips.appendChild(li);
+  });
+  const tags = document.querySelector("#infoTags");
+  tags.innerHTML = "";
+  currentAction.tags.forEach(t=>{
+    const s = document.createElement("span");
+    s.className = "tag";
+    s.textContent = t;
+    tags.appendChild(s);
+  });
+}
+
+function updatePlayButton(){
+  document.querySelector("#playBtn").textContent = playing ? "❚❚ 暫停" : "▶ 播放";
+}
+
+function setupJointEditor(){
+  const select = document.querySelector("#jointSelect");
+  for(const j of JOINTS){
+    const opt = document.createElement("option");
+    opt.value = j;
+    opt.textContent = `${jointLabels[j]} / ${j}`;
+    select.appendChild(opt);
+  }
+  select.value = "leftHand";
+  select.addEventListener("change", updateJointSliders);
+  ["jointX","jointY","jointZ"].forEach(id=>{
+    document.querySelector("#"+id).addEventListener("input", ()=>{
+      const j = select.value;
+      currentPose[j].x = parseFloat(document.querySelector("#jointX").value);
+      currentPose[j].y = parseFloat(document.querySelector("#jointY").value);
+      currentPose[j].z = parseFloat(document.querySelector("#jointZ").value);
+      userEditing = true;
+      playing = false;
+      updatePlayButton();
+      updateActor();
+      updateJointSliders(false);
+    });
+  });
+}
+function updateJointSliders(setValues=true){
+  const j = document.querySelector("#jointSelect").value;
+  const p = currentPose[j];
+  if(setValues){
+    document.querySelector("#jointX").value = p.x;
+    document.querySelector("#jointY").value = p.y;
+    document.querySelector("#jointZ").value = p.z;
+  }
+  document.querySelector("#jointXv").textContent = Number(document.querySelector("#jointX").value).toFixed(2);
+  document.querySelector("#jointYv").textContent = Number(document.querySelector("#jointY").value).toFixed(2);
+  document.querySelector("#jointZv").textContent = Number(document.querySelector("#jointZ").value).toFixed(2);
+}
+
+document.querySelector("#playBtn").addEventListener("click", ()=>{
+  playing = !playing;
+  updatePlayButton();
+});
+document.querySelector("#restartBtn").addEventListener("click", ()=>{
+  time = 0;
+  playing = true;
+  updatePlayButton();
+});
+document.querySelector("#loopToggle").addEventListener("change", e=> loop = e.target.checked);
+document.querySelector("#speedRange").addEventListener("input", e=>{
+  speed = parseFloat(e.target.value);
+  document.querySelector("#speedText").textContent = `${speed}x`;
+});
+document.querySelector("#progress").addEventListener("input", e=>{
+  time = parseFloat(e.target.value) * actionDuration(currentAction);
+  setPose(sampleAction(currentAction, time));
+  playing = false;
+  updatePlayButton();
+});
+document.querySelector("#resetPose").addEventListener("click", ()=>{
+  time = 0;
+  setPose(sampleAction(currentAction,0));
+  userEditing = false;
+});
+document.querySelector("#copyPose").addEventListener("click", async ()=>{
+  const data = JSON.stringify(currentPose, null, 2);
+  try{
+    await navigator.clipboard.writeText(data);
+    const btn = document.querySelector("#copyPose");
+    const old = btn.textContent;
+    btn.textContent = "已複製";
+    setTimeout(()=>btn.textContent=old,900);
+  }catch(e){
+    alert(data);
+  }
+});
+document.querySelector("#showGrid").addEventListener("change", e=> grid.visible = e.target.checked);
+document.querySelector("#showLabels").addEventListener("change", e=> labelsGroup.visible = e.target.checked);
+document.querySelector("#showJointNames").addEventListener("change", e=>{
+  for(const j of JOINTS) jointMeshes[j].userData.label.visible = e.target.checked;
+});
+
+document.querySelector("#panelToggleLeft").addEventListener("click", ()=>{
+  document.querySelector("#leftPanel").classList.toggle("open");
+});
+document.querySelector("#panelToggleRight").addEventListener("click", ()=>{
+  document.querySelector("#rightPanel").classList.toggle("open");
+});
+
+document.querySelectorAll("[data-view]").forEach(btn=>{
+  btn.addEventListener("click", ()=>{
+    const v = btn.dataset.view;
+    const dist = camera.position.distanceTo(controls.target);
+    let pos = new THREE.Vector3(0,2.8,dist);
+    if(v==="side") pos.set(dist,2.8,0);
+    if(v==="back") pos.set(0,2.8,-dist);
+    if(v==="top") pos.set(0,dist+2.6,.001);
+    camera.position.copy(pos);
+    controls.target.set(0,2.65,0);
+    controls.update();
+  });
+});
+document.querySelector("#resetCam").addEventListener("click", ()=>{
+  camera.position.set(4.7,3.6,6.4);
+  controls.target.set(0,2.65,0);
+  controls.update();
+});
+
+function resize(){
+  const w = wrap.clientWidth;
+  const h = wrap.clientHeight;
+  camera.aspect = w/h;
+  camera.updateProjectionMatrix();
+  renderer.setSize(w,h,false);
+}
+window.addEventListener("resize", resize);
+
+let last = performance.now();
+function animate(now){
+  requestAnimationFrame(animate);
+  const dt = Math.min(.05,(now-last)/1000);
+  last = now;
+
+  if(playing && !userEditing){
+    time += dt * speed;
+    const dur = actionDuration(currentAction);
+    if(time > dur){
+      if(loop){
+        time = time % dur;
+      }else{
+        time = dur;
+        playing = false;
+        updatePlayButton();
+      }
+    }
+    setPose(sampleAction(currentAction, time));
+    document.querySelector("#progress").value = dur ? time/dur : 0;
+  }
+
+  controls.update();
+  renderer.render(scene,camera);
+}
+
+renderActions();
+updateInfo();
+setupJointEditor();
+setPose(prep);
+resize();
+requestAnimationFrame(animate);
+</script>
+</body>
+</html>
