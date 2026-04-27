@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Ballet Pose Viewer v0.33b｜固定骨長 IK 修正版</title>
+<style>
+:root{
+  --bg:#0b0e15; --panel:rgba(17,22,33,.86); --line:rgba(255,255,255,.14);
+  --text:#f6f7fb; --muted:#aeb7c8; --accent:#f5d28c; --pink:#eec5df; --blue:#9ecbff;
+  --ok:#9be7c2; --bad:#ff9c9c;
+}
+*{box-sizing:border-box}
+html,body{
+  margin:0;width:100%;height:100%;overflow:hidden;background:radial-gradient(circle at 50% 20%,#252b3d 0%,#111827 48%,#070a10 100%);
+  color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans TC","Microsoft JhengHei",sans-serif;
+}
+#app{position:fixed;inset:0;display:grid;grid-template-columns:310px 1fr 330px;gap:12px;padding:12px}
+.panel{
+  min-height:0;display:flex;flex-direction:column;overflow:hidden;background:var(--panel);backdrop-filter:blur(18px);
+  border:1px solid var(--line);border-radius:24px;box-shadow:0 16px 48px rgba(0,0,0,.34)
+}
+.panel header{padding:15px;border-bottom:1px solid var(--line)}
+h1,h2,h3{margin:0} h1{font-size:18px;line-height:1.28} h2{font-size:15px}
+.sub{margin-top:7px;color:var(--muted);font-size:12px;line-height:1.55}
+.scroll{overflow:auto;min-height:0;padding:13px}
+#stageWrap{position:relative;min-width:0;border:1px solid var(--line);border-radius:26px;overflow:hidden;background:linear-gradient(180deg,rgba(255,255,255,.05),rgba(255,255,255,.012));box-shadow:0 16px 48px rgba(0,0,0,.34)}
+#stage{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none}
+.cat{margin-bottom:15px}.catTitle{font-size:12px;letter-spacing:.08em;color:var(--accent);font-weight:800;margin-bottom:8px;display:flex;justify-content:space-between}
+.gridBtns{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+button{font:inherit;color:var(--text);border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.075);border-radius:14px;padding:9px 10px;cursor:pointer;text-align:left;-webkit-tap-highlight-color:transparent}
+button:hover{background:rgba(255,255,255,.13)} button.active{border-color:rgba(245,210,140,.65);background:linear-gradient(135deg,rgba(245,210,140,.25),rgba(238,197,223,.13))}
+button.small{padding:7px 9px;font-size:12px;text-align:center;border-radius:12px}
+.topHud{position:absolute;left:12px;right:12px;top:12px;z-index:5;display:flex;justify-content:space-between;gap:10px;pointer-events:none}
+.pill{pointer-events:auto;display:flex;gap:7px;align-items:center;background:rgba(5,8,14,.62);border:1px solid var(--line);border-radius:999px;padding:7px;backdrop-filter:blur(12px)}
+.titlePill{pointer-events:auto;background:rgba(5,8,14,.62);border:1px solid var(--line);border-radius:999px;padding:9px 13px;color:var(--muted);font-size:12px;white-space:nowrap;backdrop-filter:blur(12px)}
+.bottomHud{position:absolute;left:50%;bottom:12px;transform:translateX(-50%);width:min(760px,calc(100% - 24px));z-index:5;background:rgba(5,8,14,.72);border:1px solid var(--line);border-radius:22px;padding:11px;backdrop-filter:blur(16px)}
+.playRow{display:grid;grid-template-columns:auto 1fr auto auto;gap:9px;align-items:center}
+input[type=range]{width:100%;accent-color:#f5d28c}.speed{display:flex;gap:8px;align-items:center;color:var(--muted);font-size:12px;white-space:nowrap}.speed input{width:92px}
+.infoCard,.ctrlGroup{border:1px solid var(--line);border-radius:18px;background:rgba(255,255,255,.05);padding:13px;margin-bottom:12px}
+.infoCard h3{font-size:22px;color:#fff2d3}.en{color:var(--pink);font-size:13px;margin:3px 0 9px}
+p,.hint{margin:0;color:var(--muted);font-size:13px;line-height:1.65}.list{margin:8px 0 0;padding-left:1.2em;color:var(--muted);font-size:13px;line-height:1.65}
+.tagRow{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}.tag{font-size:11px;background:var(--accent);color:#15110a;border-radius:999px;padding:3px 7px;font-weight:800}
+label{display:block;color:var(--muted);font-size:12px;margin:9px 0 4px}
+select,textarea{
+  width:100%;border:1px solid rgba(255,255,255,.14);border-radius:12px;background:rgba(0,0,0,.26);color:var(--text);padding:9px;outline:none
+}
+textarea{min-height:86px;resize:vertical;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px}
+.sliderLine{display:grid;grid-template-columns:24px 1fr 42px;gap:7px;align-items:center;color:var(--muted);font-size:12px}
+.toggle{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:12px;margin:8px 0}.toggle input{accent-color:#f5d28c}
+#status{color:var(--ok);font-size:12px;line-height:1.55;margin-top:8px}
+.legend{position:absolute;right:12px;top:76px;z-index:4;background:rgba(5,8,14,.58);border:1px solid var(--line);border-radius:16px;padding:10px 12px;color:var(--muted);font-size:12px;line-height:1.65;pointer-events:none;backdrop-filter:blur(12px)}
+.kbd{color:#fff;border:1px solid var(--line);border-radius:7px;padding:1px 5px;background:rgba(255,255,255,.08);font-size:11px}
+.err{display:none;position:absolute;left:14px;right:14px;bottom:90px;z-index:20;border:1px solid rgba(255,120,120,.55);background:rgba(55,12,16,.88);border-radius:16px;padding:12px;color:#ffd2d2;font-size:12px;line-height:1.55;white-space:pre-wrap}
+@media(max-width:1050px){
+ #app{grid-template-columns:1fr;padding:10px}
+ #leftPanel,#rightPanel{position:absolute;top:72px;bottom:88px;width:min(330px,calc(100vw - 20px));z-index:9;transition:.22s transform}
+ #leftPanel{left:10px;transform:translateX(calc(-100% - 12px))} #leftPanel.open{transform:translateX(0)}
+ #rightPanel{right:10px;transform:translateX(calc(100% + 12px))} #rightPanel.open{transform:translateX(0)}
+ #panelToggleLeft,#panelToggleRight{display:inline-block!important}
+ .legend{display:none}.playRow{grid-template-columns:auto 1fr auto}.speed{grid-column:2/4}
+}
+@media(max-width:560px){.titlePill{display:none}.playRow{grid-template-columns:1fr 1fr}#progress{grid-column:1/3}.speed{grid-column:1/3}}
+</style>
+<script type="importmap">
+{"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js","three/addons/":"https://unpkg.com/three@0.160.0/examples/jsm/"}}
+</script>
+</head>
+<body>
+<div id="app">
+  <aside class="panel" id="leftPanel">
+    <header>
+      <h1>芭蕾基本動作<br>3D 演示器 v0.33b</h1>
+      <div class="sub">修正版：人偶固定顯示、黃色關節點可拖拉、手腕與腳踝使用固定骨長 IK。</div>
+    </header>
+    <div class="scroll" id="actionList"></div>
+  </aside>
+
+  <main id="stageWrap">
+    <canvas id="stage"></canvas>
+    <div class="topHud">
+      <div class="pill">
+        <button class="small" id="panelToggleLeft" style="display:none">動作</button>
+        <button class="small" data-view="front">正面</button>
+        <button class="small" data-view="side">側面</button>
+        <button class="small" data-view="back">背面</button>
+        <button class="small" data-view="top">俯視</button>
+        <button class="small" id="resetCam">重置</button>
+      </div>
+      <div class="titlePill" id="currentTitle">準備位｜Preparation</div>
+      <div class="pill"><button class="small" id="panelToggleRight" style="display:none">說明</button></div>
+    </div>
+    <div class="legend">
+      <div><span class="kbd">拖空白</span> 旋轉視角</div>
+      <div><span class="kbd">拖黃點</span> 移動關節</div>
+      <div><span class="kbd">Shift</span> 固定高度</div>
+      <div><span class="kbd">Alt/Option</span> 偏垂直拖曳</div>
+    </div>
+    <div class="err" id="errBox"></div>
+    <div class="bottomHud">
+      <div class="playRow">
+        <button id="playBtn">▶ 播放</button>
+        <input id="progress" type="range" min="0" max="1" step="0.001" value="0">
+        <button id="restartBtn">↻ 重播</button>
+        <label class="toggle"><input id="loopToggle" type="checkbox" checked>循環</label>
+        <div class="speed"><span>速度</span><input id="speedRange" type="range" min=".25" max="2" step=".25" value="1"><span id="speedText">1x</span></div>
+      </div>
+    </div>
+  </main>
+
+  <aside class="panel" id="rightPanel">
+    <header>
+      <h2>動作說明與 IK 微調</h2>
+      <div class="sub">拖手腕／手掌、腳踝／腳尖／腳跟時，會維持骨長並自動解算手肘或膝蓋。</div>
+    </header>
+    <div class="scroll">
+      <section class="infoCard">
+        <h3 id="infoZh">準備位</h3>
+        <div class="en" id="infoEn">Preparation</div>
+        <p id="infoDesc">站姿穩定，手臂自然形成低圓弧。</p>
+        <ul class="list" id="infoTips"></ul>
+        <div class="tagRow" id="infoTags"></div>
+      </section>
+      <section class="ctrlGroup">
+        <h2 style="font-size:14px;color:var(--accent);margin-bottom:6px">關節滑桿微調</h2>
+        <p class="hint">滑桿也會套用 IK；按播放會自動退出編輯模式。</p>
+        <label>選擇關節</label>
+        <select id="jointSelect"></select>
+        <label>X 左右</label><div class="sliderLine"><span>X</span><input id="jointX" type="range" min="-3" max="3" step=".01"><span id="jointXv"></span></div>
+        <label>Y 高低</label><div class="sliderLine"><span>Y</span><input id="jointY" type="range" min="0" max="5.8" step=".01"><span id="jointYv"></span></div>
+        <label>Z 前後</label><div class="sliderLine"><span>Z</span><input id="jointZ" type="range" min="-3" max="3" step=".01"><span id="jointZv"></span></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px">
+          <button class="small" id="resetPose">回復動作</button>
+          <button class="small" id="copyPose">複製姿勢 JSON</button>
+        </div>
+        <div id="status">IK：待命。若看不到人偶，表示 Three.js 模組未載入。</div>
+      </section>
+      <section class="ctrlGroup">
+        <h2 style="font-size:14px;color:var(--accent);margin-bottom:6px">顯示設定</h2>
+        <label class="toggle"><input id="showGrid" type="checkbox" checked>顯示地板格線</label>
+        <label class="toggle"><input id="showJoints" type="checkbox" checked>顯示黃色關節點</label>
+        <label class="toggle"><input id="showGuides" type="checkbox" checked>顯示教學輔助線</label>
+        <label class="toggle"><input id="showBody" type="checkbox" checked>顯示簡化人形體塊</label>
+      </section>
+      <section class="ctrlGroup">
+        <h2 style="font-size:14px;color:var(--accent);margin-bottom:6px">教學檢查</h2>
+        <p id="alignText" class="hint">等待姿勢資料。</p>
+      </section>
+    </div>
+  </aside>
+</div>
+
+<script type="module">
+import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+
+const errBox = document.getElementById("errBox");
+window.addEventListener("error", e => {
+  errBox.style.display = "block";
+  errBox.textContent = "腳本錯誤：\\n" + (e.message || e.error || "未知錯誤");
+});
+window.addEventListener("unhandledrejection", e => {
+  errBox.style.display = "block";
+  errBox.textContent = "載入錯誤：\\n" + (e.reason?.message || e.reason || "未知錯誤");
+});
+
+const canvas = document.getElementById("stage");
+const wrap = document.getElementById("stageWrap");
+const renderer = new THREE.WebGLRenderer({canvas, antialias:true, alpha:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.shadowMap.enabled = true;
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.Fog(0x090d14, 9, 20);
+const camera = new THREE.PerspectiveCamera(42,1,.1,100);
+camera.position.set(4.9,3.7,6.7);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.set(0,2.65,0);
+controls.enableDamping = true;
+controls.dampingFactor = .08;
+controls.minDistance = 3.1;
+controls.maxDistance = 13;
+
+scene.add(new THREE.HemisphereLight(0xffffff,0x263247,1.35));
+const key = new THREE.DirectionalLight(0xfff1cf,2.15);
+key.position.set(4,7,5); key.castShadow = true; scene.add(key);
+const rim = new THREE.DirectionalLight(0xcddfff,.75); rim.position.set(-4,3,-4); scene.add(rim);
+
+const floor = new THREE.Mesh(new THREE.CircleGeometry(3.7,96), new THREE.MeshStandardMaterial({color:0x151a24,roughness:.86}));
+floor.rotation.x = -Math.PI/2; floor.receiveShadow = true; scene.add(floor);
+const grid = new THREE.GridHelper(7.2,24,0xffffff,0xffffff);
+grid.material.transparent = true; grid.material.opacity = .13; scene.add(grid);
+
+function matStd(color, opts={}){ return new THREE.MeshStandardMaterial({color,roughness:.55,metalness:.02,...opts}); }
+const matJoint = matStd(0xf5d28c,{emissive:0x33220a,emissiveIntensity:.18});
+const matJointSel = matStd(0xffffff,{emissive:0xf5d28c,emissiveIntensity:.55});
+const matCore = matStd(0xf1f2ff);
+const matArm = matStd(0xeec5df);
+const matLeg = matStd(0xbfd5ff);
+const matFoot = matStd(0xf2d18a);
+const matBody = matStd(0xe7e9ff,{transparent:true,opacity:.7});
+const matPelvis = matStd(0xccebdc,{transparent:true,opacity:.7});
+const matPalm = matStd(0xffd7ed,{transparent:true,opacity:.88});
+const lineWhite = new THREE.LineBasicMaterial({color:0xffffff,transparent:true,opacity:.75});
+const linePink = new THREE.LineBasicMaterial({color:0xffb8df,transparent:true,opacity:.95});
+const lineGreen = new THREE.LineBasicMaterial({color:0x8ef2c0,transparent:true,opacity:.95});
+const lineBlue = new THREE.LineBasicMaterial({color:0x9be7ff,transparent:true,opacity:.95});
+const lineOrange = new THREE.LineBasicMaterial({color:0xffa66a,transparent:true,opacity:.95});
+
+function v(x,y,z){ return {x,y,z}; }
+function toV(p){ return new THREE.Vector3(p.x,p.y,p.z); }
+function obj(vec){ return {x:vec.x,y:vec.y,z:vec.z}; }
+function clonePose(p){ const o={}; for(const k of JOINTS) o[k]={...p[k]}; return o; }
+function lerp(a,b,t){ return a + (b-a)*t; }
+function smooth(t){ return t*t*(3-2*t); }
+function mixPose(a,b,t){ const s=smooth(t), o={}; for(const k of JOINTS)o[k]=v(lerp(a[k].x,b[k].x,s),lerp(a[k].y,b[k].y,s),lerp(a[k].z,b[k].z,s)); return o; }
+function poseFrom(base, changes){ const p=clonePose(base); for(const [k,val] of Object.entries(changes)) p[k]={...p[k],...val}; return p; }
+
+const JOINTS = [
+ "head","neck","chest","spine","pelvis",
+ "leftShoulder","leftElbow","leftWrist","leftHand",
+ "rightShoulder","rightElbow","rightWrist","rightHand",
+ "leftHip","leftKnee","leftAnkle","leftToe","leftHeel",
+ "rightHip","rightKnee","rightAnkle","rightToe","rightHeel"
+];
+const jointLabels = {
+ head:"頭",neck:"頸",chest:"胸",spine:"脊",pelvis:"骨盆",
+ leftShoulder:"左肩",leftElbow:"左肘",leftWrist:"左腕",leftHand:"左手",
+ rightShoulder:"右肩",rightElbow:"右肘",rightWrist:"右腕",rightHand:"右手",
+ leftHip:"左髖",leftKnee:"左膝",leftAnkle:"左踝",leftToe:"左趾",leftHeel:"左跟",
+ rightHip:"右髖",rightKnee:"右膝",rightAnkle:"右踝",rightToe:"右趾",rightHeel:"右跟"
+};
+
+const base = {
+ head:v(0,4.92,0), neck:v(0,4.55,0), chest:v(0,4.08,0), spine:v(0,3.28,0), pelvis:v(0,2.52,0),
+ leftShoulder:v(-.62,4.08,0), leftElbow:v(-.78,3.25,.08), leftWrist:v(-.68,2.55,.12), leftHand:v(-.60,2.28,.14),
+ rightShoulder:v(.62,4.08,0), rightElbow:v(.78,3.25,.08), rightWrist:v(.68,2.55,.12), rightHand:v(.60,2.28,.14),
+ leftHip:v(-.30,2.5,0), leftKnee:v(-.34,1.35,0), leftAnkle:v(-.27,.28,0), leftToe:v(-.56,.10,.48), leftHeel:v(-.16,.12,-.20),
+ rightHip:v(.30,2.5,0), rightKnee:v(.34,1.35,0), rightAnkle:v(.27,.28,0), rightToe:v(.56,.10,.48), rightHeel:v(.16,.12,-.20)
+};
+
+const actor = new THREE.Group(); scene.add(actor);
+const bodyGroup = new THREE.Group(); actor.add(bodyGroup);
+const guides = new THREE.Group(); scene.add(guides);
+const jointMeshes = {};
+const boneMeshes = [];
+const jointGeom = new THREE.SphereGeometry(.095,24,16);
+const smallJointGeom = new THREE.SphereGeometry(.072,20,12);
+const headGeom = new THREE.SphereGeometry(.25,32,18);
+const boneGeom = new THREE.CylinderGeometry(1,1,1,18);
+
+const segments = [
+ ["head","neck","core",.13],["neck","chest","core",.105],["chest","spine","core",.14],["spine","pelvis","core",.15],
+ ["chest","leftShoulder","core",.08],["chest","rightShoulder","core",.08],["pelvis","leftHip","core",.08],["pelvis","rightHip","core",.08],
+ ["leftShoulder","leftElbow","arm",.085],["leftElbow","leftWrist","arm",.072],["leftWrist","leftHand","arm",.055],
+ ["rightShoulder","rightElbow","arm",.085],["rightElbow","rightWrist","arm",.072],["rightWrist","rightHand","arm",.055],
+ ["leftHip","leftKnee","leg",.11],["leftKnee","leftAnkle","leg",.098],["leftAnkle","leftToe","foot",.06],["leftAnkle","leftHeel","foot",.05],
+ ["rightHip","rightKnee","leg",.11],["rightKnee","rightAnkle","leg",.098],["rightAnkle","rightToe","foot",.06],["rightAnkle","rightHeel","foot",.05]
+];
+
+for(const j of JOINTS){
+  const geom = j==="head" ? headGeom : (j.includes("Hand")||j.includes("Toe")||j.includes("Heel") ? smallJointGeom : jointGeom);
+  const mesh = new THREE.Mesh(geom, j==="head" ? matCore : matJoint);
+  mesh.castShadow = true; mesh.userData.joint = j; mesh.userData.baseMat = mesh.material;
+  actor.add(mesh); jointMeshes[j]=mesh;
+}
+for(const [a,b,type,r] of segments){
+  const mat = type==="arm"?matArm:type==="leg"?matLeg:type==="foot"?matFoot:matCore;
+  const mesh = new THREE.Mesh(boneGeom,mat); mesh.castShadow=true; actor.add(mesh); boneMeshes.push({mesh,a,b,r});
+}
+function shell(scale, mat){ const m=new THREE.Mesh(new THREE.SphereGeometry(1,32,18),mat); m.scale.set(scale.x,scale.y,scale.z); m.castShadow=true; bodyGroup.add(m); return m; }
+const chestShell=shell({x:.62,y:.68,z:.34},matBody), waistShell=shell({x:.36,y:.36,z:.25},matBody), pelvisShell=shell({x:.48,y:.30,z:.31},matPelvis);
+const neckShell=new THREE.Mesh(new THREE.CylinderGeometry(.11,.13,.34,20),matBody); bodyGroup.add(neckShell);
+const leftPalmPlate=new THREE.Mesh(new THREE.BoxGeometry(.18,.035,.36),matPalm), rightPalmPlate=leftPalmPlate.clone();
+const leftFootPlate=new THREE.Mesh(new THREE.BoxGeometry(.30,.05,.72),matFoot), rightFootPlate=leftFootPlate.clone();
+for(const m of [leftPalmPlate,rightPalmPlate,leftFootPlate,rightFootPlate]){m.castShadow=true;bodyGroup.add(m);}
+
+function makeLine(mat,max=3){ const g=new THREE.BufferGeometry(); g.setAttribute("position",new THREE.BufferAttribute(new Float32Array(max*3),3)); g.setDrawRange(0,0); return new THREE.Line(g,mat); }
+function setLine(line, pts){
+  const arr=line.geometry.attributes.position;
+  for(let i=0;i<pts.length;i++) arr.setXYZ(i,pts[i].x,pts[i].y,pts[i].z);
+  line.geometry.setDrawRange(0,pts.length); arr.needsUpdate=true; line.geometry.computeBoundingSphere();
+}
+const bodyLine=makeLine(lineWhite,3), shoulderLine=makeLine(linePink,2), pelvisLine=makeLine(lineGreen,2);
+const lKneeToe=makeLine(lineOrange,2), rKneeToe=makeLine(lineOrange,2), lFootLine=makeLine(lineBlue,2), rFootLine=makeLine(lineBlue,2);
+guides.add(bodyLine,shoulderLine,pelvisLine,lKneeToe,rKneeToe,lFootLine,rFootLine);
+const balanceLine=makeLine(new THREE.LineBasicMaterial({color:0x8ecbff,transparent:true,opacity:.88}),2); guides.add(balanceLine);
+const lFootArrow=new THREE.ArrowHelper(new THREE.Vector3(0,0,1),new THREE.Vector3(),.6,0x9be7ff,.15,.08);
+const rFootArrow=new THREE.ArrowHelper(new THREE.Vector3(0,0,1),new THREE.Vector3(),.6,0x9be7ff,.15,.08);
+guides.add(lFootArrow,rFootArrow);
+
+function updateCylinder(mesh,p1,p2,r){
+  const a=toV(p1), b=toV(p2), mid=a.clone().add(b).multiplyScalar(.5), dir=b.clone().sub(a), len=Math.max(.001,dir.length());
+  mesh.position.copy(mid); mesh.scale.set(r,len,r); mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),dir.normalize());
+}
+function plateBetween(mesh,a,b,width,height){
+  const A=toV(a),B=toV(b),mid=A.clone().add(B).multiplyScalar(.5),dir=B.clone().sub(A); const len=Math.max(.08,dir.length()+.16);
+  mesh.position.copy(mid); mesh.scale.set(width/.30,height/.05,len/.72); mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,0,1),dir.normalize());
+}
+function orientShell(mesh,a,b){
+  const A=toV(a),B=toV(b),dir=B.clone().sub(A); mesh.position.copy(A.clone().lerp(B,.5)); mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),dir.normalize());
+}
+function arrowBetween(arrow,a,b){
+  const A=toV(a),B=toV(b),dir=B.clone().sub(A),len=Math.max(.1,dir.length());
+  arrow.position.copy(A); arrow.setDirection(dir.normalize()); arrow.setLength(len,.15,.08);
+}
+
+let currentPose = clonePose(base);
+let currentAction = null;
+let playing=false, userEditing=false, time=0, speed=1, loop=true;
+let selectedJoint = "leftWrist";
+
+const fixed = {};
+function setFixedLengths(){
+  for(const [a,b] of segments) fixed[a+"_"+b]=toV(base[a]).distanceTo(toV(base[b]));
+}
+setFixedLengths();
+function len(a,b){ return fixed[a+"_"+b] ?? fixed[b+"_"+a] ?? toV(currentPose[a]).distanceTo(toV(currentPose[b])); }
+function clampDist(root,target,minD,maxD){
+  const R=toV(currentPose[root]); let T=target.clone(); let d=T.distanceTo(R);
+  if(d<.0001){T=R.clone().add(new THREE.Vector3(0,-1,0));d=1}
+  const dir=T.clone().sub(R).normalize(); d=Math.max(minD,Math.min(maxD,d)); return R.clone().add(dir.multiplyScalar(d));
+}
+function solve2(root,mid,end,target,poleHint){
+  const A=toV(currentPose[root]), l1=len(root,mid), l2=len(mid,end);
+  const minD=Math.max(.02,Math.abs(l1-l2)+.01), maxD=l1+l2-.01;
+  const T=clampDist(root,target,minD,maxD), AT=T.clone().sub(A), d=Math.max(.0001,AT.length()), dir=AT.clone().normalize();
+  const a=Math.max(0,Math.min(l1,(l1*l1-l2*l2+d*d)/(2*d)));
+  const h=Math.sqrt(Math.max(0,l1*l1-a*a));
+  let pole=(poleHint||toV(currentPose[mid]).sub(A)).clone();
+  pole.sub(dir.clone().multiplyScalar(pole.dot(dir)));
+  if(pole.length()<.001){ pole=new THREE.Vector3(0,0,1); if(Math.abs(pole.dot(dir))>.9)pole.set(1,0,0); pole.sub(dir.clone().multiplyScalar(pole.dot(dir))); }
+  pole.normalize();
+  currentPose[mid]=obj(A.clone().add(dir.clone().multiplyScalar(a)).add(pole.multiplyScalar(h)));
+  currentPose[end]=obj(T);
+}
+function preserveHand(side){
+  const w=side+"Wrist", h=side+"Hand", W=toV(currentPose[w]); let dir=toV(currentPose[h]).sub(W);
+  if(dir.length()<.001) dir.set(side==="left"?-.15:.15,-.25,.05); dir.normalize();
+  currentPose[h]=obj(W.clone().add(dir.multiplyScalar(len(w,h))));
+}
+function preserveFoot(side){
+  const a=side+"Ankle", toe=side+"Toe", heel=side+"Heel", A=toV(currentPose[a]);
+  let td=toV(currentPose[toe]).sub(A), hd=toV(currentPose[heel]).sub(A);
+  if(td.length()<.001) td.set(side==="left"?-.35:.35,-.05,.45); if(hd.length()<.001) hd.set(side==="left"?.10:-.10,-.04,-.18);
+  currentPose[toe]=obj(A.clone().add(td.normalize().multiplyScalar(len(a,toe))));
+  currentPose[heel]=obj(A.clone().add(hd.normalize().multiplyScalar(len(a,heel))));
+}
+function applyIK(joint,target){
+  if(joint==="leftWrist"||joint==="leftHand"){
+    const offset = joint==="leftHand" ? toV(currentPose.leftHand).sub(toV(currentPose.leftWrist)) : new THREE.Vector3();
+    solve2("leftShoulder","leftElbow","leftWrist",target.clone().sub(offset),toV(currentPose.leftElbow).sub(toV(currentPose.leftShoulder)));
+    if(joint==="leftHand"){ const W=toV(currentPose.leftWrist); let d=target.clone().sub(W); currentPose.leftHand=obj(W.add(d.normalize().multiplyScalar(len("leftWrist","leftHand")))); } else preserveHand("left");
+    status("左手臂 IK：骨長固定，手肘已自動解算。");
+  } else if(joint==="rightWrist"||joint==="rightHand"){
+    const offset = joint==="rightHand" ? toV(currentPose.rightHand).sub(toV(currentPose.rightWrist)) : new THREE.Vector3();
+    solve2("rightShoulder","rightElbow","rightWrist",target.clone().sub(offset),toV(currentPose.rightElbow).sub(toV(currentPose.rightShoulder)));
+    if(joint==="rightHand"){ const W=toV(currentPose.rightWrist); let d=target.clone().sub(W); currentPose.rightHand=obj(W.add(d.normalize().multiplyScalar(len("rightWrist","rightHand")))); } else preserveHand("right");
+    status("右手臂 IK：骨長固定，手肘已自動解算。");
+  } else if(joint==="leftAnkle"||joint==="leftToe"||joint==="leftHeel"){
+    const offset = joint==="leftAnkle" ? new THREE.Vector3() : toV(currentPose[joint]).sub(toV(currentPose.leftAnkle));
+    solve2("leftHip","leftKnee","leftAnkle",target.clone().sub(offset),toV(currentPose.leftKnee).sub(toV(currentPose.leftHip)));
+    if(joint==="leftToe") currentPose.leftToe=obj(target); else if(joint==="leftHeel") currentPose.leftHeel=obj(target);
+    preserveFoot("left"); status("左腿 IK：骨長固定，膝蓋已自動解算。");
+  } else if(joint==="rightAnkle"||joint==="rightToe"||joint==="rightHeel"){
+    const offset = joint==="rightAnkle" ? new THREE.Vector3() : toV(currentPose[joint]).sub(toV(currentPose.rightAnkle));
+    solve2("rightHip","rightKnee","rightAnkle",target.clone().sub(offset),toV(currentPose.rightKnee).sub(toV(currentPose.rightHip)));
+    if(joint==="rightToe") currentPose.rightToe=obj(target); else if(joint==="rightHeel") currentPose.rightHeel=obj(target);
+    preserveFoot("right"); status("右腿 IK：骨長固定，膝蓋已自動解算。");
+  } else {
+    currentPose[joint]=obj(target); status(`${jointLabels[joint]}：直接移動控制點。`);
+  }
+  userEditing=true; playing=false; updatePlayBtn(); updateActor(); updateSliders(false);
+}
+function status(t){ document.getElementById("status").textContent="IK："+t; }
+
+function updateActor(){
+  for(const j of JOINTS){ jointMeshes[j].position.copy(toV(currentPose[j])); jointMeshes[j].material = (j===selectedJoint && j!=="head") ? matJointSel : (j==="head"?matCore:matJoint); }
+  for(const b of boneMeshes) updateCylinder(b.mesh,currentPose[b.a],currentPose[b.b],b.r);
+  orientShell(chestShell,currentPose.spine,currentPose.chest);
+  waistShell.position.copy(toV(currentPose.spine).lerp(toV(currentPose.pelvis),.5));
+  waistShell.quaternion.copy(chestShell.quaternion);
+  pelvisShell.position.copy(toV(currentPose.leftHip).add(toV(currentPose.rightHip)).multiplyScalar(.5));
+  pelvisShell.quaternion.setFromUnitVectors(new THREE.Vector3(1,0,0),toV(currentPose.rightHip).sub(toV(currentPose.leftHip)).normalize());
+  orientShell(neckShell,currentPose.neck,currentPose.head);
+  plateBetween(leftPalmPlate,currentPose.leftWrist,currentPose.leftHand,.18,.035);
+  plateBetween(rightPalmPlate,currentPose.rightWrist,currentPose.rightHand,.18,.035);
+  plateBetween(leftFootPlate,currentPose.leftHeel,currentPose.leftToe,.30,.05);
+  plateBetween(rightFootPlate,currentPose.rightHeel,currentPose.rightToe,.30,.05);
+
+  const center=toV(currentPose.pelvis).clone().lerp(toV(currentPose.chest),.52);
+  setLine(bodyLine,[currentPose.pelvis, obj(center), currentPose.neck]);
+  setLine(shoulderLine,[currentPose.leftShoulder,currentPose.rightShoulder]);
+  setLine(pelvisLine,[currentPose.leftHip,currentPose.rightHip]);
+  setLine(lKneeToe,[currentPose.leftKnee,currentPose.leftToe]); setLine(rKneeToe,[currentPose.rightKnee,currentPose.rightToe]);
+  setLine(lFootLine,[currentPose.leftHeel,currentPose.leftToe]); setLine(rFootLine,[currentPose.rightHeel,currentPose.rightToe]);
+  setLine(balanceLine,[v(currentPose.pelvis.x,0,currentPose.pelvis.z), v(currentPose.pelvis.x,5.5,currentPose.pelvis.z)]);
+  arrowBetween(lFootArrow,currentPose.leftHeel,currentPose.leftToe); arrowBetween(rFootArrow,currentPose.rightHeel,currentPose.rightToe);
+  updateAlign();
+}
+function angle2(a,b){ const A=toV(a),B=toV(b),d=B.sub(A); return Math.atan2(d.x,d.z)*180/Math.PI; }
+function adiff(a,b){ let d=Math.abs(a-b)%360; return d>180?360-d:d; }
+function updateAlign(){
+  const lf=angle2(currentPose.leftHeel,currentPose.leftToe), rf=angle2(currentPose.rightHeel,currentPose.rightToe);
+  const lk=angle2(currentPose.leftAnkle,currentPose.leftKnee), rk=angle2(currentPose.rightAnkle,currentPose.rightKnee);
+  const shoulder=currentPose.leftShoulder.y-currentPose.rightShoulder.y, pelvis=currentPose.leftHip.y-currentPose.rightHip.y;
+  document.getElementById("alignText").textContent =
+    `腳尖方向：左 ${Math.round(lf)}°、右 ${Math.round(rf)}°｜膝腳差：左 ${adiff(lf,lk).toFixed(0)}°、右 ${adiff(rf,rk).toFixed(0)}°｜肩線 ${Math.abs(shoulder)<.08?"接近水平":(shoulder>0?"左高":"右高")}｜骨盆 ${Math.abs(pelvis)<.08?"接近水平":(pelvis>0?"左高":"右高")}`;
+}
+
+function feetFirst(p=base){return poseFrom(p,{leftAnkle:{x:-.22,z:0},leftToe:{x:-.56,z:.48},leftHeel:{x:-.09,z:-.17},rightAnkle:{x:.22,z:0},rightToe:{x:.56,z:.48},rightHeel:{x:.09,z:-.17},leftKnee:{x:-.32},rightKnee:{x:.32}})}
+function feetSecond(p=base){return poseFrom(p,{leftHip:{x:-.36},rightHip:{x:.36},leftKnee:{x:-.76},rightKnee:{x:.76},leftAnkle:{x:-.92},rightAnkle:{x:.92},leftToe:{x:-1.24,z:.42},rightToe:{x:1.24,z:.42},leftHeel:{x:-.74,z:-.14},rightHeel:{x:.74,z:-.14}})}
+const armsPrep={leftElbow:{x:-.43,y:3.05,z:.43},leftWrist:{x:-.22,y:2.52,z:.76},leftHand:{x:-.12,y:2.33,z:.79},rightElbow:{x:.43,y:3.05,z:.43},rightWrist:{x:.22,y:2.52,z:.76},rightHand:{x:.12,y:2.33,z:.79}};
+const armsFirst={leftElbow:{x:-.44,y:3.55,z:.66},leftWrist:{x:-.18,y:3.13,z:.86},leftHand:{x:-.08,y:3.08,z:.89},rightElbow:{x:.44,y:3.55,z:.66},rightWrist:{x:.18,y:3.13,z:.86},rightHand:{x:.08,y:3.08,z:.89}};
+const armsSecond={leftElbow:{x:-1.14,y:3.95,z:.08},leftWrist:{x:-1.76,y:3.73,z:.1},leftHand:{x:-1.98,y:3.61,z:.1},rightElbow:{x:1.14,y:3.95,z:.08},rightWrist:{x:1.76,y:3.73,z:.1},rightHand:{x:1.98,y:3.61,z:.1}};
+const armsFifth={leftElbow:{x:-.58,y:4.80,z:.12},leftWrist:{x:-.36,y:5.27,z:.12},leftHand:{x:-.12,y:5.36,z:.12},rightElbow:{x:.58,y:4.80,z:.12},rightWrist:{x:.36,y:5.27,z:.12},rightHand:{x:.12,y:5.36,z:.12}};
+const prep=poseFrom(feetFirst(base),armsPrep), firstArm=poseFrom(feetFirst(base),armsFirst), secondArm=poseFrom(feetFirst(base),armsSecond), fifthArm=poseFrom(feetFirst(base),armsFifth);
+const plieMid=poseFrom(prep,{pelvis:{y:2.12},spine:{y:2.88},chest:{y:3.68},neck:{y:4.15},head:{y:4.52},leftHip:{y:2.1},rightHip:{y:2.1},leftKnee:{x:-.64,y:1.2,z:.16},rightKnee:{x:.64,y:1.2,z:.16}});
+const releve=poseFrom(prep,{pelvis:{y:2.76},spine:{y:3.52},chest:{y:4.32},neck:{y:4.78},head:{y:5.15},leftHip:{y:2.74},rightHip:{y:2.74},leftKnee:{y:1.58},rightKnee:{y:1.58},leftAnkle:{y:.56},rightAnkle:{y:.56},leftHeel:{y:.52},rightHeel:{y:.52}});
+const tenduFront=poseFrom(prep,{leftKnee:{x:-.25,y:1.42,z:.24},leftAnkle:{x:-.24,y:.28,z:.84},leftToe:{x:-.24,y:.08,z:1.38},leftHeel:{x:-.24,y:.18,z:.66}});
+const tenduSide=poseFrom(prep,{leftKnee:{x:-.84,y:1.36,z:.08},leftAnkle:{x:-1.43,y:.28,z:.12},leftToe:{x:-1.96,y:.08,z:.27},leftHeel:{x:-1.22,y:.18,z:-.03}});
+const arabesque=poseFrom(secondArm,{leftKnee:{x:-.32,y:2.18,z:-1.05},leftAnkle:{x:-.32,y:2.08,z:-1.82},leftToe:{x:-.32,y:2.05,z:-2.22},leftHeel:{x:-.32,y:2.13,z:-1.60},chest:{z:.09},neck:{z:.14},head:{z:.2}});
+const passe=poseFrom(firstArm,{leftKnee:{x:-1.0,y:2.45,z:.14},leftAnkle:{x:-.34,y:1.72,z:.2},leftToe:{x:-.04,y:1.65,z:.12},leftHeel:{x:-.25,y:1.78,z:.18}});
+const cambre=poseFrom(fifthArm,{spine:{z:-.12},chest:{y:4.0,z:-.34},neck:{y:4.35,z:-.56},head:{y:4.7,z:-.82}});
+
+const ACTIONS=[
+ {id:"prep",cat:"基礎站姿",zh:"準備位",en:"Preparation",tags:["站姿","手臂"],desc:"站姿穩定，手臂自然形成低圓弧。",tips:["肩膀放鬆。","手肘保持柔和弧度。"],frames:[[0,prep],[1,prep]]},
+ {id:"feet1",cat:"腳位",zh:"一位腳",en:"First position",tags:["腳位"],desc:"兩腳跟接近，腳尖向外打開。",tips:["外開從髖關節開始。","膝蓋朝腳尖方向。"],frames:[[0,prep],[.8,poseFrom(feetFirst(base),armsPrep)]]},
+ {id:"feet2",cat:"腳位",zh:"二位腳",en:"Second position",tags:["腳位"],desc:"雙腳向左右分開，保持穩定重心。",tips:["腳距不要過寬。","骨盆保持正中。"],frames:[[0,prep],[.9,poseFrom(feetSecond(base),armsSecond)]]},
+ {id:"arm1",cat:"手位",zh:"一位手",en:"First arms",tags:["手位"],desc:"雙臂在身體前方形成柔和圓形。",tips:["手肘不要塌。","手指自然延伸。"],frames:[[0,prep],[.8,firstArm]]},
+ {id:"arm2",cat:"手位",zh:"二位手",en:"Second arms",tags:["手位"],desc:"雙臂向兩側展開，略低於肩線。",tips:["肩膀下沉。","手臂不要完全僵直。"],frames:[[0,firstArm],[.8,secondArm]]},
+ {id:"arm5",cat:"手位",zh:"五位手",en:"Fifth arms",tags:["手位"],desc:"雙臂在頭上形成橢圓弧線。",tips:["手臂不要貼耳。","肋骨不要外翻。"],frames:[[0,firstArm],[.9,fifthArm]]},
+ {id:"plie",cat:"下肢動作",zh:"Demi-plié",en:"半蹲",tags:["下肢"],desc:"膝蓋彎曲但腳跟不離地。",tips:["膝蓋朝腳尖。","身體保持直立。"],frames:[[0,prep],[.55,plieMid],[1.1,prep]]},
+ {id:"releve",cat:"下肢動作",zh:"Relevé",en:"踮立",tags:["平衡"],desc:"腳跟離地，身體向上提起。",tips:["腳踝穩定。","重心不要前倒。"],frames:[[0,prep],[.7,releve],[1.4,prep]]},
+ {id:"tenduF",cat:"下肢動作",zh:"Tendu devant",en:"前擦地",tags:["腳尖"],desc:"工作腿向前延伸，腳尖擦地到前方。",tips:["支撐腿穩定。","工作腿膝蓋拉長。"],frames:[[0,prep],[.75,tenduFront],[1.4,prep]]},
+ {id:"tenduS",cat:"下肢動作",zh:"Tendu à la seconde",en:"旁擦地",tags:["側方"],desc:"工作腿向旁邊延伸。",tips:["骨盆不要歪。","腳尖延伸。"],frames:[[0,prep],[.75,tenduSide],[1.4,prep]]},
+ {id:"passe",cat:"造型動作",zh:"Passé",en:"經過位",tags:["單腳"],desc:"一腳腳尖靠近支撐腿膝部附近。",tips:["工作腿膝蓋向旁打開。","骨盆穩定。"],frames:[[0,prep],[.85,passe],[1.6,prep]]},
+ {id:"arab",cat:"造型動作",zh:"Arabesque",en:"阿拉貝斯克",tags:["後腿"],desc:"一腿向後延伸，形成長線條。",tips:["不要擠壓腰部。","支撐腿穩定。"],frames:[[0,prep],[1,arabesque],[2,prep]]},
+ {id:"cambre",cat:"腰部與身體",zh:"Cambré",en:"後彎",tags:["腰部"],desc:"上身向後形成弧線。",tips:["不是只折腰。","脖子保持自然。"],frames:[[0,prep],[.9,cambre],[1.75,prep]]},
+];
+const actionMap=Object.fromEntries(ACTIONS.map(a=>[a.id,a]));
+currentAction=ACTIONS[0];
+
+function duration(a){ return a.frames[a.frames.length-1][0]; }
+function sample(a,t){
+  const fs=a.frames; if(t<=fs[0][0])return clonePose(fs[0][1]); if(t>=fs.at(-1)[0])return clonePose(fs.at(-1)[1]);
+  for(let i=0;i<fs.length-1;i++){const A=fs[i],B=fs[i+1]; if(t>=A[0]&&t<=B[0])return mixPose(A[1],B[1],(t-A[0])/(B[0]-A[0]));}
+  return clonePose(fs.at(-1)[1]);
+}
+function setPose(p){ currentPose=clonePose(p); updateActor(); updateSliders(true); }
+
+function renderActions(){
+ const el=document.getElementById("actionList"); const groups={}; for(const a of ACTIONS)(groups[a.cat]??=[]).push(a); el.innerHTML="";
+ for(const [cat,arr] of Object.entries(groups)){ const sec=document.createElement("section"); sec.className="cat"; sec.innerHTML=`<div class="catTitle"><span>${cat}</span><span>${arr.length}</span></div>`;
+ const grid=document.createElement("div"); grid.className="gridBtns";
+ for(const a of arr){ const b=document.createElement("button"); b.dataset.id=a.id; b.className=a===currentAction?"active":""; b.innerHTML=`<strong>${a.zh}</strong><br><span style="font-size:11px;color:var(--muted)">${a.en}</span>`; b.onclick=()=>selectAction(a.id,true); grid.appendChild(b); }
+ sec.appendChild(grid); el.appendChild(sec);}
+}
+function selectAction(id,auto=false){ currentAction=actionMap[id]; time=0; userEditing=false; playing=auto; setPose(sample(currentAction,0)); updateInfo(); renderActions(); updatePlayBtn(); document.getElementById("progress").value=0; }
+function updateInfo(){
+ document.getElementById("infoZh").textContent=currentAction.zh; document.getElementById("infoEn").textContent=currentAction.en; document.getElementById("infoDesc").textContent=currentAction.desc;
+ document.getElementById("currentTitle").textContent=`${currentAction.zh}｜${currentAction.en}`;
+ const ul=document.getElementById("infoTips"); ul.innerHTML=""; currentAction.tips.forEach(t=>{const li=document.createElement("li"); li.textContent=t; ul.appendChild(li);});
+ const row=document.getElementById("infoTags"); row.innerHTML=""; currentAction.tags.forEach(t=>{const s=document.createElement("span"); s.className="tag"; s.textContent=t; row.appendChild(s);});
+}
+function updatePlayBtn(){ document.getElementById("playBtn").textContent=playing?"❚❚ 暫停":"▶ 播放"; }
+
+function setupEditor(){
+ const sel=document.getElementById("jointSelect");
+ JOINTS.forEach(j=>{const o=document.createElement("option"); o.value=j; o.textContent=`${jointLabels[j]} / ${j}`; sel.appendChild(o);});
+ sel.value=selectedJoint; sel.onchange=()=>{selectedJoint=sel.value; updateActor(); updateSliders(true);};
+ for(const id of ["jointX","jointY","jointZ"]) document.getElementById(id).oninput=()=>{
+   const target=toV(currentPose[selectedJoint]); target.x=parseFloat(jointX.value); target.y=parseFloat(jointY.value); target.z=parseFloat(jointZ.value); applyIK(selectedJoint,target);
+ };
+}
+function updateSliders(setVals=true){
+ const p=currentPose[selectedJoint]||base.leftWrist;
+ if(setVals){ jointX.value=p.x; jointY.value=p.y; jointZ.value=p.z; }
+ jointXv.textContent=(+jointX.value).toFixed(2); jointYv.textContent=(+jointY.value).toFixed(2); jointZv.textContent=(+jointZ.value).toFixed(2);
+}
+
+const raycaster=new THREE.Raycaster(); const mouse=new THREE.Vector2(); const dragPlane=new THREE.Plane(); const planeHit=new THREE.Vector3();
+let dragging=false, dragJoint=null, dragStartY=0;
+function setMouse(e){ const r=renderer.domElement.getBoundingClientRect(); mouse.x=((e.clientX-r.left)/r.width)*2-1; mouse.y=-((e.clientY-r.top)/r.height)*2+1; }
+renderer.domElement.addEventListener("pointerdown",e=>{
+ setMouse(e); raycaster.setFromCamera(mouse,camera); const hits=raycaster.intersectObjects(Object.values(jointMeshes),false);
+ if(hits.length && hits[0].object.userData.joint && hits[0].object.userData.joint!=="head"){
+   dragging=true; dragJoint=hits[0].object.userData.joint; selectedJoint=dragJoint; jointSelect.value=dragJoint; updateSliders(true);
+   controls.enabled=false; playing=false; userEditing=true; updatePlayBtn();
+   const normal=camera.getWorldDirection(new THREE.Vector3()).normalize(); dragPlane.setFromNormalAndCoplanarPoint(normal,toV(currentPose[dragJoint])); dragStartY=currentPose[dragJoint].y;
+   renderer.domElement.setPointerCapture(e.pointerId); status(`${jointLabels[dragJoint]}：拖曳中。`);
+ }
+});
+renderer.domElement.addEventListener("pointermove",e=>{
+ if(!dragging||!dragJoint)return; setMouse(e); raycaster.setFromCamera(mouse,camera);
+ if(raycaster.ray.intersectPlane(dragPlane,planeHit)){
+   let target=planeHit.clone();
+   if(e.shiftKey) target.y=dragStartY;
+   if(e.altKey){ const p=toV(currentPose[dragJoint]); target.x=p.x; target.z=p.z; }
+   applyIK(dragJoint,target);
+ }
+});
+function endDrag(e){ if(!dragging)return; dragging=false; dragJoint=null; controls.enabled=true; try{renderer.domElement.releasePointerCapture(e.pointerId)}catch{} }
+renderer.domElement.addEventListener("pointerup",endDrag); renderer.domElement.addEventListener("pointercancel",endDrag);
+
+playBtn.onclick=()=>{ userEditing=false; playing=!playing; updatePlayBtn(); };
+restartBtn.onclick=()=>{ userEditing=false; time=0; playing=true; updatePlayBtn(); };
+loopToggle.onchange=e=>loop=e.target.checked;
+speedRange.oninput=e=>{ speed=parseFloat(e.target.value); speedText.textContent=speed+"x"; };
+progress.oninput=e=>{ time=parseFloat(e.target.value)*duration(currentAction); playing=false; userEditing=false; setPose(sample(currentAction,time)); updatePlayBtn(); };
+resetPose.onclick=()=>{ userEditing=false; playing=false; time=0; setPose(sample(currentAction,0)); updatePlayBtn(); };
+copyPose.onclick=async()=>{ const txt=JSON.stringify(currentPose,null,2); try{await navigator.clipboard.writeText(txt); status("目前姿勢 JSON 已複製。");}catch{prompt("複製姿勢 JSON",txt);} };
+showGrid.onchange=e=>grid.visible=e.target.checked;
+showJoints.onchange=e=>Object.values(jointMeshes).forEach(m=>{if(m!==jointMeshes.head)m.visible=e.target.checked});
+showGuides.onchange=e=>guides.visible=e.target.checked;
+showBody.onchange=e=>bodyGroup.visible=e.target.checked;
+panelToggleLeft.onclick=()=>leftPanel.classList.toggle("open");
+panelToggleRight.onclick=()=>rightPanel.classList.toggle("open");
+document.querySelectorAll("[data-view]").forEach(b=>b.onclick=()=>{
+ const d=camera.position.distanceTo(controls.target), view=b.dataset.view; let p=new THREE.Vector3(0,2.8,d);
+ if(view==="side")p.set(d,2.8,0); if(view==="back")p.set(0,2.8,-d); if(view==="top")p.set(.001,d+2.7,.001);
+ camera.position.copy(p); controls.target.set(0,2.65,0); controls.update();
+});
+resetCam.onclick=()=>{camera.position.set(4.9,3.7,6.7); controls.target.set(0,2.65,0); controls.update();};
+
+function resize(){ const w=wrap.clientWidth,h=wrap.clientHeight; camera.aspect=w/h; camera.updateProjectionMatrix(); renderer.setSize(w,h,false); }
+window.addEventListener("resize",resize);
+let last=performance.now();
+function animate(now){
+ requestAnimationFrame(animate); const dt=Math.min(.05,(now-last)/1000); last=now;
+ if(playing && !userEditing){
+   time += dt*speed; const d=duration(currentAction);
+   if(time>d){ if(loop) time%=d; else {time=d; playing=false; updatePlayBtn();} }
+   setPose(sample(currentAction,time)); progress.value=d?time/d:0;
+ }
+ controls.update(); renderer.render(scene,camera);
+}
+
+renderActions(); updateInfo(); setupEditor(); setPose(prep); resize(); requestAnimationFrame(animate);
+</script>
+</body>
+</html>
