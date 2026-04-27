@@ -1,0 +1,1446 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Ballet Pose Viewer v0.35b｜Right-side unified floating UI</title>
+<style>
+:root{
+  --line:rgba(255,255,255,.13);
+  --line-strong:rgba(255,255,255,.2);
+  --glass:rgba(10,14,22,.30);
+  --glass-strong:rgba(10,14,22,.48);
+  --text:#f4f7fb;
+  --muted:#aab6c9;
+  --accent:#f6d28c;
+  --pink:#e9c5db;
+  --ok:#9be7c2;
+  --warn:#ffd2b2;
+}
+*{box-sizing:border-box}
+html,body{
+  margin:0;width:100%;height:100%;overflow:hidden;
+  background:radial-gradient(circle at 50% 18%, #253048 0%, #111722 48%, #06080e 100%);
+  color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans TC","Microsoft JhengHei",sans-serif;
+}
+#app{position:fixed;inset:0;overflow:hidden}
+#stageWrap{position:absolute;inset:0;overflow:hidden}
+#stage{
+  position:absolute;inset:0;width:100%;height:100%;
+  display:block;touch-action:none;
+}
+.topHud{
+  position:absolute;left:14px;right:14px;top:14px;z-index:5;
+  display:flex;justify-content:space-between;align-items:center;gap:10px;
+  pointer-events:none;
+}
+.pill{
+  pointer-events:auto;display:flex;align-items:center;gap:7px;
+  background:rgba(5,8,14,.48);
+  border:1px solid var(--line);
+  border-radius:999px;padding:7px;backdrop-filter:blur(12px);
+}
+.titlePill{
+  pointer-events:auto;
+  padding:8px 13px;border-radius:999px;
+  background:rgba(5,8,14,.48);
+  border:1px solid var(--line);
+  color:var(--muted);font-size:12px;white-space:nowrap;
+  backdrop-filter:blur(12px);
+}
+button{
+  font:inherit;color:var(--text);cursor:pointer;
+  border:1px solid var(--line);background:rgba(255,255,255,.08);
+  border-radius:14px;padding:9px 10px;
+  -webkit-tap-highlight-color:transparent;
+}
+button:hover{background:rgba(255,255,255,.13)}
+button.small{padding:7px 9px;font-size:12px;text-align:center;border-radius:12px}
+button.round{
+  width:42px;height:42px;padding:0;border-radius:999px;
+  display:grid;place-items:center;font-weight:800
+}
+button.active{
+  border-color:rgba(246,210,140,.6);
+  background:linear-gradient(135deg,rgba(246,210,140,.26),rgba(233,197,219,.10));
+}
+#controlPanel{
+  position:absolute;right:16px;top:68px;bottom:88px;
+  width:min(390px,calc(100vw - 26px));
+  border:1px solid var(--line);
+  background:rgba(7,10,16,.28);
+  backdrop-filter:blur(18px);
+  box-shadow:0 18px 52px rgba(0,0,0,.34);
+  border-radius:26px;
+  overflow:hidden;
+  z-index:18;
+  display:none;
+}
+#controlPanel.open{display:flex;flex-direction:column}
+.panelHeader{
+  padding:14px 16px 10px;
+  border-bottom:1px solid var(--line);
+  background:rgba(255,255,255,.03);
+}
+.panelHeader h1{margin:0;font-size:17px;line-height:1.25}
+.panelHeader .sub{margin-top:6px;color:var(--muted);font-size:12px;line-height:1.55}
+.panelScroll{
+  overflow:auto;min-height:0;padding:10px 10px 12px;
+  display:flex;flex-direction:column;gap:10px;
+}
+.fold{
+  border:1px solid var(--line);
+  border-radius:18px;
+  background:rgba(255,255,255,.045);
+  overflow:hidden;
+}
+.foldHeader{
+  width:100%;display:flex;justify-content:space-between;align-items:center;
+  border:none;border-bottom:1px solid transparent;background:rgba(255,255,255,.03);
+  padding:12px 14px;border-radius:0;text-align:left;font-weight:700;
+}
+.foldHeader .meta{color:var(--muted);font-size:11px;font-weight:500}
+.fold.open .foldHeader{
+  border-bottom-color:var(--line);
+  background:rgba(255,255,255,.05);
+}
+.foldChevron{transition:.2s transform ease}
+.fold.open .foldChevron{transform:rotate(90deg)}
+.foldBody{
+  display:none;
+  padding:12px 13px;
+  max-height:58vh;
+  overflow-y:auto;
+  overscroll-behavior:contain;
+  -webkit-overflow-scrolling:touch;
+}
+.fold.open .foldBody{display:block}
+.fold[data-fold="actions"].open .foldBody{
+  max-height:calc(100vh - 230px);
+}
+.gridBtns{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.cat{margin-bottom:14px}
+.cat:last-child{margin-bottom:0}
+.catTitle{
+  display:flex;justify-content:space-between;align-items:center;
+  color:var(--accent);font-size:12px;font-weight:800;letter-spacing:.08em;
+  margin-bottom:8px;padding-top:2px
+}
+.termEn{font-weight:800;color:#fff7e5;display:block}
+.termZh{display:block;margin-top:4px;font-size:11px;color:var(--muted)}
+.actionBtn{text-align:left}
+.helpText,.hint,p{
+  margin:0;color:var(--muted);font-size:13px;line-height:1.65
+}
+.infoCard{
+  border:1px solid var(--line);border-radius:16px;
+  background:rgba(255,255,255,.03);
+  padding:12px;margin-bottom:10px
+}
+.infoCard h3{margin:0;font-size:22px;color:#fff0c8}
+.infoCard .en{color:var(--pink);font-size:13px;margin-top:3px}
+.list{margin:8px 0 0;padding-left:1.2em;color:var(--muted);font-size:13px;line-height:1.65}
+.tagRow{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}
+.tag{font-size:11px;background:var(--accent);color:#15110a;border-radius:999px;padding:3px 7px;font-weight:800}
+label{display:block;color:var(--muted);font-size:12px;margin:10px 0 5px}
+select,input[type=text],textarea{
+  width:100%;padding:9px;border-radius:12px;
+  border:1px solid var(--line);background:rgba(0,0,0,.22);color:var(--text);
+}
+textarea{min-height:74px;resize:vertical}
+.toggle{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:13px;margin:8px 0}
+.toggle input{accent-color:#f6d28c}
+.sliderLine{
+  display:grid;grid-template-columns:22px 1fr 46px;gap:8px;align-items:center;
+  color:var(--muted);font-size:12px
+}
+#status{margin-top:8px;color:var(--ok);font-size:12px;line-height:1.55}
+.bottomDock{
+  position:absolute;right:16px;bottom:16px;z-index:25;
+  width:min(710px,calc(100vw - 30px));
+  display:flex;justify-content:flex-end;
+}
+.dockRow{
+  display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+  padding:8px;border-radius:24px;
+  border:1px solid var(--line);
+  background:rgba(5,8,14,.58);
+  backdrop-filter:blur(16px);
+  box-shadow:0 14px 38px rgba(0,0,0,.30);
+}
+#progress{width:min(260px,38vw)}
+input[type=range]{accent-color:#f6d28c}
+.speed{display:flex;align-items:center;gap:7px;color:var(--muted);font-size:12px}
+.speed input{width:78px}
+.kbd{color:#fff;border:1px solid var(--line);border-radius:7px;padding:1px 5px;background:rgba(255,255,255,.08);font-size:11px}
+.err{
+  display:none;position:absolute;left:14px;right:14px;bottom:90px;z-index:30;
+  padding:12px;border-radius:16px;border:1px solid rgba(255,120,120,.56);
+  background:rgba(58,12,18,.88);color:#ffd5d5;font-size:12px;line-height:1.55;white-space:pre-wrap
+}
+#alignText{color:var(--muted)}
+.hr{height:1px;background:var(--line);margin:10px 0}
+.smallNote{font-size:12px;color:var(--muted);line-height:1.6}
+.linkBtn{font-size:12px;padding:8px 10px}
+@media (max-width: 780px){
+  .titlePill{display:none}
+  #controlPanel{right:10px;top:64px;bottom:88px;width:calc(100vw - 20px)}
+  .bottomDock{right:10px;bottom:10px;width:calc(100vw - 20px)}
+  .dockRow{width:100%;justify-content:flex-end}
+  #progress{width:min(190px,34vw)}
+}
+@media (max-width: 540px){
+  .gridBtns{grid-template-columns:1fr}
+  .dockRow{gap:6px}
+  #progress{width:100%;order:2;flex:1 1 100%}
+}
+</style>
+<script type="importmap">
+{"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js","three/addons/":"https://unpkg.com/three@0.160.0/examples/jsm/"}}
+</script>
+</head>
+<body>
+<div id="app">
+  <main id="stageWrap">
+    <canvas id="stage"></canvas>
+
+    <div class="topHud">
+      <div class="pill">
+        <button class="small" data-view="front">正面</button>
+        <button class="small" data-view="side">側面</button>
+        <button class="small" data-view="back">背面</button>
+        <button class="small" data-view="top">俯視</button>
+        <button class="small" id="resetCam">重置</button>
+      </div>
+      <div class="titlePill" id="currentTitle">Preparation</div>
+    </div>
+
+    <aside id="controlPanel">
+      <div class="panelHeader">
+        <h1>Ballet Pose Viewer v0.35b</h1>
+        <div class="sub">所有面板與功能整合到右側同一個浮動透明面板。內容過多時可直接往下滑動。術語預設顯示原文；如需中文，可在「更多」中開啟。</div>
+      </div>
+      <div class="panelScroll">
+        <section class="fold" data-fold="actions">
+          <button class="foldHeader">
+            <span>動作術語</span>
+            <span class="meta">10 類別</span>
+            <span class="foldChevron">›</span>
+          </button>
+          <div class="foldBody">
+            <div class="smallNote">點選術語會載入示範動作，並以預設女聲、中快速度唸出動作名稱。若要關閉語音，可到下方「更多」。</div>
+            <div class="hr"></div>
+            <div id="actionList"></div>
+          </div>
+        </section>
+
+        <section class="fold" data-fold="more">
+          <button class="foldHeader">
+            <span>更多</span>
+            <span class="meta">顯示 / 聲音 / 記憶</span>
+            <span class="foldChevron">›</span>
+          </button>
+          <div class="foldBody">
+            <label class="toggle"><input id="showChineseTerms" type="checkbox">顯示中文術語</label>
+            <label class="toggle"><input id="voiceEnabled" type="checkbox" checked>開啟點擊發音</label>
+            <label class="toggle"><input id="showGrid" type="checkbox" checked>顯示地板格線</label>
+            <label class="toggle"><input id="showJoints" type="checkbox" checked>顯示黃色關節點</label>
+            <label class="toggle"><input id="showGuides" type="checkbox" checked>顯示教學輔助線</label>
+            <label class="toggle"><input id="showBody" type="checkbox" checked>顯示簡化人形體塊</label>
+            <label class="toggle"><input id="loopToggle" type="checkbox" checked>循環播放</label>
+            <div class="sliderLine" style="margin-top:8px">
+              <span>速</span><input id="speedRange" type="range" min=".25" max="2" step=".25" value="1"><span id="speedText">1x</span>
+            </div>
+            <div class="hr"></div>
+            <div class="smallNote">這些設定會儲存在瀏覽器本機。重新整理後仍會保留，除非你清除瀏覽器資料或按下下方按鈕。</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px">
+              <button class="linkBtn" id="clearPrefs">清除記憶設定</button>
+              <button class="linkBtn" id="replayVoice">重播目前術語</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="fold" data-fold="joints">
+          <button class="foldHeader">
+            <span>關節滑桿微調</span>
+            <span class="meta">固定骨長</span>
+            <span class="foldChevron">›</span>
+          </button>
+          <div class="foldBody">
+            <div class="smallNote">拖曳黃色關節點或使用滑桿時，都會維持主要骨段長度。拖手腕 / 腳踝時使用 IK，拖肩 / 肘 / 髖 / 膝時會以固定骨長鏈處理。</div>
+            <label>選擇關節</label>
+            <select id="jointSelect"></select>
+            <label>X 左右</label><div class="sliderLine"><span>X</span><input id="jointX" type="range" min="-3" max="3" step=".01"><span id="jointXv"></span></div>
+            <label>Y 高低</label><div class="sliderLine"><span>Y</span><input id="jointY" type="range" min="0" max="5.8" step=".01"><span id="jointYv"></span></div>
+            <label>Z 前後</label><div class="sliderLine"><span>Z</span><input id="jointZ" type="range" min="-3" max="3" step=".01"><span id="jointZv"></span></div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px">
+              <button class="linkBtn" id="resetPose">回復動作</button>
+              <button class="linkBtn" id="copyPose">複製姿勢 JSON</button>
+            </div>
+            <div id="status">IK：待命。</div>
+          </div>
+        </section>
+
+        <section class="fold" data-fold="help">
+          <button class="foldHeader">
+            <span>說明</span>
+            <span class="meta">當前動作與操作</span>
+            <span class="foldChevron">›</span>
+          </button>
+          <div class="foldBody">
+            <section class="infoCard">
+              <h3 id="infoZh">準備位</h3>
+              <div class="en" id="infoEn">Preparation</div>
+              <p id="infoDesc">站姿穩定，手臂自然形成低圓弧。</p>
+              <ul class="list" id="infoTips"></ul>
+              <div class="tagRow" id="infoTags"></div>
+            </section>
+            <p class="helpText">
+              操作方式：拖曳空白處旋轉視角；拖曳黃色關節點移動關節。<br>
+              <span class="kbd">Shift</span> 固定高度，<span class="kbd">Alt / Option</span> 偏垂直拖曳。<br>
+              點選術語按鈕時，會切換示範動作並發出術語唸法。
+            </p>
+          </div>
+        </section>
+
+        <section class="fold" data-fold="checks">
+          <button class="foldHeader">
+            <span>教學檢查</span>
+            <span class="meta">方向 / 重心 / 對位</span>
+            <span class="foldChevron">›</span>
+          </button>
+          <div class="foldBody">
+            <p id="alignText">等待姿勢資料。</p>
+          </div>
+        </section>
+      </div>
+    </aside>
+
+    <div class="err" id="errBox"></div>
+
+    <div class="bottomDock">
+      <div class="dockRow">
+        <button class="round" id="panelToggle" title="顯示 / 隱藏控制面板">☰</button>
+        <input id="progress" type="range" min="0" max="1" step="0.001" value="0">
+        <button class="round" id="playBtn" title="播放 / 暫停">▶</button>
+        <button class="round" id="restartBtn" title="重播">↻</button>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script type="module">
+import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+
+const SETTINGS_KEY = "ballet_pose_viewer_v035_settings";
+const defaultSettings = {
+  panelOpen: true,
+  showChineseTerms: false,
+  voiceEnabled: true,
+  showGrid: true,
+  showJoints: true,
+  showGuides: true,
+  showBody: true,
+  loop: true,
+  speed: 1,
+  openFolds: { actions: true, more: false, joints: false, help: false, checks: false }
+};
+function loadSettings(){
+  try{
+    const raw = JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}");
+    return {
+      ...defaultSettings,
+      ...raw,
+      openFolds: { ...defaultSettings.openFolds, ...(raw.openFolds || {}) }
+    };
+  }catch(e){
+    return JSON.parse(JSON.stringify(defaultSettings));
+  }
+}
+let settings = loadSettings();
+function saveSettings(){
+  localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+}
+
+const errBox = document.getElementById("errBox");
+window.addEventListener("error", e => {
+  errBox.style.display = "block";
+  errBox.textContent = "腳本錯誤：\n" + (e.message || e.error || "未知錯誤");
+});
+window.addEventListener("unhandledrejection", e => {
+  errBox.style.display = "block";
+  errBox.textContent = "載入錯誤：\n" + (e.reason?.message || e.reason || "未知錯誤");
+});
+
+const stage = document.getElementById("stage");
+const stageWrap = document.getElementById("stageWrap");
+const renderer = new THREE.WebGLRenderer({ canvas: stage, antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.Fog(0x090d14, 9, 20);
+const camera = new THREE.PerspectiveCamera(42, 1, .1, 100);
+camera.position.set(4.9, 3.7, 6.7);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.set(0, 2.65, 0);
+controls.enableDamping = true;
+controls.dampingFactor = .08;
+controls.minDistance = 3.0;
+controls.maxDistance = 13;
+
+scene.add(new THREE.HemisphereLight(0xffffff, 0x263247, 1.35));
+const key = new THREE.DirectionalLight(0xfff1cf, 2.15);
+key.position.set(4, 7, 5);
+key.castShadow = true;
+scene.add(key);
+const rim = new THREE.DirectionalLight(0xcddfff, .75);
+rim.position.set(-4, 3, -4);
+scene.add(rim);
+
+const floor = new THREE.Mesh(
+  new THREE.CircleGeometry(3.8, 96),
+  new THREE.MeshStandardMaterial({ color: 0x151a24, roughness: .86 })
+);
+floor.rotation.x = -Math.PI / 2;
+floor.receiveShadow = true;
+scene.add(floor);
+
+const grid = new THREE.GridHelper(7.3, 24, 0xffffff, 0xffffff);
+grid.material.transparent = true;
+grid.material.opacity = .13;
+scene.add(grid);
+
+function matStd(color, opts = {}) {
+  return new THREE.MeshStandardMaterial({ color, roughness: .55, metalness: .02, ...opts });
+}
+const matJoint = matStd(0xf5d28c, { emissive: 0x33220a, emissiveIntensity: .18 });
+const matJointSel = matStd(0xffffff, { emissive: 0xf5d28c, emissiveIntensity: .55 });
+const matCore = matStd(0xf1f2ff);
+const matArm = matStd(0xeec5df);
+const matLeg = matStd(0xbfd5ff);
+const matFoot = matStd(0xf2d18a);
+const matBody = matStd(0xe7e9ff, { transparent: true, opacity: .68 });
+const matPelvis = matStd(0xccebdc, { transparent: true, opacity: .70 });
+const matPalm = matStd(0xffd7ed, { transparent: true, opacity: .96, emissive: 0x32101f, emissiveIntensity: .08 });
+const lineWhite = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: .75 });
+const linePink = new THREE.LineBasicMaterial({ color: 0xffb8df, transparent: true, opacity: .95 });
+const lineGreen = new THREE.LineBasicMaterial({ color: 0x8ef2c0, transparent: true, opacity: .95 });
+const lineBlue = new THREE.LineBasicMaterial({ color: 0x9be7ff, transparent: true, opacity: .95 });
+const lineOrange = new THREE.LineBasicMaterial({ color: 0xffa66a, transparent: true, opacity: .95 });
+
+function v(x, y, z){ return { x, y, z }; }
+function toV(p){ return new THREE.Vector3(p.x, p.y, p.z); }
+function obj(vec){ return { x: vec.x, y: vec.y, z: vec.z }; }
+
+const JOINTS = [
+ "head","neck","chest","spine","pelvis",
+ "leftShoulder","leftElbow","leftWrist","leftHand",
+ "rightShoulder","rightElbow","rightWrist","rightHand",
+ "leftHip","leftKnee","leftAnkle","leftToe","leftHeel",
+ "rightHip","rightKnee","rightAnkle","rightToe","rightHeel"
+];
+const jointLabels = {
+ head:"頭",neck:"頸",chest:"胸",spine:"脊",pelvis:"骨盆",
+ leftShoulder:"左肩",leftElbow:"左肘",leftWrist:"左腕",leftHand:"左掌",
+ rightShoulder:"右肩",rightElbow:"右肘",rightWrist:"右腕",rightHand:"右掌",
+ leftHip:"左髖",leftKnee:"左膝",leftAnkle:"左踝",leftToe:"左趾",leftHeel:"左跟",
+ rightHip:"右髖",rightKnee:"右膝",rightAnkle:"右踝",rightToe:"右趾",rightHeel:"右跟"
+};
+
+const base = {
+ head:v(0,4.70,0), neck:v(0,4.42,0), chest:v(0,4.08,0), spine:v(0,3.28,0), pelvis:v(0,2.52,0),
+ leftShoulder:v(-.64,3.93,0), leftElbow:v(-.80,3.18,.08), leftWrist:v(-.70,2.52,.12), leftHand:v(-.61,2.28,.14),
+ rightShoulder:v(.64,3.93,0), rightElbow:v(.80,3.18,.08), rightWrist:v(.70,2.52,.12), rightHand:v(.61,2.28,.14),
+ leftHip:v(-.30,2.50,0), leftKnee:v(-.34,1.35,0), leftAnkle:v(-.27,.28,0), leftToe:v(-.56,.10,.48), leftHeel:v(-.16,.12,-.20),
+ rightHip:v(.30,2.50,0), rightKnee:v(.34,1.35,0), rightAnkle:v(.27,.28,0), rightToe:v(.56,.10,.48), rightHeel:v(.16,.12,-.20)
+};
+
+function clonePose(p){
+  const o = {};
+  for(const k of JOINTS) o[k] = { ...p[k] };
+  return o;
+}
+function lerp(a,b,t){ return a + (b-a)*t; }
+function smooth(t){ return t*t*(3-2*t); }
+function mixPose(a,b,t){
+  const s = smooth(t), o = {};
+  for(const k of JOINTS){
+    o[k] = v(
+      lerp(a[k].x, b[k].x, s),
+      lerp(a[k].y, b[k].y, s),
+      lerp(a[k].z, b[k].z, s)
+    );
+  }
+  return o;
+}
+function poseFrom(basePose, changes){
+  const p = clonePose(basePose);
+  for(const [k,val] of Object.entries(changes)) p[k] = { ...p[k], ...val };
+  return p;
+}
+function translatePose(pose, dx=0, dy=0, dz=0, joints=JOINTS){
+  const p = clonePose(pose);
+  joints.forEach(k => {
+    p[k].x += dx; p[k].y += dy; p[k].z += dz;
+  });
+  return p;
+}
+function rotatePoseY(pose, deg, joints=JOINTS, originJoint="pelvis"){
+  const p = clonePose(pose);
+  const origin = toV(p[originJoint]);
+  const rad = deg * Math.PI / 180;
+  const c = Math.cos(rad), s = Math.sin(rad);
+  joints.forEach(k => {
+    const pt = toV(p[k]).sub(origin);
+    const x = pt.x * c - pt.z * s;
+    const z = pt.x * s + pt.z * c;
+    p[k] = v(x + origin.x, pt.y + origin.y, z + origin.z);
+  });
+  return p;
+}
+function rotateUpper(pose, deg){
+  return rotatePoseY(pose, deg, ["head","neck","chest","leftShoulder","leftElbow","leftWrist","leftHand","rightShoulder","rightElbow","rightWrist","rightHand"], "pelvis");
+}
+function tiltHead(pose, dx=0, dy=0, dz=0){
+  return poseFrom(pose, {
+    head: { x: pose.head.x + dx, y: pose.head.y + dy, z: pose.head.z + dz }
+  });
+}
+function setFootHeelsUp(pose, left=.44, right=.44){
+  return poseFrom(pose, {
+    leftHeel:{ y:left }, rightHeel:{ y:right },
+    leftAnkle:{ y: pose.leftAnkle.y + .24 }, rightAnkle:{ y: pose.rightAnkle.y + .24 }
+  });
+}
+function feetSixth(p=base){
+  return poseFrom(p, {
+    leftAnkle:{x:-.20,y:.28,z:0}, rightAnkle:{x:.20,y:.28,z:0},
+    leftToe:{x:-.20,y:.08,z:.50}, rightToe:{x:.20,y:.08,z:.50},
+    leftHeel:{x:-.20,y:.12,z:-.18}, rightHeel:{x:.20,y:.12,z:-.18},
+    leftKnee:{x:-.20}, rightKnee:{x:.20}
+  });
+}
+function feetFirst(p=base){
+  return poseFrom(p, {
+    leftAnkle:{x:-.22,z:0}, leftToe:{x:-.56,z:.48}, leftHeel:{x:-.09,z:-.17},
+    rightAnkle:{x:.22,z:0}, rightToe:{x:.56,z:.48}, rightHeel:{x:.09,z:-.17},
+    leftKnee:{x:-.32}, rightKnee:{x:.32}
+  });
+}
+function feetSecond(p=base){
+  return poseFrom(p, {
+    leftHip:{x:-.36}, rightHip:{x:.36},
+    leftKnee:{x:-.76}, rightKnee:{x:.76},
+    leftAnkle:{x:-.92}, rightAnkle:{x:.92},
+    leftToe:{x:-1.24,z:.42}, rightToe:{x:1.24,z:.42},
+    leftHeel:{x:-.74,z:-.14}, rightHeel:{x:.74,z:-.14}
+  });
+}
+function feetThird(p=base){
+  return poseFrom(p, {
+    leftAnkle:{x:-.06,y:.28,z:.16}, leftToe:{x:-.39,y:.08,z:.55}, leftHeel:{x:.05,y:.12,z:-.02},
+    rightAnkle:{x:.22,y:.28,z:-.02}, rightToe:{x:.55,y:.08,z:.42}, rightHeel:{x:.10,y:.12,z:-.20},
+    leftKnee:{x:-.18,z:.12}, rightKnee:{x:.31,z:-.02}
+  });
+}
+function feetFourth(p=base){
+  return poseFrom(p, {
+    leftAnkle:{x:-.30,y:.28,z:.62}, leftToe:{x:-.60,y:.08,z:1.02}, leftHeel:{x:-.14,y:.12,z:.42},
+    rightAnkle:{x:.28,y:.28,z:-.24}, rightToe:{x:.56,y:.08,z:.20}, rightHeel:{x:.14,y:.12,z:-.44},
+    leftKnee:{x:-.32,z:.40}, rightKnee:{x:.30,z:-.16}
+  });
+}
+function feetFifth(p=base){
+  return poseFrom(p, {
+    leftAnkle:{x:-.02,y:.28,z:.30}, leftToe:{x:-.36,y:.08,z:.69}, leftHeel:{x:.09,y:.12,z:.12},
+    rightAnkle:{x:.20,y:.28,z:-.10}, rightToe:{x:.48,y:.08,z:.34}, rightHeel:{x:.08,y:.12,z:-.28},
+    leftKnee:{x:-.14,z:.24}, rightKnee:{x:.24,z:-.02}
+  });
+}
+function feetSousSus(p=base){
+  return setFootHeelsUp(poseFrom(feetFifth(p), {
+    leftAnkle:{x:.00,y:.42,z:.13}, rightAnkle:{x:.04,y:.42,z:.00},
+    leftToe:{x:-.15,y:.13,z:.50}, rightToe:{x:.22,y:.13,z:.44}
+  }), .52, .52);
+}
+function feetDemiPointe(p=base){
+  return setFootHeelsUp(feetFirst(p), .48, .48);
+}
+
+const armsPrepMods = {
+  leftElbow:{x:-.43,y:3.05,z:.43}, leftWrist:{x:-.22,y:2.52,z:.76}, leftHand:{x:-.08,y:2.30,z:.86},
+  rightElbow:{x:.43,y:3.05,z:.43}, rightWrist:{x:.22,y:2.52,z:.76}, rightHand:{x:.08,y:2.30,z:.86}
+};
+const armsFirstMods = {
+  leftElbow:{x:-.44,y:3.55,z:.66}, leftWrist:{x:-.18,y:3.13,z:.86}, leftHand:{x:-.02,y:3.04,z:.95},
+  rightElbow:{x:.44,y:3.55,z:.66}, rightWrist:{x:.18,y:3.13,z:.86}, rightHand:{x:.02,y:3.04,z:.95}
+};
+const armsSecondMods = {
+  leftElbow:{x:-1.14,y:3.95,z:.08}, leftWrist:{x:-1.76,y:3.73,z:.10}, leftHand:{x:-2.05,y:3.60,z:.12},
+  rightElbow:{x:1.14,y:3.95,z:.08}, rightWrist:{x:1.76,y:3.73,z:.10}, rightHand:{x:2.05,y:3.60,z:.12}
+};
+const armsThirdMods = {
+  leftElbow:{x:-.44,y:3.58,z:.66}, leftWrist:{x:-.18,y:3.18,z:.86}, leftHand:{x:-.02,y:3.10,z:.95},
+  rightElbow:{x:1.06,y:3.96,z:.08}, rightWrist:{x:1.66,y:3.74,z:.10}, rightHand:{x:1.98,y:3.60,z:.12}
+};
+const armsFourthMods = {
+  leftElbow:{x:-.44,y:3.56,z:.66}, leftWrist:{x:-.18,y:3.15,z:.86}, leftHand:{x:-.02,y:3.08,z:.95},
+  rightElbow:{x:.58,y:4.76,z:.12}, rightWrist:{x:.36,y:5.20,z:.12}, rightHand:{x:.10,y:5.30,z:.12}
+};
+const armsFifthMods = {
+  leftElbow:{x:-.58,y:4.80,z:.12}, leftWrist:{x:-.36,y:5.27,z:.12}, leftHand:{x:-.10,y:5.36,z:.12},
+  rightElbow:{x:.58,y:4.80,z:.12}, rightWrist:{x:.36,y:5.27,z:.12}, rightHand:{x:.10,y:5.36,z:.12}
+};
+const armsAllongeMods = {
+  leftElbow:{x:-1.22,y:3.97,z:.06}, leftWrist:{x:-1.92,y:3.75,z:.16}, leftHand:{x:-2.28,y:3.60,z:.28},
+  rightElbow:{x:1.22,y:3.97,z:.06}, rightWrist:{x:1.92,y:3.75,z:.16}, rightHand:{x:2.28,y:3.60,z:.28}
+};
+const armsArabMods = {
+  leftElbow:{x:-1.04,y:4.10,z:-.35}, leftWrist:{x:-1.56,y:4.08,z:-.72}, leftHand:{x:-1.90,y:4.00,z:-.96},
+  rightElbow:{x:.78,y:4.15,z:.62}, rightWrist:{x:.38,y:4.26,z:1.06}, rightHand:{x:.08,y:4.18,z:1.36}
+};
+const armsOpenFourthMods = {
+  leftElbow:{x:-1.10,y:3.96,z:.08}, leftWrist:{x:-1.72,y:3.74,z:.10}, leftHand:{x:-2.02,y:3.60,z:.12},
+  rightElbow:{x:.60,y:4.76,z:.12}, rightWrist:{x:.38,y:5.22,z:.12}, rightHand:{x:.12,y:5.30,z:.12}
+};
+
+function applyArms(p, mods){ return poseFrom(p, mods); }
+function applyPalmStyle(p, style){
+  const pose = clonePose(p);
+  if(style === "soft"){
+    pose.leftHand = v(p.leftWrist.x+.12, p.leftWrist.y-.10, p.leftWrist.z+.22);
+    pose.rightHand = v(p.rightWrist.x-.12, p.rightWrist.y-.10, p.rightWrist.z+.22);
+  }else if(style === "palmDown"){
+    pose.leftHand = v(p.leftWrist.x+.20, p.leftWrist.y-.02, p.leftWrist.z+.02);
+    pose.rightHand = v(p.rightWrist.x-.20, p.rightWrist.y-.02, p.rightWrist.z+.02);
+  }else if(style === "palmOut"){
+    pose.leftHand = v(p.leftWrist.x-.12, p.leftWrist.y-.04, p.leftWrist.z+.18);
+    pose.rightHand = v(p.rightWrist.x+.12, p.rightWrist.y-.04, p.rightWrist.z+.18);
+  }else if(style === "fingersExtended"){
+    pose.leftHand = v(p.leftWrist.x-.02, p.leftWrist.y-.01, p.leftWrist.z+.32);
+    pose.rightHand = v(p.rightWrist.x+.02, p.rightWrist.y-.01, p.rightWrist.z+.32);
+  }else if(style === "relaxed"){
+    pose.leftHand = v(p.leftWrist.x+.08, p.leftWrist.y-.12, p.leftWrist.z+.16);
+    pose.rightHand = v(p.rightWrist.x-.08, p.rightWrist.y-.12, p.rightWrist.z+.16);
+  }else if(style === "allonge"){
+    pose.leftHand = v(p.leftWrist.x-.18, p.leftWrist.y-.02, p.leftWrist.z+.26);
+    pose.rightHand = v(p.rightWrist.x+.18, p.rightWrist.y-.02, p.rightWrist.z+.26);
+  }else if(style === "curve"){
+    pose.leftHand = v(p.leftWrist.x+.05, p.leftWrist.y-.14, p.leftWrist.z+.10);
+    pose.rightHand = v(p.rightWrist.x-.05, p.rightWrist.y-.14, p.rightWrist.z+.10);
+  }else if(style === "inward"){
+    pose.leftHand = v(p.leftWrist.x+.10, p.leftWrist.y-.02, p.leftWrist.z+.20);
+    pose.rightHand = v(p.rightWrist.x-.10, p.rightWrist.y-.02, p.rightWrist.z+.20);
+  }
+  return pose;
+}
+
+const prep = applyPalmStyle(applyArms(feetFirst(base), armsPrepMods), "soft");
+const firstArmPose = applyPalmStyle(applyArms(feetFirst(base), armsFirstMods), "soft");
+const secondArmPose = applyPalmStyle(applyArms(feetFirst(base), armsSecondMods), "soft");
+const thirdArmPose = applyPalmStyle(applyArms(feetFirst(base), armsThirdMods), "soft");
+const fourthArmPose = applyPalmStyle(applyArms(feetFirst(base), armsFourthMods), "soft");
+const fifthArmPose = applyPalmStyle(applyArms(feetFirst(base), armsFifthMods), "soft");
+const allongePose = applyPalmStyle(applyArms(feetFirst(base), armsAllongeMods), "allonge");
+const arabArmPose = applyPalmStyle(applyArms(feetFirst(base), armsArabMods), "allonge");
+const openFourthPose = applyPalmStyle(applyArms(feetFirst(base), armsOpenFourthMods), "soft");
+
+function demiPliePose(){
+  return poseFrom(prep, {
+    pelvis:{y:2.12}, spine:{y:2.88}, chest:{y:3.68}, neck:{y:4.06}, head:{y:4.34},
+    leftHip:{y:2.10}, rightHip:{y:2.10},
+    leftKnee:{x:-.64,y:1.18,z:.16}, rightKnee:{x:.64,y:1.18,z:.16}
+  });
+}
+function grandPliePose(){
+  return poseFrom(prep, {
+    pelvis:{y:1.74}, spine:{y:2.48}, chest:{y:3.24}, neck:{y:3.60}, head:{y:3.88},
+    leftHip:{y:1.72}, rightHip:{y:1.72},
+    leftKnee:{x:-.82,y:.92,z:.18}, rightKnee:{x:.82,y:.92,z:.18},
+    leftHeel:{y:.24}, rightHeel:{y:.24}
+  });
+}
+function relevePose(){
+  return setFootHeelsUp(poseFrom(prep, {
+    pelvis:{y:2.76}, spine:{y:3.52}, chest:{y:4.32}, neck:{y:4.74}, head:{y:5.02},
+    leftHip:{y:2.74}, rightHip:{y:2.74}, leftKnee:{y:1.58}, rightKnee:{y:1.58},
+    leftAnkle:{y:.56}, rightAnkle:{y:.56}
+  }), .52, .52);
+}
+function tenduFrontPose(){
+  return poseFrom(prep, {
+    leftKnee:{x:-.25,y:1.42,z:.24}, leftAnkle:{x:-.24,y:.28,z:.84}, leftToe:{x:-.24,y:.08,z:1.38}, leftHeel:{x:-.24,y:.18,z:.66}
+  });
+}
+function tenduSidePose(){
+  return poseFrom(prep, {
+    leftKnee:{x:-.84,y:1.36,z:.08}, leftAnkle:{x:-1.43,y:.28,z:.12}, leftToe:{x:-1.96,y:.08,z:.27}, leftHeel:{x:-1.22,y:.18,z:-.03}
+  });
+}
+function tenduBackPose(){
+  return poseFrom(prep, {
+    leftKnee:{x:-.28,y:1.42,z:-.18}, leftAnkle:{x:-.22,y:.28,z:-.84}, leftToe:{x:-.20,y:.08,z:-1.36}, leftHeel:{x:-.22,y:.18,z:-.58}
+  });
+}
+function glisseFrontPose(){
+  return poseFrom(tenduFrontPose(), {
+    leftAnkle:{y:.44,z:.94}, leftToe:{y:.28,z:1.46}, leftHeel:{y:.34,z:.76}
+  });
+}
+function glisseSidePose(){
+  return poseFrom(tenduSidePose(), {
+    leftAnkle:{y:.46}, leftToe:{y:.30}, leftHeel:{y:.36}
+  });
+}
+function glisseBackPose(){
+  return poseFrom(tenduBackPose(), {
+    leftAnkle:{y:.44,z:-.92}, leftToe:{y:.28,z:-1.42}, leftHeel:{y:.34,z:-.70}
+  });
+}
+function fonduFrontPose(){
+  return poseFrom(prep, {
+    pelvis:{y:2.10}, spine:{y:2.96}, chest:{y:3.78},
+    rightKnee:{x:.56,y:1.12,z:.16},
+    leftKnee:{x:-.10,y:1.62,z:.28}, leftAnkle:{x:-.02,y:.92,z:.16}, leftToe:{x:.06,y:.78,z:.34}, leftHeel:{x:-.06,y:.84,z:.06}
+  });
+}
+function fonduSidePose(){
+  return poseFrom(prep, {
+    pelvis:{y:2.10}, spine:{y:2.96}, chest:{y:3.78},
+    rightKnee:{x:.56,y:1.12,z:.16},
+    leftKnee:{x:-.68,y:1.56,z:.08}, leftAnkle:{x:-.60,y:.96,z:.08}, leftToe:{x:-.72,y:.82,z:.24}, leftHeel:{x:-.50,y:.88,z:-.02}
+  });
+}
+function fonduBackPose(){
+  return poseFrom(prep, {
+    pelvis:{y:2.10}, spine:{y:2.96}, chest:{y:3.78},
+    rightKnee:{x:.56,y:1.12,z:.16},
+    leftKnee:{x:-.08,y:1.58,z:-.24}, leftAnkle:{x:-.02,y:.94,z:-.16}, leftToe:{x:.04,y:.82,z:-.38}, leftHeel:{x:-.06,y:.88,z:-.04}
+  });
+}
+function passePose(){
+  return poseFrom(firstArmPose, {
+    leftKnee:{x:-1.0,y:2.45,z:.14}, leftAnkle:{x:-.34,y:1.72,z:.20}, leftToe:{x:-.04,y:1.65,z:.12}, leftHeel:{x:-.25,y:1.78,z:.18}
+  });
+}
+function coupePose(){
+  return poseFrom(prep, {
+    leftKnee:{x:-.48,y:1.84,z:.10}, leftAnkle:{x:-.22,y:.72,z:.08}, leftToe:{x:-.10,y:.60,z:.26}, leftHeel:{x:-.20,y:.66,z:-.04}
+  });
+}
+function piquePose(){
+  return poseFrom(prep, {
+    pelvis:{x:.12,z:.14},
+    leftAnkle:{x:-.22,y:.26,z:.92}, leftToe:{x:-.22,y:.04,z:1.44}, leftHeel:{x:-.22,y:.14,z:.70},
+    rightAnkle:{x:.28,y:.42,z:-.08}, rightToe:{x:.58,y:.12,z:.42}, rightHeel:{x:.10,y:.52,z:-.18}
+  });
+}
+function developpeFrontPose(){
+  return poseFrom(secondArmPose, {
+    leftKnee:{x:-.12,y:3.40,z:.36}, leftAnkle:{x:-.10,y:3.62,z:1.10}, leftToe:{x:-.06,y:3.56,z:1.70}, leftHeel:{x:-.12,y:3.64,z:.86}
+  });
+}
+function developpeSidePose(){
+  return poseFrom(secondArmPose, {
+    leftKnee:{x:-1.26,y:3.24,z:.06}, leftAnkle:{x:-1.92,y:3.28,z:.08}, leftToe:{x:-2.38,y:3.20,z:.22}, leftHeel:{x:-1.68,y:3.30,z:-.02}
+  });
+}
+function developpeBackPose(){
+  return poseFrom(secondArmPose, {
+    chest:{z:.06}, neck:{z:.10}, head:{z:.18},
+    leftKnee:{x:-.22,y:3.28,z:-.62}, leftAnkle:{x:-.14,y:3.34,z:-1.32}, leftToe:{x:-.10,y:3.28,z:-1.94}, leftHeel:{x:-.16,y:3.36,z:-1.08}
+  });
+}
+function frappeFrontPose(){
+  return poseFrom(prep, {
+    leftKnee:{x:-.16,y:1.42,z:.22}, leftAnkle:{x:-.10,y:.76,z:.66}, leftToe:{x:-.06,y:.58,z:1.08}, leftHeel:{x:-.12,y:.66,z:.50}
+  });
+}
+function frappeSidePose(){
+  return poseFrom(prep, {
+    leftKnee:{x:-.52,y:1.42,z:.08}, leftAnkle:{x:-1.02,y:.74,z:.14}, leftToe:{x:-1.42,y:.58,z:.26}, leftHeel:{x:-.86,y:.66,z:-.04}
+  });
+}
+function frappeBackPose(){
+  return poseFrom(prep, {
+    leftKnee:{x:-.14,y:1.42,z:-.18}, leftAnkle:{x:-.08,y:.76,z:-.64}, leftToe:{x:-.04,y:.58,z:-1.06}, leftHeel:{x:-.10,y:.66,z:-.46}
+  });
+}
+function grandBattementFrontPose(){
+  return poseFrom(secondArmPose, {
+    leftKnee:{x:-.08,y:3.64,z:.36}, leftAnkle:{x:-.04,y:4.20,z:1.08}, leftToe:{x:0,y:4.28,z:1.78}, leftHeel:{x:-.06,y:4.10,z:.84}
+  });
+}
+function grandBattementSidePose(){
+  return poseFrom(secondArmPose, {
+    leftKnee:{x:-1.56,y:3.38,z:.04}, leftAnkle:{x:-2.32,y:4.02,z:.08}, leftToe:{x:-2.92,y:4.12,z:.20}, leftHeel:{x:-2.06,y:3.92,z:-.06}
+  });
+}
+function grandBattementBackPose(){
+  return poseFrom(secondArmPose, {
+    chest:{z:.08}, neck:{z:.12}, head:{z:.22},
+    leftKnee:{x:-.18,y:3.54,z:-.64}, leftAnkle:{x:-.08,y:4.02,z:-1.38}, leftToe:{x:-.02,y:4.10,z:-2.10}, leftHeel:{x:-.12,y:3.94,z:-1.08}
+  });
+}
+function arabesque1Pose(){
+  return poseFrom(arabArmPose, {
+    leftKnee:{x:-.30,y:2.18,z:-1.05}, leftAnkle:{x:-.30,y:2.08,z:-1.82}, leftToe:{x:-.28,y:2.05,z:-2.22}, leftHeel:{x:-.30,y:2.13,z:-1.60},
+    chest:{z:.09}, neck:{z:.14}, head:{z:.20}
+  });
+}
+function arabesque2Pose(){
+  return rotateUpper(poseFrom(openFourthPose, {
+    leftKnee:{x:-.32,y:2.24,z:-1.04}, leftAnkle:{x:-.34,y:2.14,z:-1.80}, leftToe:{x:-.32,y:2.10,z:-2.18}, leftHeel:{x:-.34,y:2.18,z:-1.60},
+    chest:{z:.08}, neck:{z:.12}, head:{z:.18}
+  }), 12);
+}
+function attitudeFrontPose(){
+  return poseFrom(fifthArmPose, {
+    leftKnee:{x:-.28,y:3.16,z:.56}, leftAnkle:{x:-.22,y:3.02,z:1.02}, leftToe:{x:-.10,y:2.92,z:1.42}, leftHeel:{x:-.24,y:3.06,z:.82}
+  });
+}
+function attitudeBackPose(){
+  return poseFrom(openFourthPose, {
+    leftKnee:{x:-.36,y:3.00,z:-.74}, leftAnkle:{x:-.32,y:2.86,z:-1.18}, leftToe:{x:-.26,y:2.78,z:-1.60}, leftHeel:{x:-.34,y:2.90,z:-.96},
+    chest:{z:.06}, neck:{z:.10}, head:{z:.16}
+  });
+}
+function aLaSecondePose(){
+  return poseFrom(secondArmPose, {
+    leftKnee:{x:-1.28,y:2.56,z:.08}, leftAnkle:{x:-1.96,y:2.54,z:.12}, leftToe:{x:-2.46,y:2.48,z:.28}, leftHeel:{x:-1.74,y:2.56,z:-.02}
+  });
+}
+function ecartePose(){
+  return rotateUpper(poseFrom(openFourthPose, {
+    leftKnee:{x:-1.22,y:2.26,z:.22}, leftAnkle:{x:-1.74,y:2.18,z:.28}, leftToe:{x:-2.20,y:2.12,z:.44}, leftHeel:{x:-1.56,y:2.22,z:.12},
+    head:{x:.12,y:4.84,z:.10}
+  }), 24);
+}
+function croisePose(){
+  return rotateUpper(poseFrom(fourthArmPose, feetFifth(base)), 18);
+}
+function effacePose(){
+  return rotateUpper(poseFrom(secondArmPose, feetFourth(base)), -18);
+}
+function cambreFrontPose(){
+  return poseFrom(firstArmPose, {
+    spine:{z:.18}, chest:{z:.46,y:3.86}, neck:{z:.70,y:4.14}, head:{z:.98,y:4.38}
+  });
+}
+function cambreBackPose(){
+  return poseFrom(fifthArmPose, {
+    spine:{z:-.12}, chest:{y:4.0,z:-.34}, neck:{y:4.35,z:-.56}, head:{y:4.64,z:-.82}
+  });
+}
+function cambreSidePose(){
+  return poseFrom(fifthArmPose, {
+    chest:{x:.24,y:4.02}, neck:{x:.34,y:4.34}, head:{x:.48,y:4.62},
+    leftShoulder:{x:-.44,y:3.92}, rightShoulder:{x:.82,y:3.94}
+  });
+}
+function portDeBrasForwardPose(){
+  return poseFrom(firstArmPose, {
+    chest:{z:.12}, head:{z:.24}, leftElbow:{y:3.44,z:.84}, rightElbow:{y:3.44,z:.84}
+  });
+}
+function portDeBrasBackPose(){
+  return poseFrom(fifthArmPose, {
+    chest:{z:-.20}, head:{z:-.46}, leftElbow:{y:4.86,z:-.08}, rightElbow:{y:4.86,z:-.08}
+  });
+}
+function portDeBrasCircleMidPose(){
+  return poseFrom(secondArmPose, {
+    leftElbow:{x:-.72,y:4.18,z:.54}, leftWrist:{x:-.38,y:4.72,z:.68}, leftHand:{x:-.10,y:4.88,z:.70},
+    rightElbow:{x:.72,y:4.18,z:.54}, rightWrist:{x:.38,y:4.72,z:.68}, rightHand:{x:.10,y:4.88,z:.70}
+  });
+}
+function spineLengthPose(){
+  return poseFrom(prep, {
+    pelvis:{y:2.56}, spine:{y:3.38}, chest:{y:4.20}, neck:{y:4.54}, head:{y:4.88}
+  });
+}
+function reverencePose(){
+  return poseFrom(prep, {
+    pelvis:{y:2.18}, spine:{y:2.92,z:.12}, chest:{y:3.68,z:.28}, neck:{y:4.02,z:.40}, head:{y:4.26,z:.56},
+    leftAnkle:{x:-.38,z:.28}, rightAnkle:{x:.10,z:-.12}
+  });
+}
+function plusAir(pose, amount=.48){ return translatePose(pose, 0, amount, 0); }
+function swapFeetCross(pose){
+  const p = clonePose(pose);
+  const LA = { ...p.leftAnkle }, LT = { ...p.leftToe }, LH = { ...p.leftHeel }, LK = { ...p.leftKnee };
+  p.leftAnkle = { x:-p.rightAnkle.x, y:p.rightAnkle.y, z:p.rightAnkle.z+.20 };
+  p.leftToe = { x:-p.rightToe.x, y:p.rightToe.y, z:p.rightToe.z+.20 };
+  p.leftHeel = { x:-p.rightHeel.x, y:p.rightHeel.y, z:p.rightHeel.z+.20 };
+  p.leftKnee = { x:-p.rightKnee.x, y:p.rightKnee.y, z:p.rightKnee.z+.10 };
+  p.rightAnkle = { x:-LA.x, y:LA.y, z:LA.z-.20 };
+  p.rightToe = { x:-LT.x, y:LT.y, z:LT.z-.20 };
+  p.rightHeel = { x:-LH.x, y:LH.y, z:LH.z-.20 };
+  p.rightKnee = { x:-LK.x, y:LK.y, z:LK.z-.10 };
+  return p;
+}
+
+function buildAction(id, cat, label, zh, desc, tips, tags, speakLang, frames){
+  return { id, cat, label, zh, desc, tips, tags, speakLang, speakText: label, frames };
+}
+
+const ACTIONS = [
+  buildAction("dir_enface","1. Directions","En face","正面","身體正對觀眾或鏡子。",["胸腔與骨盆朝正前方。","頭部自然延伸。"],["direction"],"fr-FR",[[0,prep],[1,prep]]),
+  buildAction("dir_croise_dev","1. Directions","Croisé devant","交叉前","身體略帶交叉的前向位置。",["以肩胸方向帶出線條。","前側肢體呈交叉感。"],["direction","épaulement"],"fr-FR",[[0,prep],[0.8,croisePose()],[1.6,prep]]),
+  buildAction("dir_croise_der","1. Directions","Croisé derrière","交叉後","交叉方向偏向後側的示意。",["後向線條要保持延伸。","頭部可朝斜前方。"],["direction"],"fr-FR",[[0,prep],[0.8,rotateUpper(croisePose(),-14)],[1.6,prep]]),
+  buildAction("dir_efface_dev","1. Directions","Effacé devant","開放前","身體打開，前方線條較為開放。",["避免肩膀聳起。","保持骨盆中正。"],["direction"],"fr-FR",[[0,prep],[0.8,effacePose()],[1.6,prep]]),
+  buildAction("dir_efface_der","1. Directions","Effacé derrière","開放後","開放方向偏向後側。",["後向腿部線條要拉長。","頭部方向可略有帶位。"],["direction"],"fr-FR",[[0,prep],[0.8,rotateUpper(effacePose(),16)],[1.6,prep]]),
+  buildAction("dir_ecarte_dev","1. Directions","Écarté devant","斜側前","身體朝對角線方向打開。",["胸腔朝斜側。","視線跟著線條延伸。"],["direction","pose"],"fr-FR",[[0,prep],[0.9,ecartePose()],[1.8,prep]]),
+  buildAction("dir_ecarte_der","1. Directions","Écarté derrière","斜側後","斜側方向偏向後側的展示。",["注意背線延伸。","支撐腿穩定。"],["direction","pose"],"fr-FR",[[0,prep],[0.9,rotateUpper(ecartePose(),-18)],[1.8,prep]]),
+  buildAction("dir_second","1. Directions","À la seconde","第二方向","向側方開放的方向。",["側線要打開。","骨盆保持穩定。"],["direction"],"fr-FR",[[0,prep],[0.8,poseFrom(secondArmPose, feetSecond(base))],[1.6,prep]]),
+  buildAction("dir_epaul","1. Directions","Épaulement","肩胸方向","利用肩線與胸腔方向形成古典味道。",["不要只扭脖子。","肩與頭共同帶位。"],["épaulement"],"fr-FR",[[0,prep],[0.9,tiltHead(rotateUpper(prep,14),.12,.04,.08)],[1.8,prep]]),
+  buildAction("feet_parallel","2. Feet Positions","Parallel first","平行一位","雙腳平行站立。",["雙腳朝前。","膝蓋方向一致。"],["feet"],"en-US",[[0,poseFrom(feetSixth(base), armsPrepMods)],[1,poseFrom(feetSixth(base), armsPrepMods)]]),
+  buildAction("feet_first","2. Feet Positions","First position","一位腳","兩腳跟靠近、腳尖外開。",["外開來自髖關節。","不要壓膝。"],["feet"],"en-US",[[0,prep],[1,prep]]),
+  buildAction("feet_second","2. Feet Positions","Second position","二位腳","雙腳左右打開。",["腳距不宜過寬。","重心落在中間。"],["feet"],"en-US",[[0,poseFrom(feetSecond(base), armsPrepMods)],[1,poseFrom(feetSecond(base), armsPrepMods)]]),
+  buildAction("feet_third","2. Feet Positions","Third position","三位腳","一腳稍微交疊在前。",["前後腳需有層次。","保持外開。"],["feet"],"en-US",[[0,poseFrom(feetThird(base), armsPrepMods)],[1,poseFrom(feetThird(base), armsPrepMods)]]),
+  buildAction("feet_fourth","2. Feet Positions","Fourth position","四位腳","前後分開站立。",["腳位前後分離。","骨盆不要歪斜。"],["feet"],"en-US",[[0,poseFrom(feetFourth(base), armsPrepMods)],[1,poseFrom(feetFourth(base), armsPrepMods)]]),
+  buildAction("feet_fifth","2. Feet Positions","Fifth position","五位腳","前後腳緊密交叉。",["雙腿貼近。","維持外開。"],["feet"],"en-US",[[0,poseFrom(feetFifth(base), armsPrepMods)],[1,poseFrom(feetFifth(base), armsPrepMods)]]),
+  buildAction("feet_sixth","2. Feet Positions","Sixth position","六位腳","雙腳平行自然站立。",["適合基本對位觀察。","腳尖朝前。"],["feet"],"en-US",[[0,poseFrom(feetSixth(base), armsPrepMods)],[1,poseFrom(feetSixth(base), armsPrepMods)]]),
+  buildAction("feet_soussus","2. Feet Positions","Sous-sus","收緊五位踮立","五位腳收緊後踮起。",["腳踝集中。","往上提。"],["feet","balance"],"fr-FR",[[0,poseFrom(feetFifth(base), armsFifthMods)],[0.8,applyArms(feetSousSus(base), armsFifthMods)],[1.6,poseFrom(feetFifth(base), armsFifthMods)]]),
+  buildAction("feet_demipointe","2. Feet Positions","Demi-pointe","半腳尖","腳跟抬起的半腳尖位置。",["腳踝穩定。","腳尖推地。"],["feet","balance"],"fr-FR",[[0,prep],[0.8,applyArms(feetDemiPointe(base), armsPrepMods)],[1.6,prep]]),
+  buildAction("arm_brasbas","3. Arm Positions","Bras bas","準備位","雙臂呈低圓弧。",["肩膀放鬆。","手肘微彎。"],["arms"],"fr-FR",[[0,prep],[1,prep]]),
+  buildAction("arm_first","3. Arm Positions","First position","一位手","雙臂於胸前形成圓形。",["手臂不要塌陷。","胸口保持打開。"],["arms"],"en-US",[[0,prep],[0.7,firstArmPose],[1.4,prep]]),
+  buildAction("arm_second","3. Arm Positions","Second position","二位手","雙臂向兩側打開。",["略低於肩線。","掌面柔和。"],["arms"],"en-US",[[0,firstArmPose],[0.7,secondArmPose],[1.4,firstArmPose]]),
+  buildAction("arm_third","3. Arm Positions","Third position","三位手","一臂在一位，一臂在二位。",["線條要清楚。","兩側手臂不必完全對稱。"],["arms"],"en-US",[[0,prep],[0.8,thirdArmPose],[1.6,prep]]),
+  buildAction("arm_fourth","3. Arm Positions","Fourth position","四位手","一臂在一位，另一臂上舉。",["保持頸部空間。","不要夾耳。"],["arms"],"en-US",[[0,prep],[0.8,fourthArmPose],[1.6,prep]]),
+  buildAction("arm_fifth","3. Arm Positions","Fifth position","五位手","雙臂於頭上形成橢圓。",["手臂不貼耳。","肋骨不要外翻。"],["arms"],"en-US",[[0,prep],[0.8,fifthArmPose],[1.6,prep]]),
+  buildAction("arm_allonge","3. Arm Positions","Allongé","延伸手位","在打開手位上做更延長的線條。",["手指方向延伸。","不要僵直。"],["arms"],"fr-FR",[[0,secondArmPose],[0.8,allongePose],[1.6,secondArmPose]]),
+  buildAction("arm_arab","3. Arm Positions","Arabesque arms","阿拉貝斯克手位","配合 arabesque 的手臂方向。",["前後手要有方向感。","肩線保持平穩。"],["arms","pose"],"en-US",[[0,prep],[0.9,arabArmPose],[1.8,prep]]),
+  buildAction("arm_open4","3. Arm Positions","Open fourth","開放四位手","一臂側開，一臂上舉。",["兩手線條需明確。","胸腔保持上提。"],["arms"],"en-US",[[0,prep],[0.8,openFourthPose],[1.6,prep]]),
+  buildAction("hand_soft","4. Hands & Palms","Soft palm","柔和掌面","掌面自然、手指放鬆。",["不要抓緊。","以手腕帶出柔和感。"],["hand"],"en-US",[[0,prep],[0.8,applyPalmStyle(secondArmPose,"soft")],[1.6,prep]]),
+  buildAction("hand_down","4. Hands & Palms","Palm down","掌心向下","掌面朝下的示意。",["手腕不要僵硬。","維持長線。"],["hand"],"en-US",[[0,prep],[0.8,applyPalmStyle(secondArmPose,"palmDown")],[1.6,prep]]),
+  buildAction("hand_inward","4. Hands & Palms","Palm inward","掌心向內","掌心向身體內側。",["注意肘腕關係。","掌面不需過度扭轉。"],["hand"],"en-US",[[0,prep],[0.8,applyPalmStyle(firstArmPose,"inward")],[1.6,prep]]),
+  buildAction("hand_outward","4. Hands & Palms","Palm outward","掌心向外","掌面向外打開。",["不聳肩。","維持柔和手型。"],["hand"],"en-US",[[0,prep],[0.8,applyPalmStyle(secondArmPose,"palmOut")],[1.6,prep]]),
+  buildAction("hand_fingers","4. Hands & Palms","Fingers extended","手指延伸","手指與掌面延展。",["不過度張開。","手型保持完整。"],["hand"],"en-US",[[0,prep],[0.8,applyPalmStyle(allongePose,"fingersExtended")],[1.6,prep]]),
+  buildAction("hand_relax","4. Hands & Palms","Relaxed fingers","放鬆手指","手指放鬆但不散亂。",["指尖保有能量。","掌面自然。"],["hand"],"en-US",[[0,prep],[0.8,applyPalmStyle(secondArmPose,"relaxed")],[1.6,prep]]),
+  buildAction("hand_curve","4. Hands & Palms","Wrist curve","手腕曲線","利用手腕形成線條。",["手腕不折斷。","延長手臂的弧度。"],["hand"],"en-US",[[0,prep],[0.8,applyPalmStyle(firstArmPose,"curve")],[1.6,prep]]),
+  buildAction("hand_allonge","4. Hands & Palms","Allongé hand","延伸掌面","掌面與手指都向外延長。",["手腕保持乾淨。","掌面方向清楚。"],["hand"],"fr-FR",[[0,prep],[0.8,applyPalmStyle(allongePose,"allonge")],[1.6,prep]]),
+  buildAction("leg_demiplie","5. Lower Body","Demi-plié","半蹲","膝蓋彎曲，腳跟不離地。",["膝蓋朝腳尖。","身體保持拉長。"],["lower"],"fr-FR",[[0,prep],[0.55,demiPliePose()],[1.1,prep]]),
+  buildAction("leg_grandplie","5. Lower Body","Grand plié","深蹲","更深的 plié。",["骨盆往下沉。","上身保持穩定。"],["lower"],"fr-FR",[[0,prep],[0.65,grandPliePose()],[1.3,prep]]),
+  buildAction("leg_tendu_front","5. Lower Body","Battement tendu devant","前擦地","工作腿向前擦地伸出。",["腳尖擦地延長。","支撐腿穩定。"],["tendu"],"fr-FR",[[0,prep],[0.75,tenduFrontPose()],[1.5,prep]]),
+  buildAction("leg_tendu_side","5. Lower Body","Battement tendu à la seconde","旁擦地","工作腿向側方擦地。",["骨盆不歪。","膝蓋伸直。"],["tendu"],"fr-FR",[[0,prep],[0.75,tenduSidePose()],[1.5,prep]]),
+  buildAction("leg_tendu_back","5. Lower Body","Battement tendu derrière","後擦地","工作腿向後擦地。",["腹部支撐。","背線延伸。"],["tendu"],"fr-FR",[[0,prep],[0.75,tenduBackPose()],[1.5,prep]]),
+  buildAction("leg_glisse_front","5. Lower Body","Battement glissé devant","前小離地","由擦地延伸至小離地。",["離地不必太高。","腳尖持續延長。"],["glissé"],"fr-FR",[[0,prep],[0.45,tenduFrontPose()],[0.85,glisseFrontPose()],[1.5,prep]]),
+  buildAction("leg_glisse_side","5. Lower Body","Battement glissé à la seconde","旁小離地","向側方的小離地。",["腿根保持外開。","支撐腿穩定。"],["glissé"],"fr-FR",[[0,prep],[0.45,tenduSidePose()],[0.85,glisseSidePose()],[1.5,prep]]),
+  buildAction("leg_glisse_back","5. Lower Body","Battement glissé derrière","後小離地","向後的小離地。",["腰不要擠壓。","保持腹部控制。"],["glissé"],"fr-FR",[[0,prep],[0.45,tenduBackPose()],[0.85,glisseBackPose()],[1.5,prep]]),
+  buildAction("leg_rond_out","5. Lower Body","Rond de jambe à terre en dehors","地面畫圈向外","工作腿在地面畫出外方向弧線。",["腳尖貼地。","骨盆穩定。"],["rond de jambe"],"fr-FR",[[0,prep],[0.35,tenduFrontPose()],[0.70,tenduSidePose()],[1.05,tenduBackPose()],[1.40,prep]]),
+  buildAction("leg_rond_in","5. Lower Body","Rond de jambe à terre en dedans","地面畫圈向內","工作腿在地面畫出內方向弧線。",["順序反向。","動作保持圓滑。"],["rond de jambe"],"fr-FR",[[0,prep],[0.35,tenduBackPose()],[0.70,tenduSidePose()],[1.05,tenduFrontPose()],[1.40,prep]]),
+  buildAction("leg_fondu_front","5. Lower Body","Battement fondu devant","前 fondu","支撐腿與工作腿共同彎伸。",["支撐腿柔和彎曲。","工作腳保持 pointed。"],["fondu"],"fr-FR",[[0,prep],[0.45,fonduFrontPose()],[0.95,tenduFrontPose()],[1.55,prep]]),
+  buildAction("leg_fondu_side","5. Lower Body","Battement fondu à la seconde","側 fondu","向側方的 fondu。",["身體不要傾倒。","動作連續。"],["fondu"],"fr-FR",[[0,prep],[0.45,fonduSidePose()],[0.95,tenduSidePose()],[1.55,prep]]),
+  buildAction("leg_fondu_back","5. Lower Body","Battement fondu derrière","後 fondu","向後方的 fondu。",["背面線條拉長。","支撐腿穩定。"],["fondu"],"fr-FR",[[0,prep],[0.45,fonduBackPose()],[0.95,tenduBackPose()],[1.55,prep]]),
+  buildAction("leg_developpe_front","5. Lower Body","Développé devant","前 développé","由 retiré 展開至前方。",["經過位要清楚。","最後腿部伸長。"],["développé"],"fr-FR",[[0,prep],[0.45,passePose()],[0.95,developpeFrontPose()],[1.75,prep]]),
+  buildAction("leg_developpe_side","5. Lower Body","Développé à la seconde","旁 développé","向側方展開。",["骨盆不要翻。","支撐腿穩。"],["développé"],"fr-FR",[[0,prep],[0.45,passePose()],[0.95,developpeSidePose()],[1.75,prep]]),
+  buildAction("leg_developpe_back","5. Lower Body","Développé derrière","後 développé","向後方展開。",["保持背線。","肋骨不要外翻。"],["développé"],"fr-FR",[[0,prep],[0.45,passePose()],[0.95,developpeBackPose()],[1.75,prep]]),
+  buildAction("leg_frappe_front","5. Lower Body","Battement frappé devant","前 frappé","由 cou-de-pied 快速擊出。",["動作俐落。","支撐腿穩定。"],["frappé"],"fr-FR",[[0,prep],[0.35,coupePose()],[0.60,frappeFrontPose()],[1.10,prep]]),
+  buildAction("leg_frappe_side","5. Lower Body","Battement frappé à la seconde","側 frappé","向側方快速擊出。",["腳尖速度明確。","骨盆穩定。"],["frappé"],"fr-FR",[[0,prep],[0.35,coupePose()],[0.60,frappeSidePose()],[1.10,prep]]),
+  buildAction("leg_frappe_back","5. Lower Body","Battement frappé derrière","後 frappé","向後方快速擊出。",["動作乾淨。","不要扭腰。"],["frappé"],"fr-FR",[[0,prep],[0.35,coupePose()],[0.60,frappeBackPose()],[1.10,prep]]),
+  buildAction("leg_gb_front","5. Lower Body","Grand battement devant","前大踢腿","工作腿向前高踢。",["支撐腿要強。","收回控制。"],["grand battement"],"fr-FR",[[0,prep],[0.35,tenduFrontPose()],[0.70,grandBattementFrontPose()],[1.45,prep]]),
+  buildAction("leg_gb_side","5. Lower Body","Grand battement à la seconde","旁大踢腿","向側方高踢。",["髖部穩定。","腿部伸直。"],["grand battement"],"fr-FR",[[0,prep],[0.35,tenduSidePose()],[0.70,grandBattementSidePose()],[1.45,prep]]),
+  buildAction("leg_gb_back","5. Lower Body","Grand battement derrière","後大踢腿","向後方高踢。",["背線控制。","不要折腰。"],["grand battement"],"fr-FR",[[0,prep],[0.35,tenduBackPose()],[0.70,grandBattementBackPose()],[1.45,prep]]),
+  buildAction("leg_releve","5. Lower Body","Relevé","踮立","腳跟離地往上提。",["腳踝穩定。","重心向上。"],["balance"],"fr-FR",[[0,prep],[0.7,relevePose()],[1.4,prep]]),
+  buildAction("leg_retire","5. Lower Body","Retiré","經過位","工作腳收至支撐腿膝旁。",["腿根外開。","骨盆中正。"],["retiré"],"fr-FR",[[0,prep],[0.75,passePose()],[1.5,prep]]),
+  buildAction("leg_passe","5. Lower Body","Passé","經過位","工作腿經過支撐腿膝部位置。",["線條與 retiré 接近。","注意腳尖位置。"],["passé"],"fr-FR",[[0,prep],[0.75,passePose()],[1.5,prep]]),
+  buildAction("leg_coupe","5. Lower Body","Coupé","切位","工作腳停在支撐腳踝附近。",["腳尖 pointed。","身體不要晃。"],["coupé"],"fr-FR",[[0,prep],[0.75,coupePose()],[1.4,prep]]),
+  buildAction("leg_pique","5. Lower Body","Piqué","點地 / 刺步","用 pointed foot 點出方向。",["動作要乾淨。","重心轉移清楚。"],["piqué"],"fr-FR",[[0,prep],[0.75,piquePose()],[1.4,prep]]),
+  buildAction("torso_cambref","6. Torso","Cambré devant","前彎","上身往前形成弧線。",["不是折腰，而是整段延伸。","頸部自然。"],["torso"],"fr-FR",[[0,prep],[0.9,cambreFrontPose()],[1.7,prep]]),
+  buildAction("torso_cambreback","6. Torso","Cambré derrière","後彎","上身向後形成弧線。",["腹部有支撐。","不要只壓腰。"],["torso"],"fr-FR",[[0,prep],[0.9,cambreBackPose()],[1.7,prep]]),
+  buildAction("torso_cambreside","6. Torso","Cambré de côté","側彎","身體向側方延伸。",["左右線條都要長。","骨盆穩定。"],["torso"],"fr-FR",[[0,prep],[0.9,cambreSidePose()],[1.7,prep]]),
+  buildAction("torso_pdb_forward","6. Torso","Port de bras forward","前方 port de bras","配合上身與手臂的連續線。",["胸腔引導手臂。","手臂保持弧線。"],["port de bras"],"en-US",[[0,prep],[0.8,portDeBrasForwardPose()],[1.6,prep]]),
+  buildAction("torso_pdb_back","6. Torso","Port de bras back","後方 port de bras","手臂與上身向後帶。",["動作不僵硬。","頸部保留空間。"],["port de bras"],"en-US",[[0,prep],[0.8,portDeBrasBackPose()],[1.6,prep]]),
+  buildAction("torso_pdb_circle","6. Torso","Circular port de bras","圓形 port de bras","手臂圓滑走線。",["重點在連續感。","兩側對稱協調。"],["port de bras"],"en-US",[[0,prep],[0.45,firstArmPose],[0.9,portDeBrasCircleMidPose()],[1.35,fifthArmPose],[1.8,prep]]),
+  buildAction("torso_spine","6. Torso","Spine lengthening","脊椎延伸","向上拉長整條脊椎。",["骨盆穩。","頭頂往上。"],["torso"],"en-US",[[0,prep],[0.8,spineLengthPose()],[1.6,prep]]),
+  buildAction("torso_pelvis","6. Torso","Pelvis neutral","骨盆中立","觀察骨盆與脊椎中立。",["避免前傾後仰。","配合下肢站穩。"],["torso"],"en-US",[[0,prep],[1,prep]]),
+  buildAction("pose_arab1","7. Poses","First arabesque","第一阿拉貝斯克","經典後腿延伸姿態。",["後腿拉長。","支撐腿穩定。"],["pose"],"en-US",[[0,prep],[1.0,arabesque1Pose()],[2.0,prep]]),
+  buildAction("pose_arab2","7. Poses","Second arabesque","第二阿拉貝斯克","手臂與身體方向略有不同。",["肩胸方向要清楚。","後腿持續延伸。"],["pose"],"en-US",[[0,prep],[1.0,arabesque2Pose()],[2.0,prep]]),
+  buildAction("pose_att_front","7. Poses","Attitude devant","前 attitude","工作腿於前方保持彎膝。",["膝蓋自然彎曲。","腳尖保持 pointed。"],["pose"],"fr-FR",[[0,prep],[1.0,attitudeFrontPose()],[1.9,prep]]),
+  buildAction("pose_att_back","7. Poses","Attitude derrière","後 attitude","工作腿於後方保持彎膝。",["背部不要僵硬。","支撐腿穩。"],["pose"],"fr-FR",[[0,prep],[1.0,attitudeBackPose()],[1.9,prep]]),
+  buildAction("pose_second","7. Poses","À la seconde pose","側抬腿姿勢","工作腿側向抬起。",["骨盆穩定。","腿部線條清楚。"],["pose"],"fr-FR",[[0,prep],[1.0,aLaSecondePose()],[1.9,prep]]),
+  buildAction("pose_ecarte","7. Poses","Écarté pose","斜側姿勢","朝對角線打開的姿態。",["視線跟線條。","手腳方向一致。"],["pose"],"fr-FR",[[0,prep],[1.0,ecartePose()],[1.9,prep]]),
+  buildAction("pose_croise","7. Poses","Croisé pose","交叉姿勢","具交叉感的古典站姿。",["肩胸方向與腳位配合。","線條不要死板。"],["pose"],"fr-FR",[[0,prep],[1.0,croisePose()],[1.9,prep]]),
+  buildAction("pose_efface","7. Poses","Effacé pose","開放姿勢","較開放的站姿。",["身體打開。","頭部方向自然。"],["pose"],"fr-FR",[[0,prep],[1.0,effacePose()],[1.9,prep]]),
+  buildAction("turn_en dehors","8. Turns","Pirouette en dehors","外轉","向外方向的 pirouette 示意。",["準備位清楚。","收至 retiré 再轉。"],["turn"],"fr-FR",[[0,prep],[0.45,passePose()],[0.90,rotatePoseY(passePose(),180)],[1.25,rotatePoseY(passePose(),360)],[1.75,prep]]),
+  buildAction("turn_en dedans","8. Turns","Pirouette en dedans","內轉","向內方向的 pirouette 示意。",["身體保持軸心。","眼神集中。"],["turn"],"fr-FR",[[0,prep],[0.45,passePose()],[0.90,rotatePoseY(passePose(),-180)],[1.25,rotatePoseY(passePose(),-360)],[1.75,prep]]),
+  buildAction("turn_soutenu","8. Turns","Soutenu turn","收轉","由收攏到旋轉的示意。",["雙腿集中。","轉時向上提。"],["turn"],"fr-FR",[[0,poseFrom(feetFourth(base), armsSecondMods)],[0.45,applyArms(feetSousSus(base), armsFifthMods)],[0.90,rotatePoseY(applyArms(feetSousSus(base), armsFifthMods),180)],[1.45,prep]]),
+  buildAction("turn_chaine","8. Turns","Chaîné turns","連鎖轉","連續小轉圈的示意。",["步伐均勻。","上身保持提拉。"],["turn"],"fr-FR",[[0,secondArmPose],[0.35,rotatePoseY(secondArmPose,90)],[0.70,rotatePoseY(secondArmPose,180)],[1.05,rotatePoseY(secondArmPose,270)],[1.40,prep]]),
+  buildAction("turn_pique","8. Turns","Piqué turn","點步轉","以點步進入旋轉。",["上步要準。","收腿時迅速。"],["turn"],"fr-FR",[[0,prep],[0.35,piquePose()],[0.75,rotatePoseY(passePose(),180)],[1.10,rotatePoseY(passePose(),360)],[1.55,prep]]),
+  buildAction("turn_promenade","8. Turns","Promenade","慢轉","維持姿態慢慢旋轉。",["保持姿勢不散。","重心穩定。"],["turn"],"fr-FR",[[0,arabesque1Pose()],[0.6,rotatePoseY(arabesque1Pose(),90)],[1.2,rotatePoseY(arabesque1Pose(),180)],[1.8,prep]]),
+  buildAction("jump_saute","9. Jumps","Sauté","原地跳","從基本腳位起跳落地。",["起跳與落地都要 plié。","腳尖在空中延長。"],["jump"],"fr-FR",[[0,demiPliePose()],[0.35,plusAir(setFootHeelsUp(prep,.58,.58),.80)],[0.70,demiPliePose()],[1.05,prep]]),
+  buildAction("jump_changement","9. Jumps","Changement","換腳跳","空中交換前後腳。",["起跳前五位腳。","落地回 plié。"],["jump"],"fr-FR",[[0,poseFrom(feetFifth(base), armsPrepMods)],[0.30,plusAir(setFootHeelsUp(poseFrom(feetFifth(base), armsPrepMods),.62,.62),.92)],[0.58,plusAir(setFootHeelsUp(swapFeetCross(poseFrom(feetFifth(base), armsPrepMods)),.62,.62),.88)],[0.95,swapFeetCross(poseFrom(feetFifth(base), armsPrepMods))],[1.30,poseFrom(feetFifth(base), armsPrepMods)]]),
+  buildAction("jump_echappe","9. Jumps","Échappé sauté","開合跳","由收合腳位跳至第二位置。",["空中腳位清楚。","落地有緩衝。"],["jump"],"fr-FR",[[0,prep],[0.30,plusAir(setFootHeelsUp(prep,.60,.60),.82)],[0.62,plusAir(poseFrom(feetSecond(base), armsSecondMods),.58)],[0.95,poseFrom(feetSecond(base), armsSecondMods)],[1.30,prep]]),
+  buildAction("jump_assemble","9. Jumps","Assemblé","集合跳","一腿工作後集合落地。",["空中雙腿會合。","落地穩。"],["jump"],"fr-FR",[[0,tenduSidePose()],[0.35,plusAir(tenduSidePose(),.82)],[0.65,plusAir(prep,.78)],[1.0,prep]]),
+  buildAction("jump_jete","9. Jumps","Jeté","擲跳","一腿拋出的小跳。",["動作要俐落。","腳尖持續 pointed。"],["jump"],"fr-FR",[[0,prep],[0.30,plusAir(glisseSidePose(),.74)],[0.64,plusAir(tenduSidePose(),.62)],[1.0,prep]]),
+  buildAction("jump_pasdechat","9. Jumps","Pas de chat","貓步跳","雙腿在空中依序收起。",["兩膝動作輕巧。","落地柔和。"],["jump"],"fr-FR",[[0,prep],[0.35,plusAir(poseFrom(prep,{leftKnee:{x:-.84,y:2.72,z:.12}, leftAnkle:{x:-.50,y:2.10,z:.14}, rightKnee:{x:.86,y:2.66,z:.08}, rightAnkle:{x:.46,y:2.00,z:.12}}),.68)],[0.75,demiPliePose()],[1.10,prep]]),
+  buildAction("travel_glissade","10. Traveling","Glissade","滑步","側向滑動的連接步示意。",["重心平順移動。","雙腳擦地。"],["travel"],"fr-FR",[[0,prep],[0.40,translatePose(tenduSidePose(),-.55,0,0)],[0.80,translatePose(prep,-.85,0,0)],[1.20,prep]]),
+  buildAction("travel_chasse","10. Traveling","Chassé","追步","一腳追上另一腳的滑步。",["腳步連續。","身體保持提升。"],["travel"],"fr-FR",[[0,prep],[0.35,translatePose(feetSecond(base),-.45,0,0)],[0.70,translatePose(feetFifth(base),-.88,0,0)],[1.15,prep]]),
+  buildAction("travel_bourree","10. Traveling","Pas de bourrée","布雷步","小步快速轉移重心。",["步幅小。","上身穩定。"],["travel"],"fr-FR",[[0,prep],[0.28,translatePose(feetFifth(base),-.22,0,.10)],[0.56,translatePose(feetFifth(base),.08,0,.28)],[0.84,translatePose(feetFifth(base),.26,0,.02)],[1.20,prep]]),
+  buildAction("travel_balance","10. Traveling","Balancé","搖擺步","左右重心搖擺的步伐。",["上身自然流動。","節奏均勻。"],["travel"],"fr-FR",[[0,translatePose(secondArmPose,-.28,0,0)],[0.50,translatePose(secondArmPose,.28,0,.12)],[1.0,translatePose(secondArmPose,-.12,0,.20)],[1.45,prep]]),
+  buildAction("travel_tempslie","10. Traveling","Temps lié","連接步","連續的重量轉移。",["重心轉移要清楚。","手臂可配合 port de bras。"],["travel"],"fr-FR",[[0,poseFrom(feetFourth(base), armsSecondMods)],[0.45,translatePose(poseFrom(feetFourth(base), armsSecondMods),.38,0,.18)],[0.90,translatePose(poseFrom(feetFourth(base), armsOpenFourthMods),-.20,0,.34)],[1.35,prep]]),
+  buildAction("travel_reverence","10. Traveling","Révérence","謝幕禮","古典謝幕禮的示意。",["動作從容。","上身優雅。"],["travel"],"fr-FR",[[0,prep],[0.80,reverencePose()],[1.60,prep]])
+];
+
+const actionMap = Object.fromEntries(ACTIONS.map(a => [a.id, a]));
+const CATEGORY_ORDER = [
+  "1. Directions","2. Feet Positions","3. Arm Positions","4. Hands & Palms","5. Lower Body",
+  "6. Torso","7. Poses","8. Turns","9. Jumps","10. Traveling"
+];
+
+let currentPose = clonePose(prep);
+let currentAction = ACTIONS[0];
+let time = 0;
+let playing = false;
+let userEditing = false;
+let selectedJoint = "leftWrist";
+
+function actionDuration(a){ return a.frames[a.frames.length - 1][0]; }
+function sampleAction(a, t){
+  const fs = a.frames;
+  if(t <= fs[0][0]) return clonePose(fs[0][1]);
+  if(t >= fs.at(-1)[0]) return clonePose(fs.at(-1)[1]);
+  for(let i=0;i<fs.length-1;i++){
+    const A = fs[i], B = fs[i+1];
+    if(t >= A[0] && t <= B[0]) return mixPose(A[1], B[1], (t - A[0]) / (B[0] - A[0]));
+  }
+  return clonePose(fs.at(-1)[1]);
+}
+
+const actor = new THREE.Group();
+scene.add(actor);
+const bodyGroup = new THREE.Group();
+actor.add(bodyGroup);
+const guides = new THREE.Group();
+scene.add(guides);
+
+const jointMeshes = {};
+const boneMeshes = [];
+const jointGeom = new THREE.SphereGeometry(.095, 24, 16);
+const smallJointGeom = new THREE.SphereGeometry(.048, 20, 12);
+const headGeom = new THREE.SphereGeometry(.25, 32, 18);
+const boneGeom = new THREE.CylinderGeometry(1, 1, 1, 18);
+
+const segments = [
+ ["head","neck","core",.13],["neck","chest","core",.105],["chest","spine","core",.14],["spine","pelvis","core",.15],
+ ["chest","leftShoulder","core",.08],["chest","rightShoulder","core",.08],["pelvis","leftHip","core",.08],["pelvis","rightHip","core",.08],
+ ["leftShoulder","leftElbow","arm",.085],["leftElbow","leftWrist","arm",.072],["leftWrist","leftHand","arm",.055],
+ ["rightShoulder","rightElbow","arm",.085],["rightElbow","rightWrist","arm",.072],["rightWrist","rightHand","arm",.055],
+ ["leftHip","leftKnee","leg",.11],["leftKnee","leftAnkle","leg",.098],["leftAnkle","leftToe","foot",.06],["leftAnkle","leftHeel","foot",.05],
+ ["rightHip","rightKnee","leg",.11],["rightKnee","rightAnkle","leg",.098],["rightAnkle","rightToe","foot",.06],["rightAnkle","rightHeel","foot",.05]
+];
+
+for(const j of JOINTS){
+  const geom = j === "head" ? headGeom : (j.includes("Hand") || j.includes("Toe") || j.includes("Heel") ? smallJointGeom : jointGeom);
+  const mesh = new THREE.Mesh(geom, j === "head" ? matCore : matJoint);
+  mesh.castShadow = true;
+  mesh.userData.joint = j;
+  actor.add(mesh);
+  jointMeshes[j] = mesh;
+}
+for(const [a,b,type,r] of segments){
+  const mat = type === "arm" ? matArm : type === "leg" ? matLeg : type === "foot" ? matFoot : matCore;
+  const mesh = new THREE.Mesh(boneGeom, mat);
+  mesh.castShadow = true;
+  actor.add(mesh);
+  boneMeshes.push({ mesh, a, b, r });
+}
+function shell(scale, mat){
+  const m = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 18), mat);
+  m.scale.set(scale.x, scale.y, scale.z);
+  m.castShadow = true;
+  bodyGroup.add(m);
+  return m;
+}
+const chestShell = shell({x:.62,y:.68,z:.34}, matBody);
+const waistShell = shell({x:.36,y:.36,z:.25}, matBody);
+const pelvisShell = shell({x:.48,y:.30,z:.31}, matPelvis);
+const neckShell = new THREE.Mesh(new THREE.CylinderGeometry(.10,.12,.18,20), matBody);
+bodyGroup.add(neckShell);
+
+const leftPalmPlate = new THREE.Mesh(new THREE.BoxGeometry(.34,.052,.46), matPalm);
+const rightPalmPlate = leftPalmPlate.clone();
+leftPalmPlate.userData.dims = { w:.34, h:.052, l:.46 };
+rightPalmPlate.userData.dims = { w:.34, h:.052, l:.46 };
+const leftFootPlate = new THREE.Mesh(new THREE.BoxGeometry(.34,.06,.78), matFoot);
+const rightFootPlate = leftFootPlate.clone();
+leftFootPlate.userData.dims = { w:.34, h:.06, l:.78 };
+rightFootPlate.userData.dims = { w:.34, h:.06, l:.78 };
+for(const m of [leftPalmPlate,rightPalmPlate,leftFootPlate,rightFootPlate]){ m.castShadow = true; bodyGroup.add(m); }
+
+function makeLine(mat, max=3){
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.BufferAttribute(new Float32Array(max*3), 3));
+  g.setDrawRange(0,0);
+  return new THREE.Line(g, mat);
+}
+function setLine(line, pts){
+  const arr = line.geometry.attributes.position;
+  for(let i=0;i<pts.length;i++) arr.setXYZ(i, pts[i].x, pts[i].y, pts[i].z);
+  line.geometry.setDrawRange(0, pts.length);
+  arr.needsUpdate = true;
+  line.geometry.computeBoundingSphere();
+}
+const bodyLine = makeLine(lineWhite,3);
+const shoulderLine = makeLine(linePink,2);
+const pelvisLine = makeLine(lineGreen,2);
+const lKneeToe = makeLine(lineOrange,2);
+const rKneeToe = makeLine(lineOrange,2);
+const lFootLine = makeLine(lineBlue,2);
+const rFootLine = makeLine(lineBlue,2);
+const balanceLine = makeLine(new THREE.LineBasicMaterial({ color:0x8ecbff, transparent:true, opacity:.88 }),2);
+guides.add(bodyLine, shoulderLine, pelvisLine, lKneeToe, rKneeToe, lFootLine, rFootLine, balanceLine);
+const lFootArrow = new THREE.ArrowHelper(new THREE.Vector3(0,0,1), new THREE.Vector3(), .6, 0x9be7ff, .15, .08);
+const rFootArrow = new THREE.ArrowHelper(new THREE.Vector3(0,0,1), new THREE.Vector3(), .6, 0x9be7ff, .15, .08);
+guides.add(lFootArrow, rFootArrow);
+
+function updateCylinder(mesh, p1, p2, r){
+  const a = toV(p1), b = toV(p2), mid = a.clone().add(b).multiplyScalar(.5), dir = b.clone().sub(a);
+  const len = Math.max(.001, dir.length());
+  mesh.position.copy(mid);
+  mesh.scale.set(r, len, r);
+  mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), dir.normalize());
+}
+function plateBetween(mesh, a, b, width, height){
+  const A = toV(a), B = toV(b), mid = A.clone().add(B).multiplyScalar(.5), dir = B.clone().sub(A);
+  const segLen = Math.max(.08, dir.length());
+  const dims = mesh.userData.dims || { w:.30, h:.05, l:.72 };
+  mesh.position.copy(mid);
+  mesh.scale.set(width/dims.w, height/dims.h, (segLen + .10) / dims.l);
+  mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,0,1), dir.normalize());
+}
+function orientShell(mesh, a, b){
+  const A = toV(a), B = toV(b), dir = B.clone().sub(A);
+  mesh.position.copy(A.clone().lerp(B,.5));
+  mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), dir.normalize());
+}
+function arrowBetween(arrow, a, b){
+  const A = toV(a), B = toV(b), dir = B.clone().sub(A), len = Math.max(.1, dir.length());
+  arrow.position.copy(A);
+  arrow.setDirection(dir.normalize());
+  arrow.setLength(len, .15, .08);
+}
+
+const fixed = {};
+function setFixedLengths(){ for(const [a,b] of segments) fixed[a+"_"+b] = toV(base[a]).distanceTo(toV(base[b])); }
+setFixedLengths();
+function len(a,b){ return fixed[a+"_"+b] ?? fixed[b+"_"+a] ?? toV(currentPose[a]).distanceTo(toV(currentPose[b])); }
+function clampDist(root, target, minD, maxD){
+  const R = toV(currentPose[root]);
+  let T = target.clone();
+  let d = T.distanceTo(R);
+  if(d < .0001){ T = R.clone().add(new THREE.Vector3(0,-1,0)); d = 1; }
+  const dir = T.clone().sub(R).normalize();
+  d = Math.max(minD, Math.min(maxD, d));
+  return R.clone().add(dir.multiplyScalar(d));
+}
+function solve2(root, mid, end, target, poleHint){
+  const A = toV(currentPose[root]), l1 = len(root,mid), l2 = len(mid,end);
+  const minD = Math.max(.02, Math.abs(l1 - l2) + .01), maxD = l1 + l2 - .01;
+  const T = clampDist(root, target, minD, maxD), AT = T.clone().sub(A), d = Math.max(.0001, AT.length()), dir = AT.clone().normalize();
+  const a = Math.max(0, Math.min(l1, (l1*l1 - l2*l2 + d*d) / (2*d)));
+  const h = Math.sqrt(Math.max(0, l1*l1 - a*a));
+  let pole = (poleHint || toV(currentPose[mid]).sub(A)).clone();
+  pole.sub(dir.clone().multiplyScalar(pole.dot(dir)));
+  if(pole.length() < .001){ pole = new THREE.Vector3(0,0,1); if(Math.abs(pole.dot(dir)) > .9) pole.set(1,0,0); pole.sub(dir.clone().multiplyScalar(pole.dot(dir))); }
+  pole.normalize();
+  currentPose[mid] = obj(A.clone().add(dir.clone().multiplyScalar(a)).add(pole.multiplyScalar(h)));
+  currentPose[end] = obj(T);
+}
+function preserveHand(side){
+  const w = side+"Wrist", h = side+"Hand", W = toV(currentPose[w]);
+  let dir = toV(currentPose[h]).sub(W);
+  if(dir.length() < .001) dir.set(side === "left" ? -.15 : .15, -.25, .05);
+  dir.normalize();
+  currentPose[h] = obj(W.clone().add(dir.multiplyScalar(len(w,h))));
+}
+function preserveFoot(side){
+  const a = side+"Ankle", toe = side+"Toe", heel = side+"Heel", A = toV(currentPose[a]);
+  let td = toV(currentPose[toe]).sub(A), hd = toV(currentPose[heel]).sub(A);
+  if(td.length() < .001) td.set(side==="left" ? -.35 : .35, -.05, .45);
+  if(hd.length() < .001) hd.set(side==="left" ? .10 : -.10, -.04, -.18);
+  currentPose[toe] = obj(A.clone().add(td.normalize().multiplyScalar(len(a,toe))));
+  currentPose[heel] = obj(A.clone().add(hd.normalize().multiplyScalar(len(a,heel))));
+}
+function moveLinkedJoint(joint, anchor, followers, target, exact=true){
+  const A = toV(currentPose[anchor]);
+  const old = toV(currentPose[joint]);
+  let dir = target.clone().sub(A);
+  if(dir.length() < .001){ dir = old.clone().sub(A); if(dir.length() < .001) dir.set(joint.startsWith("left") ? -1 : 1, 0, 0); }
+  const fixedLen = len(anchor, joint);
+  const dist = exact ? fixedLen : Math.min(fixedLen, Math.max(.001, dir.length()));
+  const T = A.clone().add(dir.normalize().multiplyScalar(dist));
+  const delta = T.clone().sub(old);
+  currentPose[joint] = obj(T);
+  for(const f of followers) currentPose[f] = obj(toV(currentPose[f]).add(delta));
+}
+function moveTerminal(joint, anchor, target){ moveLinkedJoint(joint, anchor, [], target, true); }
+function moveShoulder(side,target){ const shoulder=side+"Shoulder", elbow=side+"Elbow", wrist=side+"Wrist", hand=side+"Hand"; moveLinkedJoint(shoulder, "chest", [elbow,wrist,hand], target, true); status((side==="left"?"左":"右")+"肩：胸腔到肩膀固定，整條手臂跟隨。"); }
+function moveElbow(side,target){ const shoulder=side+"Shoulder", elbow=side+"Elbow", wrist=side+"Wrist", hand=side+"Hand"; moveLinkedJoint(elbow, shoulder, [wrist,hand], target, true); preserveHand(side); status((side==="left"?"左":"右")+"手肘：上臂長度固定，前臂與手掌跟隨。"); }
+function moveHip(side,target){ const hip=side+"Hip", knee=side+"Knee", ankle=side+"Ankle", toe=side+"Toe", heel=side+"Heel"; moveLinkedJoint(hip, "pelvis", [knee,ankle,toe,heel], target, true); status((side==="left"?"左":"右")+"髖：骨盆到髖關節固定，整條腿跟隨。"); }
+function moveKnee(side,target){ const hip=side+"Hip", knee=side+"Knee", ankle=side+"Ankle", toe=side+"Toe", heel=side+"Heel"; moveLinkedJoint(knee, hip, [ankle,toe,heel], target, true); preserveFoot(side); status((side==="left"?"左":"右")+"膝蓋：大腿長度固定，小腿與腳掌跟隨。"); }
+function moveNeck(target){ moveLinkedJoint("neck", "chest", ["head"], target, true); status("頸部：胸腔到頸部固定，頭部跟隨。"); }
+function moveHead(target){ moveLinkedJoint("head", "neck", [], target, true); status("頭部：頭頸距離固定，可用拖曳做傾斜。"); }
+function moveChest(target){ moveLinkedJoint("chest", "spine", ["neck","head","leftShoulder","leftElbow","leftWrist","leftHand","rightShoulder","rightElbow","rightWrist","rightHand"], target, true); status("胸腔：脊椎到胸腔固定，上半身跟隨。"); }
+function moveSpine(target){ moveLinkedJoint("spine", "pelvis", ["chest","neck","head","leftShoulder","leftElbow","leftWrist","leftHand","rightShoulder","rightElbow","rightWrist","rightHand"], target, true); status("脊椎：骨盆到脊椎固定，上半身跟隨。"); }
+function movePelvis(target){ moveLinkedJoint("pelvis", "spine", ["leftHip","leftKnee","leftAnkle","leftToe","leftHeel","rightHip","rightKnee","rightAnkle","rightToe","rightHeel"], target, true); status("骨盆：脊椎到骨盆固定，下半身跟隨。"); }
+function applyIK(joint,target){
+  if(joint==="head") moveHead(target);
+  else if(joint==="neck") moveNeck(target);
+  else if(joint==="chest") moveChest(target);
+  else if(joint==="spine") moveSpine(target);
+  else if(joint==="pelvis") movePelvis(target);
+  else if(joint==="leftShoulder") moveShoulder("left", target);
+  else if(joint==="rightShoulder") moveShoulder("right", target);
+  else if(joint==="leftElbow") moveElbow("left", target);
+  else if(joint==="rightElbow") moveElbow("right", target);
+  else if(joint==="leftWrist"){ solve2("leftShoulder","leftElbow","leftWrist",target,toV(currentPose.leftElbow).sub(toV(currentPose.leftShoulder))); preserveHand("left"); status("左手腕 IK：上臂與前臂固定，手肘自動解算。"); }
+  else if(joint==="rightWrist"){ solve2("rightShoulder","rightElbow","rightWrist",target,toV(currentPose.rightElbow).sub(toV(currentPose.rightShoulder))); preserveHand("right"); status("右手腕 IK：上臂與前臂固定，手肘自動解算。"); }
+  else if(joint==="leftHand"){ moveTerminal("leftHand","leftWrist",target); status("左掌：手腕到掌面固定，可調整掌面方向。"); }
+  else if(joint==="rightHand"){ moveTerminal("rightHand","rightWrist",target); status("右掌：手腕到掌面固定，可調整掌面方向。"); }
+  else if(joint==="leftHip") moveHip("left", target);
+  else if(joint==="rightHip") moveHip("right", target);
+  else if(joint==="leftKnee") moveKnee("left", target);
+  else if(joint==="rightKnee") moveKnee("right", target);
+  else if(joint==="leftAnkle"){ solve2("leftHip","leftKnee","leftAnkle",target,toV(currentPose.leftKnee).sub(toV(currentPose.leftHip))); preserveFoot("left"); status("左腳踝 IK：大腿與小腿固定，膝蓋自動解算。"); }
+  else if(joint==="rightAnkle"){ solve2("rightHip","rightKnee","rightAnkle",target,toV(currentPose.rightKnee).sub(toV(currentPose.rightHip))); preserveFoot("right"); status("右腳踝 IK：大腿與小腿固定，膝蓋自動解算。"); }
+  else if(joint==="leftToe"){ moveTerminal("leftToe","leftAnkle",target); status("左腳尖：腳踝到腳尖固定。"); }
+  else if(joint==="rightToe"){ moveTerminal("rightToe","rightAnkle",target); status("右腳尖：腳踝到腳尖固定。"); }
+  else if(joint==="leftHeel"){ moveTerminal("leftHeel","leftAnkle",target); status("左腳跟：腳踝到腳跟固定。"); }
+  else if(joint==="rightHeel"){ moveTerminal("rightHeel","rightAnkle",target); status("右腳跟：腳踝到腳跟固定。"); }
+  userEditing = true; playing = false; updatePlayBtn(); updateActor(); updateSliders(false);
+}
+function status(t){ document.getElementById("status").textContent = "IK：" + t; }
+
+function updateActor(){
+  for(const j of JOINTS){
+    jointMeshes[j].position.copy(toV(currentPose[j]));
+    jointMeshes[j].material = (j === selectedJoint && j !== "head") ? matJointSel : (j === "head" ? matCore : matJoint);
+  }
+  for(const b of boneMeshes) updateCylinder(b.mesh, currentPose[b.a], currentPose[b.b], b.r);
+  orientShell(chestShell, currentPose.spine, currentPose.chest);
+  waistShell.position.copy(toV(currentPose.spine).lerp(toV(currentPose.pelvis), .5));
+  waistShell.quaternion.copy(chestShell.quaternion);
+  pelvisShell.position.copy(toV(currentPose.leftHip).add(toV(currentPose.rightHip)).multiplyScalar(.5));
+  pelvisShell.quaternion.setFromUnitVectors(new THREE.Vector3(1,0,0), toV(currentPose.rightHip).sub(toV(currentPose.leftHip)).normalize());
+  orientShell(neckShell, currentPose.neck, currentPose.head);
+  plateBetween(leftPalmPlate, currentPose.leftWrist, currentPose.leftHand, .34, .052);
+  plateBetween(rightPalmPlate, currentPose.rightWrist, currentPose.rightHand, .34, .052);
+  plateBetween(leftFootPlate, currentPose.leftHeel, currentPose.leftToe, .34, .06);
+  plateBetween(rightFootPlate, currentPose.rightHeel, currentPose.rightToe, .34, .06);
+  const center = toV(currentPose.pelvis).clone().lerp(toV(currentPose.chest), .52);
+  setLine(bodyLine, [currentPose.pelvis, obj(center), currentPose.neck]);
+  setLine(shoulderLine, [currentPose.leftShoulder, currentPose.rightShoulder]);
+  setLine(pelvisLine, [currentPose.leftHip, currentPose.rightHip]);
+  setLine(lKneeToe, [currentPose.leftKnee, currentPose.leftToe]);
+  setLine(rKneeToe, [currentPose.rightKnee, currentPose.rightToe]);
+  setLine(lFootLine, [currentPose.leftHeel, currentPose.leftToe]);
+  setLine(rFootLine, [currentPose.rightHeel, currentPose.rightToe]);
+  setLine(balanceLine, [v(currentPose.pelvis.x,0,currentPose.pelvis.z), v(currentPose.pelvis.x,5.5,currentPose.pelvis.z)]);
+  arrowBetween(lFootArrow, currentPose.leftHeel, currentPose.leftToe);
+  arrowBetween(rFootArrow, currentPose.rightHeel, currentPose.rightToe);
+  updateAlign();
+}
+function angle2(a,b){ const A = toV(a), B = toV(b), d = B.sub(A); return Math.atan2(d.x, d.z) * 180 / Math.PI; }
+function adiff(a,b){ let d = Math.abs(a - b) % 360; return d > 180 ? 360 - d : d; }
+function updateAlign(){
+  const lf = angle2(currentPose.leftHeel, currentPose.leftToe);
+  const rf = angle2(currentPose.rightHeel, currentPose.rightToe);
+  const lk = angle2(currentPose.leftAnkle, currentPose.leftKnee);
+  const rk = angle2(currentPose.rightAnkle, currentPose.rightKnee);
+  const shoulder = currentPose.leftShoulder.y - currentPose.rightShoulder.y;
+  const pelvisTilt = currentPose.leftHip.y - currentPose.rightHip.y;
+  document.getElementById("alignText").textContent =
+    `腳尖方向：左 ${Math.round(lf)}°、右 ${Math.round(rf)}°｜膝腳差：左 ${adiff(lf,lk).toFixed(0)}°、右 ${adiff(rf,rk).toFixed(0)}°｜肩線 ${Math.abs(shoulder)<.08?"接近水平":(shoulder>0?"左高":"右高")}｜骨盆 ${Math.abs(pelvisTilt)<.08?"接近水平":(pelvisTilt>0?"左高":"右高")}｜重心投影 X=${currentPose.pelvis.x.toFixed(2)} Z=${currentPose.pelvis.z.toFixed(2)}`;
+}
+
+function renderActions(){
+  const el = document.getElementById("actionList");
+  const groups = {}; CATEGORY_ORDER.forEach(cat => groups[cat] = []);
+  for(const a of ACTIONS) groups[a.cat].push(a);
+  el.innerHTML = "";
+  for(const cat of CATEGORY_ORDER){
+    const arr = groups[cat];
+    const sec = document.createElement("section"); sec.className = "cat";
+    sec.innerHTML = `<div class="catTitle"><span>${cat}</span><span>${arr.length}</span></div>`;
+    const grid = document.createElement("div"); grid.className = "gridBtns";
+    for(const a of arr){
+      const b = document.createElement("button");
+      b.className = "actionBtn" + (a === currentAction ? " active" : "");
+      b.dataset.id = a.id;
+      b.innerHTML = `<span class="termEn">${a.label}</span>${settings.showChineseTerms ? `<span class="termZh">${a.zh}</span>` : ""}`;
+      b.onclick = () => selectAction(a.id, true, true);
+      grid.appendChild(b);
+    }
+    sec.appendChild(grid); el.appendChild(sec);
+  }
+}
+
+function chooseVoice(lang){
+  const voices = window.speechSynthesis ? speechSynthesis.getVoices() : [];
+  if(!voices.length) return null;
+  const femaleKeywords = ["female","samantha","victoria","zira","ava","karen","susan","moira","ting-ting","mei-jia","jiayu","lucie","audrey","amélie","julie"];
+  const langPrefix = (lang || "en-US").toLowerCase().split("-")[0];
+  let pick = voices.find(v => v.lang.toLowerCase() === (lang || "").toLowerCase() && femaleKeywords.some(k => v.name.toLowerCase().includes(k)));
+  if(!pick) pick = voices.find(v => v.lang.toLowerCase().startsWith(langPrefix) && femaleKeywords.some(k => v.name.toLowerCase().includes(k)));
+  if(!pick) pick = voices.find(v => v.lang.toLowerCase() === (lang || "").toLowerCase());
+  if(!pick) pick = voices.find(v => v.lang.toLowerCase().startsWith(langPrefix));
+  return pick || voices[0];
+}
+function speakTerm(action){
+  if(!settings.voiceEnabled || !("speechSynthesis" in window) || !action) return;
+  try{
+    speechSynthesis.cancel();
+    const utter = new SpeechSynthesisUtterance(action.speakText || action.label);
+    utter.lang = action.speakLang || "fr-FR";
+    utter.rate = 1.08; utter.pitch = 1.08;
+    const voice = chooseVoice(utter.lang); if(voice) utter.voice = voice;
+    speechSynthesis.speak(utter);
+  }catch(e){}
+}
+function updateInfo(){
+  document.getElementById("infoZh").textContent = settings.showChineseTerms ? currentAction.zh : currentAction.label;
+  document.getElementById("infoEn").textContent = settings.showChineseTerms ? currentAction.label : currentAction.zh;
+  document.getElementById("infoDesc").textContent = currentAction.desc;
+  document.getElementById("currentTitle").textContent = settings.showChineseTerms ? `${currentAction.label}｜${currentAction.zh}` : currentAction.label;
+  const ul = document.getElementById("infoTips"); ul.innerHTML = "";
+  currentAction.tips.forEach(t => { const li = document.createElement("li"); li.textContent = t; ul.appendChild(li); });
+  const row = document.getElementById("infoTags"); row.innerHTML = "";
+  currentAction.tags.forEach(t => { const span = document.createElement("span"); span.className = "tag"; span.textContent = t; row.appendChild(span); });
+}
+function setPose(p){ currentPose = clonePose(p); updateActor(); updateSliders(true); }
+function selectAction(id, autoPlay=true, speak=true){
+  currentAction = actionMap[id]; time = 0; userEditing = false; playing = !!autoPlay;
+  setPose(sampleAction(currentAction, 0));
+  document.getElementById("progress").value = 0;
+  updateInfo(); renderActions(); updatePlayBtn(); if(speak) speakTerm(currentAction);
+}
+function updatePlayBtn(){ document.getElementById("playBtn").textContent = playing ? "❚❚" : "▶"; }
+function setupEditor(){
+  const sel = document.getElementById("jointSelect");
+  JOINTS.forEach(j => { const o = document.createElement("option"); o.value = j; o.textContent = `${jointLabels[j]} / ${j}`; sel.appendChild(o); });
+  sel.value = selectedJoint;
+  sel.onchange = () => { selectedJoint = sel.value; updateActor(); updateSliders(true); };
+  ["jointX","jointY","jointZ"].forEach(id => {
+    document.getElementById(id).oninput = () => {
+      const target = toV(currentPose[selectedJoint]);
+      target.x = parseFloat(document.getElementById("jointX").value);
+      target.y = parseFloat(document.getElementById("jointY").value);
+      target.z = parseFloat(document.getElementById("jointZ").value);
+      applyIK(selectedJoint, target);
+    };
+  });
+}
+function updateSliders(setVals=true){
+  const p = currentPose[selectedJoint] || currentPose.leftWrist;
+  if(setVals){ document.getElementById("jointX").value = p.x; document.getElementById("jointY").value = p.y; document.getElementById("jointZ").value = p.z; }
+  document.getElementById("jointXv").textContent = (+document.getElementById("jointX").value).toFixed(2);
+  document.getElementById("jointYv").textContent = (+document.getElementById("jointY").value).toFixed(2);
+  document.getElementById("jointZv").textContent = (+document.getElementById("jointZ").value).toFixed(2);
+}
+
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+const dragPlane = new THREE.Plane();
+const planeHit = new THREE.Vector3();
+let dragging = false, dragJoint = null, dragStartY = 0;
+function setMouse(e){ const r = renderer.domElement.getBoundingClientRect(); mouse.x = ((e.clientX - r.left) / r.width) * 2 - 1; mouse.y = -((e.clientY - r.top) / r.height) * 2 + 1; }
+renderer.domElement.addEventListener("pointerdown", e => {
+  setMouse(e); raycaster.setFromCamera(mouse, camera);
+  const hits = raycaster.intersectObjects(Object.values(jointMeshes), false);
+  if(hits.length && hits[0].object.userData.joint){
+    dragging = true; dragJoint = hits[0].object.userData.joint; selectedJoint = dragJoint;
+    document.getElementById("jointSelect").value = dragJoint; updateSliders(true);
+    controls.enabled = false; playing = false; userEditing = true; updatePlayBtn();
+    const normal = camera.getWorldDirection(new THREE.Vector3()).normalize();
+    dragPlane.setFromNormalAndCoplanarPoint(normal, toV(currentPose[dragJoint]));
+    dragStartY = currentPose[dragJoint].y; renderer.domElement.setPointerCapture(e.pointerId);
+    status(`${jointLabels[dragJoint]}：拖曳中。`);
+  }
+});
+renderer.domElement.addEventListener("pointermove", e => {
+  if(!dragging || !dragJoint) return;
+  setMouse(e); raycaster.setFromCamera(mouse, camera);
+  if(raycaster.ray.intersectPlane(dragPlane, planeHit)){
+    let target = planeHit.clone();
+    if(e.shiftKey) target.y = dragStartY;
+    if(e.altKey){ const p = toV(currentPose[dragJoint]); target.x = p.x; target.z = p.z; }
+    applyIK(dragJoint, target);
+  }
+});
+function endDrag(e){ if(!dragging) return; dragging = false; dragJoint = null; controls.enabled = true; try{ renderer.domElement.releasePointerCapture(e.pointerId); }catch(err){} }
+renderer.domElement.addEventListener("pointerup", endDrag);
+renderer.domElement.addEventListener("pointercancel", endDrag);
+
+function applySettingsToUI(){
+  document.getElementById("showChineseTerms").checked = settings.showChineseTerms;
+  document.getElementById("voiceEnabled").checked = settings.voiceEnabled;
+  document.getElementById("showGrid").checked = settings.showGrid;
+  document.getElementById("showJoints").checked = settings.showJoints;
+  document.getElementById("showGuides").checked = settings.showGuides;
+  document.getElementById("showBody").checked = settings.showBody;
+  document.getElementById("loopToggle").checked = settings.loop;
+  document.getElementById("speedRange").value = settings.speed;
+  document.getElementById("speedText").textContent = settings.speed + "x";
+  document.getElementById("controlPanel").classList.toggle("open", settings.panelOpen);
+  grid.visible = settings.showGrid;
+  Object.values(jointMeshes).forEach(m => { m.visible = settings.showJoints || m === jointMeshes.head; });
+  guides.visible = settings.showGuides;
+  bodyGroup.visible = settings.showBody;
+  document.querySelectorAll(".fold").forEach(fold => { const key = fold.dataset.fold; fold.classList.toggle("open", !!settings.openFolds[key]); });
+}
+
+function bindUI(){
+  document.getElementById("panelToggle").onclick = () => { settings.panelOpen = !settings.panelOpen; document.getElementById("controlPanel").classList.toggle("open", settings.panelOpen); saveSettings(); };
+  document.getElementById("playBtn").onclick = () => { userEditing = false; playing = !playing; updatePlayBtn(); };
+  document.getElementById("restartBtn").onclick = () => { userEditing = false; time = 0; playing = true; updatePlayBtn(); };
+  document.getElementById("progress").oninput = e => { time = parseFloat(e.target.value) * actionDuration(currentAction); playing = false; userEditing = false; setPose(sampleAction(currentAction, time)); updatePlayBtn(); };
+  document.getElementById("showChineseTerms").onchange = e => { settings.showChineseTerms = e.target.checked; saveSettings(); renderActions(); updateInfo(); };
+  document.getElementById("voiceEnabled").onchange = e => { settings.voiceEnabled = e.target.checked; saveSettings(); };
+  document.getElementById("showGrid").onchange = e => { settings.showGrid = e.target.checked; grid.visible = settings.showGrid; saveSettings(); };
+  document.getElementById("showJoints").onchange = e => { settings.showJoints = e.target.checked; Object.values(jointMeshes).forEach(m => { m.visible = settings.showJoints || m === jointMeshes.head; }); saveSettings(); };
+  document.getElementById("showGuides").onchange = e => { settings.showGuides = e.target.checked; guides.visible = settings.showGuides; saveSettings(); };
+  document.getElementById("showBody").onchange = e => { settings.showBody = e.target.checked; bodyGroup.visible = settings.showBody; saveSettings(); };
+  document.getElementById("loopToggle").onchange = e => { settings.loop = e.target.checked; saveSettings(); };
+  document.getElementById("speedRange").oninput = e => { settings.speed = parseFloat(e.target.value); document.getElementById("speedText").textContent = settings.speed + "x"; saveSettings(); };
+  document.getElementById("clearPrefs").onclick = () => { localStorage.removeItem(SETTINGS_KEY); location.reload(); };
+  document.getElementById("replayVoice").onclick = () => speakTerm(currentAction);
+  document.querySelectorAll(".fold").forEach(fold => { const key = fold.dataset.fold; const header = fold.querySelector(".foldHeader"); header.onclick = () => { fold.classList.toggle("open"); settings.openFolds[key] = fold.classList.contains("open"); saveSettings(); }; });
+  document.getElementById("resetPose").onclick = () => { userEditing = false; playing = false; time = 0; setPose(sampleAction(currentAction, 0)); updatePlayBtn(); };
+  document.getElementById("copyPose").onclick = async () => { const txt = JSON.stringify(currentPose, null, 2); try{ await navigator.clipboard.writeText(txt); status("目前姿勢 JSON 已複製。"); }catch{ prompt("複製姿勢 JSON", txt); } };
+  document.querySelectorAll("[data-view]").forEach(b => { b.onclick = () => { const d = camera.position.distanceTo(controls.target); const view = b.dataset.view; let p = new THREE.Vector3(0, 2.8, d); if(view === "side") p.set(d, 2.8, 0); if(view === "back") p.set(0, 2.8, -d); if(view === "top") p.set(.001, d + 2.7, .001); camera.position.copy(p); controls.target.set(0, 2.65, 0); controls.update(); }; });
+  document.getElementById("resetCam").onclick = () => { camera.position.set(4.9,3.7,6.7); controls.target.set(0,2.65,0); controls.update(); };
+}
+
+function resize(){ const w = stageWrap.clientWidth, h = stageWrap.clientHeight; camera.aspect = w / h; camera.updateProjectionMatrix(); renderer.setSize(w, h, false); }
+window.addEventListener("resize", resize);
+
+let last = performance.now();
+function animate(now){
+  requestAnimationFrame(animate);
+  const dt = Math.min(.05, (now - last) / 1000); last = now;
+  if(playing && !userEditing){
+    time += dt * settings.speed;
+    const d = actionDuration(currentAction);
+    if(time > d){ if(settings.loop) time %= d; else { time = d; playing = false; updatePlayBtn(); } }
+    setPose(sampleAction(currentAction, time));
+    document.getElementById("progress").value = d ? time / d : 0;
+  }
+  controls.update(); renderer.render(scene, camera);
+}
+
+renderActions();
+setupEditor();
+bindUI();
+applySettingsToUI();
+selectAction(ACTIONS[0].id, false, false);
+resize();
+requestAnimationFrame(animate);
+</script>
+</body>
+</html>
