@@ -1,0 +1,914 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<script src="/eduGame/ga4.js"></script>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>colorCube v0.1</title>
+<style>
+  :root{
+    --bg0:#0d1117;
+    --bg1:#121923;
+    --panel:rgba(17,24,39,.72);
+    --panel2:rgba(17,24,39,.90);
+    --line:rgba(255,255,255,.12);
+    --text:#eef2ff;
+    --muted:rgba(238,242,255,.68);
+    --accent:#b9e6ff;
+    --good:#c8ffd2;
+    --bad:#ffd0d0;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;width:100%;height:100%;overflow:hidden;background:radial-gradient(circle at 30% 20%,#172033 0%,var(--bg0) 55%,#070a0f 100%);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans TC","Microsoft JhengHei",sans-serif;}
+  canvas{display:block;width:100vw;height:100vh;touch-action:none;cursor:grab;}
+  canvas.dragging{cursor:grabbing;}
+  button{font:inherit;color:var(--text);background:rgba(255,255,255,.08);border:1px solid var(--line);border-radius:999px;padding:8px 12px;backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);cursor:pointer;}
+  button:hover{background:rgba(255,255,255,.14);}
+  button:active{transform:translateY(1px);}
+  .hud{position:fixed;left:14px;right:14px;top:calc(12px + env(safe-area-inset-top));display:flex;align-items:flex-start;justify-content:space-between;gap:10px;pointer-events:none;z-index:5;}
+  .brand{pointer-events:auto;display:flex;flex-direction:column;gap:2px;padding:10px 12px;border:1px solid var(--line);border-radius:18px;background:var(--panel);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);box-shadow:0 16px 40px rgba(0,0,0,.24);}
+  .brand strong{font-size:15px;letter-spacing:.04em;}
+  .brand small{font-size:11px;color:var(--muted);}
+  .stats{pointer-events:auto;display:grid;grid-template-columns:repeat(5,max-content);gap:6px;align-items:center;padding:8px;border:1px solid var(--line);border-radius:20px;background:var(--panel);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);box-shadow:0 16px 40px rgba(0,0,0,.24);}
+  .stat{min-width:76px;padding:6px 9px;border-radius:14px;background:rgba(255,255,255,.06);}
+  .stat span{display:block;font-size:10px;color:var(--muted);line-height:1.1;margin-bottom:3px;white-space:nowrap;}
+  .stat b{font-size:14px;font-weight:700;line-height:1;white-space:nowrap;}
+  .actions{pointer-events:auto;display:flex;gap:6px;align-items:center;}
+  .round{width:38px;height:38px;display:grid;place-items:center;padding:0;font-size:18px;line-height:1;}
+  .toast{position:fixed;left:50%;bottom:calc(18px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:6;padding:9px 14px;border:1px solid var(--line);border-radius:999px;background:rgba(9,12,18,.66);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);color:var(--muted);font-size:13px;opacity:0;transition:opacity .25s ease, transform .25s ease;pointer-events:none;white-space:nowrap;}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(-4px);}
+  .panel{position:fixed;right:14px;top:calc(72px + env(safe-area-inset-top));z-index:10;width:min(290px,calc(100vw - 28px));padding:12px;border:1px solid var(--line);border-radius:22px;background:var(--panel2);backdrop-filter:blur(22px);-webkit-backdrop-filter:blur(22px);box-shadow:0 22px 70px rgba(0,0,0,.34);display:none;}
+  .panel.open{display:block;}
+  .panel h3{margin:2px 0 10px;font-size:15px;}
+  .panel .empty{height:72px;display:grid;place-items:center;border:1px dashed rgba(255,255,255,.14);border-radius:16px;color:rgba(238,242,255,.42);font-size:13px;margin:10px 0;}
+  .panel .row{display:flex;gap:8px;flex-wrap:wrap;}
+  .modalWrap{position:fixed;inset:0;z-index:20;display:none;align-items:center;justify-content:center;padding:20px;background:rgba(0,0,0,.42);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);}
+  .modalWrap.open{display:flex;}
+  .modal{width:min(460px,100%);border:1px solid var(--line);border-radius:28px;background:rgba(14,20,30,.92);box-shadow:0 30px 90px rgba(0,0,0,.5);padding:20px;}
+  .modal h2{font-size:20px;margin:0 0 10px;}
+  .modal p{margin:8px 0;color:var(--muted);line-height:1.6;font-size:14px;}
+  .modal ul{margin:10px 0 16px;padding-left:20px;color:var(--muted);line-height:1.7;font-size:14px;}
+  .modal .modalActions{display:flex;gap:8px;justify-content:flex-end;margin-top:16px;}
+  .gameOverScore{font-size:34px;font-weight:800;letter-spacing:.02em;margin:8px 0;color:var(--accent);}
+  .mini{font-size:12px;color:var(--muted);}
+  @media (max-width:760px){
+    .hud{align-items:flex-start;}
+    .brand{display:none;}
+    .stats{grid-template-columns:repeat(2,minmax(82px,1fr));max-width:calc(100vw - 78px);}
+    .stat{min-width:0;padding:6px 8px;}
+    .stat span{font-size:9px;}
+    .stat b{font-size:13px;}
+    .actions{flex-direction:column;}
+    .panel{top:calc(58px + env(safe-area-inset-top));}
+  }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<div class="hud">
+  <div class="brand">
+    <strong>colorCube <span class="mini">v0.1</span></strong>
+    <small>低色差 × 高成團</small>
+  </div>
+  <div class="stats" aria-live="polite">
+    <div class="stat"><span>目前分數</span><b id="scoreNow">0.00</b></div>
+    <div class="stat"><span>最佳分數</span><b id="bestScore">--</b></div>
+    <div class="stat"><span>總色差</span><b id="costTotal">0</b></div>
+    <div class="stat"><span>成團倍率</span><b id="groupBoost">1.00×</b></div>
+    <div class="stat"><span>最高合成</span><b id="maxWeight">1合一</b></div>
+  </div>
+  <div class="actions">
+    <button id="moreBtn" class="round" title="更多">...</button>
+  </div>
+</div>
+
+<div id="morePanel" class="panel">
+  <h3>更多</h3>
+  <div class="row">
+    <button id="helpBtn">說明</button>
+    <button id="newBtn">新局</button>
+    <button id="clearBtn">清除紀錄</button>
+  </div>
+  <div class="empty">新功能預留</div>
+</div>
+
+<div id="toast" class="toast">已選取方塊</div>
+
+<div id="introModal" class="modalWrap">
+  <div class="modal">
+    <h2>colorCube</h2>
+    <p>目標是把顏色接近的相鄰方塊融合，讓最後分數越低越好。</p>
+    <ul>
+      <li>點一個表面方塊：選取。</li>
+      <li>再點同一個方塊：取消選取。</li>
+      <li>再點相鄰方塊：融合並計算色彩距離。</li>
+      <li>點空白處拖曳：旋轉視角；滾輪或雙指：縮放。</li>
+      <li>方塊無法再從內層補位時，遊戲結束並記錄最佳分數。</li>
+    </ul>
+    <p class="mini">分數概念：總色差 ÷ 成團倍率。四合一會比只做二合一更有利。</p>
+    <div class="modalActions"><button id="startBtn">開始</button></div>
+  </div>
+</div>
+
+<div id="helpModal" class="modalWrap">
+  <div class="modal">
+    <h2>遊戲說明</h2>
+    <p>請觀察透明立方體的表面，挑選顏色最接近的相鄰方塊融合。每次融合會以 10-bit RGB 計算色彩距離。</p>
+    <p>融合後的新色會依照兩個方塊的權重加權平均；越能整理出四合一、八合一等大型色群，成團倍率越高。</p>
+    <p>當被融合後留下的位置無法由內層方塊補上，遊戲結束。最後分數越低，代表你的色彩接近判斷越精準。</p>
+    <div class="modalActions"><button id="closeHelpBtn">關閉</button></div>
+  </div>
+</div>
+
+<div id="gameOverModal" class="modalWrap">
+  <div class="modal">
+    <h2>遊戲結束</h2>
+    <p>這次的最終分數：</p>
+    <div id="finalScore" class="gameOverScore">0.00</div>
+    <p id="bestNote" class="mini"></p>
+    <div class="modalActions">
+      <button id="closeGameOverBtn">關閉</button>
+      <button id="againBtn">再玩一次</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  'use strict';
+
+  const VERSION = '0.1';
+  const N = 4;
+  const SPACING = 1.08;
+  const CUBE_SIZE = 0.86;
+  const BEST_KEY = 'colorCube.v0.1.bestScore';
+  const INTRO_KEY = 'colorCube.v0.1.introSeen';
+
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+  const scoreNowEl = document.getElementById('scoreNow');
+  const bestScoreEl = document.getElementById('bestScore');
+  const costTotalEl = document.getElementById('costTotal');
+  const groupBoostEl = document.getElementById('groupBoost');
+  const maxWeightEl = document.getElementById('maxWeight');
+  const moreBtn = document.getElementById('moreBtn');
+  const morePanel = document.getElementById('morePanel');
+  const helpBtn = document.getElementById('helpBtn');
+  const newBtn = document.getElementById('newBtn');
+  const clearBtn = document.getElementById('clearBtn');
+  const introModal = document.getElementById('introModal');
+  const startBtn = document.getElementById('startBtn');
+  const helpModal = document.getElementById('helpModal');
+  const closeHelpBtn = document.getElementById('closeHelpBtn');
+  const gameOverModal = document.getElementById('gameOverModal');
+  const finalScoreEl = document.getElementById('finalScore');
+  const bestNoteEl = document.getElementById('bestNote');
+  const closeGameOverBtn = document.getElementById('closeGameOverBtn');
+  const againBtn = document.getElementById('againBtn');
+  const toastEl = document.getElementById('toast');
+
+  let W = 0, H = 0, DPR = 1;
+  let rotX = 0.58;
+  let rotY = -0.70;
+  let zoom = 1;
+  let panX = 0;
+  let panY = 10;
+  let grid = [];
+  let selected = null;
+  let totalCost = 0;
+  let moves = 0;
+  let lastMerge = null;
+  let particles = [];
+  let bestScore = readBestScore();
+  let gameEnded = false;
+  let audioCtx = null;
+  let toastTimer = 0;
+
+  const pointers = new Map();
+  let gesture = null;
+
+  const dirs = [
+    {x:1,y:0,z:0},{x:-1,y:0,z:0},
+    {x:0,y:1,z:0},{x:0,y:-1,z:0},
+    {x:0,y:0,z:1},{x:0,y:0,z:-1}
+  ];
+
+  function idx(x,y,z){ return x + N * (y + N * z); }
+  function inside(x,y,z){ return x>=0 && x<N && y>=0 && y<N && z>=0 && z<N; }
+  function getCell(p){ return inside(p.x,p.y,p.z) ? grid[idx(p.x,p.y,p.z)] : null; }
+  function setCell(p,val){ if(inside(p.x,p.y,p.z)) grid[idx(p.x,p.y,p.z)] = val; }
+  function samePos(a,b){ return a && b && a.x===b.x && a.y===b.y && a.z===b.z; }
+  function manhattan(a,b){ return Math.abs(a.x-b.x)+Math.abs(a.y-b.y)+Math.abs(a.z-b.z); }
+
+  function clamp(v,min,max){ return Math.max(min, Math.min(max, v)); }
+  function fmt(v){ return Number.isFinite(v) ? v.toFixed(2) : '--'; }
+  function readBestScore(){
+    const v = Number(localStorage.getItem(BEST_KEY));
+    return Number.isFinite(v) && v > 0 ? v : null;
+  }
+
+  function resize(){
+    DPR = Math.min(2, window.devicePixelRatio || 1);
+    W = Math.floor(window.innerWidth);
+    H = Math.floor(window.innerHeight);
+    canvas.width = Math.floor(W * DPR);
+    canvas.height = Math.floor(H * DPR);
+    canvas.style.width = W + 'px';
+    canvas.style.height = H + 'px';
+    ctx.setTransform(DPR,0,0,DPR,0,0);
+  }
+
+  function hslToRgb10(h,s,l){
+    h = ((h % 360) + 360) % 360 / 360;
+    s = clamp(s,0,1); l = clamp(l,0,1);
+    const hue2rgb = (p,q,t) => {
+      if(t<0) t+=1; if(t>1) t-=1;
+      if(t<1/6) return p + (q-p)*6*t;
+      if(t<1/2) return q;
+      if(t<2/3) return p + (q-p)*(2/3-t)*6;
+      return p;
+    };
+    let r,g,b;
+    if(s===0){ r=g=b=l; }
+    else{
+      const q = l < .5 ? l*(1+s) : l+s-l*s;
+      const p = 2*l-q;
+      r = hue2rgb(p,q,h+1/3);
+      g = hue2rgb(p,q,h);
+      b = hue2rgb(p,q,h-1/3);
+    }
+    return {r:Math.round(r*1023), g:Math.round(g*1023), b:Math.round(b*1023)};
+  }
+
+  function newGame(){
+    grid = new Array(N*N*N).fill(null);
+    selected = null;
+    totalCost = 0;
+    moves = 0;
+    lastMerge = null;
+    particles = [];
+    gameEnded = false;
+    const hueOffset = Math.random()*360;
+    const anchors = [
+      hslToRgb10(hueOffset + 8, .64, .55),
+      hslToRgb10(hueOffset + 82, .58, .60),
+      hslToRgb10(hueOffset + 168, .58, .52),
+      hslToRgb10(hueOffset + 248, .62, .58),
+      hslToRgb10(hueOffset + 310, .50, .62)
+    ];
+    let id = 1;
+    for(let z=0; z<N; z++){
+      for(let y=0; y<N; y++){
+        for(let x=0; x<N; x++){
+          const cluster = Math.floor(Math.random()*anchors.length);
+          const base = anchors[cluster];
+          const jitter = () => (Math.random()*2-1) * 90 + (Math.random()*2-1) * 35;
+          const block = {
+            id:id++,
+            r:clamp(Math.round(base.r + jitter()),0,1023),
+            g:clamp(Math.round(base.g + jitter()),0,1023),
+            b:clamp(Math.round(base.b + jitter()),0,1023),
+            weight:1,
+            pulse:0
+          };
+          grid[idx(x,y,z)] = block;
+        }
+      }
+    }
+    updateHud();
+    showToast('新局開始：找出最接近的相鄰色塊');
+  }
+
+  function worldPos(x,y,z){
+    return {
+      x:(x-(N-1)/2)*SPACING,
+      y:(y-(N-1)/2)*SPACING,
+      z:(z-(N-1)/2)*SPACING
+    };
+  }
+
+  function toCamera(p){
+    const cy = Math.cos(rotY), sy = Math.sin(rotY);
+    const cx = Math.cos(rotX), sx = Math.sin(rotX);
+    const x1 = p.x*cy + p.z*sy;
+    const z1 = -p.x*sy + p.z*cy;
+    const y2 = p.y*cx - z1*sx;
+    const z2 = p.y*sx + z1*cx;
+    return {x:x1,y:y2,z:z2};
+  }
+
+  function baseScale(){ return Math.min(W,H) / 7.1 * zoom; }
+  function project(p){
+    const c = toCamera(p);
+    const s = baseScale();
+    return {
+      x:W/2 + panX + c.x*s,
+      y:H/2 + panY - c.y*s,
+      z:c.z
+    };
+  }
+
+  function normalCamZ(n){ return toCamera(n).z; }
+
+  function isSurfacePos(p){
+    if(!getCell(p)) return false;
+    for(const d of dirs){
+      const q = {x:p.x+d.x,y:p.y+d.y,z:p.z+d.z};
+      if(!inside(q.x,q.y,q.z) || !getCell(q)) return true;
+    }
+    return false;
+  }
+
+  function exposedDirs(p){
+    const out = [];
+    for(const d of dirs){
+      const q = {x:p.x+d.x,y:p.y+d.y,z:p.z+d.z};
+      if(!inside(q.x,q.y,q.z) || !getCell(q)) out.push(d);
+    }
+    return out;
+  }
+
+  function chooseRefillDir(p){
+    const candidates = exposedDirs(p);
+    if(!candidates.length) return {x:0,y:0,z:1};
+    let best = candidates[0], bestDot = -Infinity;
+    for(const d of candidates){
+      const dot = normalCamZ(d);
+      if(dot > bestDot){ bestDot = dot; best = d; }
+    }
+    return best;
+  }
+
+  function surfaceBlocks(){
+    const arr = [];
+    for(let z=0; z<N; z++) for(let y=0; y<N; y++) for(let x=0; x<N; x++){
+      const p = {x,y,z};
+      const block = getCell(p);
+      if(block && isSurfacePos(p)) arr.push({p,block});
+    }
+    return arr;
+  }
+
+  function colorDistance(a,b){
+    const dr = a.r-b.r, dg = a.g-b.g, db = a.b-b.b;
+    return Math.sqrt(dr*dr + dg*dg + db*db);
+  }
+
+  function balanceFactor(a,b){
+    const ratio = Math.min(a.weight,b.weight) / Math.max(a.weight,b.weight);
+    return clamp(1.15 - 0.30 * ratio, 0.85, 1.15);
+  }
+
+  function mergeBlocks(a,b){
+    const w = a.weight + b.weight;
+    return {
+      id:Math.max(a.id,b.id) + 100000 + Math.floor(Math.random()*9999),
+      r:Math.round((a.r*a.weight + b.r*b.weight) / w),
+      g:Math.round((a.g*a.weight + b.g*b.weight) / w),
+      b:Math.round((a.b*a.weight + b.b*b.weight) / w),
+      weight:w,
+      pulse:1
+    };
+  }
+
+  function tryMerge(targetPos){
+    if(gameEnded) return;
+    if(!selected){ selectBlock(targetPos); return; }
+    if(samePos(selected, targetPos)){
+      selected = null;
+      showToast('已取消選取');
+      updateHud();
+      return;
+    }
+    const aPos = selected;
+    const bPos = targetPos;
+    const a = getCell(aPos);
+    const b = getCell(bPos);
+    if(!a || !b){ selected = null; updateHud(); return; }
+    if(manhattan(aPos,bPos) !== 1){
+      selectBlock(bPos);
+      showToast('已改選新的方塊');
+      return;
+    }
+    const dist = colorDistance(a,b);
+    const factor = balanceFactor(a,b);
+    const cost = dist * factor;
+    totalCost += cost;
+    moves += 1;
+
+    const newBlock = mergeBlocks(a,b);
+    setCell(bPos, newBlock);
+    setCell(aPos, null);
+    selected = null;
+    lastMerge = {dist,cost,factor,pos:bPos};
+    emitParticlesAt(bPos, newBlock, Math.max(12, Math.min(28, Math.round(28 - dist/65))));
+    playMergeSound(dist, factor);
+
+    const refillDir = chooseRefillDir(aPos);
+    const refilled = refillVacancy(aPos, refillDir);
+    if(!refilled){
+      endGame();
+    }else{
+      showToast(`融合成功：色差 ${dist.toFixed(1)}，成本 ${cost.toFixed(1)}`);
+    }
+    updateHud();
+  }
+
+  function refillVacancy(vacancy, dir){
+    let cur = {...vacancy};
+    let src = {x:cur.x-dir.x, y:cur.y-dir.y, z:cur.z-dir.z};
+    let moved = false;
+    while(inside(src.x,src.y,src.z)){
+      const block = getCell(src);
+      if(!block) break;
+      setCell(cur, block);
+      block.pulse = Math.max(block.pulse || 0, .45);
+      cur = {...src};
+      src = {x:cur.x-dir.x, y:cur.y-dir.y, z:cur.z-dir.z};
+      moved = true;
+    }
+    if(moved) setCell(cur, null);
+    return moved;
+  }
+
+  function selectBlock(p){
+    if(!getCell(p) || !isSurfacePos(p)) return;
+    selected = {...p};
+    const b = getCell(p);
+    showToast(`${b.weight}合一方塊已選取`);
+    updateHud();
+  }
+
+  function computeGroupBoost(){
+    let boost = 0;
+    for(const block of grid){
+      if(block && block.weight > 1) boost += block.weight * Math.log2(block.weight);
+    }
+    return Math.max(1, boost);
+  }
+
+  function currentScore(){
+    if(moves === 0) return 0;
+    return totalCost / computeGroupBoost();
+  }
+
+  function maxWeight(){
+    let m = 1;
+    for(const block of grid) if(block) m = Math.max(m, block.weight);
+    return m;
+  }
+
+  function updateHud(){
+    const score = currentScore();
+    scoreNowEl.textContent = fmt(score);
+    bestScoreEl.textContent = bestScore ? fmt(bestScore) : '--';
+    costTotalEl.textContent = Math.round(totalCost).toLocaleString('zh-Hant');
+    groupBoostEl.textContent = computeGroupBoost().toFixed(2) + '×';
+    maxWeightEl.textContent = maxWeight() + '合一';
+  }
+
+  function endGame(){
+    gameEnded = true;
+    const score = currentScore();
+    let isBest = false;
+    if(score > 0 && (!bestScore || score < bestScore)){
+      bestScore = score;
+      localStorage.setItem(BEST_KEY, String(score));
+      isBest = true;
+    }
+    updateHud();
+    finalScoreEl.textContent = fmt(score);
+    bestNoteEl.textContent = isBest ? '新的最佳分數已儲存在這個瀏覽器。' : `目前最佳分數：${bestScore ? fmt(bestScore) : '--'}`;
+    setTimeout(() => gameOverModal.classList.add('open'), 350);
+    showToast('無法從內層補位，遊戲結束');
+  }
+
+  function clearRecord(){
+    if(confirm('確定要清除這個瀏覽器中的最佳分數嗎？')){
+      localStorage.removeItem(BEST_KEY);
+      bestScore = null;
+      updateHud();
+      showToast('最佳分數已清除');
+    }
+  }
+
+  function rgbCss(block, shade=1, alpha=.6){
+    const r = clamp(Math.round(block.r/1023*255*shade),0,255);
+    const g = clamp(Math.round(block.g/1023*255*shade),0,255);
+    const b = clamp(Math.round(block.b/1023*255*shade),0,255);
+    return `rgba(${r},${g},${b},${alpha})`;
+  }
+
+  function blockCorners(x,y,z){
+    const c = worldPos(x,y,z);
+    const h = CUBE_SIZE/2;
+    return [
+      {x:c.x-h,y:c.y-h,z:c.z-h}, {x:c.x+h,y:c.y-h,z:c.z-h},
+      {x:c.x+h,y:c.y+h,z:c.z-h}, {x:c.x-h,y:c.y+h,z:c.z-h},
+      {x:c.x-h,y:c.y-h,z:c.z+h}, {x:c.x+h,y:c.y-h,z:c.z+h},
+      {x:c.x+h,y:c.y+h,z:c.z+h}, {x:c.x-h,y:c.y+h,z:c.z+h}
+    ];
+  }
+
+  const faces = [
+    {ids:[0,4,7,3], n:{x:-1,y:0,z:0}},
+    {ids:[1,2,6,5], n:{x:1,y:0,z:0}},
+    {ids:[0,1,5,4], n:{x:0,y:-1,z:0}},
+    {ids:[3,7,6,2], n:{x:0,y:1,z:0}},
+    {ids:[0,3,2,1], n:{x:0,y:0,z:-1}},
+    {ids:[4,5,6,7], n:{x:0,y:0,z:1}}
+  ];
+
+  function drawFace(points, fill, stroke, lineWidth=1){
+    if(points.length < 3) return;
+    ctx.beginPath();
+    ctx.moveTo(points[0].x, points[0].y);
+    for(let i=1;i<points.length;i++) ctx.lineTo(points[i].x, points[i].y);
+    ctx.closePath();
+    ctx.fillStyle = fill;
+    ctx.fill();
+    if(stroke){
+      ctx.lineWidth = lineWidth;
+      ctx.strokeStyle = stroke;
+      ctx.stroke();
+    }
+  }
+
+  function drawBlocks(){
+    const renderList = [];
+    for(let z=0; z<N; z++) for(let y=0; y<N; y++) for(let x=0; x<N; x++){
+      const block = grid[idx(x,y,z)];
+      if(!block) continue;
+      const c = project(worldPos(x,y,z));
+      renderList.push({x,y,z,block,depth:c.z,surface:isSurfacePos({x,y,z})});
+    }
+    renderList.sort((a,b) => a.depth - b.depth);
+
+    const adjSet = new Set();
+    if(selected){
+      for(const d of dirs){
+        const q = {x:selected.x+d.x,y:selected.y+d.y,z:selected.z+d.z};
+        if(inside(q.x,q.y,q.z) && getCell(q) && isSurfacePos(q)) adjSet.add(idx(q.x,q.y,q.z));
+      }
+    }
+
+    for(const item of renderList){
+      const {x,y,z,block,surface} = item;
+      const pos = {x,y,z};
+      const isSel = samePos(selected,pos);
+      const isAdj = adjSet.has(idx(x,y,z));
+      const corners = blockCorners(x,y,z).map(project);
+      const faceList = [];
+      for(const f of faces){
+        const nz = normalCamZ(f.n);
+        if(nz <= -0.08 && !isSel) continue;
+        const pts = f.ids.map(i => corners[i]);
+        const avgZ = pts.reduce((sum,p)=>sum+p.z,0)/pts.length;
+        faceList.push({f,pts,nz,avgZ});
+      }
+      faceList.sort((a,b)=>a.avgZ-b.avgZ);
+      const alphaBase = isSel ? .86 : isAdj ? .70 : surface ? .54 : .18;
+      for(const itemFace of faceList){
+        const shade = clamp(.72 + Math.max(0,itemFace.nz) * .32, .58, 1.06);
+        let stroke = surface ? 'rgba(255,255,255,.18)' : 'rgba(255,255,255,.07)';
+        let lineWidth = 1;
+        if(isAdj){ stroke = 'rgba(205,245,255,.62)'; lineWidth = 1.5; }
+        if(isSel){ stroke = 'rgba(255,255,255,.92)'; lineWidth = 2.1; }
+        const alpha = clamp(alphaBase + (block.pulse||0)*.18, .12, .92);
+        drawFace(itemFace.pts, rgbCss(block, shade, alpha), stroke, lineWidth);
+      }
+      if(block.weight > 1){
+        const center = project(worldPos(x,y,z));
+        const labelSize = clamp(9 + block.weight, 10, 18);
+        ctx.save();
+        ctx.globalAlpha = surface ? .9 : .28;
+        ctx.fillStyle = 'rgba(255,255,255,.86)';
+        ctx.font = `700 ${labelSize}px -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.shadowColor = 'rgba(0,0,0,.65)';
+        ctx.shadowBlur = 5;
+        ctx.fillText(block.weight, center.x, center.y);
+        ctx.restore();
+      }
+      if(block.pulse) block.pulse = Math.max(0, block.pulse - .022);
+    }
+  }
+
+  function drawOuterFrame(){
+    const min = worldPos(0,0,0);
+    const max = worldPos(N-1,N-1,N-1);
+    const pad = SPACING*.55;
+    const corners = [
+      {x:min.x-pad,y:min.y-pad,z:min.z-pad}, {x:max.x+pad,y:min.y-pad,z:min.z-pad},
+      {x:max.x+pad,y:max.y+pad,z:min.z-pad}, {x:min.x-pad,y:max.y+pad,z:min.z-pad},
+      {x:min.x-pad,y:min.y-pad,z:max.z+pad}, {x:max.x+pad,y:min.y-pad,z:max.z+pad},
+      {x:max.x+pad,y:max.y+pad,z:max.z+pad}, {x:min.x-pad,y:max.y+pad,z:max.z+pad}
+    ].map(project);
+    const edges = [[0,1],[1,2],[2,3],[3,0],[4,5],[5,6],[6,7],[7,4],[0,4],[1,5],[2,6],[3,7]];
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255,255,255,.08)';
+    ctx.lineWidth = 1;
+    for(const [a,b] of edges){
+      ctx.beginPath();
+      ctx.moveTo(corners[a].x,corners[a].y);
+      ctx.lineTo(corners[b].x,corners[b].y);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function drawParticles(){
+    if(!particles.length) return;
+    ctx.save();
+    for(const p of particles){
+      p.x += p.vx; p.y += p.vy; p.vy += .012; p.life -= .018;
+      if(p.life <= 0) continue;
+      ctx.globalAlpha = clamp(p.life,0,1);
+      ctx.fillStyle = p.color;
+      ctx.beginPath();
+      ctx.arc(p.x,p.y,p.r,0,Math.PI*2);
+      ctx.fill();
+    }
+    ctx.restore();
+    particles = particles.filter(p => p.life > 0);
+  }
+
+  function emitParticlesAt(pos, block, count){
+    const c = project(worldPos(pos.x,pos.y,pos.z));
+    for(let i=0;i<count;i++){
+      const a = Math.random()*Math.PI*2;
+      const sp = .6 + Math.random()*2.1;
+      particles.push({
+        x:c.x, y:c.y,
+        vx:Math.cos(a)*sp,
+        vy:Math.sin(a)*sp,
+        r:1.2 + Math.random()*2.2,
+        life:.55 + Math.random()*.45,
+        color:rgbCss(block,1,.9)
+      });
+    }
+  }
+
+  function render(){
+    ctx.clearRect(0,0,W,H);
+    const grd = ctx.createRadialGradient(W*.44,H*.40,10,W*.50,H*.52,Math.max(W,H)*.70);
+    grd.addColorStop(0,'rgba(36,50,76,.42)');
+    grd.addColorStop(1,'rgba(5,8,13,0)');
+    ctx.fillStyle = grd;
+    ctx.fillRect(0,0,W,H);
+    drawOuterFrame();
+    drawBlocks();
+    drawParticles();
+    requestAnimationFrame(render);
+  }
+
+  function convexHull(points){
+    const pts = points.map(p=>({x:p.x,y:p.y})).sort((a,b)=>a.x===b.x?a.y-b.y:a.x-b.x);
+    const cross = (o,a,b) => (a.x-o.x)*(b.y-o.y)-(a.y-o.y)*(b.x-o.x);
+    const lower=[];
+    for(const p of pts){ while(lower.length>=2 && cross(lower[lower.length-2], lower[lower.length-1], p)<=0) lower.pop(); lower.push(p); }
+    const upper=[];
+    for(let i=pts.length-1;i>=0;i--){ const p=pts[i]; while(upper.length>=2 && cross(upper[upper.length-2], upper[upper.length-1], p)<=0) upper.pop(); upper.push(p); }
+    upper.pop(); lower.pop();
+    return lower.concat(upper);
+  }
+
+  function pointInPoly(pt, poly){
+    let insidePoly = false;
+    for(let i=0,j=poly.length-1;i<poly.length;j=i++){
+      const xi=poly[i].x, yi=poly[i].y, xj=poly[j].x, yj=poly[j].y;
+      const intersect = ((yi>pt.y)!==(yj>pt.y)) && (pt.x < (xj-xi)*(pt.y-yi)/(yj-yi+1e-9)+xi);
+      if(intersect) insidePoly = !insidePoly;
+    }
+    return insidePoly;
+  }
+
+  function hitTest(screenX, screenY){
+    const candidates = surfaceBlocks().map(({p,block}) => {
+      const corners = blockCorners(p.x,p.y,p.z).map(project);
+      const center = project(worldPos(p.x,p.y,p.z));
+      return {p,block,depth:center.z,hull:convexHull(corners),center};
+    }).sort((a,b)=>b.depth-a.depth);
+    const pt = {x:screenX,y:screenY};
+    for(const c of candidates){
+      if(pointInPoly(pt,c.hull)) return c.p;
+      const dx = c.center.x-screenX, dy = c.center.y-screenY;
+      if(dx*dx + dy*dy < 16*16) return c.p;
+    }
+    return null;
+  }
+
+  function pointerPos(ev){
+    const r = canvas.getBoundingClientRect();
+    return {x:ev.clientX-r.left,y:ev.clientY-r.top};
+  }
+
+  function ensureAudio(){
+    if(!audioCtx){
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if(AC) audioCtx = new AC();
+    }
+    if(audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+  }
+
+  function playMergeSound(dist, factor){
+    ensureAudio();
+    if(!audioCtx) return;
+    const now = audioCtx.currentTime;
+    const closeness = clamp(1 - dist/900, 0, 1);
+    const base = 240 + closeness * 430 + Math.max(0, 1-factor) * 160;
+    const gain = audioCtx.createGain();
+    gain.gain.setValueAtTime(0, now);
+    gain.gain.linearRampToValueAtTime(.055 + closeness*.035, now+.018);
+    gain.gain.exponentialRampToValueAtTime(.0001, now+.42);
+    gain.connect(audioCtx.destination);
+    [base, base*1.5, base*2].forEach((freq,i)=>{
+      const osc = audioCtx.createOscillator();
+      osc.type = i===0 ? 'triangle' : 'sine';
+      osc.frequency.setValueAtTime(freq, now);
+      const g = audioCtx.createGain();
+      g.gain.setValueAtTime(i===0 ? .9 : .34, now);
+      osc.connect(g); g.connect(gain);
+      osc.start(now + i*.018);
+      osc.stop(now + .45 + i*.02);
+    });
+  }
+
+  function playTapSound(){
+    ensureAudio();
+    if(!audioCtx) return;
+    const now = audioCtx.currentTime;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(560, now);
+    gain.gain.setValueAtTime(0, now);
+    gain.gain.linearRampToValueAtTime(.028, now+.01);
+    gain.gain.exponentialRampToValueAtTime(.0001, now+.12);
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    osc.start(now); osc.stop(now+.14);
+  }
+
+  function showToast(text){
+    toastEl.textContent = text;
+    toastEl.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(()=>toastEl.classList.remove('show'), 1800);
+  }
+
+  function onPointerDown(ev){
+    ensureAudio();
+    morePanel.classList.remove('open');
+    canvas.setPointerCapture(ev.pointerId);
+    const pos = pointerPos(ev);
+    const hit = hitTest(pos.x,pos.y);
+    pointers.set(ev.pointerId, {x:pos.x,y:pos.y,startX:pos.x,startY:pos.y,button:ev.button,hit});
+    if(pointers.size === 2){
+      const values = [...pointers.values()];
+      const dx = values[0].x-values[1].x;
+      const dy = values[0].y-values[1].y;
+      gesture = {
+        type:'pinch',
+        dist:Math.hypot(dx,dy),
+        cx:(values[0].x+values[1].x)/2,
+        cy:(values[0].y+values[1].y)/2,
+        zoom
+      };
+    }else{
+      gesture = {
+        type:hit ? 'cube' : 'view',
+        startX:pos.x,
+        startY:pos.y,
+        lastX:pos.x,
+        lastY:pos.y,
+        moved:false,
+        hit,
+        panMode:ev.button===1 || ev.button===2 || ev.shiftKey
+      };
+    }
+  }
+
+  function onPointerMove(ev){
+    const p = pointers.get(ev.pointerId);
+    if(!p) return;
+    const pos = pointerPos(ev);
+    p.x = pos.x; p.y = pos.y;
+    if(pointers.size === 2){
+      const values = [...pointers.values()];
+      const dx = values[0].x-values[1].x;
+      const dy = values[0].y-values[1].y;
+      const dist = Math.hypot(dx,dy);
+      const cx = (values[0].x+values[1].x)/2;
+      const cy = (values[0].y+values[1].y)/2;
+      if(gesture && gesture.type === 'pinch'){
+        const scale = dist / Math.max(20, gesture.dist);
+        zoom = clamp(gesture.zoom * scale, .52, 2.35);
+        panX += (cx - gesture.cx);
+        panY += (cy - gesture.cy);
+        gesture.cx = cx; gesture.cy = cy;
+      }
+      return;
+    }
+    if(!gesture) return;
+    const dx = pos.x - gesture.lastX;
+    const dy = pos.y - gesture.lastY;
+    const total = Math.hypot(pos.x - gesture.startX, pos.y - gesture.startY);
+    if(total > 4) gesture.moved = true;
+    if(gesture.type === 'view' && gesture.moved){
+      canvas.classList.add('dragging');
+      if(gesture.panMode){
+        panX += dx; panY += dy;
+      }else{
+        rotY += dx * .010;
+        rotX = clamp(rotX + dy * .010, -1.28, 1.28);
+      }
+    }
+    gesture.lastX = pos.x; gesture.lastY = pos.y;
+  }
+
+  function onPointerUp(ev){
+    const p = pointers.get(ev.pointerId);
+    if(!p) return;
+    const pos = pointerPos(ev);
+    const wasGesture = gesture ? {...gesture} : null;
+    pointers.delete(ev.pointerId);
+    canvas.classList.remove('dragging');
+    if(pointers.size === 1){
+      const only = [...pointers.values()][0];
+      gesture = {type:'view',startX:only.x,startY:only.y,lastX:only.x,lastY:only.y,moved:false,hit:only.hit,panMode:false};
+      return;
+    }
+    if(pointers.size === 0){
+      if(wasGesture && wasGesture.type === 'cube' && !wasGesture.moved){
+        const hit = hitTest(pos.x,pos.y) || wasGesture.hit;
+        if(hit){ playTapSound(); tryMerge(hit); }
+      }else if(wasGesture && wasGesture.type === 'view' && !wasGesture.moved){
+        const hit = hitTest(pos.x,pos.y);
+        if(hit){ playTapSound(); tryMerge(hit); }
+        else if(selected){ selected = null; updateHud(); showToast('已取消選取'); }
+      }
+      gesture = null;
+    }
+  }
+
+  function onWheel(ev){
+    ev.preventDefault();
+    const delta = Math.sign(ev.deltaY);
+    zoom = clamp(zoom * (delta > 0 ? .92 : 1.09), .52, 2.35);
+  }
+
+  canvas.addEventListener('pointerdown', onPointerDown);
+  canvas.addEventListener('pointermove', onPointerMove);
+  canvas.addEventListener('pointerup', onPointerUp);
+  canvas.addEventListener('pointercancel', onPointerUp);
+  canvas.addEventListener('wheel', onWheel, {passive:false});
+  canvas.addEventListener('contextmenu', ev => ev.preventDefault());
+  window.addEventListener('resize', resize);
+
+  moreBtn.addEventListener('click', (ev)=>{
+    ev.stopPropagation();
+    morePanel.classList.toggle('open');
+  });
+  helpBtn.addEventListener('click', ()=>{
+    morePanel.classList.remove('open');
+    helpModal.classList.add('open');
+  });
+  newBtn.addEventListener('click', ()=>{
+    morePanel.classList.remove('open');
+    gameOverModal.classList.remove('open');
+    newGame();
+  });
+  clearBtn.addEventListener('click', clearRecord);
+  startBtn.addEventListener('click', ()=>{
+    localStorage.setItem(INTRO_KEY, '1');
+    introModal.classList.remove('open');
+  });
+  closeHelpBtn.addEventListener('click', ()=>helpModal.classList.remove('open'));
+  helpModal.addEventListener('click', ev=>{ if(ev.target===helpModal) helpModal.classList.remove('open'); });
+  introModal.addEventListener('click', ev=>{ if(ev.target===introModal){ localStorage.setItem(INTRO_KEY,'1'); introModal.classList.remove('open'); } });
+  closeGameOverBtn.addEventListener('click', ()=>gameOverModal.classList.remove('open'));
+  againBtn.addEventListener('click', ()=>{ gameOverModal.classList.remove('open'); newGame(); });
+  gameOverModal.addEventListener('click', ev=>{ if(ev.target===gameOverModal) gameOverModal.classList.remove('open'); });
+  window.addEventListener('keydown', ev=>{
+    if(ev.key === 'Escape'){
+      selected = null;
+      morePanel.classList.remove('open');
+      introModal.classList.remove('open');
+      helpModal.classList.remove('open');
+      gameOverModal.classList.remove('open');
+      updateHud();
+    }
+    if(ev.key.toLowerCase() === 'r') newGame();
+  });
+
+  resize();
+  newGame();
+  updateHud();
+  if(localStorage.getItem(INTRO_KEY) !== '1') introModal.classList.add('open');
+  requestAnimationFrame(render);
+})();
+</script>
+</body>
+</html>
