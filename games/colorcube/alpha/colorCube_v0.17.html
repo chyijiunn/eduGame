@@ -143,14 +143,14 @@
 (() => {
   'use strict';
 
-  const VERSION = '0.18';
+  const VERSION = '0.17';
   const N = 4;
   const SPACING = 1.08;
   const CUBE_SIZE = 0.86;
-  const BEST_KEY = 'colorCube.v0.18.bestScore';
-  const INTRO_KEY = 'colorCube.v0.18.introSeen';
-  const MUSIC_KEY = 'colorCube.v0.18.musicOn';
-  const SOUND_KEY = 'colorCube.v0.18.soundOn';
+  const BEST_KEY = 'colorCube.v0.17.bestScore';
+  const INTRO_KEY = 'colorCube.v0.17.introSeen';
+  const MUSIC_KEY = 'colorCube.v0.17.musicOn';
+  const SOUND_KEY = 'colorCube.v0.17.soundOn';
 
   const canvas = document.getElementById('game');
   const ctx = canvas.getContext('2d');
@@ -848,96 +848,119 @@
     }
   }
 
-  function colorToneProfile(block){
-    if(!block) return {freq:82.41, brightness:.45, warmth:.5, saturation:.35};
-    const r = (block.r ?? 0) / 1023;
-    const g = (block.g ?? 0) / 1023;
-    const b = (block.b ?? 0) / 1023;
-    const max = Math.max(r,g,b), min = Math.min(r,g,b);
-    const brightness = (r + g + b) / 3;
-    const saturation = max - min;
-    const mountainScale = [73.42, 87.31, 98.00, 110.00, 130.81, 146.83];
-    const hueBias = r * 0.10 + g * 0.48 + b * 0.72 + saturation * 0.35 + brightness * 0.22;
-    let idx = Math.floor((hueBias % 1) * mountainScale.length);
-    idx = Math.max(0, Math.min(mountainScale.length - 1, idx));
-    let freq = mountainScale[idx];
-    if(brightness < .25 && idx > 0) freq *= .5;
-    const warmth = clamp(r * .55 + g * .25 - b * .18 + .35, 0, 1);
-    return {freq, brightness, warmth, saturation};
+  function colorBaseFreq(block){
+    if(!block) return 48;
+    // 10-bit RGB → 低頻音階。先映射，再吸附到偏山鳴的低音階，避免亂頻率造成刺耳。
+    const r = block.r ?? 0, g = block.g ?? 0, b = block.b ?? 0;
+    const weighted = (r * 0.34 + g * 0.38 + b * 0.28) / 1023;
+    const raw = 36 + weighted * 78;
+    const scale = [36,40,45,48,54,60,64,72,80,90,96,108,120,128];
+    let best = scale[0], bestD = Infinity;
+    for(const f of scale){
+      const d = Math.abs(raw - f);
+      if(d < bestD){ bestD = d; best = f; }
+    }
+    return best;
   }
-
-  function colorBaseFreq(block){ return colorToneProfile(block).freq; }
 
   function ensureHum(){
     if(!audioCtx || hum) return;
     const now = audioCtx.currentTime;
+
+    // v0.17：背景音樂由目前棋盤上仍存在的方塊輪流生成。
+    // 方塊多時聲部較多、脈動較密；方塊少時聲部變少、間隔變長，最後逐漸單一。
     const master = audioCtx.createGain();
     const compressor = audioCtx.createDynamicsCompressor();
     const lowShelf = audioCtx.createBiquadFilter();
     const toneFilter = audioCtx.createBiquadFilter();
     const windFilter = audioCtx.createBiquadFilter();
     const windGain = audioCtx.createGain();
-    const pulseGain = audioCtx.createGain();
-    compressor.threshold.setValueAtTime(-30, now);
+
+    compressor.threshold.setValueAtTime(-26, now);
     compressor.knee.setValueAtTime(18, now);
-    compressor.ratio.setValueAtTime(2.7, now);
+    compressor.ratio.setValueAtTime(3.2, now);
     compressor.attack.setValueAtTime(.08, now);
-    compressor.release.setValueAtTime(.65, now);
+    compressor.release.setValueAtTime(.42, now);
+
     lowShelf.type = 'lowshelf';
-    lowShelf.frequency.setValueAtTime(160, now);
-    lowShelf.gain.setValueAtTime(5.5, now);
+    lowShelf.frequency.setValueAtTime(135, now);
+    lowShelf.gain.setValueAtTime(10, now);
+
     toneFilter.type = 'lowpass';
-    toneFilter.frequency.setValueAtTime(520, now);
-    toneFilter.Q.setValueAtTime(.55, now);
+    toneFilter.frequency.setValueAtTime(720, now);
+    toneFilter.Q.setValueAtTime(.9, now);
+
     master.gain.setValueAtTime(0, now);
-    master.gain.linearRampToValueAtTime(musicOn ? .16 : 0, now + .9);
-    pulseGain.gain.setValueAtTime(.0001, now);
-    pulseGain.connect(toneFilter);
+    master.gain.linearRampToValueAtTime(musicOn ? .20 : 0, now + .85);
+
     toneFilter.connect(lowShelf);
     lowShelf.connect(compressor);
     compressor.connect(master);
     master.connect(audioCtx.destination);
-    const voiceDefaults = [82.41, 110.00, 130.81];
-    const voices = [0,1,2].map(i => {
+
+    const voiceGainValues = [.74, .62, .52, .44];
+    const voices = [0,1,2,3].map(i => {
       const voiceGain = audioCtx.createGain();
-      voiceGain.gain.setValueAtTime(i === 0 ? .78 : .22, now);
-      voiceGain.connect(pulseGain);
+      voiceGain.gain.setValueAtTime(voiceGainValues[i], now);
+      voiceGain.connect(toneFilter);
+
       const main = audioCtx.createOscillator();
-      main.type = i === 0 ? 'triangle' : 'sine';
-      main.frequency.setValueAtTime(voiceDefaults[i], now);
+      main.type = 'sine';
+      main.frequency.setValueAtTime(44 + i*7, now);
       const mainGain = audioCtx.createGain();
-      mainGain.gain.setValueAtTime(i === 0 ? .76 : .24, now);
+      mainGain.gain.setValueAtTime(.95, now);
       main.connect(mainGain); mainGain.connect(voiceGain); main.start();
+
       const warm = audioCtx.createOscillator();
-      warm.type = 'sine';
-      warm.frequency.setValueAtTime(voiceDefaults[i] * 2, now);
+      warm.type = 'triangle';
+      warm.frequency.setValueAtTime((44 + i*7) * 2, now);
       const warmGain = audioCtx.createGain();
-      warmGain.gain.setValueAtTime(i === 0 ? .17 : .09, now);
+      warmGain.gain.setValueAtTime(.34, now);
       warm.connect(warmGain); warmGain.connect(voiceGain); warm.start();
+
       const air = audioCtx.createOscillator();
       air.type = 'sine';
-      air.frequency.setValueAtTime(voiceDefaults[i] * 3, now);
+      air.frequency.setValueAtTime((44 + i*7) * 3, now);
       const airGain = audioCtx.createGain();
-      airGain.gain.setValueAtTime(i === 0 ? .055 : .025, now);
+      airGain.gain.setValueAtTime(.16, now);
       air.connect(airGain); airGain.connect(voiceGain); air.start();
+
       return {voiceGain, main, warm, air, mainGain, warmGain, airGain};
     });
+
+    // 山谷風噪：不是節奏，是很淡的空氣層，讓低鳴更像背景音樂。
     const noiseBuffer = audioCtx.createBuffer(1, audioCtx.sampleRate * 2, audioCtx.sampleRate);
     const data = noiseBuffer.getChannelData(0);
     let last = 0;
     for(let i=0;i<data.length;i++){
-      last = last * .992 + (Math.random()*2-1) * .008;
+      last = last * .985 + (Math.random()*2-1) * .015;
       data[i] = last;
     }
     const noise = audioCtx.createBufferSource();
     noise.buffer = noiseBuffer;
     noise.loop = true;
     windFilter.type = 'bandpass';
-    windFilter.frequency.setValueAtTime(210, now);
-    windFilter.Q.setValueAtTime(.38, now);
-    windGain.gain.setValueAtTime(.022, now);
+    windFilter.frequency.setValueAtTime(92, now);
+    windFilter.Q.setValueAtTime(.55, now);
+    windGain.gain.setValueAtTime(.055, now);
     noise.connect(windFilter); windFilter.connect(windGain); windGain.connect(compressor); noise.start();
-    hum = {master, compressor, lowShelf, toneFilter, windFilter, windGain, pulseGain, voices, noise, chord:null, dissonance:0, pulseUntil:0};
+
+    // 慢速呼吸：主音量與風噪都會緩慢起伏。
+    const lfo = audioCtx.createOscillator();
+    const lfoGain = audioCtx.createGain();
+    lfo.type = 'sine';
+    lfo.frequency.setValueAtTime(0.045, now);
+    lfoGain.gain.setValueAtTime(.024, now);
+    lfo.connect(lfoGain); lfoGain.connect(master.gain); lfo.start();
+
+    const windLfo = audioCtx.createOscillator();
+    const windLfoGain = audioCtx.createGain();
+    windLfo.type = 'sine';
+    windLfo.frequency.setValueAtTime(0.031, now);
+    windLfoGain.gain.setValueAtTime(.015, now);
+    windLfo.connect(windLfoGain); windLfoGain.connect(windGain.gain); windLfo.start();
+
+    hum = {master, compressor, lowShelf, toneFilter, voices, noise, windFilter, windGain, lfo, lfoGain, windLfo, windLfoGain, chord:null, dissonance:0};
     startAmbientSequence(true);
   }
 
@@ -945,7 +968,29 @@
     if(!audioCtx || !hum) return;
     const now = audioCtx.currentTime;
     hum.master.gain.cancelScheduledValues(now);
-    hum.master.gain.setTargetAtTime(on ? .16 : 0, now, .55);
+    hum.master.gain.setTargetAtTime(on ? .20 : 0, now, .55);
+  }
+
+  function setAmbientChord(a,b,c, glide=.75){
+    if(!musicOn) return;
+    ensureAudio();
+    if(!audioCtx || !hum) return;
+    const fa = colorBaseFreq(a);
+    const fb = colorBaseFreq(b ?? a);
+    const fc = colorBaseFreq(c ?? b ?? a);
+    const dAB = colorDistance(a ?? b ?? c, b ?? a ?? c);
+    const dBC = colorDistance(b ?? a ?? c, c ?? b ?? a);
+    const dAC = colorDistance(a ?? b ?? c, c ?? b ?? a);
+    const avgD = (dAB + dBC + dAC) / 3;
+    const closeness = clamp(1 - avgD / 900, 0, 1);
+    const dissonance = 1 - closeness;
+    const freqs = [
+      fa,
+      fb * (closeness > .68 ? 1.5 : 1.18 + dissonance * .18),
+      fc * (closeness > .68 ? .75 : .63 + dissonance * .11),
+      fa * .5
+    ];
+    applyAmbientFrequencies(freqs, 3, closeness, dissonance, glide, 1.0);
   }
 
   function allLivingBlocks(){
@@ -961,13 +1006,13 @@
   function weightedPick(items){
     let total = 0;
     for(const it of items){
-      const surfaceBonus = isOuterShellPos(it.p) ? 1.18 : 1.0;
-      total += Math.pow(Math.max(1, it.block.weight), .42) * surfaceBonus;
+      const surfaceBonus = isOuterShellPos(it.p) ? 1.35 : 1.0;
+      total += Math.sqrt(Math.max(1, it.block.weight)) * surfaceBonus;
     }
     let r = Math.random() * Math.max(.0001, total);
     for(const it of items){
-      const surfaceBonus = isOuterShellPos(it.p) ? 1.18 : 1.0;
-      r -= Math.pow(Math.max(1, it.block.weight), .42) * surfaceBonus;
+      const surfaceBonus = isOuterShellPos(it.p) ? 1.35 : 1.0;
+      r -= Math.sqrt(Math.max(1, it.block.weight)) * surfaceBonus;
       if(r <= 0) return it;
     }
     return items[items.length - 1];
@@ -976,11 +1021,14 @@
   function chooseAmbientBlocks(items, voiceCount){
     if(!items.length) return [];
     const main = weightedPick(items);
-    const sorted = items.filter(it => it.block !== main.block).map(it => ({...it, d:colorDistance(main.block, it.block)})).sort((a,b)=>a.d-b.d);
+    const sorted = items
+      .filter(it => it.block !== main.block)
+      .map(it => ({...it, d:colorDistance(main.block, it.block)}))
+      .sort((a,b)=>a.d-b.d);
     const chosen = [main];
     while(chosen.length < voiceCount && sorted.length){
-      const nearPool = sorted.slice(0, Math.min(sorted.length, 6));
-      const pick = nearPool[Math.floor(Math.random()*nearPool.length)];
+      const nearPool = sorted.slice(0, Math.min(sorted.length, 8));
+      const pick = Math.random() < .78 ? nearPool[Math.floor(Math.random()*nearPool.length)] : sorted[Math.floor(Math.random()*sorted.length)];
       const idxPick = sorted.indexOf(pick);
       if(idxPick >= 0) sorted.splice(idxPick, 1);
       chosen.push(pick);
@@ -989,45 +1037,40 @@
   }
 
   function ambientProfile(count){
-    if(count >= 42) return {voices:2, interval:2300, density:1.0, sustain:.96};
-    if(count >= 24) return {voices:2, interval:3100, density:.82, sustain:.86};
-    if(count >= 9) return {voices:1, interval:4200, density:.64, sustain:.72};
-    return {voices:1, interval:6100, density:.48, sustain:.58};
+    if(count >= 42) return {voices:4, interval:1750, density:1.0};
+    if(count >= 24) return {voices:3, interval:2450, density:.86};
+    if(count >= 9) return {voices:2, interval:3550, density:.70};
+    return {voices:1, interval:5200, density:.56};
   }
 
-  function applyAmbientFrequencies(freqs, activeVoices, closeness, dissonance, glide=1.2, density=.75, sustain=.75){
+  function applyAmbientFrequencies(freqs, activeVoices, closeness, dissonance, glide=1.2, density=1){
     if(!audioCtx || !hum) return;
     const now = audioCtx.currentTime;
     hum.chord = freqs;
     hum.dissonance = dissonance;
     hum.toneFilter.frequency.cancelScheduledValues(now);
-    hum.toneFilter.frequency.setTargetAtTime(360 + closeness * 170 + density * 80, now, 1.2);
+    hum.toneFilter.frequency.setTargetAtTime(430 + closeness * 220 + density * 70, now, 1.2);
     hum.windFilter.frequency.cancelScheduledValues(now);
-    hum.windFilter.frequency.setTargetAtTime(165 + dissonance * 80, now, 1.5);
+    hum.windFilter.frequency.setTargetAtTime(62 + dissonance * 92 + (1-density)*25, now, 1.0);
     hum.windGain.gain.cancelScheduledValues(now);
-    hum.windGain.gain.setTargetAtTime((.014 + dissonance * .018) * (.85 + density*.35), now, 1.2);
-    hum.pulseGain.gain.cancelScheduledValues(now);
-    hum.pulseGain.gain.setValueAtTime(.0001, now);
-    hum.pulseGain.gain.linearRampToValueAtTime(.17 * density, now + .55);
-    hum.pulseGain.gain.setTargetAtTime(.145 * density, now + .65, .9);
-    hum.pulseGain.gain.setTargetAtTime(.0001, now + 1.35 + sustain, 1.25);
-    hum.pulseUntil = now + 2.7 + sustain;
+    hum.windGain.gain.setTargetAtTime((.044 + dissonance * .035) * (.82 + density*.25), now, 1.0);
+
     hum.voices.forEach((v,i)=>{
-      const f = freqs[i] || freqs[0] || 82.41;
+      const f = freqs[i] || freqs[0] || 48;
       const active = i < activeVoices;
-      const voiceBase = i === 0 ? .90 : (i === 1 ? .25 : .12);
+      const voiceBase = [.72,.58,.46,.34][i] ?? .28;
       v.main.frequency.cancelScheduledValues(now);
       v.warm.frequency.cancelScheduledValues(now);
       v.air.frequency.cancelScheduledValues(now);
       v.main.frequency.setTargetAtTime(f, now, glide);
-      v.warm.frequency.setTargetAtTime(f * 2.001, now, glide * 1.05);
-      v.air.frequency.setTargetAtTime(f * 3.002, now, glide * 1.15);
+      v.warm.frequency.setTargetAtTime(f * (2.002 + dissonance*.006), now, glide * 1.05);
+      v.air.frequency.setTargetAtTime(f * (3.008 + dissonance*.03), now, glide * 1.1);
       v.voiceGain.gain.cancelScheduledValues(now);
-      v.voiceGain.gain.setTargetAtTime(active ? voiceBase * (.86 + density*.18) : 0.0001, now, active ? .7 : 1.0);
+      v.voiceGain.gain.setTargetAtTime(active ? voiceBase * (.74 + density*.32 + closeness*.10) : 0.0001, now, active ? .75 : 1.2);
       v.warmGain.gain.cancelScheduledValues(now);
-      v.warmGain.gain.setTargetAtTime(active ? (.10 + closeness*.07 + density*.035) : .0001, now, .9);
+      v.warmGain.gain.setTargetAtTime(active ? .25 + density*.10 : .0001, now, .9);
       v.airGain.gain.cancelScheduledValues(now);
-      v.airGain.gain.setTargetAtTime(active ? (.018 + dissonance*.026) : .0001, now, .9);
+      v.airGain.gain.setTargetAtTime(active ? .08 + closeness*.08 : .0001, now, .9);
     });
   }
 
@@ -1039,36 +1082,20 @@
     if(!items.length) return;
     const profile = ambientProfile(items.length);
     const chosen = chooseAmbientBlocks(items, profile.voices);
-    const pairs = [];
-    for(let i=0;i<chosen.length;i++) for(let j=i+1;j<chosen.length;j++) pairs.push(colorDistance(chosen[i], chosen[j]));
-    const avgD = pairs.length ? pairs.reduce((a,b)=>a+b,0)/pairs.length : 0;
-    const closeness = clamp(1 - avgD / 850, .35, 1);
+    const closenessPairs = [];
+    for(let i=0;i<chosen.length;i++) for(let j=i+1;j<chosen.length;j++) closenessPairs.push(colorDistance(chosen[i], chosen[j]));
+    const avgD = closenessPairs.length ? closenessPairs.reduce((a,b)=>a+b,0)/closenessPairs.length : 0;
+    const closeness = clamp(1 - avgD / 900, 0, 1);
     const dissonance = 1 - closeness;
     const freqs = chosen.map((b,i)=>{
-      const prof = colorToneProfile(b);
-      const weightDepth = clamp(Math.log2(Math.max(1,b.weight)) / 4, 0, 1);
-      if(i === 0) return weightDepth > .7 ? prof.freq * .5 : prof.freq;
-      return prof.freq * (closeness > .62 ? 1.5 : 1.25);
+      const f = colorBaseFreq(b);
+      const weightDepth = clamp(Math.log2(Math.max(1,b.weight)) / 5, 0, 1);
+      if(i === 0) return f * (weightDepth > .55 ? .5 : 1);
+      if(i === 1) return f * (closeness > .64 ? 1.5 : 1.18 + dissonance*.16);
+      if(i === 2) return f * (closeness > .64 ? .75 : .66 + dissonance*.10);
+      return f * .5;
     });
-    if(profile.voices >= 2 && freqs.length < 3) freqs.push(freqs[0] * 2);
-    applyAmbientFrequencies(freqs, profile.voices, closeness, dissonance, immediate ? .35 : 1.0, profile.density, profile.sustain);
-  }
-
-  function setAmbientChord(a,b,c, glide=.55){
-    if(!musicOn) return;
-    ensureAudio();
-    if(!audioCtx || !hum) return;
-    const dAB = colorDistance(a ?? b ?? c, b ?? a ?? c);
-    const dBC = colorDistance(b ?? a ?? c, c ?? b ?? a);
-    const dAC = colorDistance(a ?? b ?? c, c ?? b ?? a);
-    const avgD = (dAB + dBC + dAC) / 3;
-    const closeness = clamp(1 - avgD / 900, .25, 1);
-    const dissonance = 1 - closeness;
-    const fa = colorBaseFreq(a);
-    const fb = colorBaseFreq(b ?? a);
-    const fc = colorBaseFreq(c ?? b ?? a);
-    const freqs = [fa, fb * 1.5, fc * .75];
-    applyAmbientFrequencies(freqs, 3, closeness, dissonance, glide, .95, .38);
+    applyAmbientFrequencies(freqs, profile.voices, closeness, dissonance, immediate ? .45 : 1.45, profile.density);
   }
 
   function startAmbientSequence(immediate=false){
@@ -1079,13 +1106,13 @@
       setAmbientFromBoard(false);
       const count = allLivingBlocks().length;
       const profile = ambientProfile(count);
-      const jitter = .86 + Math.random()*.30;
+      const jitter = .82 + Math.random()*.36;
       ambientTimer = setTimeout(tick, profile.interval * jitter);
     };
     if(immediate) setAmbientFromBoard(true);
     const count = Math.max(1, allLivingBlocks().length);
     const profile = ambientProfile(count);
-    ambientTimer = setTimeout(tick, immediate ? 900 : profile.interval);
+    ambientTimer = setTimeout(tick, immediate ? 450 : profile.interval);
   }
 
   function setAmbientFromSurface(){
