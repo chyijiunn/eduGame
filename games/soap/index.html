@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<script src="/eduGame/ga4.js"></script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>soap v0.10</title>
+<style>
+:root{
+  --bg:#0b0f14;--card:#121922;--card2:#172232;--ink:#eef4fb;--muted:#91a0b2;--line:#2b3948;
+  --accent:#3ddc84;--danger:#ff5c6c;--gold:#f6c85f;--shadow:0 18px 45px rgba(0,0,0,.38);
+}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%;font-family:-apple-system,BlinkMacSystemFont,"Noto Sans TC","Segoe UI",sans-serif;background:radial-gradient(circle at 15% 0%,#17243a 0,#0b0f14 38%,#07090d 100%);color:var(--ink)}
+button,input,select{font:inherit}
+.app{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:18px;max-width:1180px;margin:0 auto;padding:22px 18px 28px}
+.panel{background:rgba(18,25,34,.9);border:1px solid rgba(73,91,111,.68);box-shadow:var(--shadow);border-radius:24px;backdrop-filter:blur(14px)}
+.main{padding:18px}
+.rows{display:flex;flex-direction:column;gap:12px}
+.oil-row{display:grid;grid-template-columns:auto 96px minmax(210px,1fr) 38px;gap:10px;align-items:center;padding:12px;border:1px solid var(--line);border-radius:18px;background:rgba(23,34,50,.9)}
+select,input{border:1px solid #344557;border-radius:14px;background:#0e151e;color:var(--ink);padding:11px 12px;outline:none}
+select{width:7.5em;max-width:7.5em}
+input{width:100%}
+input:focus,select:focus{border-color:var(--gold);box-shadow:0 0 0 4px rgba(246,200,95,.14)}
+.meta{font-size:13px;color:var(--muted);line-height:1.55;white-space:nowrap;overflow:auto}
+.meta b{color:#fff}
+.round{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;background:transparent;border:2px solid currentColor;font-size:22px;font-weight:800;line-height:1;cursor:pointer}
+.add{color:var(--accent);margin:14px auto 4px}
+.remove{color:var(--danger)}
+.videoBox{margin-top:18px;border:1px solid #314052;border-radius:22px;overflow:hidden;background:#05070a;position:relative;aspect-ratio:16/9}
+.videoBox iframe{width:100%;height:100%;border:0;display:block;background:#05070a}
+.videoHint{display:none}
+.side{position:sticky;top:18px;height:max-content;padding:16px;display:flex;flex-direction:column;gap:12px}
+.kpi{display:grid;grid-template-columns:1fr;gap:10px}
+.k{padding:14px;border:1px solid var(--line);border-radius:18px;background:linear-gradient(180deg,#172232,#111923)}
+.k .label{color:var(--muted);font-size:13px;margin-bottom:4px}
+.k .value{font-size:28px;font-weight:800;letter-spacing:-.02em}
+.k .sub{font-size:12px;color:var(--muted);margin-top:3px}
+.moreBtn{border:1px solid var(--line);border-radius:999px;background:#172232;color:var(--ink);padding:12px 14px;cursor:pointer;font-weight:700}
+.drawer{display:none;border:1px solid var(--line);background:#111923;border-radius:18px;padding:13px;gap:12px;flex-direction:column}
+.drawer.open{display:flex}
+.drawer label{display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--muted)}
+.toggleLine{flex-direction:row!important;align-items:center;justify-content:space-between}
+.toggleLine input{width:auto;transform:scale(1.15)}
+.badge{display:inline-flex;align-items:center;border-radius:999px;border:1px solid #36485c;padding:2px 8px;margin-right:6px;color:#dbe8f7;background:#101822;font-size:12px}
+.warn{font-size:12px;color:#f1cf81;line-height:1.45;background:rgba(246,200,95,.08);border:1px solid rgba(246,200,95,.28);border-radius:14px;padding:10px}
+@media (max-width:760px) and (orientation:portrait){
+  .app{display:block;padding:12px 10px 186px}
+  .main{padding:12px;border-radius:20px}
+  .oil-row{grid-template-columns:auto 86px 36px;gap:8px}
+  .oil-row .meta{grid-column:1/-1;order:3;white-space:normal}
+  .oil-row .remove{grid-column:3;grid-row:1}
+  .side{position:fixed;left:8px;right:8px;bottom:8px;top:auto;z-index:20;border-radius:22px;padding:10px;gap:8px;max-height:45vh;overflow:auto}
+  .kpi{grid-template-columns:repeat(3,1fr);gap:7px}
+  .k{padding:9px;border-radius:15px}
+  .k .label{font-size:11px}
+  .k .value{font-size:18px}
+  .k .sub{display:none}
+  .moreBtn{padding:10px}
+  .drawer{font-size:13px}
+}
+@media (max-width:520px){
+  .oil-row{grid-template-columns:auto 82px 34px}
+  select,input{padding:10px 9px}
+  select{width:7em;max-width:7em}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <main class="main panel">
+    <div id="rows" class="rows"></div>
+    <button id="addRow" class="round add" aria-label="增加油品">+</button>
+    <section class="videoBox">
+      <iframe id="ytFrame" src="" title="YouTube 教學影片" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
+      <div class="videoHint" id="videoHint">更多…裡可貼上 YouTube 連結，這裡會自動嵌入教學影片。</div>
+    </section>
+  </main>
+  <aside class="side panel">
+    <div class="kpi">
+      <div class="k infoBlock"><div class="label">總 INS</div><div class="value" id="totalIns">0</div><div class="sub">加權平均，160 左右常作為參考</div></div>
+      <div class="k"><div class="label">NaOH</div><div class="value" id="naoh">0 g</div><div class="sub" id="sfSub">已套用超脂 0%</div></div>
+      <div class="k"><div class="label">水量</div><div class="value" id="water">0 g</div><div class="sub" id="waterSub">油總重 × 0.389</div></div>
+    </div>
+    <button id="moreBtn" class="moreBtn">更多…</button>
+    <div id="drawer" class="drawer">
+      <label>水量計算方式
+        <select id="waterMode">
+          <option value="oil">油的總重量 × 0.389</option>
+          <option value="naoh26">NaOH × 2.6</option>
+          <option value="lye30">NaOH / 0.3 - NaOH</option>
+        </select>
+      </label>
+      <label>超脂比例（%）
+        <input id="sfPct" type="number" inputmode="decimal" min="0" max="30" step="0.5" value="0">
+      </label>
+      <label>YouTube 影片網址
+        <input id="ytUrl" type="url" value="https://youtu.be/trVxzR-FGzY?si=JdUFQkaOFnnPGRnh" placeholder="貼上 YouTube 連結或 embed 連結">
+      </label>
+      <label class="toggleLine">顯示 INS、皂化價等資訊
+        <input id="showInfo" type="checkbox" checked>
+      </label>
+      <div class="warn">此頁依你上傳的皂化價資料計算；實際製皂請依油品批次、純度與安全操作再校正。</div>
+    </div>
+  </aside>
+</div>
+<script>
+const OILS = [{"name": "椰子油", "sap": 0.19, "ins": 258.0, "recommended": "＜20", "superfat": false, "note": ""}, {"name": "橄欖油", "sap": 0.134, "ins": 109.0, "recommended": "", "superfat": false, "note": ""}, {"name": "棕櫚油", "sap": 0.141, "ins": 145.0, "recommended": "20~30", "superfat": false, "note": ""}, {"name": "大豆油", "sap": 0.135, "ins": 61.0, "recommended": "＜20", "superfat": false, "note": ""}, {"name": "葵花油", "sap": 0.134, "ins": 63.0, "recommended": "＜20", "superfat": false, "note": ""}, {"name": "蓖麻油", "sap": 0.1286, "ins": 95.0, "recommended": "5～10", "superfat": true, "note": "Superfatting"}, {"name": "芥花油", "sap": 0.1241, "ins": 56.0, "recommended": "30.0", "superfat": false, "note": ""}, {"name": "白油", "sap": 0.135, "ins": 115.0, "recommended": "＜20", "superfat": false, "note": ""}, {"name": "玉米油", "sap": 0.136, "ins": 69.0, "recommended": "20~30", "superfat": false, "note": ""}, {"name": "花生油", "sap": 0.136, "ins": 99.0, "recommended": "20.0", "superfat": false, "note": ""}, {"name": "葡萄籽油", "sap": 0.1265, "ins": 66.0, "recommended": "15.0", "superfat": false, "note": ""}, {"name": "芝麻油", "sap": 0.133, "ins": 81.0, "recommended": "10.0", "superfat": false, "note": ""}, {"name": "米糠油", "sap": 0.128, "ins": 70.0, "recommended": "", "superfat": false, "note": ""}, {"name": "甜杏仁油", "sap": 0.136, "ins": 97.0, "recommended": "5～20", "superfat": false, "note": ""}, {"name": "杏核油", "sap": 0.135, "ins": 91.0, "recommended": "＜15", "superfat": true, "note": "Superfatting"}, {"name": "蜜蠟", "sap": 0.069, "ins": 84.0, "recommended": "3.0", "superfat": false, "note": ""}, {"name": "乳油木果脂", "sap": 0.128, "ins": 116.0, "recommended": "5～15", "superfat": false, "note": ""}, {"name": "酪梨油", "sap": 0.133, "ins": 99.0, "recommended": "10～30", "superfat": false, "note": ""}, {"name": "可可脂", "sap": 0.137, "ins": 157.0, "recommended": "15.0", "superfat": false, "note": ""}, {"name": "榛果油", "sap": 0.1356, "ins": 84.0, "recommended": "＜15", "superfat": true, "note": "可100%"}, {"name": "月見草油", "sap": 0.1357, "ins": 30.0, "recommended": "6～8", "superfat": false, "note": ""}, {"name": "大麻籽油", "sap": 0.1345, "ins": 39.0, "recommended": "", "superfat": true, "note": "Superfatting"}, {"name": "荷荷芭油", "sap": 0.069, "ins": 11.0, "recommended": "6.0", "superfat": true, "note": "Superfatting"}, {"name": "澳洲胡桃油", "sap": 0.139, "ins": 119.0, "recommended": "6.0", "superfat": true, "note": "Superfatting"}, {"name": "芒果脂", "sap": 0.1371, "ins": 146.0, "recommended": "", "superfat": false, "note": ""}, {"name": "棕櫚核油", "sap": 0.156, "ins": 227.0, "recommended": "20~30", "superfat": false, "note": ""}, {"name": "小麥胚芽油", "sap": 0.131, "ins": 58.0, "recommended": "5.0", "superfat": false, "note": ""}, {"name": "玫瑰果油", "sap": 0.1378, "ins": 16.0, "recommended": "5.0", "superfat": true, "note": "Superfatting"}, {"name": "豬脂", "sap": 0.138, "ins": 139.0, "recommended": "", "superfat": false, "note": ""}, {"name": "牛油", "sap": 0.141, "ins": 147.0, "recommended": "", "superfat": false, "note": ""}, {"name": "苦茶油", "sap": 0.136, "ins": 108.0, "recommended": "", "superfat": false, "note": ""}];
+const rowsEl = document.getElementById('rows');
+const fmt = n => Number.isFinite(n) ? (Math.round(n*100)/100).toLocaleString('zh-Hant') : '0';
+let rows = [{oil: '椰子油', weight: '50'}, {oil: '棕櫚油', weight: '50'}, {oil: '橄欖油', weight: '60'}];
+
+function oilByName(name){ return OILS.find(o=>o.name===name) || OILS[0]; }
+function makeOptions(selected){
+  return OILS.map(o=>`<option value="${o.name}" ${o.name===selected?'selected':''}>${o.name}</option>`).join('');
+}
+function renderRows(){
+  rowsEl.innerHTML = '';
+  const showInfo = document.getElementById('showInfo')?.checked ?? true;
+  rows.forEach((r,i)=>{
+    const oil = oilByName(r.oil);
+    const div = document.createElement('div');
+    div.className='oil-row';
+    div.innerHTML = `
+      <select data-i="${i}" class="oilSelect">${makeOptions(r.oil)}</select>
+      <input data-i="${i}" class="weightInput" type="number" min="0" step="1" inputmode="decimal" placeholder="重量 g" value="${r.weight}">
+      <div class="meta infoBlock" style="${showInfo?'':'display:none'}">
+        <span class="badge">INS ${fmt(oil.ins)}</span>
+        <span class="badge">皂化價 ${oil.sap}</span>
+        <span class="badge">比例：<b class="ratioNow">0%</b></span>
+      </div>
+      <button class="round remove" data-i="${i}" aria-label="刪除油品">−</button>
+    `;
+    rowsEl.appendChild(div);
+  });
+  bindRows();
+  calc();
+}
+function bindRows(){
+  document.querySelectorAll('.oilSelect').forEach(el=>el.onchange=e=>{rows[+e.target.dataset.i].oil=e.target.value;renderRows();});
+  document.querySelectorAll('.weightInput').forEach(el=>el.oninput=e=>{rows[+e.target.dataset.i].weight=e.target.value;calc();});
+  document.querySelectorAll('.remove').forEach(el=>el.onclick=e=>{ if(rows.length>1){rows.splice(+e.currentTarget.dataset.i,1);renderRows();} });
+}
+function calc(){
+  const sf = Math.max(0, Math.min(30, parseFloat(document.getElementById('sfPct').value)||0));
+  let totalW=0, insSum=0, naohRaw=0;
+  rows.forEach(r=>{
+    const w=parseFloat(r.weight)||0, o=oilByName(r.oil);
+    totalW += w;
+    insSum += w * o.ins;
+    naohRaw += w * o.sap;
+  });
+  const naoh = naohRaw * (1 - sf/100);
+  const ins = totalW ? insSum/totalW : 0;
+  const mode = document.getElementById('waterMode').value;
+  let water = totalW * .389, modeText='油總重 × 0.389';
+  if(mode==='naoh26'){ water=naoh*2.6; modeText='NaOH × 2.6'; }
+  if(mode==='lye30'){ water=naoh/0.3-naoh; modeText='NaOH / 0.3 - NaOH'; }
+  document.getElementById('totalIns').textContent = fmt(ins);
+  document.getElementById('naoh').textContent = fmt(naoh) + ' g';
+  document.getElementById('water').textContent = fmt(water) + ' g';
+  document.getElementById('waterSub').textContent = modeText;
+  document.getElementById('sfSub').textContent = `已套用超脂 ${fmt(sf)}%`;
+  document.querySelectorAll('.oil-row').forEach((div,i)=>{
+    const r=rows[i], w=parseFloat(r.weight)||0, o=oilByName(r.oil);
+    const ratio = totalW ? w/totalW*100 : 0;
+    div.querySelector('.ratioNow').textContent = Math.round(ratio)+'%';
+  });
+}
+function ytEmbed(url){
+  url=(url||'').trim();
+  if(!url) return '';
+  let id='';
+  try{
+    const u=new URL(url);
+    if(u.hostname.includes('youtu.be')) id=u.pathname.slice(1);
+    else if(u.pathname.includes('/embed/')) id=u.pathname.split('/embed/')[1].split(/[?&/]/)[0];
+    else id=u.searchParams.get('v') || '';
+  }catch(e){}
+  return id ? `https://www.youtube.com/embed/${id}` : url;
+}
+document.getElementById('addRow').onclick=()=>{
+  const used = new Set(rows.map(r=>r.oil));
+  const next = OILS.find(o=>!used.has(o.name)) || OILS[0];
+  rows.push({oil:next.name,weight:'50'});
+  renderRows();
+};
+document.getElementById('moreBtn').onclick=()=>document.getElementById('drawer').classList.toggle('open');
+document.getElementById('waterMode').onchange=calc;
+document.getElementById('sfPct').oninput=calc;
+document.getElementById('showInfo').onchange=renderRows;
+document.getElementById('ytUrl').oninput=e=>{
+  const src=ytEmbed(e.target.value);
+  document.getElementById('ytFrame').src=src;
+  document.getElementById('videoHint').style.display=src?'none':'block';
+};
+const initialYt = document.getElementById('ytUrl').value;
+document.getElementById('ytFrame').src = ytEmbed(initialYt);
+document.getElementById('videoHint').style.display = 'none';
+renderRows();
+</script>
+</body>
+</html>
