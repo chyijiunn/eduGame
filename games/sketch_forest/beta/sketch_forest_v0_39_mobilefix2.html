@@ -421,16 +421,18 @@ html,body{width:100%;height:100%;overflow:hidden;background:#000;color:#fff;font
 }
 
 
-/* v0.39 mobile UI touch fix */
-#moreBtn,#moreMenu,#bioPanel,#bioPanel *,#shootBtn,#helpBtn,#helpOverlay,#paramsOverlay,#introOverlay,#collapseOverlay,#popBar,#popBar *{
+/* v0.39b mobile touch UI repair */
+#moreBtn,#moreMenu,#moreMenu *,#bioPanel,#bioPanel *,#shootBtn,#helpBtn,#popBar,#popBar *,
+#paramsOverlay,#paramsOverlay *,#helpOverlay,#helpOverlay *,#introOverlay,#introOverlay *,#collapseOverlay,#collapseOverlay *{
   pointer-events:auto!important;
   touch-action:manipulation!important;
+  -webkit-user-select:none!important;
+  user-select:none!important;
 }
-#moreBtn{z-index:260!important}
-#moreMenu{z-index:261!important;pointer-events:auto!important}
-#bioPanel{z-index:240!important;pointer-events:auto!important}
-#bioLegend input,#bioLegend label{pointer-events:auto!important;touch-action:manipulation!important}
-#shootBtn{z-index:260!important;pointer-events:auto!important;touch-action:manipulation!important}
+#moreBtn{z-index:10000!important}
+#moreMenu{z-index:10001!important}
+#bioPanel{z-index:9990!important}
+#shootBtn{z-index:10000!important}
 #c{touch-action:none!important}
 
 </style>
@@ -1405,6 +1407,87 @@ function loop(){requestAnimationFrame(loop);if(typeof ecosystemGameOver!=='undef
 refreshStatsNow();layoutFloatingPanels();miniMap();drawCharts();renderPopulationBar();setTimeout(renderPopulationBar,50);setTimeout(renderPopulationBar,250);loop();
 window.onresize=()=>{renderer.setSize(window.innerWidth,window.innerHeight);camera.aspect=window.innerWidth/window.innerHeight;camera.updateProjectionMatrix()};
 })();
+
+/* ===== v0.39b mobile touch UI repair ===== */
+function bindMobileUIFix(){
+  function stopOn(el){
+    if(!el || el.__mobileFixed)return;
+    el.__mobileFixed=true;
+    ['touchstart','touchmove','touchend','pointerdown','pointerup','click'].forEach(evt=>{
+      el.addEventListener(evt,function(e){
+        e.stopPropagation();
+      },{capture:true,passive:false});
+    });
+  }
+
+  ['moreBtn','moreMenu','bioPanel','shootBtn','helpBtn','popBar','paramsOverlay','helpOverlay','introOverlay','collapseOverlay'].forEach(id=>{
+    stopOn(document.getElementById(id));
+  });
+
+  const moreBtn=document.getElementById('moreBtn');
+  const moreMenu=document.getElementById('moreMenu');
+  if(moreBtn&&moreMenu&&!moreBtn.__moreFixed){
+    moreBtn.__moreFixed=true;
+    const toggleMore=function(e){
+      if(e){e.preventDefault();e.stopPropagation();}
+      moreMenu.style.display=(moreMenu.style.display==='block')?'none':'block';
+      return false;
+    };
+    moreBtn.onclick=toggleMore;
+    moreBtn.addEventListener('touchend',toggleMore,{passive:false});
+    moreBtn.addEventListener('pointerup',toggleMore,{passive:false});
+  }
+
+  document.querySelectorAll('#moreMenu input[type="checkbox"]').forEach(inp=>{
+    if(inp.__mobileFixed)return;
+    inp.__mobileFixed=true;
+    inp.addEventListener('touchend',function(e){
+      e.stopPropagation();
+      // Let checkbox default happen through click; do not manually toggle here to avoid double toggle.
+    },{passive:false});
+  });
+
+  document.querySelectorAll('#bioLegend input[type="checkbox"]').forEach(inp=>{
+    if(inp.__bioFixed)return;
+    inp.__bioFixed=true;
+    inp.addEventListener('touchend',function(e){
+      e.preventDefault();
+      e.stopPropagation();
+      inp.checked=!inp.checked;
+      if(typeof drawCharts==='function')drawCharts();
+    },{passive:false});
+  });
+
+  const shoot=document.getElementById('shootBtn');
+  if(shoot&&!shoot.__shootFixed){
+    shoot.__shootFixed=true;
+    const doShoot=function(e){
+      if(e){e.preventDefault();e.stopPropagation();}
+      // Use the original canvas click removal logic by dispatching a centered click to canvas.
+      try{
+        const canvas=document.getElementById('c');
+        if(canvas){
+          canvas.dispatchEvent(new MouseEvent('click',{
+            bubbles:true,
+            cancelable:true,
+            clientX:window.innerWidth/2,
+            clientY:window.innerHeight/2
+          }));
+        }
+      }catch(err){}
+      return false;
+    };
+    shoot.onclick=doShoot;
+    shoot.addEventListener('touchend',doShoot,{passive:false});
+    shoot.addEventListener('pointerup',doShoot,{passive:false});
+  }
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bindMobileUIFix);
+else bindMobileUIFix();
+window.addEventListener('load',bindMobileUIFix);
+setTimeout(bindMobileUIFix,500);
+setTimeout(bindMobileUIFix,1500);
+
 </script>
 </body>
 </html>
