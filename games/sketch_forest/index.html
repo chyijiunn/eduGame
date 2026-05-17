@@ -430,6 +430,19 @@ html,body{width:100%;height:100%;overflow:hidden;background:#000;color:#fff;font
 #shootBtn{z-index:10020!important;pointer-events:auto!important;touch-action:manipulation!important}
 #popBar,#popBar *{pointer-events:auto!important;touch-action:manipulation!important}
 
+
+/* v0.39d mobile-only touch bridge */
+@media (pointer:coarse){
+  #moreBtn,#moreMenu,#moreMenu *,#bioPanel,#bioPanel *,#shootBtn{
+    pointer-events:auto!important;
+    touch-action:manipulation!important;
+  }
+  #moreBtn{z-index:20020!important}
+  #moreMenu{z-index:20019!important}
+  #bioPanel{z-index:20010!important}
+  #shootBtn{z-index:20020!important}
+}
+
 </style>
 </head>
 <body>
@@ -1402,6 +1415,103 @@ function loop(){requestAnimationFrame(loop);if(typeof ecosystemGameOver!=='undef
 refreshStatsNow();layoutFloatingPanels();miniMap();drawCharts();renderPopulationBar();setTimeout(renderPopulationBar,50);setTimeout(renderPopulationBar,250);loop();
 window.onresize=()=>{renderer.setSize(window.innerWidth,window.innerHeight);camera.aspect=window.innerWidth/window.innerHeight;camera.updateProjectionMatrix()};
 })();
+
+/* ===== v0.39d mobile-only touch bridge ===== */
+function bindMobileTouchBridge(){
+  const isTouch=('ontouchstart' in window)||navigator.maxTouchPoints>0;
+  if(!isTouch)return;
+
+  const moreBtn=document.getElementById('moreBtn');
+  const moreMenu=document.getElementById('moreMenu');
+
+  if(moreBtn && moreMenu && !moreBtn.__touchBridge){
+    moreBtn.__touchBridge=true;
+    moreBtn.addEventListener('touchstart',e=>{e.stopPropagation();},{passive:true});
+    moreBtn.addEventListener('touchend',e=>{
+      e.preventDefault();
+      e.stopPropagation();
+      moreMenu.style.display=(moreMenu.style.display==='block')?'none':'block';
+    },{passive:false});
+  }
+
+  if(moreMenu && !moreMenu.__touchBridge){
+    moreMenu.__touchBridge=true;
+    moreMenu.addEventListener('touchstart',e=>{e.stopPropagation();},{passive:true});
+    moreMenu.addEventListener('touchend',e=>{
+      e.stopPropagation();
+      // Let native label/checkbox/button click happen after touchend on mobile.
+    },{passive:true});
+  }
+
+  document.querySelectorAll('#moreMenu button').forEach(btn=>{
+    if(btn.__touchBridge)return;
+    btn.__touchBridge=true;
+    btn.addEventListener('touchend',e=>{
+      e.preventDefault();
+      e.stopPropagation();
+      btn.click();
+    },{passive:false});
+  });
+
+  document.querySelectorAll('#moreMenu label').forEach(label=>{
+    if(label.__touchBridge)return;
+    label.__touchBridge=true;
+    label.addEventListener('touchend',e=>{
+      e.preventDefault();
+      e.stopPropagation();
+      const inp=label.querySelector('input');
+      if(inp){
+        inp.checked=!inp.checked;
+        inp.dispatchEvent(new Event('change',{bubbles:true}));
+      }
+    },{passive:false});
+  });
+
+  document.querySelectorAll('#bioLegend label').forEach(label=>{
+    if(label.__touchBridge)return;
+    label.__touchBridge=true;
+    label.addEventListener('touchend',e=>{
+      e.preventDefault();
+      e.stopPropagation();
+      const inp=label.querySelector('input');
+      if(inp){
+        inp.checked=!inp.checked;
+        if(typeof drawCharts==='function')drawCharts();
+      }
+    },{passive:false});
+  });
+
+  const shoot=document.getElementById('shootBtn');
+  if(shoot && !shoot.__touchBridge){
+    shoot.__touchBridge=true;
+    shoot.addEventListener('touchstart',e=>{e.stopPropagation();},{passive:true});
+    shoot.addEventListener('touchend',e=>{
+      e.preventDefault();
+      e.stopPropagation();
+      // Trigger existing desktop-style button handler if present.
+      if(typeof shoot.onclick==='function'){
+        shoot.onclick(new MouseEvent('click',{bubbles:true,cancelable:true}));
+        return;
+      }
+      // Fallback: dispatch a click to the canvas center.
+      const canvas=document.getElementById('c');
+      if(canvas){
+        canvas.dispatchEvent(new MouseEvent('click',{
+          bubbles:true,
+          cancelable:true,
+          clientX:innerWidth/2,
+          clientY:innerHeight/2
+        }));
+      }
+    },{passive:false});
+  }
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',bindMobileTouchBridge);
+else bindMobileTouchBridge();
+window.addEventListener('load',bindMobileTouchBridge);
+setTimeout(bindMobileTouchBridge,500);
+setTimeout(bindMobileTouchBridge,1500);
+
 </script>
 </body>
 </html>
