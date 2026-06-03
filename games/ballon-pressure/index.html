@@ -1,0 +1,589 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+<title>氣球壓力模擬</title>
+<script src="/eduGame/ga4.js"></script>
+<style>
+:root{
+  --bg:#050b12;
+  --line:#d7e3ee;
+  --grid:rgba(215,227,238,.12);
+  --blue:#5ca4ff;
+  --orange:#ff9638;
+  --green:#33d176;
+  --red:#ff5a5f;
+  --text:#edf6ff;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none}
+html,body{
+  margin:0;width:100%;height:100%;overflow:hidden;
+  background:radial-gradient(circle at 48% 26%,#0b1822 0%,#050b12 60%,#020509 100%);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans TC",sans-serif;
+  color:var(--text);
+}
+#app{position:fixed;inset:0;display:flex;flex-direction:column}
+#stage{flex:1;width:100%;height:100%;display:block;touch-action:none}
+#controls{
+  position:absolute;left:0;right:0;bottom:0;
+  padding:12px 14px 16px;display:flex;gap:12px;justify-content:center;
+  background:linear-gradient(180deg,rgba(5,11,18,0),rgba(5,11,18,.96) 32%);
+}
+button{
+  appearance:none;background:transparent;border:1.5px solid rgba(215,227,238,.68);
+  border-radius:14px;color:#fff;font-size:16px;font-weight:760;min-width:160px;
+  padding:14px 18px;cursor:pointer;box-shadow:none;
+}
+button:active{transform:translateY(1px)}
+button .ring{
+  display:inline-block;width:17px;height:17px;border-radius:50%;border:3px solid #fff;
+  vertical-align:-3px;margin-right:9px;
+}
+@media(max-width:760px){
+  #controls{gap:8px;padding:10px 8px 12px}
+  button{min-width:0;flex:1;font-size:14px;padding:12px 6px;border-radius:12px}
+  button .ring{width:14px;height:14px;border-width:2px;margin-right:5px}
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <canvas id="stage"></canvas>
+  <div id="controls">
+    <button id="bigBtn"><span class="ring"></span>大氣球充氣</button>
+    <button id="smallBtn"><span class="ring"></span>小氣球充氣</button>
+    <button id="resetBtn">↻ 重置</button>
+  </div>
+</div>
+<script>
+(()=>{
+'use strict';
+
+const canvas=document.getElementById('stage');
+const ctx=canvas.getContext('2d');
+let W=0,H=0,DPR=1,last=performance.now(),chartTick=0;
+const cssVar=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+
+const cfg={
+  bigMin:108,bigMax:220,
+  smallMin:58,smallMax:112,
+  tubeH:36,
+  tubeOverlap:32,
+  valveSize:42,
+  fillCount:150,
+  particleRadius:3.9,
+  particleMax:2400,
+  historyMax:260,
+  pressureScale:1850,
+  baseSpeed:2.25,
+  pressureAccel:0.0044,
+  wallBounce:.97,
+  particleBounce:.94,
+  collisionEvery:2,
+  radiusUpdateMs:1000,
+  radiusAnimMs:620
+};
+
+const geo={};
+const state={
+  valve:false,
+  valveOpenAt:-9999,
+  big:{r:108,tr:108},
+  small:{r:58,tr:58},
+  particles:[],
+  history:[],
+  frame:0,
+  radius:{lastChange:-9999,pending:false,animStart:0,fromBig:108,fromSmall:58,toBig:108,toSmall:58}
+};
+
+function resize(){
+  DPR=Math.min(devicePixelRatio||1,2);
+  W=innerWidth;H=innerHeight;
+  canvas.width=W*DPR;canvas.height=H*DPR;
+  canvas.style.width=W+'px';canvas.style.height=H+'px';
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  layout();
+  if(!state.particles.length) reset(false);
+}
+
+function layout(){
+  const usableH=H-88;
+  const simH=Math.max(260,usableH*.58);
+  const scale=Math.min(1,Math.max(.68,W/960));
+  geo.scale=scale;
+  geo.tubeH=cfg.tubeH*scale;
+  geo.tubeOverlap=cfg.tubeOverlap*scale;
+  geo.valveSize=cfg.valveSize*scale;
+  geo.bigMin=cfg.bigMin*scale;
+  geo.bigMax=cfg.bigMax*scale;
+  geo.smallMin=cfg.smallMin*scale;
+  geo.smallMax=cfg.smallMax*scale;
+  // 版面重算後，半徑上下限會變動；目前目標半徑保留比例，避免 resize 後突跳。
+  state.big.r=Math.min(geo.bigMax,Math.max(geo.bigMin,state.big.r||geo.bigMin));
+  state.small.r=Math.min(geo.smallMax,Math.max(geo.smallMin,state.small.r||geo.smallMin));
+  geo.cy=Math.min(simH*.48,Math.max(145,H*.31));
+  geo.bigX=Math.max(geo.bigMax+24,W*.27);
+  geo.smallX=Math.min(W-geo.smallMax-24,W*.73);
+  geo.valveX=W/2;
+  geo.pipeY=geo.cy;
+  const graphTop=Math.max(geo.cy+geo.bigMax+28,H*.56);
+  geo.graph={x:Math.max(16,W*.09),y:graphTop,w:Math.min(W-32,W*.82),h:Math.max(108,Math.min(190,H-graphTop-96))};
+}
+
+function reset(clearHistory=true){
+  state.valve=false;
+  state.valveOpenAt=-9999;
+  state.big.r=state.big.tr=geo.bigMin;
+  state.small.r=state.small.tr=geo.smallMin;
+  state.radius.lastChange=-9999;
+  state.radius.pending=false;
+  state.radius.animStart=0;
+  state.radius.fromBig=state.radius.toBig=geo.bigMin;
+  state.radius.fromSmall=state.radius.toSmall=geo.smallMin;
+  state.particles.length=0;
+  if(clearHistory) state.history.length=0;
+}
+
+function vesselGeom(){
+  const y=geo.pipeY, half=geo.tubeH/2;
+  const rb=Math.max(half+4,state.big.r), rs=Math.max(half+4,state.small.r);
+  const bt=Math.asin(Math.min(.92,half/rb));
+  const st=Math.asin(Math.min(.92,half/rs));
+  const bigJoin=geo.bigX+Math.sqrt(Math.max(0,rb*rb-half*half));
+  const smallJoin=geo.smallX-Math.sqrt(Math.max(0,rs*rs-half*half));
+  const pipeLeft=bigJoin-geo.tubeOverlap;
+  const pipeRight=smallJoin+geo.tubeOverlap;
+  return {
+    y,half,
+    bx:geo.bigX,by:y,br:rb,bt,bigJoin,
+    sx:geo.smallX,sy:y,sr:rs,st,smallJoin,
+    pipeTop:y-half,pipeBottom:y+half,
+    pipeLeft,pipeRight,
+    valveX:geo.valveX
+  };
+}
+
+function buildVesselPath(){
+  const g=vesselGeom();
+  const p=new Path2D();
+  p.moveTo(g.bigJoin,g.pipeTop);
+  p.lineTo(g.smallJoin,g.pipeTop);
+  p.arc(g.sx,g.sy,g.sr,Math.PI+g.st,Math.PI-g.st,false);
+  p.lineTo(g.bigJoin,g.pipeBottom);
+  p.arc(g.bx,g.by,g.br,g.bt,Math.PI*2-g.bt,false);
+  p.closePath();
+  return p;
+}
+
+function inCircle(x,y,cx,cy,r,pr=cfg.particleRadius){
+  const dx=x-cx,dy=y-cy;
+  const rr=Math.max(1,r-pr);
+  return dx*dx+dy*dy<=rr*rr;
+}
+function inTube(x,y,pr=cfg.particleRadius){
+  const g=vesselGeom();
+  return x>=g.pipeLeft+pr && x<=g.pipeRight-pr && y>=g.pipeTop+pr && y<=g.pipeBottom-pr;
+}
+function insideOpenVessel(x,y,pr=cfg.particleRadius){
+  const g=vesselGeom();
+  // 物理區域是單一連通容器：兩個球體與深入球內的管道聯集。
+  // 管道端點往球內延伸，避免視覺接上但粒子判定有縫。
+  return inCircle(x,y,g.bx,g.by,g.br,pr) || inCircle(x,y,g.sx,g.sy,g.sr,pr) || inTube(x,y,pr);
+}
+function sideOfX(x){return x<geo.valveX?'big':'small';}
+function particleSide(p){return sideOfX(p.x);}
+function inPipeNow(x,y){return inTube(x,y,0);}
+
+function allowedByValve(p,x,y){
+  if(state.valve) return true;
+  const pr=cfg.particleRadius;
+  if(!inPipeNow(x,y)) return true;
+  if(p.side==='big' && x>geo.valveX-pr) return false;
+  if(p.side==='small' && x<geo.valveX+pr) return false;
+  return true;
+}
+function validForParticle(p,x,y){return insideOpenVessel(x,y) && allowedByValve(p,x,y);}
+
+function countSide(side){
+  let n=0;
+  for(const p of state.particles){
+    if(sideOfX(p.x)===side) n++;
+  }
+  return n;
+}
+function circleArea(side){
+  const r=side==='big'?state.big.r:state.small.r;
+  return Math.PI*r*r;
+}
+function pressure(side){
+  // 依目前教學設定：該側粒子數 ÷ 該側球體圓面積；管內粒子依閥門左右側歸屬。
+  return countSide(side)/Math.max(1,circleArea(side))*cfg.pressureScale;
+}
+function targetRadius(side){
+  const n=countSide(side);
+  // 教學模型：粒子數越多，可視為氣體量越多，目標面積跟著增加。
+  // 使用平滑飽和函數，讓每次充氣都明顯變大，但不會無限制超出畫面。
+  if(side==='big') return geo.bigMin+(geo.bigMax-geo.bigMin)*(1-Math.exp(-n/220));
+  const raw=geo.smallMin+(geo.smallMax-geo.smallMin)*(1-Math.exp(-n/92));
+  // 嚴格限制右側小氣球不能比左側大。
+  return Math.min(raw,Math.max(geo.smallMin, state.big.r*.66));
+}
+function startRadiusAnimation(now){
+  state.big.tr=targetRadius('big');
+  state.small.tr=targetRadius('small');
+  state.radius.fromBig=state.big.r;
+  state.radius.fromSmall=state.small.r;
+  state.radius.toBig=state.big.tr;
+  state.radius.toSmall=state.small.tr;
+  state.radius.animStart=now;
+  state.radius.lastChange=now;
+  state.radius.pending=false;
+}
+function requestRadiusUpdate(){
+  const now=performance.now();
+  if(now-state.radius.lastChange>=cfg.radiusUpdateMs){
+    startRadiusAnimation(now);
+  }else{
+    state.radius.pending=true;
+  }
+}
+function updateRadius(dt,now){
+  if(state.radius.pending && now-state.radius.lastChange>=cfg.radiusUpdateMs) startRadiusAnimation(now);
+  const t=Math.min(1,Math.max(0,(now-state.radius.animStart)/cfg.radiusAnimMs));
+  const ease=t<.5?2*t*t:1-Math.pow(-2*t+2,2)/2;
+  state.big.r=state.radius.fromBig+(state.radius.toBig-state.radius.fromBig)*ease;
+  state.small.r=state.radius.fromSmall+(state.radius.toSmall-state.radius.fromSmall)*ease;
+}
+
+function randomPoint(side){
+  const g=vesselGeom();
+  const pr=cfg.particleRadius+2;
+  const ballR=side==='big'?state.big.r:state.small.r;
+  const cx=side==='big'?g.bx:g.sx;
+  const cy=g.y;
+  const tubeLeft=side==='big'?g.pipeLeft:geo.valveX;
+  const tubeRight=side==='big'?geo.valveX:g.pipeRight;
+  const tubeLen=Math.max(0,tubeRight-tubeLeft-2*pr);
+  const tubeArea=tubeLen*Math.max(0,geo.tubeH-2*pr);
+  const ballArea=Math.PI*ballR*ballR;
+  for(let tries=0;tries<80;tries++){
+    let x,y;
+    if(tubeLen>10 && Math.random()<Math.min(.32,tubeArea/(tubeArea+ballArea)+.10)){
+      x=tubeLeft+pr+Math.random()*tubeLen;
+      y=g.pipeTop+pr+Math.random()*Math.max(1,geo.tubeH-2*pr);
+    }else{
+      const a=Math.random()*Math.PI*2;
+      const rr=Math.sqrt(Math.random())*Math.max(2,ballR-pr-2);
+      x=cx+Math.cos(a)*rr;
+      y=cy+Math.sin(a)*rr;
+    }
+    const probe={side};
+    if(validForParticle(probe,x,y)) return {x,y};
+  }
+  return {x:cx,y:cy};
+}
+function newParticle(side){
+  const p=randomPoint(side);
+  const a=Math.random()*Math.PI*2;
+  const s=.58+Math.random()*.64;
+  return {x:p.x,y:p.y,vx:Math.cos(a)*s*1.35,vy:Math.sin(a)*s*1.35,side,dead:false};
+}
+function addParticles(side,count){
+  for(let i=0;i<count && state.particles.length<cfg.particleMax;i++) state.particles.push(newParticle(side));
+  requestRadiusUpdate();
+}
+
+function wallReflect(p,ox,oy,step){
+  if(validForParticle(p,p.x,p.y)) return;
+
+  // 關閉閥門時，唯一的物理阻隔是一條在管內的垂直隔板。
+  if(!state.valve && inPipeNow(p.x,p.y)){
+    if((p.side==='big' && p.x>geo.valveX-cfg.particleRadius) || (p.side==='small' && p.x<geo.valveX+cfg.particleRadius)){
+      p.x=ox;p.y=oy;p.vx*=-cfg.wallBounce;
+      return;
+    }
+  }
+
+  // 器壁碰撞：回到前一位置，再用局部取樣估計牆面法線反彈。
+  p.x=ox;p.y=oy;
+  const eps=Math.max(2.5, cfg.particleRadius*1.25);
+  const probe={side:p.side};
+  const ix=(validForParticle(probe,ox+eps,oy)?1:0)-(validForParticle(probe,ox-eps,oy)?1:0);
+  const iy=(validForParticle(probe,ox,oy+eps)?1:0)-(validForParticle(probe,ox,oy-eps)?1:0);
+  let nx=-ix,ny=-iy;
+  const nlen=Math.hypot(nx,ny);
+  if(nlen>.001){
+    nx/=nlen;ny/=nlen;
+    const dot=p.vx*nx+p.vy*ny;
+    p.vx=(p.vx-2*dot*nx)*cfg.wallBounce;
+    p.vy=(p.vy-2*dot*ny)*cfg.wallBounce;
+  }else{
+    p.vx*=-cfg.wallBounce;p.vy*=-cfg.wallBounce;
+  }
+
+  // 若因半徑縮小或高速移動導致粒子仍在容器外，視為外洩，直接移除。
+  for(let i=0;i<18 && !validForParticle(p,p.x,p.y);i++){
+    p.x-=p.vx*step*.12;
+    p.y-=p.vy*step*.12;
+  }
+  if(!validForParticle(p,p.x,p.y)) p.dead=true;
+}
+
+function removeLeakedParticles(){
+  // 保險機制：任何中心點已離開容器可活動範圍的粒子，都視為洩漏並刪除。
+  // 正常狀態下器壁碰撞會先反彈；只有真的跑出容器或半徑變化造成外洩時才會消失。
+  let removed=false;
+  for(let i=state.particles.length-1;i>=0;i--){
+    const p=state.particles[i];
+    if(p.dead || !insideOpenVessel(p.x,p.y,cfg.particleRadius*.65)){
+      state.particles.splice(i,1);
+      removed=true;
+    }
+  }
+  if(removed) requestRadiusUpdate();
+}
+
+function updateParticles(dt,now){
+  const pb=pressure('big');
+  const ps=pressure('small');
+  const diff=ps-pb;
+  const ramp=state.valve?Math.min(1,Math.max(.05,(now-state.valveOpenAt)/500)):0;
+  const dir=diff>0?-1:diff<0?1:0; // 小球壓力大：向左；大球壓力大：向右。
+  const diffAbs=Math.abs(diff);
+  const step=cfg.baseSpeed*dt*.062;
+
+  for(const p of state.particles){
+    const ox=p.x,oy=p.y;
+
+    // 壓差只作為非常小的平均漂移，沒有任何隱形牆、吸附點或傳送點。
+    if(state.valve && diffAbs>.015){
+      const sideNow=sideOfX(p.x);
+      const high=(diff>0&&sideNow==='small')||(diff<0&&sideNow==='big');
+      const pipe=inPipeNow(p.x,p.y);
+      if(pipe || high) p.vx+=dir*cfg.pressureAccel*diffAbs*ramp*(pipe?1:.22);
+    }
+
+    // 熱運動：每顆粒子不斷震動。
+    p.vx+=(Math.random()-.5)*.110;
+    p.vy+=(Math.random()-.5)*.110;
+
+    p.x+=p.vx*step;
+    p.y+=p.vy*step;
+    wallReflect(p,ox,oy,step);
+
+    const max=3.15+Math.min(2.45,Math.max(pb,ps)*.085);
+    const sp=Math.hypot(p.vx,p.vy);
+    if(sp>max){p.vx=p.vx/sp*max;p.vy=p.vy/sp*max;}
+    if(state.valve) p.side=sideOfX(p.x);
+  }
+
+  if(state.frame%cfg.collisionEvery===0) particleCollisions();
+  removeLeakedParticles();
+}
+
+function particleCollisions(){
+  const arr=state.particles;
+  const r=cfg.particleRadius*2.04;
+  const rr=r*r;
+  const maxN=Math.min(arr.length,850);
+  for(let i=0;i<maxN;i++){
+    const a=arr[i];
+    for(let j=i+1;j<maxN;j++){
+      const b=arr[j];
+      const dx=b.x-a.x,dy=b.y-a.y;
+      const d2=dx*dx+dy*dy;
+      if(d2>0 && d2<rr){
+        const d=Math.sqrt(d2);
+        const nx=dx/d,ny=dy/d;
+        const overlap=(r-d)*.50;
+        a.x-=nx*overlap;b.x+=nx*overlap;
+        a.y-=ny*overlap;b.y+=ny*overlap;
+        const av=a.vx*nx+a.vy*ny;
+        const bv=b.vx*nx+b.vy*ny;
+        const impulse=(bv-av)*cfg.particleBounce;
+        a.vx+=impulse*nx;a.vy+=impulse*ny;
+        b.vx-=impulse*nx;b.vy-=impulse*ny;
+      }
+    }
+  }
+}
+
+function recordHistory(dt){
+  chartTick+=dt;
+  if(chartTick<38) return;
+  chartTick=0;
+  state.history.push({pb:pressure('big'),ps:pressure('small'),total:state.particles.length,t:performance.now(),open:state.valve});
+  while(state.history.length>cfg.historyMax) state.history.shift();
+}
+
+function drawVessel(){
+  const path=buildVesselPath();
+  ctx.save();
+  ctx.strokeStyle=cssVar('--line');
+  ctx.lineWidth=Math.max(2.2,W<700?2:2.7);
+  ctx.lineCap='round';
+  ctx.lineJoin='round';
+  ctx.stroke(path);
+  ctx.restore();
+}
+function drawValve(){
+  const s=geo.valveSize;
+  const x=geo.valveX-s/2,y=geo.pipeY-s/2;
+  ctx.save();
+  ctx.lineCap='round';ctx.lineJoin='round';
+  ctx.strokeStyle=state.valve?cssVar('--green'):cssVar('--red');
+  ctx.lineWidth=2.4;
+  roundRect(x,y,s,s,8);
+  if(!state.valve){
+    // 關閉：紅色叉叉與管內垂直隔板；只有這條線是物理阻隔。
+    ctx.lineWidth=3.6;
+    ctx.beginPath();
+    ctx.moveTo(geo.valveX-s*.22,geo.pipeY-s*.22);
+    ctx.lineTo(geo.valveX+s*.22,geo.pipeY+s*.22);
+    ctx.moveTo(geo.valveX+s*.22,geo.pipeY-s*.22);
+    ctx.lineTo(geo.valveX-s*.22,geo.pipeY+s*.22);
+    ctx.stroke();
+    ctx.lineWidth=2.2;
+    ctx.beginPath();
+    ctx.moveTo(geo.valveX,geo.pipeY-geo.tubeH/2+4);
+    ctx.lineTo(geo.valveX,geo.pipeY+geo.tubeH/2-4);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+function drawParticles(){
+  ctx.save();
+  // 粒子繪製也套用同一個容器路徑裁切，視覺上不會溢出球體或管道。
+  ctx.clip(buildVesselPath());
+  ctx.fillStyle='rgba(235,243,250,.95)';
+  ctx.shadowColor='rgba(235,243,250,.78)';
+  ctx.shadowBlur=6;
+  const r=W<700?Math.max(3.2,cfg.particleRadius*.86):cfg.particleRadius;
+  for(const p of state.particles) dot(p.x,p.y,r);
+  ctx.restore();
+}
+function drawChart(){
+  const g=geo.graph;
+  if(!g||g.h<60) return;
+  const blue=cssVar('--blue'), orange=cssVar('--orange');
+  ctx.save();
+  ctx.strokeStyle='rgba(215,227,238,.30)';
+  ctx.lineWidth=1.15;
+  roundRect(g.x,g.y,g.w,g.h,12);
+
+  const padL=42,padR=14,padT=26,padB=26;
+  const x0=g.x+padL,y0=g.y+padT,w=g.w-padL-padR,h=g.h-padT-padB;
+  ctx.font='13px -apple-system,BlinkMacSystemFont,"Noto Sans TC"';
+  ctx.fillStyle='#d9e5ee';
+  ctx.fillText('壓力（粒子數 ÷ 圓面積）',g.x+14,g.y+22);
+  ctx.fillStyle=blue;ctx.fillText('— 大氣球',g.x+g.w-206,g.y+22);
+  ctx.fillStyle=orange;ctx.fillText('— 小氣球',g.x+g.w-112,g.y+22);
+
+  let maxP=1;
+  let maxTotal=state.particles.length;
+  for(const d of state.history){
+    maxP=Math.max(maxP,d.pb,d.ps);
+    maxTotal=Math.max(maxTotal,d.total||0);
+  }
+  // 縱軸依「歷史壓力峰值」與「目前/歷史總粒子量」共同自動調整。
+  // 粒子總數增加時，即使半徑同步變大，縱軸也會跟著拉高，避免曲線貼頂或失真。
+  const effectiveArea=Math.max(1,(circleArea('big')+circleArea('small'))*.54);
+  const totalDrivenAxis=maxTotal/effectiveArea*cfg.pressureScale*1.65;
+  maxP=Math.max(1,Math.ceil(Math.max(maxP*1.22,totalDrivenAxis,pressure('big')*1.28,pressure('small')*1.28)));
+
+  ctx.strokeStyle='rgba(215,227,238,.12)';
+  ctx.lineWidth=1;
+  for(let i=0;i<=4;i++){
+    const y=y0+h*i/4;
+    ctx.beginPath();ctx.moveTo(x0,y);ctx.lineTo(x0+w,y);ctx.stroke();
+    ctx.fillStyle='rgba(220,232,242,.72)';
+    ctx.fillText(String(Math.round(maxP*(1-i/4))),g.x+13,y+4);
+  }
+
+  const openStart=state.history.findIndex(d=>d.t>=state.valveOpenAt);
+  if(state.valve && openStart>=0){
+    const denom=Math.max(1,state.history.length-1);
+    const xA=x0+w*openStart/denom;
+    const xB=x0+w*Math.min(state.history.length-1,openStart+13)/denom;
+    ctx.fillStyle='rgba(215,227,238,.07)';
+    ctx.fillRect(xA,y0,Math.max(4,xB-xA),h);
+  }
+
+  drawLine('pb',blue);
+  drawLine('ps',orange);
+  ctx.fillStyle='rgba(220,232,242,.82)';
+  ctx.fillText('時間',x0+w-28,y0+h+22);
+  ctx.restore();
+
+  function drawLine(key,color){
+    const arr=state.history;
+    if(arr.length<2) return;
+    ctx.strokeStyle=color;
+    ctx.lineWidth=2.15;
+    ctx.beginPath();
+    for(let i=0;i<arr.length;i++){
+      const x=x0+w*i/Math.max(1,arr.length-1);
+      const y=y0+h-(arr[i][key]/maxP)*h;
+      if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    }
+    ctx.stroke();
+  }
+}
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  drawVessel();
+  drawParticles();
+  // 外框再畫一次，讓放大的粒子不會蓋住球體/管壁邊界。
+  drawVessel();
+  drawValve();
+  drawChart();
+}
+function loop(now){
+  const dt=Math.min(34,now-last);
+  last=now;
+  state.frame++;
+  updateRadius(dt,now);
+  updateParticles(dt,now);
+  recordHistory(dt);
+  draw();
+  requestAnimationFrame(loop);
+}
+
+function roundRect(x,y,w,h,r){
+  ctx.beginPath();
+  ctx.moveTo(x+r,y);
+  ctx.lineTo(x+w-r,y);
+  ctx.quadraticCurveTo(x+w,y,x+w,y+r);
+  ctx.lineTo(x+w,y+h-r);
+  ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+  ctx.lineTo(x+r,y+h);
+  ctx.quadraticCurveTo(x,y+h,x,y+h-r);
+  ctx.lineTo(x,y+r);
+  ctx.quadraticCurveTo(x,y,x+r,y);
+  ctx.stroke();
+}
+function dot(x,y,r){ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();}
+function hitValve(x,y){const s=geo.valveSize*1.45;return Math.abs(x-geo.valveX)<s/2&&Math.abs(y-geo.pipeY)<s/2;}
+
+canvas.addEventListener('pointerdown',e=>{
+  const r=canvas.getBoundingClientRect();
+  const x=e.clientX-r.left,y=e.clientY-r.top;
+  if(hitValve(x,y)){
+    state.valve=!state.valve;
+    state.valveOpenAt=state.valve?performance.now():-9999;
+    for(const p of state.particles) p.side=sideOfX(p.x);
+  }
+});
+
+document.getElementById('bigBtn').onclick=()=>addParticles('big',cfg.fillCount);
+document.getElementById('smallBtn').onclick=()=>addParticles('small',cfg.fillCount);
+document.getElementById('resetBtn').onclick=()=>reset(true);
+window.addEventListener('resize',resize,{passive:true});
+
+resize();
+requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
