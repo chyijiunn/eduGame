@@ -1,0 +1,893 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>豆子摩擦力實驗</title>
+<style>
+  :root{
+    --bg:#080b10;
+    --panel:#111820;
+    --panel2:#151f2a;
+    --ink:#eef3f8;
+    --muted:#9aa8b8;
+    --line:#2a3644;
+    --line2:#3b4a5d;
+    --accent:#d09a50;
+    --accent2:#78a8ff;
+    --danger:#ff806e;
+    --ok:#72d18a;
+    --warn:#ffd166;
+    --floor:#5c4732;
+    --glass:rgba(150,190,230,.16);
+    --shadow:0 18px 48px rgba(0,0,0,.38);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;min-height:100%;background:radial-gradient(circle at 50% 0%,#17202c 0%,var(--bg) 48%,#05070a 100%);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans TC","PingFang TC",Arial,sans-serif;overflow-x:hidden;}
+  body{touch-action:manipulation;}
+  button,input{font:inherit;}
+  button{user-select:none;}
+  .app{width:min(1220px,100vw);margin:0 auto;padding:10px clamp(8px,2vw,18px) 16px;}
+  .tabs{display:flex;gap:8px;align-items:center;justify-content:center;margin:0 0 8px;}
+  .tab{border:1px solid var(--line);background:rgba(18,26,36,.86);color:var(--muted);height:38px;min-width:68px;border-radius:999px;box-shadow:var(--shadow);cursor:pointer;font-weight:900;letter-spacing:.03em;}
+  .tab.active{background:linear-gradient(180deg,#29384a,#111a25);color:var(--ink);border-color:#536377;}
+  .scene{display:none;}
+  .scene.active{display:block;}
+  .topControls,.bottomControls{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:8px 0;}
+  .topControls.two,.bottomControls.two{grid-template-columns:repeat(2,1fr);}
+  .card{background:linear-gradient(180deg,rgba(24,34,46,.92),rgba(14,21,30,.92));border:1px solid var(--line);border-radius:18px;padding:9px;box-shadow:var(--shadow);min-width:0;}
+  .toprow{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;}
+  .pill{height:36px;border:1px solid var(--line2);background:#172232;color:var(--ink);border-radius:999px;padding:0 12px;display:inline-flex;align-items:center;justify-content:center;gap:6px;font-weight:900;white-space:nowrap;cursor:pointer;}
+  .pill:hover{border-color:#63748c;}
+  .pill:active{transform:translateY(1px);}
+  .pill.primary{background:linear-gradient(180deg,#6e4e2c,#3f2d1b);border-color:#a57943;color:#fff3df;}
+  .pill.reset{background:#2a1516;color:#ffd9d5;border-color:#6d3032;}
+  .pill.ghost{background:#0e151e;color:var(--muted);}
+  .sliderBlock{display:grid;grid-template-columns:auto 1fr auto;gap:7px;align-items:center;margin:6px 0;}
+  .label{width:38px;text-align:center;color:#d7e2ee;font-weight:950;font-size:13px;}
+  .value{width:42px;text-align:right;color:var(--muted);font-variant-numeric:tabular-nums;font-size:12px;}
+  input[type="range"]{width:100%;accent-color:var(--accent);}
+  .worldWrap{position:relative;background:linear-gradient(180deg,#0f1722 0%,#0a0f16 100%);border:1px solid var(--line);border-radius:22px;box-shadow:var(--shadow);overflow:hidden;}
+  canvas{display:block;width:100%;height:min(55vh,500px);min-height:315px;touch-action:none;cursor:grab;}
+  canvas.dragging{cursor:grabbing;}
+  #scene2Canvas{height:min(64vh,560px);min-height:390px;}
+  .hud{position:absolute;left:0;right:0;bottom:0;display:grid;grid-template-columns:repeat(3,1fr);pointer-events:none;}
+  .metric{margin:0 8px 8px;background:rgba(9,13,19,.72);border:1px solid rgba(72,88,109,.72);border-radius:14px;padding:5px 8px;display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:12px;color:var(--muted);backdrop-filter:blur(6px);}
+  .metric strong{display:block;color:var(--ink);font-size:14px;font-variant-numeric:tabular-nums;}
+  .legend{margin:9px auto 0;padding:8px 12px;border:1px solid var(--line);border-radius:999px;background:rgba(11,17,25,.76);color:var(--muted);font-size:12px;text-align:center;width:fit-content;max-width:100%;}
+  .scene2Layout{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:stretch;}
+  .rodPanel{width:64px;display:flex;flex-direction:column;gap:8px;align-items:center;justify-content:center;background:linear-gradient(180deg,rgba(24,34,46,.92),rgba(14,21,30,.92));border:1px solid var(--line);border-radius:22px;box-shadow:var(--shadow);padding:8px 6px;}
+  .rodCount{font-weight:950;font-variant-numeric:tabular-nums;color:#dbe8f5;font-size:14px;min-height:18px;}
+  .toggle{writing-mode:vertical-rl;display:flex;align-items:center;gap:6px;color:var(--muted);font-size:12px;font-weight:800;}
+  .toggle input{accent-color:var(--accent2);}
+  .helpBtn{position:fixed;right:12px;top:50%;transform:translateY(-50%);z-index:25;width:44px;height:44px;border-radius:999px;border:1px solid #536377;background:linear-gradient(180deg,#223145,#121a25);color:#edf5ff;box-shadow:var(--shadow);font-weight:950;font-size:20px;cursor:pointer;}
+  .modalBackdrop{position:fixed;inset:0;background:rgba(0,0,0,.62);z-index:40;display:none;align-items:center;justify-content:center;padding:18px;}
+  .modalBackdrop.open{display:flex;}
+  .modal{width:min(760px,100%);max-height:min(78vh,760px);background:#0f1722;border:1px solid #3b4a5d;border-radius:20px;box-shadow:0 30px 90px rgba(0,0,0,.6);overflow:hidden;}
+  .modalHead{height:48px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line);padding:0 12px;color:var(--ink);font-weight:900;}
+  .modalBody{max-height:calc(min(78vh,760px) - 48px);overflow:auto;padding:16px 18px 24px;color:#dce7f2;line-height:1.65;font-size:15px;}
+  .modalBody h1{font-size:22px;margin:0 0 12px;}
+  .modalBody h2{font-size:17px;margin:20px 0 8px;color:#fff3df;}
+  .modalBody p{margin:8px 0;}
+  .modalBody ul,.modalBody ol{margin:8px 0 12px 1.2em;padding:0;}
+  .modalBody li{margin:4px 0;}
+  .modalBody code{background:#1a2634;border:1px solid #2f3f52;border-radius:6px;padding:1px 5px;}
+  .xbtn{width:34px;height:34px;border-radius:999px;border:1px solid var(--line2);background:#141e2a;color:var(--ink);font-weight:950;cursor:pointer;}
+  @media (max-width:760px){
+    .app{padding:8px 6px 12px;}
+    .topControls,.bottomControls,.topControls.two,.bottomControls.two{gap:5px;}
+    .card{padding:7px;border-radius:14px;}
+    .toprow{grid-template-columns:1fr;gap:5px;}
+    .pill{height:32px;padding:0 8px;font-size:12px;}
+    .sliderBlock{grid-template-columns:auto 1fr;gap:4px;margin:5px 0;}
+    .value{display:none;}
+    .label{width:28px;font-size:12px;}
+    canvas{height:58vh;min-height:390px;}
+    #scene2Canvas{height:58vh;min-height:410px;}
+    .metric{margin:0 4px 5px;padding:4px 5px;gap:3px;font-size:10px;border-radius:10px;grid-template-columns:1fr;}
+    .metric strong{font-size:12px;}
+    .legend{border-radius:14px;font-size:11px;line-height:1.35;width:100%;}
+    .scene2Layout{grid-template-columns:1fr;}
+    .rodPanel{width:100%;height:48px;flex-direction:row;border-radius:16px;}
+    .toggle{writing-mode:horizontal-tb;}
+    .helpBtn{right:8px;width:40px;height:40px;font-size:18px;}
+  }
+  @media (max-width:430px){
+    .tab{height:34px;min-width:54px;font-size:12px;}
+    .topControls,.bottomControls{grid-template-columns:repeat(3,minmax(0,1fr));}
+    .topControls.two,.bottomControls.two{grid-template-columns:repeat(2,minmax(0,1fr));}
+    .card{padding:5px;}
+    .pill{font-size:11px;height:30px;}
+    .label{width:25px;}
+    input[type="range"]{height:22px;}
+  }
+</style>
+</head>
+<body>
+<button class="helpBtn" id="helpBtn" title="說明">?</button>
+<div class="app">
+  <div class="tabs" aria-label="場景切換">
+    <button class="tab active" data-scene="one" title="場景一">●●●</button>
+    <button class="tab" data-scene="two" title="場景二">▥棒</button>
+  </div>
+
+  <section id="scene-one" class="scene active">
+    <div class="topControls" id="topControls"></div>
+    <div class="worldWrap">
+      <canvas id="world" aria-label="豆子顆粒模擬畫布"></canvas>
+      <div class="hud" id="hud"></div>
+    </div>
+    <div class="bottomControls" id="bottomControls"></div>
+  </section>
+
+  <section id="scene-two" class="scene">
+    <div class="topControls two" id="scene2TopControls"></div>
+    <div class="scene2Layout">
+      <div class="worldWrap">
+        <canvas id="scene2Canvas" aria-label="木棒插入豆子杯模擬畫布"></canvas>
+      </div>
+      <div class="rodPanel" aria-label="棒子控制">
+        <button class="pill ghost" id="rodMinus" title="減少棒子">−</button>
+        <div class="rodCount" id="rodCount">1</div>
+        <button class="pill ghost" id="rodPlus" title="增加棒子">＋</button>
+        <label class="toggle"><input type="checkbox" id="forceToggle" /> 力圖</label>
+      </div>
+    </div>
+    <div class="bottomControls two" id="scene2BottomControls"></div>
+  </section>
+
+  <div class="legend">ρ 密度｜μ豆 粒間摩擦｜μ桌 桌面摩擦｜μ棒 棒子摩擦</div>
+</div>
+
+<div class="modalBackdrop" id="modalBackdrop" aria-hidden="true">
+  <div class="modal" role="dialog" aria-modal="true" aria-label="說明">
+    <div class="modalHead"><span>readme.md</span><button class="xbtn" id="modalClose">×</button></div>
+    <div class="modalBody" id="modalBody"></div>
+  </div>
+</div>
+
+<script>
+(() => {
+  'use strict';
+
+  const README_FALLBACK = `# 豆子摩擦力實驗操作說明
+
+這個互動頁面有兩個場景，目標是觀察「顆粒堆積」與「顆粒卡塞」如何受到摩擦力與密度影響。
+
+## 場景一：豆子倒在桌面上
+
+畫面中央有三個區域，可以分別倒入豆子做比較。
+
+操作方式：
+
+1. 上方的「豆」滑桿可以設定一次倒入的豆子數量，範圍是 100 到 500。
+2. 按下「倒」後，豆子會落到桌面並形成堆積。
+3. 下方三個滑桿可以改變同一區域的條件：
+   - ρ：豆子密度。密度越大，下層受到的壓力越明顯，堆積會更容易壓實。
+   - μ豆：豆子和豆子之間的摩擦。數值越大，豆子越不容易彼此滑開。
+   - μ桌：桌面和豆子之間的摩擦。數值越大，底層豆子越不容易向外滑動。
+4. 豆子停止移動後，畫面下方會顯示該豆堆的高度與面積。
+5. 按下重置符號，該區會清空豆子，並把數值恢復預設。
+
+觀察重點：
+
+- μ豆較大時，豆堆通常比較陡，也比較能往上堆高。
+- μ桌較大時，底部比較不容易散開，豆堆的擴散面積可能變小。
+- ρ較大時，可以想成下層承受較大的壓力，顆粒之間更容易被壓緊。
+
+## 場景二：木棒插入豆子杯
+
+這個場景呈現一根或多根木棒插入豆子中，當摩擦條件足夠時，木棒往上拉會把整杯豆子一起提起；條件不足時，木棒會滑出來。
+
+操作方式：
+
+1. 每個杯子上方有豆量滑桿與「放」按鈕。
+2. 每按一次「放」，杯內會增加 100 顆豆子，最多 500 顆。
+3. 也可以直接拖曳豆量滑桿，設定杯內豆量。
+4. 每個杯子下方有兩個參數：
+   - μ棒：棒子材質等級，代表豆子與棒子之間的摩擦力，等級 1 到 3。
+   - ρ：豆子密度等級，等級 1 到 3。
+5. 右側的「＋」可以增加棒子，最多 5 根；「－」會先移除最後新增的棒子。
+6. 用滑鼠或手指拖曳棒子插入杯中。
+7. 插入後往上拉：
+   - 條件足夠時，杯子會跟著棒子一起被提起。
+   - 條件不足時，棒子會從豆子中滑出。
+8. 開啟「力圖」後，可以看到豆子對棒子的摩擦力箭頭。
+
+觀察重點：
+
+- 插得越深，棒子和豆子的接觸面越多，總摩擦力越大。
+- 豆子越多，能接觸棒子的顆粒越多，總摩擦力越大。
+- 豆子密度越高，可以想成側向壓力越大，棒子受到的摩擦效果越強。
+- 棒子材質等級越高，代表棒子表面越容易被豆子「咬住」。
+- 多根棒子同時插入時，摩擦力可以一起作用，比單根棒子更容易形成卡塞效果。
+
+## 這不是完整真實物理
+
+這個頁面使用簡化模型，重點是幫助觀察趨勢。真實豆子還會受到形狀、大小、表面粗糙度、杯壁摩擦、棒子粗細、插入角度等因素影響。這裡先把那些因素固定，方便比較密度與摩擦力的效果。`;
+
+  function clamp(n, a, b){ return Math.max(a, Math.min(b, n)); }
+  function lerp(a,b,t){ return a + (b-a)*t; }
+  function rand(min,max){ return min + Math.random()*(max-min); }
+  function fmt(n){ return Number.isFinite(n) ? n.toFixed(1) : '0.0'; }
+  function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+  function renderMarkdown(md){
+    const lines = md.replace(/\r/g,'').split('\n');
+    let html = '', list = null;
+    const closeList = () => { if(list){ html += `</${list}>`; list = null; } };
+    const inline = s => escapeHtml(s).replace(/`([^`]+)`/g,'<code>$1</code>').replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>');
+    for(const raw of lines){
+      const line = raw.trimEnd();
+      if(!line.trim()){ closeList(); continue; }
+      if(line.startsWith('# ')){ closeList(); html += `<h1>${inline(line.slice(2))}</h1>`; continue; }
+      if(line.startsWith('## ')){ closeList(); html += `<h2>${inline(line.slice(3))}</h2>`; continue; }
+      const bullet = line.match(/^\s*-\s+(.*)$/);
+      const ordered = line.match(/^\s*\d+\.\s+(.*)$/);
+      if(bullet){ if(list !== 'ul'){ closeList(); list = 'ul'; html += '<ul>'; } html += `<li>${inline(bullet[1])}</li>`; continue; }
+      if(ordered){ if(list !== 'ol'){ closeList(); list = 'ol'; html += '<ol>'; } html += `<li>${inline(ordered[1])}</li>`; continue; }
+      closeList(); html += `<p>${inline(line.trim())}</p>`;
+    }
+    closeList();
+    return html;
+  }
+
+  function makeSlider({label, min, max, step, value, onInput}){
+    const wrap = document.createElement('div');
+    wrap.className = 'sliderBlock';
+    const lab = document.createElement('div');
+    lab.className = 'label';
+    lab.textContent = label;
+    const input = document.createElement('input');
+    input.type = 'range'; input.min = min; input.max = max; input.step = step; input.value = value;
+    const val = document.createElement('div');
+    val.className = 'value';
+    val.textContent = value;
+    input.addEventListener('input', () => {
+      val.textContent = input.value;
+      onInput(Number(input.value));
+    });
+    wrap.append(lab, input, val);
+    return {wrap, input, val, set(v){ input.value = v; val.textContent = String(v); onInput(Number(v)); }};
+  }
+
+  // ------------------------ Scene 1 ------------------------
+  const canvas = document.getElementById('world');
+  const ctx = canvas.getContext('2d', { alpha: false });
+  const topControls = document.getElementById('topControls');
+  const bottomControls = document.getElementById('bottomControls');
+  const hud = document.getElementById('hud');
+  const ZONE_COUNT = 3;
+  const MAX_PARTICLES_PER_ZONE = 650;
+  const PARTICLE_RADIUS = 5.0;
+  const MAX_DT = 1.35;
+  const S1_DEFAULT = { count:100, density:1.0, grainFriction:0.55, tableFriction:0.55 };
+  let dpr = 1, worldW = 1000, worldH = 460, lastT = performance.now(), frameCount = 0;
+  let particles = [], spawnQueues = [0,0,0];
+  let dragging = false, activePointer = null, twoTouch = null;
+
+  const zones = Array.from({length: ZONE_COUNT}, (_, i) => ({
+    i,
+    count:S1_DEFAULT.count,
+    density:S1_DEFAULT.density,
+    grainFriction:S1_DEFAULT.grainFriction,
+    tableFriction:S1_DEFAULT.tableFriction,
+    metrics:{ h:0, a:0, stable:false, count:0 },
+    x0:0,x1:0,floor:0,left:0,right:0,
+    ctrl:{}
+  }));
+
+  function buildScene1UI(){
+    topControls.innerHTML = '';
+    bottomControls.innerHTML = '';
+    hud.innerHTML = '';
+    zones.forEach((z, idx) => {
+      const top = document.createElement('div');
+      top.className = 'card';
+      const row = document.createElement('div');
+      row.className = 'toprow';
+      const countSlider = makeSlider({label:'豆', min:100, max:500, step:50, value:z.count, onInput:v => z.count = v});
+      const pour = document.createElement('button');
+      pour.className = 'pill primary';
+      pour.textContent = '倒';
+      pour.title = '倒豆子';
+      pour.addEventListener('click', () => pourBeans(idx));
+      row.append(countSlider.wrap, pour);
+      top.append(row);
+      topControls.append(top);
+
+      const bottom = document.createElement('div');
+      bottom.className = 'card';
+      const density = makeSlider({label:'ρ', min:0.4, max:2.4, step:0.1, value:z.density, onInput:v => z.density = v});
+      const grain = makeSlider({label:'μ豆', min:0.05, max:1.00, step:0.05, value:z.grainFriction, onInput:v => z.grainFriction = v});
+      const table = makeSlider({label:'μ桌', min:0.05, max:1.00, step:0.05, value:z.tableFriction, onInput:v => z.tableFriction = v});
+      bottom.append(density.wrap, grain.wrap, table.wrap);
+      const reset = document.createElement('button');
+      reset.className = 'pill reset';
+      reset.textContent = '↺';
+      reset.title = '重置';
+      reset.style.width = '100%';
+      reset.addEventListener('click', () => resetZone(idx));
+      bottom.append(reset);
+      bottomControls.append(bottom);
+      z.ctrl = {countSlider, density, grain, table};
+
+      const m = document.createElement('div');
+      m.className = 'metric';
+      m.dataset.zone = idx;
+      m.innerHTML = `<span>高度<strong>0.0</strong></span><span>面積<strong>0.0</strong></span>`;
+      hud.append(m);
+    });
+  }
+
+  function resizeScene1(){
+    const rect = canvas.getBoundingClientRect();
+    if(rect.width < 2 || rect.height < 2) return;
+    dpr = Math.max(1, Math.min(2.5, window.devicePixelRatio || 1));
+    worldW = Math.max(320, rect.width);
+    worldH = Math.max(280, rect.height);
+    canvas.width = Math.round(worldW * dpr);
+    canvas.height = Math.round(worldH * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    layoutZones();
+    keepParticlesInBounds();
+  }
+
+  function layoutZones(){
+    const floor = worldH - 38;
+    for(let i=0;i<ZONE_COUNT;i++){
+      const x0 = i * worldW / ZONE_COUNT;
+      const x1 = (i+1) * worldW / ZONE_COUNT;
+      zones[i].x0 = x0; zones[i].x1 = x1; zones[i].floor = floor;
+      zones[i].left = x0 + 9; zones[i].right = x1 - 9;
+    }
+  }
+
+  function keepParticlesInBounds(){
+    particles.forEach(p => {
+      const z = zones[p.zone];
+      p.x = clamp(p.x, z.left + p.r, z.right - p.r);
+      p.y = clamp(p.y, -180, z.floor - p.r);
+    });
+  }
+
+  function pourBeans(zoneIndex){
+    const current = particles.filter(p => p.zone === zoneIndex).length + spawnQueues[zoneIndex];
+    const canAdd = Math.max(0, MAX_PARTICLES_PER_ZONE - current);
+    spawnQueues[zoneIndex] += Math.min(zones[zoneIndex].count, canAdd);
+  }
+
+  function resetZone(zoneIndex){
+    particles = particles.filter(p => p.zone !== zoneIndex);
+    spawnQueues[zoneIndex] = 0;
+    const z = zones[zoneIndex];
+    z.metrics = { h:0, a:0, stable:false, count:0 };
+    z.ctrl.countSlider.set(S1_DEFAULT.count);
+    z.ctrl.density.set(S1_DEFAULT.density);
+    z.ctrl.grain.set(S1_DEFAULT.grainFriction);
+    z.ctrl.table.set(S1_DEFAULT.tableFriction);
+    updateHud();
+  }
+
+  function spawnStep(){
+    for(let zi=0; zi<ZONE_COUNT; zi++){
+      if(spawnQueues[zi] <= 0) continue;
+      const z = zones[zi];
+      const batch = Math.min(spawnQueues[zi], worldW < 650 ? 7 : 12);
+      for(let k=0;k<batch;k++){
+        const center = (z.left + z.right)/2;
+        const spread = Math.max(18, (z.right - z.left) * 0.18);
+        const densityN = (z.density - 0.4) / 2.0;
+        const r = PARTICLE_RADIUS * lerp(0.96, 1.08, densityN);
+        particles.push({
+          x:clamp(center + rand(-spread, spread), z.left + 12, z.right - 12),
+          y:rand(-90, 4), vx:rand(-0.7,0.7), vy:rand(0,0.7), r, zone:zi, tone:rand(-10,10)
+        });
+      }
+      spawnQueues[zi] -= batch;
+    }
+  }
+
+  function integrate(dt){
+    for(const p of particles){
+      const z = zones[p.zone];
+      const densityN = (z.density - 0.4) / 2.0;
+      const g = 0.26 * lerp(0.82, 1.32, densityN);
+      p.vy += g * dt;
+      const air = lerp(0.998, 0.992, densityN);
+      p.vx *= Math.pow(air, dt); p.vy *= Math.pow(0.999, dt);
+      p.x += p.vx * dt; p.y += p.vy * dt;
+      const left = z.left + p.r, right = z.right - p.r;
+      if(p.x < left){ p.x = left; p.vx = Math.abs(p.vx) * 0.12; p.vy *= 0.93; }
+      if(p.x > right){ p.x = right; p.vx = -Math.abs(p.vx) * 0.12; p.vy *= 0.93; }
+      if(p.y + p.r > z.floor){
+        p.y = z.floor - p.r;
+        if(p.vy > 0) p.vy *= -0.08;
+        const grip = clamp(0.80 - z.tableFriction*0.36 - densityN*0.08, 0.30, 0.92);
+        p.vx *= Math.pow(grip, dt);
+        if(Math.abs(p.vy) < 0.10) p.vy = 0;
+        if(Math.abs(p.vx) < 0.015) p.vx = 0;
+      }
+    }
+  }
+
+  function collide(){
+    const cellSize = PARTICLE_RADIUS * 4.3;
+    const grid = new Map();
+    for(let i=0;i<particles.length;i++){
+      const p = particles[i];
+      const key = `${p.zone}:${Math.floor(p.x/cellSize)}:${Math.floor(p.y/cellSize)}`;
+      let arr = grid.get(key); if(!arr) grid.set(key, arr = []); arr.push(i);
+    }
+    for(let pass=0; pass<2; pass++){
+      for(let i=0;i<particles.length;i++){
+        const p = particles[i], cx = Math.floor(p.x/cellSize), cy = Math.floor(p.y/cellSize);
+        for(let ox=-1; ox<=1; ox++) for(let oy=-1; oy<=1; oy++){
+          const arr = grid.get(`${p.zone}:${cx+ox}:${cy+oy}`); if(!arr) continue;
+          for(const j of arr){
+            if(j <= i) continue;
+            const q = particles[j], dx = q.x-p.x, dy = q.y-p.y, minD = p.r+q.r;
+            let d2 = dx*dx+dy*dy; if(d2 <= 0.0001 || d2 >= minD*minD) continue;
+            const d = Math.sqrt(d2), nx = dx/d, ny = dy/d, overlap = minD-d, z = zones[p.zone];
+            const densityN = (z.density - 0.4) / 2.0;
+            const belowBias = clamp((Math.max(p.y,q.y)/z.floor),0,1);
+            const pressure = 0.65 + densityN*0.95 + belowBias*0.38;
+            const corr = overlap * 0.52;
+            p.x -= nx*corr; p.y -= ny*corr; q.x += nx*corr; q.y += ny*corr;
+            const rvx = q.vx-p.vx, rvy = q.vy-p.vy, vn = rvx*nx+rvy*ny, tx = -ny, ty = nx, vt = rvx*tx+rvy*ty;
+            if(vn < 0.4){
+              const impulse = -(1.04)*vn*0.5;
+              p.vx -= impulse*nx; p.vy -= impulse*ny; q.vx += impulse*nx; q.vy += impulse*ny;
+              const mu = clamp(z.grainFriction*pressure,0.03,1.35);
+              const maxF = Math.max(0.015, Math.abs(impulse)*mu + overlap*0.004*mu);
+              const f = clamp(-vt*0.34, -maxF, maxF);
+              p.vx -= f*tx; p.vy -= f*ty; q.vx += f*tx; q.vy += f*ty;
+            }
+          }
+        }
+      }
+      for(const p of particles){
+        const z = zones[p.zone];
+        p.x = clamp(p.x, z.left+p.r, z.right-p.r);
+        if(p.y+p.r > z.floor) p.y = z.floor-p.r;
+      }
+    }
+  }
+
+  function relaxPile(dt){
+    for(const p of particles){
+      const z = zones[p.zone];
+      const densityN = (z.density - 0.4)/2.0;
+      const nearFloor = clamp((p.y-worldH*0.32)/(z.floor-worldH*0.32),0,1);
+      const slopeGrip = clamp((z.grainFriction*0.55+z.tableFriction*0.45)*(0.65+densityN*0.45)*nearFloor,0,1.2);
+      p.vx *= Math.pow(clamp(1-slopeGrip*0.055,0.88,0.995), dt);
+      if(Math.abs(p.vx)<0.006 && Math.abs(p.vy)<0.035 && p.y>z.floor-p.r-2){ p.vx=0; p.vy=0; }
+    }
+  }
+
+  function updateMetrics(){
+    if(frameCount % 12 !== 0) return;
+    for(const z of zones){
+      const ps = particles.filter(p => p.zone === z.i);
+      if(!ps.length){ z.metrics = {h:0,a:0,stable:false,count:0}; continue; }
+      let minY=Infinity,minX=Infinity,maxX=-Infinity,speedSum=0;
+      for(const p of ps){ minY=Math.min(minY,p.y-p.r); minX=Math.min(minX,p.x-p.r); maxX=Math.max(maxX,p.x+p.r); speedSum += Math.abs(p.vx)+Math.abs(p.vy); }
+      const h = Math.max(0,(z.floor-minY)/10);
+      const a = (Math.max(0,maxX-minX)*(PARTICLE_RADIUS*2))/100;
+      const stable = spawnQueues[z.i]===0 && (speedSum/ps.length)<0.075;
+      z.metrics = {h,a,stable,count:ps.length};
+    }
+    updateHud();
+  }
+
+  function updateHud(){
+    hud.querySelectorAll('.metric').forEach(el => {
+      const z = zones[Number(el.dataset.zone)], strongs = el.querySelectorAll('strong'), mark = z.metrics.stable ? '' : '…';
+      strongs[0].textContent = fmt(z.metrics.h) + mark;
+      strongs[1].textContent = fmt(z.metrics.a) + mark;
+    });
+  }
+
+  function drawScene1(){
+    ctx.clearRect(0,0,worldW,worldH);
+    const grad = ctx.createLinearGradient(0,0,0,worldH);
+    grad.addColorStop(0,'#111a25'); grad.addColorStop(1,'#070b10');
+    ctx.fillStyle = grad; ctx.fillRect(0,0,worldW,worldH);
+    ctx.save();
+    ctx.strokeStyle = 'rgba(125,150,180,.10)'; ctx.lineWidth = 1;
+    const grid = 24;
+    for(let x=0; x<worldW; x+=grid){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,worldH); ctx.stroke(); }
+    for(let y=0; y<worldH; y+=grid){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(worldW,y); ctx.stroke(); }
+    ctx.restore();
+    for(const z of zones){
+      ctx.save();
+      ctx.fillStyle = 'rgba(255,255,255,.025)'; ctx.fillRect(z.x0,0,z.x1-z.x0,worldH);
+      ctx.fillStyle = '#5c4732'; ctx.fillRect(z.x0+9,z.floor,z.x1-z.x0-18,12);
+      ctx.fillStyle = 'rgba(0,0,0,.20)'; ctx.fillRect(z.x0+9,z.floor+12,z.x1-z.x0-18,worldH-z.floor-12);
+      ctx.strokeStyle = 'rgba(208,154,80,.28)'; ctx.setLineDash([5,6]);
+      const c = (z.left+z.right)/2;
+      ctx.beginPath(); ctx.moveTo(c,0); ctx.lineTo(c,Math.min(70,z.floor-20)); ctx.stroke();
+      ctx.setLineDash([]); ctx.restore();
+    }
+    ctx.strokeStyle = 'rgba(130,150,175,.30)'; ctx.lineWidth = 1.2;
+    for(let i=1;i<ZONE_COUNT;i++){ const x=i*worldW/ZONE_COUNT; ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,worldH); ctx.stroke(); }
+    const sorted = particles.slice().sort((a,b)=>a.y-b.y);
+    for(const p of sorted){
+      const baseHue = 31 + p.tone*0.25, light = 46 + p.tone*0.15;
+      ctx.beginPath(); ctx.fillStyle = `hsl(${baseHue}, 46%, ${light}%)`; ctx.arc(p.x,p.y,p.r,0,Math.PI*2); ctx.fill();
+      ctx.strokeStyle='rgba(20,14,8,.42)'; ctx.lineWidth=.6; ctx.stroke();
+      ctx.beginPath(); ctx.fillStyle='rgba(255,235,195,.28)'; ctx.arc(p.x-p.r*.28,p.y-p.r*.28,p.r*.26,0,Math.PI*2); ctx.fill();
+    }
+    ctx.save(); ctx.textAlign='center'; ctx.textBaseline='top'; ctx.font='800 12px -apple-system,BlinkMacSystemFont,"Noto Sans TC",Arial';
+    zones.forEach(z => { if(spawnQueues[z.i]>0){ ctx.fillStyle='rgba(238,243,248,.62)'; ctx.fillText(`+${spawnQueues[z.i]}`,(z.left+z.right)/2,10); } });
+    ctx.restore();
+  }
+
+  function tickScene1(t){
+    const dt = Math.min(MAX_DT,(t-lastT)/16.67 || 1); lastT = t; frameCount++;
+    spawnStep(); integrate(dt); collide(); relaxPile(dt); updateMetrics(); drawScene1();
+    requestAnimationFrame(tickScene1);
+  }
+
+  function getCanvasPoint(e, cnv){ const rect = cnv.getBoundingClientRect(); return {x:e.clientX-rect.left,y:e.clientY-rect.top}; }
+  function zoneFromX(x){ return clamp(Math.floor(x/(worldW/ZONE_COUNT)),0,ZONE_COUNT-1); }
+  function nudgeAt(x,y,zoneIndex){
+    const radius=42;
+    for(const p of particles){
+      if(zoneIndex !== undefined && p.zone !== zoneIndex) continue;
+      const dx=p.x-x, dy=p.y-y, d2=dx*dx+dy*dy;
+      if(d2<radius*radius && d2>0.1){ const d=Math.sqrt(d2), push=(1-d/radius)*0.85; p.vx+=(dx/d)*push; p.vy+=(dy/d)*push*.45; }
+    }
+  }
+
+  canvas.addEventListener('pointerdown', e => {
+    if(e.pointerType === 'touch') return;
+    canvas.setPointerCapture(e.pointerId); canvas.classList.add('dragging'); dragging=true; activePointer={id:e.pointerId,last:getCanvasPoint(e,canvas)};
+  });
+  canvas.addEventListener('pointermove', e => {
+    if(!dragging || !activePointer || activePointer.id !== e.pointerId) return;
+    const pt=getCanvasPoint(e,canvas), dx=pt.x-activePointer.last.x, dy=pt.y-activePointer.last.y, zi=zoneFromX(pt.x);
+    nudgeAt(pt.x,pt.y,zi);
+    for(const p of particles){ if(p.zone===zi && Math.abs(p.x-pt.x)<34 && Math.abs(p.y-pt.y)<34){ p.vx+=dx*.05; p.vy+=dy*.05; } }
+    activePointer.last=pt;
+  });
+  function endScene1Pointer(e){ if(activePointer && activePointer.id===e.pointerId){ dragging=false; activePointer=null; canvas.classList.remove('dragging'); } }
+  canvas.addEventListener('pointerup', endScene1Pointer); canvas.addEventListener('pointercancel', endScene1Pointer);
+  canvas.addEventListener('click', e => { const pt=getCanvasPoint(e,canvas); nudgeAt(pt.x,pt.y,zoneFromX(pt.x)); });
+  canvas.addEventListener('touchstart', e => { if(e.touches.length===2){ e.preventDefault(); const a=e.touches[0],b=e.touches[1],rect=canvas.getBoundingClientRect(); twoTouch={x:(a.clientX+b.clientX)/2-rect.left,y:(a.clientY+b.clientY)/2-rect.top}; } }, {passive:false});
+  canvas.addEventListener('touchmove', e => { if(e.touches.length===2 && twoTouch){ e.preventDefault(); const a=e.touches[0],b=e.touches[1],rect=canvas.getBoundingClientRect(); const x=(a.clientX+b.clientX)/2-rect.left,y=(a.clientY+b.clientY)/2-rect.top,dx=x-twoTouch.x,dy=y-twoTouch.y,zi=zoneFromX(x); nudgeAt(x,y,zi); for(const p of particles){ if(p.zone===zi && Math.abs(p.x-x)<48 && Math.abs(p.y-y)<48){ p.vx+=dx*.065; p.vy+=dy*.065; } } twoTouch={x,y}; } }, {passive:false});
+  canvas.addEventListener('touchend', e => { if(e.touches.length<2) twoTouch=null; });
+
+  // ------------------------ Scene 2 ------------------------
+  const s2 = document.getElementById('scene2Canvas');
+  const c2 = s2.getContext('2d', { alpha:false });
+  const s2Top = document.getElementById('scene2TopControls');
+  const s2Bottom = document.getElementById('scene2BottomControls');
+  const rodPlus = document.getElementById('rodPlus');
+  const rodMinus = document.getElementById('rodMinus');
+  const rodCount = document.getElementById('rodCount');
+  const forceToggle = document.getElementById('forceToggle');
+  let s2Dpr=1, s2W=1000, s2H=560;
+  let rodSerial=1, activeRod=null, forceOn=false;
+  const cups = [
+    {i:0, beanCount:0, material:1, density:1, liftY:0, addPulse:0, ctrl:{}, layout:{}},
+    {i:1, beanCount:0, material:1, density:1, liftY:0, addPulse:0, ctrl:{}, layout:{}}
+  ];
+  const rods = [];
+
+  function buildScene2UI(){
+    s2Top.innerHTML=''; s2Bottom.innerHTML='';
+    cups.forEach((cup, idx) => {
+      const top = document.createElement('div'); top.className='card';
+      const row = document.createElement('div'); row.className='toprow';
+      const bean = makeSlider({label:'豆', min:0, max:500, step:100, value:cup.beanCount, onInput:v => setCupBeans(idx, v)});
+      const add = document.createElement('button'); add.className='pill primary'; add.textContent='放'; add.title='放豆子 +100'; add.addEventListener('click', () => addBeans(idx));
+      row.append(bean.wrap, add); top.append(row); s2Top.append(top);
+      const bottom = document.createElement('div'); bottom.className='card';
+      const material = makeSlider({label:'μ棒', min:1, max:3, step:1, value:cup.material, onInput:v => cup.material = v});
+      const density = makeSlider({label:'ρ', min:1, max:3, step:1, value:cup.density, onInput:v => cup.density = v});
+      bottom.append(material.wrap, density.wrap); s2Bottom.append(bottom);
+      cup.ctrl = {bean, material, density};
+    });
+  }
+
+  function setCupBeans(idx, v){
+    const cup = cups[idx];
+    cup.beanCount = clamp(Math.round(v/100)*100,0,500);
+    cup.addPulse = Math.max(cup.addPulse, .6);
+    cup.liftY = 0;
+  }
+  function addBeans(idx){
+    const cup = cups[idx];
+    const next = clamp(cup.beanCount + 100,0,500);
+    cup.ctrl.bean.set(next);
+    cup.addPulse = 1;
+  }
+
+  function resizeScene2(){
+    const rect = s2.getBoundingClientRect();
+    if(rect.width < 2 || rect.height < 2) return;
+    s2Dpr = Math.max(1, Math.min(2.5, window.devicePixelRatio || 1));
+    s2W = Math.max(320, rect.width); s2H = Math.max(360, rect.height);
+    s2.width = Math.round(s2W*s2Dpr); s2.height = Math.round(s2H*s2Dpr);
+    c2.setTransform(s2Dpr,0,0,s2Dpr,0,0);
+    layoutCups();
+    if(!rods.length) addRod();
+    rods.forEach(r => { if(r.parked) parkRod(r); });
+  }
+
+  function layoutCups(){
+    const padX = s2W < 640 ? 26 : 60;
+    const gap = s2W < 640 ? 18 : 52;
+    const usable = s2W - padX*2 - gap;
+    const cupW = clamp(usable/2, 128, 250);
+    const cupH = clamp(s2H*.58, 230, 330);
+    const top = s2H*.24;
+    cups.forEach((cup,i) => {
+      const x = padX + i*(cupW+gap);
+      cup.layout = {x, y:top, w:cupW, h:cupH, bottom:top+cupH, innerPad:14, center:x+cupW/2};
+    });
+  }
+
+  function addRod(){
+    if(rods.length >= 5) return;
+    const r = {id:rodSerial++, x:0, y:0, w:13, h:230, cup:null, parked:true, colorShift:rods.length};
+    rods.push(r); parkRod(r); updateRodCount();
+  }
+  function removeRod(){
+    if(rods.length <= 1) return;
+    rods.pop(); updateRodCount();
+  }
+  function updateRodCount(){ rodCount.textContent = String(rods.length); }
+  function parkRod(r){
+    const n = rods.indexOf(r);
+    const col = n % 3, row = Math.floor(n/3);
+    r.x = s2W - 42 - col*20;
+    r.y = 34 + row*32;
+    r.parked = true; r.cup = null;
+  }
+
+  function cupAtX(x){ return cups.find(c => x >= c.layout.x+6 && x <= c.layout.x+c.layout.w-6); }
+  function beanTop(cup){ return cup.layout.bottom + cup.liftY - (cup.layout.h-36) * (cup.beanCount/500); }
+  function insertionPx(rod, cup){
+    if(!cup || cup.beanCount <= 0) return 0;
+    const ly = cup.layout.y + cup.liftY, by = cup.layout.bottom + cup.liftY;
+    if(rod.x < cup.layout.x+12 || rod.x > cup.layout.x+cup.layout.w-12) return 0;
+    const top = beanTop(cup);
+    const tip = rod.y + rod.h;
+    return clamp(tip - top, 0, by - top);
+  }
+  function insertionUnits(rod, cup){
+    if(!cup || cup.beanCount<=0) return 0;
+    const bed = Math.max(1, cup.layout.bottom + cup.liftY - beanTop(cup));
+    return insertionPx(rod,cup) / bed * cup.beanCount;
+  }
+  function rodsInCup(cup){ return rods.filter(r => insertionUnits(r,cup) > 1); }
+  function liftState(cup){
+    const inserted = rodsInCup(cup);
+    if(!inserted.length) return {can:false, inserted:0, effectiveDepth:0, score:0};
+    const effectiveDepth = inserted.reduce((s,r)=>s+insertionUnits(r,cup),0) / inserted.length;
+    const score = inserted.length * effectiveDepth * cup.density * cup.material;
+    const can = cup.material >= 3 && (
+      (cup.beanCount >= 500 && effectiveDepth >= cup.beanCount*.96 && cup.density >= 3) ||
+      (inserted.length >= 5 && effectiveDepth * cup.density >= 300)
+    );
+    return {can, inserted:inserted.length, effectiveDepth, score};
+  }
+
+  function updateRodCup(r){
+    const cup = cupAtX(r.x);
+    if(cup && insertionUnits(r,cup)>0){ r.cup = cup.i; r.parked=false; }
+    else if(!activeRod || activeRod.id !== r.id){ r.cup = null; }
+  }
+
+  function findRodAt(x,y){
+    for(let i=rods.length-1;i>=0;i--){
+      const r=rods[i];
+      if(x>=r.x-r.w*1.4 && x<=r.x+r.w*1.4 && y>=r.y-12 && y<=r.y+r.h+16) return r;
+    }
+    return null;
+  }
+
+  function drawArrow(ctx,x1,y1,x2,y2,color){
+    const ang = Math.atan2(y2-y1,x2-x1), head=6;
+    ctx.strokeStyle=color; ctx.fillStyle=color; ctx.lineWidth=1.6;
+    ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x2,y2); ctx.lineTo(x2-Math.cos(ang-.55)*head,y2-Math.sin(ang-.55)*head); ctx.lineTo(x2-Math.cos(ang+.55)*head,y2-Math.sin(ang+.55)*head); ctx.closePath(); ctx.fill();
+  }
+
+  function seededPoint(i,cup){
+    const a = Math.sin((i+1)*12.9898 + cup.i*78.233) * 43758.5453;
+    const b = Math.sin((i+1)*39.3467 + cup.i*17.713) * 24634.6345;
+    const rx = a - Math.floor(a), ry = b - Math.floor(b);
+    return {rx, ry};
+  }
+
+  function drawCup(cup){
+    const L = cup.layout, lift = cup.liftY;
+    const x=L.x, y=L.y+lift, w=L.w, h=L.h, bottom=L.bottom+lift;
+    const bedTop = beanTop(cup);
+    const state = liftState(cup);
+
+    c2.save();
+    c2.fillStyle = 'rgba(255,255,255,.02)';
+    c2.strokeStyle = 'rgba(150,190,230,.38)';
+    c2.lineWidth = 2;
+    c2.beginPath();
+    c2.moveTo(x+w*.15,y+6); c2.lineTo(x+w*.85,y+6); c2.lineTo(x+w*.74,bottom); c2.lineTo(x+w*.26,bottom); c2.closePath();
+    c2.fill(); c2.stroke();
+    c2.fillStyle = 'rgba(120,168,255,.08)';
+    c2.beginPath(); c2.moveTo(x+w*.17,y+12); c2.lineTo(x+w*.83,y+12); c2.lineTo(x+w*.72,bottom-5); c2.lineTo(x+w*.28,bottom-5); c2.closePath(); c2.fill();
+
+    if(cup.beanCount>0){
+      c2.save();
+      c2.beginPath();
+      c2.moveTo(x+w*.18,bedTop); c2.lineTo(x+w*.82,bedTop); c2.lineTo(x+w*.72,bottom-6); c2.lineTo(x+w*.28,bottom-6); c2.closePath(); c2.clip();
+      const pulseLift = cup.addPulse > 0 ? Math.sin((1-cup.addPulse)*Math.PI)*36 : 0;
+      for(let i=0;i<cup.beanCount;i++){
+        const p=seededPoint(i,cup);
+        const shrink = 0.17 + (p.ry*.12);
+        let bx = lerp(x+w*(0.25-shrink*.08), x+w*(0.75+shrink*.08), p.rx);
+        let by = lerp(bedTop+6, bottom-12, p.ry) - (i > cup.beanCount-100 ? pulseLift*cup.addPulse : 0);
+        for(const r of rods){
+          const ins = insertionPx(r,cup); if(ins<=0) continue;
+          const tip = r.y+r.h;
+          if(by >= bedTop && by <= Math.min(tip,bottom) && Math.abs(bx-r.x)<22){
+            const dir = bx < r.x ? -1 : 1;
+            const strength = (1-Math.abs(bx-r.x)/22) * 18 * (ins/(bottom-bedTop));
+            bx += dir*strength;
+          }
+        }
+        const hue = 31 + (i%9-4)*.6;
+        c2.beginPath();
+        c2.fillStyle = `hsl(${hue},44%,${44+(i%7)}%)`;
+        c2.arc(bx,by,3.7,0,Math.PI*2); c2.fill();
+        c2.strokeStyle='rgba(12,8,5,.34)'; c2.lineWidth=.45; c2.stroke();
+      }
+      c2.restore();
+      c2.strokeStyle = state.can ? 'rgba(114,209,138,.75)' : 'rgba(255,209,102,.42)';
+      c2.lineWidth = 1.8;
+      c2.beginPath(); c2.moveTo(x+w*.23, bedTop); c2.quadraticCurveTo(x+w*.5, bedTop-5, x+w*.77, bedTop); c2.stroke();
+    }
+
+    c2.save();
+    c2.font = '900 13px -apple-system,BlinkMacSystemFont,"Noto Sans TC",Arial';
+    c2.textAlign='center'; c2.textBaseline='middle';
+    const badgeX = x+w/2, badgeY = bottom+18;
+    c2.fillStyle = state.can ? 'rgba(50,120,70,.45)' : 'rgba(90,70,35,.42)';
+    c2.strokeStyle = state.can ? 'rgba(114,209,138,.65)' : 'rgba(255,209,102,.42)';
+    c2.beginPath(); c2.roundRect(badgeX-48,badgeY-13,96,26,13); c2.fill(); c2.stroke();
+    c2.fillStyle = state.can ? '#bdf3c9' : '#ffe0a3';
+    c2.fillText(state.can ? '可提起' : '會滑出', badgeX, badgeY);
+    c2.restore();
+    c2.restore();
+  }
+
+  function drawRod(r){
+    c2.save();
+    const grad = c2.createLinearGradient(r.x-r.w,r.y,r.x+r.w,r.y);
+    grad.addColorStop(0,'#5e371d'); grad.addColorStop(.45,'#c4864c'); grad.addColorStop(1,'#3a2213');
+    c2.fillStyle = grad; c2.strokeStyle='rgba(255,232,190,.28)'; c2.lineWidth=1;
+    c2.beginPath(); c2.roundRect(r.x-r.w/2,r.y,r.w,r.h,5); c2.fill(); c2.stroke();
+    c2.fillStyle='rgba(255,235,195,.18)';
+    c2.fillRect(r.x-r.w*.18,r.y+8,r.w*.16,r.h-16);
+    c2.restore();
+  }
+
+  function drawForces(){
+    if(!forceOn) return;
+    c2.save();
+    for(const r of rods){
+      const cup = r.cup === null ? cupAtX(r.x) : cups[r.cup];
+      if(!cup) continue;
+      const depth = insertionPx(r,cup); if(depth<=2 || cup.beanCount<=0) continue;
+      const groups = clamp(Math.floor(cup.beanCount/100)*3,0,15);
+      if(groups<=0) continue;
+      const top = beanTop(cup), tip = Math.min(r.y+r.h, cup.layout.bottom+cup.liftY);
+      const depthNorm = clamp(depth/(cup.layout.bottom+cup.liftY-top),0,1);
+      for(let i=0;i<groups;i++){
+        const t = (i+1)/(groups+1);
+        const y = lerp(top+8, tip-8, t);
+        const len = clamp(7 + 22*t*depthNorm*(cup.density/3)*(cup.material/3), 4, 32);
+        const color = `rgba(120,168,255,${0.25+0.55*t})`;
+        drawArrow(c2,r.x-len-8,y,r.x-r.w/2-2,y,color);
+        drawArrow(c2,r.x+len+8,y,r.x+r.w/2+2,y,color);
+      }
+    }
+    c2.restore();
+  }
+
+  function drawScene2(){
+    for(const cup of cups){ if(cup.addPulse>0) cup.addPulse = Math.max(0,cup.addPulse-.025); }
+    c2.clearRect(0,0,s2W,s2H);
+    const grad = c2.createLinearGradient(0,0,0,s2H);
+    grad.addColorStop(0,'#111a25'); grad.addColorStop(1,'#070b10');
+    c2.fillStyle=grad; c2.fillRect(0,0,s2W,s2H);
+    c2.save(); c2.strokeStyle='rgba(125,150,180,.10)'; c2.lineWidth=1;
+    for(let x=0;x<s2W;x+=28){ c2.beginPath(); c2.moveTo(x,0); c2.lineTo(x,s2H); c2.stroke(); }
+    for(let y=0;y<s2H;y+=28){ c2.beginPath(); c2.moveTo(0,y); c2.lineTo(s2W,y); c2.stroke(); }
+    c2.restore();
+    c2.fillStyle='#5c4732'; c2.fillRect(18,s2H-34,s2W-36,12);
+    cups.forEach(drawCup);
+    drawForces();
+    rods.forEach(drawRod);
+    requestAnimationFrame(drawScene2);
+  }
+
+  s2.addEventListener('pointerdown', e => {
+    const pt=getCanvasPoint(e,s2), r=findRodAt(pt.x,pt.y);
+    if(!r) return;
+    e.preventDefault(); s2.setPointerCapture(e.pointerId); s2.classList.add('dragging');
+    activeRod = {id:e.pointerId, rod:r, last:pt};
+    r.parked=false;
+  });
+  s2.addEventListener('pointermove', e => {
+    if(!activeRod || activeRod.id !== e.pointerId) return;
+    e.preventDefault();
+    const pt=getCanvasPoint(e,s2), r=activeRod.rod, dx=pt.x-activeRod.last.x, dy=pt.y-activeRod.last.y;
+    updateRodCup(r);
+    const currentCup = r.cup !== null ? cups[r.cup] : cupAtX(r.x);
+    const state = currentCup ? liftState(currentCup) : {can:false};
+    const movingUp = dy < -0.4;
+    if(currentCup && movingUp && state.can){
+      const newLift = clamp(currentCup.liftY + dy, -120, 0);
+      const applied = newLift - currentCup.liftY;
+      currentCup.liftY = newLift;
+      rods.forEach(other => { if(other === r || insertionUnits(other,currentCup)>1){ other.x += dx; other.y += applied; other.cup = currentCup.i; other.parked=false; } });
+    }else if(currentCup && dy > .4 && currentCup.liftY < 0 && insertionUnits(r,currentCup)>1){
+      const newLift = clamp(currentCup.liftY + dy, -120, 0);
+      const applied = newLift - currentCup.liftY;
+      currentCup.liftY = newLift;
+      rods.forEach(other => { if(other === r || insertionUnits(other,currentCup)>1){ other.x += dx; other.y += applied; other.cup = currentCup.i; } });
+    }else{
+      r.x += dx; r.y += dy;
+    }
+    r.x = clamp(r.x, 16, s2W-16); r.y = clamp(r.y, -r.h+24, s2H-44);
+    updateRodCup(r);
+    activeRod.last=pt;
+  }, {passive:false});
+  function endRodDrag(e){
+    if(activeRod && activeRod.id === e.pointerId){ updateRodCup(activeRod.rod); activeRod=null; s2.classList.remove('dragging'); }
+  }
+  s2.addEventListener('pointerup', endRodDrag); s2.addEventListener('pointercancel', endRodDrag);
+  rodPlus.addEventListener('click', addRod); rodMinus.addEventListener('click', removeRod); forceToggle.addEventListener('change', () => forceOn = forceToggle.checked);
+
+  // ------------------------ Modal and tabs ------------------------
+  const modalBackdrop = document.getElementById('modalBackdrop');
+  const modalBody = document.getElementById('modalBody');
+  const helpBtn = document.getElementById('helpBtn');
+  const modalClose = document.getElementById('modalClose');
+  async function openHelp(){
+    let md = README_FALLBACK;
+    try{
+      const res = await fetch('./readme.md', {cache:'no-store'});
+      if(res.ok) md = await res.text();
+    }catch(e){}
+    modalBody.innerHTML = renderMarkdown(md);
+    modalBackdrop.classList.add('open'); modalBackdrop.setAttribute('aria-hidden','false');
+  }
+  function closeHelp(){ modalBackdrop.classList.remove('open'); modalBackdrop.setAttribute('aria-hidden','true'); }
+  helpBtn.addEventListener('click', openHelp);
+  modalClose.addEventListener('click', closeHelp);
+  modalBackdrop.addEventListener('click', e => { if(e.target === modalBackdrop) closeHelp(); });
+  window.addEventListener('keydown', e => { if(e.key==='Escape') closeHelp(); });
+
+  document.querySelectorAll('.tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const one = document.getElementById('scene-one'), two = document.getElementById('scene-two');
+      if(btn.dataset.scene === 'one'){
+        one.classList.add('active'); two.classList.remove('active'); setTimeout(resizeScene1,40);
+      }else{
+        two.classList.add('active'); one.classList.remove('active'); setTimeout(resizeScene2,40);
+      }
+    });
+  });
+
+  window.addEventListener('resize', () => { setTimeout(() => { resizeScene1(); resizeScene2(); }, 80); });
+  buildScene1UI(); buildScene2UI(); resizeScene1(); resizeScene2(); requestAnimationFrame(tickScene1); requestAnimationFrame(drawScene2);
+})();
+</script>
+</body>
+</html>
