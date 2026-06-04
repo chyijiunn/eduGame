@@ -1,0 +1,995 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>V-T 圖互動模擬 v0.11</title>
+  <script src="/eduGame/ga4.js"></script>
+  <style>
+    :root{
+      --bg:#1f1f1f;
+      --panel:#2c2c2c;
+      --stage:#777;
+      --line:#fff;
+      --muted:#bdbdbd;
+      --soft:#3a3a3a;
+      --accent:#f5f5f5;
+      --danger:#ffdddd;
+      --radius:18px;
+    }
+    *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+    html,body{height:100%;margin:0;background:var(--bg);color:var(--line);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans TC",Arial,sans-serif;overflow:hidden;}
+    body{display:flex;justify-content:center;align-items:stretch;}
+    #app{width:min(1200px,100vw);height:100dvh;display:grid;grid-template-rows:auto 1fr auto;gap:10px;padding:10px;}
+    .tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
+    .tab{height:44px;border:0;border-radius:14px;background:#333;color:#d8d8d8;font-size:16px;font-weight:700;letter-spacing:.03em;display:flex;align-items:center;justify-content:center;gap:8px;cursor:pointer;}
+    .tab.active{background:#f2f2f2;color:#1f1f1f;}
+    .workspace{min-height:0;display:grid;grid-template-rows:minmax(260px,1fr) 190px;gap:10px;}
+    .stageShell{position:relative;overflow:hidden;border-radius:var(--radius);background:var(--stage);touch-action:none;user-select:none;box-shadow:inset 0 0 0 1px rgba(255,255,255,.09);}
+    .stageTransform{position:absolute;inset:0;width:100%;height:100%;transform:none;transform-origin:center center;will-change:auto;}
+    canvas{display:block;width:100%;height:100%;}
+    #stageCanvas{background:transparent;}
+    .timeBadge{position:absolute;right:12px;top:12px;padding:8px 12px;border-radius:999px;background:rgba(0,0,0,.28);font-variant-numeric:tabular-nums;font-size:14px;backdrop-filter:blur(8px);z-index:4;}
+    .hintCenter{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);padding:14px 18px;border-radius:18px;background:rgba(0,0,0,.25);text-align:center;line-height:1.55;font-size:15px;max-width:min(520px,84vw);backdrop-filter:blur(6px);z-index:3;pointer-events:none;}
+    .stageSelect{position:absolute;inset:0;display:none;align-items:center;justify-content:center;gap:14px;z-index:5;background:rgba(60,60,60,.78);backdrop-filter:blur(8px);padding:16px;}
+    .stageSelect.show{display:flex;}
+    .stageCard{width:min(190px,29vw);aspect-ratio:1/1;border:0;border-radius:24px;background:rgba(255,255,255,.12);color:white;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;font-size:15px;font-weight:800;box-shadow:inset 0 0 0 1px rgba(255,255,255,.14);}
+    .stageCard .icon{font-size:clamp(34px,8vw,58px);filter:grayscale(1) brightness(3);}
+    .helpBtn{position:absolute;left:12px;top:12px;width:40px;height:40px;border:0;border-radius:999px;background:rgba(0,0,0,.28);color:white;font-weight:900;font-size:20px;cursor:pointer;z-index:6;}
+    .graphPanel{border-radius:var(--radius);background:var(--panel);display:grid;grid-template-columns:1fr 240px;gap:10px;padding:10px;min-height:0;}
+    .graphBox{position:relative;min-width:0;overflow:hidden;border-radius:14px;background:#242424;box-shadow:inset 0 0 0 1px rgba(255,255,255,.08);}
+    #graphCanvas{background:#242424;}
+    .speedReadout{position:absolute;right:12px;top:10px;padding:6px 10px;border-radius:999px;background:rgba(0,0,0,.38);font-size:13px;font-variant-numeric:tabular-nums;color:white;}
+    .controls{display:grid;grid-template-rows:auto auto 1fr;gap:8px;min-width:0;}
+    .mainBtn,.miniBtn,.choiceBtn{border:0;border-radius:14px;color:white;background:#3a3a3a;cursor:pointer;font-weight:800;}
+    .mainBtn{height:45px;background:white;color:#1d1d1d;font-size:15px;letter-spacing:.05em;}
+    .mainBtn.running{background:#d5d5d5;color:#222;}
+    .controlRow{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
+    .miniBtn{height:42px;font-size:18px;}
+    .choiceRow{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;align-content:start;}
+    .choiceBtn{height:44px;font-size:13px;color:#e6e6e6;background:#353535;}
+    .choiceBtn.active{background:#ededed;color:#191919;}
+    .note{font-size:12px;color:var(--muted);line-height:1.45;overflow:auto;padding:2px 4px;}
+    .modal{position:fixed;inset:0;background:rgba(0,0,0,.62);display:none;align-items:center;justify-content:center;z-index:20;padding:20px;}
+    .modal.show{display:flex;}
+    .modalCard{width:min(780px,94vw);max-height:min(760px,88dvh);background:#f7f7f7;color:#151515;border-radius:22px;display:grid;grid-template-rows:auto 1fr;box-shadow:0 30px 80px rgba(0,0,0,.55);overflow:hidden;}
+    .modalTop{height:52px;display:flex;align-items:center;justify-content:space-between;padding:0 14px 0 20px;border-bottom:1px solid #ddd;font-weight:900;}
+    .closeBtn{width:36px;height:36px;border:0;border-radius:999px;background:#222;color:white;font-size:18px;cursor:pointer;}
+    .mdBody{padding:18px 22px;overflow:auto;line-height:1.75;font-size:15px;}
+    .mdBody h1{font-size:24px;margin:0 0 12px;}
+    .mdBody h2{font-size:19px;margin:24px 0 8px;border-left:5px solid #333;padding-left:9px;}
+    .mdBody h3{font-size:16px;margin:18px 0 6px;}
+    .mdBody ul{padding-left:1.35em;}
+    .mdBody code{background:#e6e6e6;padding:2px 5px;border-radius:6px;}
+    .mdBody table{border-collapse:collapse;width:100%;font-size:14px;margin:12px 0;}
+    .mdBody th,.mdBody td{border:1px solid #ccc;padding:7px 8px;text-align:left;}
+    .mdBody th{background:#e8e8e8;}
+    .hidden{display:none!important;}
+    @media (max-width:760px){
+      #app{padding:8px;gap:8px;}
+      .tab{height:42px;font-size:14px;gap:4px;}
+      .workspace{grid-template-rows:minmax(280px,1fr) 245px;gap:8px;}
+      .graphPanel{grid-template-columns:1fr;grid-template-rows:1fr auto;padding:8px;}
+      .controls{grid-template-rows:auto auto auto;}
+      .choiceRow{grid-template-columns:repeat(3,1fr);}
+      .note{max-height:44px;}
+      .stageSelect{flex-direction:column;}
+      .stageCard{width:min(260px,72vw);aspect-ratio:3.5/1;flex-direction:row;justify-content:flex-start;padding-left:22px;}
+      .hintCenter{font-size:14px;padding:12px 14px;}
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div class="tabs" role="tablist" aria-label="場景切換">
+      <button class="tab active" data-scene="horizontal"><span>↔</span><span>橫軸</span></button>
+      <button class="tab" data-scene="vertical"><span>↕</span><span>縱軸</span></button>
+      <button class="tab" data-scene="top"><span>◎</span><span>鳥瞰</span></button>
+    </div>
+
+    <main class="workspace">
+      <section id="stageShell" class="stageShell" aria-label="主舞台">
+        <button id="helpBtn" class="helpBtn" aria-label="說明">?</button>
+        <div id="stageTransform" class="stageTransform">
+          <canvas id="stageCanvas"></canvas>
+        </div>
+        <div id="timeBadge" class="timeBadge">0.0 s</div>
+        <div id="hintCenter" class="hintCenter">按 START 後，拖曳白色人影，觀察 V‑T 圖如何改變。</div>
+        <div id="stageSelect" class="stageSelect" aria-label="縱軸舞台選擇">
+          <button class="stageCard" data-stage="apple"><span class="icon">●</span><span>樹上的蘋果</span></button>
+          <button class="stageCard" data-stage="rocket"><span class="icon">▲</span><span>火箭發射台</span></button>
+          <button class="stageCard" data-stage="ball"><span class="icon">◯</span><span>準備拋球的手</span></button>
+        </div>
+      </section>
+
+      <section class="graphPanel" aria-label="速度時間圖與控制台">
+        <div class="graphBox">
+          <canvas id="graphCanvas"></canvas>
+          <div id="speedReadout" class="speedReadout">v = 0.00 m/s</div>
+        </div>
+        <aside class="controls">
+          <button id="startBtn" class="mainBtn">START</button>
+          <div class="controlRow">
+            <button id="resetBtn" class="miniBtn" title="重來一次">↺</button>
+            <button id="pauseBtn" class="miniBtn" title="暫停">Ⅱ</button>
+            <button id="nextBtn" class="miniBtn" title="前往下一個舞台">▶</button>
+          </div>
+          <div class="choiceRow" id="verticalChoices">
+            <button class="choiceBtn active" data-stage="apple">蘋果</button>
+            <button class="choiceBtn" data-stage="rocket">火箭</button>
+            <button class="choiceBtn" data-stage="ball">拋球</button>
+          </div>
+          <div id="controlNote" class="note">固定視窗：只拖曳白色可操作物件；空白處不會旋轉或縮放。</div>
+        </aside>
+      </section>
+    </main>
+  </div>
+
+  <div id="modal" class="modal" role="dialog" aria-modal="true" aria-label="readme.md 操作說明">
+    <div class="modalCard">
+      <div class="modalTop"><span>readme.md</span><button id="closeModal" class="closeBtn" aria-label="關閉">×</button></div>
+      <div id="mdBody" class="mdBody"></div>
+    </div>
+  </div>
+
+  <script>
+  (()=>{
+    'use strict';
+
+    const VERSION = '0.11';
+    const G = 9.8;
+    const MAX_POINTS = 2400;
+
+    const readmeMd = `# V-T 圖互動模擬器 v0.11
+
+這個網頁用來觀察「速度－時間圖」，也就是 **V-T 圖**。橫軸是時間，縱軸是速度。
+
+## 基本操作
+
+- 按下 \`START\` 後才會開始計時與畫圖。
+- \`↺\`：重來一次。
+- \`Ⅱ\`：暫停或繼續。
+- \`▶\`：在縱軸模式中切換下一個舞台。
+- 點左上角 \`?\` 可以開啟這份說明。
+
+## 操作方式
+
+這一版使用固定視窗，不能縮放，也不能旋轉舞台。請直接拖曳白色可操作物件：
+
+| 場景 | 可操作物件 |
+|---|---|
+| 橫軸 | 拖曳人影左右移動 |
+| 蘋果 | 拖曳樹幹搖樹 |
+| 火箭 | 拖曳打火機到火箭底部 |
+| 拋球 | 拖曳手臂向下蓄力，放開後拋球 |
+
+## 場景一：橫軸運動
+
+白色人影一開始在 \`0 m\`。右邊學校是 \`+10 m\`，左邊樹是 \`-10 m\`，整條水平線代表 \`-20 m\` 到 \`+20 m\`。
+
+按下 \`START\` 後，拖曳人影：
+
+- 往右移動：速度是正值。
+- 往左移動：速度是負值。
+- 停下來不動：速度接近 0。
+- 拖得越快：V-T 圖上的線離 0 越遠。
+
+## 場景二：縱軸運動
+
+進入縱軸模式後可以選三個舞台。
+
+### 1. 樹上的蘋果
+
+按 \`START\` 後，拖曳或搖動樹，蘋果會往下掉。這裡沒有真正畫出地面，蘋果掉得越遠，樹和蘋果看起來會越小，表示它離原本的位置越來越遠。
+
+這個舞台把「往上」設為正方向，所以蘋果往下掉時，速度會變成負值，而且負值會越來越大。
+
+### 2. 火箭發射台
+
+按 \`START\` 後，把打火機拖到火箭下方點火。
+
+火箭的速度變化大致分三段：
+
+1. 燃料燃燒：速度往上增加。
+2. 燃料用完：火箭還會往上，但速度逐漸變小。
+3. 到最高點後：速度變成 0，接著往下掉，直到落地速度回到 0。
+
+### 3. 準備拋球的手
+
+按 \`START\` 後，把手臂往下扳。手臂像彈簧一樣，扳得越低，球被拋出去的初速度越大。
+
+球離手後：
+
+- 只能因重力逐漸減速。
+- 到最高點時速度為 0。
+- 接著速度變成負值，表示往下掉。
+- 回到手裡後停止。
+
+## 讀 V-T 圖的重點
+
+- 線在 0 上方：物體往正方向運動。
+- 線在 0 下方：物體往負方向運動。
+- 線越陡：速度改變越快，也就是加速度越大。
+- 線貼近 0：物體速度很小，或接近停止。`;
+
+    const els = {
+      tabs: [...document.querySelectorAll('.tab')],
+      stageShell: document.getElementById('stageShell'),
+      stageTransform: document.getElementById('stageTransform'),
+      stageCanvas: document.getElementById('stageCanvas'),
+      graphCanvas: document.getElementById('graphCanvas'),
+      timeBadge: document.getElementById('timeBadge'),
+      hintCenter: document.getElementById('hintCenter'),
+      stageSelect: document.getElementById('stageSelect'),
+      startBtn: document.getElementById('startBtn'),
+      resetBtn: document.getElementById('resetBtn'),
+      pauseBtn: document.getElementById('pauseBtn'),
+      nextBtn: document.getElementById('nextBtn'),
+      speedReadout: document.getElementById('speedReadout'),
+      verticalChoices: document.getElementById('verticalChoices'),
+      controlNote: document.getElementById('controlNote'),
+      helpBtn: document.getElementById('helpBtn'),
+      modal: document.getElementById('modal'),
+      closeModal: document.getElementById('closeModal'),
+      mdBody: document.getElementById('mdBody'),
+    };
+
+    const sctx = els.stageCanvas.getContext('2d');
+    const gctx = els.graphCanvas.getContext('2d');
+
+    const state = {
+      version: VERSION,
+      scene: 'horizontal',
+      verticalStage: 'apple',
+      running: false,
+      paused: false,
+      elapsed: 0,
+      lastNow: 0,
+      graph: [],
+      velocity: 0,
+      camera: { zoom: 1, rotX: 0, rotY: 0, panX: 0, panY: 0 },
+      interaction: null,
+      pointers: new Map(),
+      pinch: null,
+      horizontal: { x: 0, lastX: 0, draggingPerson: false },
+      apple: { falling:false, y:0, v:0, shake:0, sway:0 },
+      rocket: { phase:'waiting', y:0, v:0, burnTime:0, lighterX:0.36, lighterY:0.78, ignited:false, complete:false },
+      ball: { phase:'ready', armAngle:0, pull:0, y:0, v:0, handSpeed:0, lastBallY:0 },
+    };
+
+    function resizeCanvas(canvas, ctx){
+      const rect = canvas.getBoundingClientRect();
+      const dpr = Math.max(1, Math.min(2.5, window.devicePixelRatio || 1));
+      const w = Math.max(10, Math.floor(rect.width * dpr));
+      const h = Math.max(10, Math.floor(rect.height * dpr));
+      if(canvas.width !== w || canvas.height !== h){
+        canvas.width = w;
+        canvas.height = h;
+      }
+      ctx.setTransform(dpr,0,0,dpr,0,0);
+      return {w:rect.width,h:rect.height,dpr};
+    }
+
+    function clamp(v,min,max){ return Math.max(min, Math.min(max, v)); }
+    function lerp(a,b,t){ return a+(b-a)*t; }
+    function fmt(v,d=1){ return Number.isFinite(v) ? v.toFixed(d) : '0.0'; }
+
+    function resetCommon(keepPosition=false){
+      state.running = false;
+      state.paused = false;
+      state.elapsed = 0;
+      state.lastNow = 0;
+      state.graph = [];
+      state.velocity = 0;
+      if(!keepPosition) state.horizontal.x = 0;
+      state.horizontal.lastX = state.horizontal.x;
+      state.apple = { falling:false, y:0, v:0, shake:0, sway:0 };
+      state.rocket = { phase:'waiting', y:0, v:0, burnTime:0, lighterX:0.36, lighterY:0.78, ignited:false, complete:false };
+      state.ball = { phase:'ready', armAngle:0, pull:0, y:0, v:0, handSpeed:0, lastBallY:0 };
+      updateButtons();
+      updateHint();
+    }
+
+    function startRun(){
+      if(state.scene === 'top') return;
+      state.running = true;
+      state.paused = false;
+      state.elapsed = 0;
+      state.lastNow = performance.now();
+      state.graph = [];
+      state.velocity = 0;
+      state.horizontal.lastX = state.horizontal.x;
+      if(state.scene === 'vertical'){
+        if(state.verticalStage === 'apple') state.apple = { falling:false, y:0, v:0, shake:0, sway:0 };
+        if(state.verticalStage === 'rocket') state.rocket = { phase:'waiting', y:0, v:0, burnTime:0, lighterX:0.36, lighterY:0.78, ignited:false, complete:false };
+        if(state.verticalStage === 'ball') state.ball = { phase:'ready', armAngle:0, pull:0, y:0, v:0, handSpeed:0, lastBallY:0 };
+      }
+      updateButtons();
+      updateHint();
+      trackEvent('vt_start', {scene: state.scene, stage: state.verticalStage, version: VERSION});
+    }
+
+    function setScene(scene){
+      state.scene = scene;
+      els.tabs.forEach(t=>t.classList.toggle('active', t.dataset.scene === scene));
+      els.stageSelect.classList.toggle('show', scene === 'vertical' && !state.running);
+      resetCommon(true);
+      updateChoiceButtons();
+      updateHint();
+      trackEvent('scene_change', {scene, version:VERSION});
+    }
+
+    function setVerticalStage(stage){
+      state.verticalStage = stage;
+      els.stageSelect.classList.remove('show');
+      resetCommon(true);
+      updateChoiceButtons();
+      updateHint();
+      trackEvent('stage_change', {stage, version:VERSION});
+    }
+
+    function nextStage(){
+      if(state.scene !== 'vertical') return;
+      const stages = ['apple','rocket','ball'];
+      const i = stages.indexOf(state.verticalStage);
+      setVerticalStage(stages[(i+1)%stages.length]);
+    }
+
+    function updateButtons(){
+      els.startBtn.textContent = state.running ? (state.paused ? 'CONTINUE' : 'RESTART') : 'START';
+      els.startBtn.classList.toggle('running', state.running && !state.paused);
+      els.pauseBtn.textContent = state.paused ? '▶' : 'Ⅱ';
+      els.nextBtn.disabled = state.scene !== 'vertical';
+      els.nextBtn.style.opacity = state.scene === 'vertical' ? '1' : '.35';
+      els.verticalChoices.style.display = state.scene === 'vertical' ? 'grid' : 'none';
+    }
+
+    function updateChoiceButtons(){
+      [...els.verticalChoices.querySelectorAll('.choiceBtn')].forEach(btn=>{
+        btn.classList.toggle('active', btn.dataset.stage === state.verticalStage);
+      });
+    }
+
+    function updateHint(){
+      let text = '';
+      if(state.scene === 'horizontal'){
+        text = state.running ? '拖曳人影：往右是正速度，往左是負速度。' : '按 START 後，拖曳白色人影，觀察 V‑T 圖。';
+      }else if(state.scene === 'vertical'){
+        if(!state.running){
+          const names = {apple:'搖樹讓蘋果落下', rocket:'拖曳打火機到火箭下方', ball:'把手臂往下扳再放開'};
+          text = `選舞台後按 START：${names[state.verticalStage]}`;
+        }else{
+          text = {apple:'拖曳樹幹搖樹，蘋果會開始往下落。', rocket:'把打火機拖到火箭底部點火。', ball:'拖曳手臂向下蓄力，放開後球會上拋。'}[state.verticalStage];
+        }
+      }else{
+        text = '鳥瞰圖模式已先保留，後續可再加入新的運動模型。';
+      }
+      els.hintCenter.textContent = text;
+      els.hintCenter.style.display = state.running && state.elapsed > 2.2 ? 'none' : 'block';
+      els.stageSelect.classList.toggle('show', state.scene === 'vertical' && !state.running && state.graph.length === 0);
+    }
+
+    function trackEvent(name, params){
+      try{
+        if(typeof gtag === 'function') gtag('event', name, params || {});
+      }catch(e){}
+    }
+
+    function applyCameraTransform(){
+      // v0.11：固定視窗，不提供整體舞台旋轉、平移或縮放。
+      els.stageTransform.style.transform = 'none';
+    }
+
+    function screenToStage(clientX, clientY){
+      const rect = els.stageShell.getBoundingClientRect();
+      return { x: clientX - rect.left, y: clientY - rect.top, w: rect.width, h: rect.height };
+    }
+
+    function lineGeom(w,h){
+      return { x0:w*0.08, x1:w*0.92, y:h*0.58 };
+    }
+    function worldToScreenX(pos,w){
+      const g = lineGeom(w, 1);
+      return lerp(g.x0, g.x1, (pos + 20) / 40);
+    }
+    function screenXToWorld(x,w){
+      const g = lineGeom(w, 1);
+      return clamp(((x - g.x0) / (g.x1 - g.x0)) * 40 - 20, -20, 20);
+    }
+
+    function hitTest(p){
+      const {w,h} = p;
+      if(state.scene === 'horizontal'){
+        const px = worldToScreenX(state.horizontal.x, w);
+        const py = lineGeom(w,h).y - 42;
+        if(Math.hypot(p.x-px,p.y-py) < 58) return 'person';
+        return null;
+      }
+      if(state.scene === 'vertical'){
+        if(state.verticalStage === 'apple'){
+          const tree = appleTreeScreen(w,h);
+          if(Math.abs(p.x-tree.x) < Math.max(56, tree.size*.38) && Math.abs(p.y-tree.baseY-tree.size*-.45) < Math.max(90, tree.size*.46)) return 'tree';
+          return null;
+        }
+        if(state.verticalStage === 'rocket'){
+          const lx = state.rocket.lighterX*w, ly = state.rocket.lighterY*h;
+          if(Math.hypot(p.x-lx,p.y-ly) < 64) return 'lighter';
+          return null;
+        }
+        if(state.verticalStage === 'ball'){
+          const pivot = {x:w*0.35,y:h*0.63};
+          const len = Math.min(w,h)*0.30;
+          const angle = state.ball.phase === 'flight' ? 0 : state.ball.armAngle;
+          const hand = {x:pivot.x + Math.cos(angle)*len, y:pivot.y + Math.sin(angle)*len};
+          if(pointToSegmentDistance(p.x,p.y,pivot.x,pivot.y,hand.x,hand.y) < 55 || Math.hypot(p.x-hand.x,p.y-hand.y) < 76) return 'arm';
+          return null;
+        }
+      }
+      return null;
+    }
+
+    function pointToSegmentDistance(px,py,x1,y1,x2,y2){
+      const dx=x2-x1, dy=y2-y1;
+      const l2=dx*dx+dy*dy || 1;
+      const t=clamp(((px-x1)*dx+(py-y1)*dy)/l2,0,1);
+      const x=x1+t*dx, y=y1+t*dy;
+      return Math.hypot(px-x,py-y);
+    }
+
+    function appleTreeScreen(w,h){
+      const distance = Math.max(0,-state.apple.y);
+      const far = clamp(distance/16,0,1);
+      const scale = clamp(1/(1+distance/30), .16, 1);
+      const size = Math.min(w,h)*.52*scale;
+      return {
+        x: w*.5 + Math.sin(performance.now()/100)*state.apple.sway*6*scale,
+        baseY: lerp(h*.66, h*.28, far),
+        size,
+        scale,
+        far,
+        distance
+      };
+    }
+
+    function rocketView(w,h){
+      const r = state.rocket;
+      const height = Math.max(0,r.y);
+      const scale = clamp(1/(1+height/42), .22, 1);
+      const groundY = h*.78;
+      const rocketY = groundY - (Math.min(w,h)*.22*.48 + height*5.2) * scale;
+      return {scale, groundY, rocketX:w*.5, rocketY, height};
+    }
+
+    function onPointerDown(e){
+      if(e.target.closest('button')) return;
+      e.preventDefault();
+      els.stageShell.setPointerCapture?.(e.pointerId);
+      const p = screenToStage(e.clientX,e.clientY);
+      state.pointers.set(e.pointerId, {x:e.clientX,y:e.clientY,startX:e.clientX,startY:e.clientY});
+      if(state.pointers.size > 1){
+        state.interaction = null;
+        return;
+      }
+      const target = hitTest(p);
+      if(!target){
+        state.interaction = null;
+        return;
+      }
+      state.interaction = {type:target, lastX:e.clientX, lastY:e.clientY, startP:p, lastT:performance.now()};
+      if(target === 'person') state.horizontal.draggingPerson = true;
+      if(target === 'arm' && state.running && !state.paused && state.verticalStage === 'ball'){
+        state.ball.phase = 'pulling';
+      }
+    }
+
+    function onPointerMove(e){
+      if(!state.pointers.has(e.pointerId)) return;
+      e.preventDefault();
+      const prev = state.pointers.get(e.pointerId);
+      state.pointers.set(e.pointerId, {x:e.clientX,y:e.clientY,startX:prev.startX,startY:prev.startY});
+      if(state.pointers.size > 1 || !state.interaction) return;
+
+      const p = screenToStage(e.clientX,e.clientY);
+      const dx = e.clientX - state.interaction.lastX;
+      const dy = e.clientY - state.interaction.lastY;
+      const now = performance.now();
+      const dt = Math.max(.016, (now - state.interaction.lastT)/1000);
+
+      if(state.interaction.type === 'person'){
+        state.horizontal.x = screenXToWorld(p.x, p.w);
+      }else if(state.interaction.type === 'tree'){
+        if(state.running && !state.paused && state.verticalStage === 'apple'){
+          state.apple.shake += Math.abs(dx) + Math.abs(dy)*0.45;
+          state.apple.sway = clamp(dx/20,-1,1);
+          if(state.apple.shake > 32 && !state.apple.falling){
+            state.apple.falling = true;
+            state.apple.v = -0.5;
+          }
+        }
+      }else if(state.interaction.type === 'lighter'){
+        if(state.verticalStage === 'rocket'){
+          state.rocket.lighterX = clamp(p.x / p.w, .08, .92);
+          state.rocket.lighterY = clamp(p.y / p.h, .12, .95);
+          if(state.running && !state.paused && state.rocket.phase === 'waiting'){
+            const view = rocketView(p.w,p.h);
+            const nozzle = {x:view.rocketX, y:view.groundY - Math.min(p.w,p.h)*.22*.05};
+            if(Math.hypot(p.x-nozzle.x,p.y-nozzle.y) < 82){
+              state.rocket.phase = 'boost';
+              state.rocket.ignited = true;
+            }
+          }
+        }
+      }else if(state.interaction.type === 'arm'){
+        if(state.running && !state.paused && state.verticalStage === 'ball' && (state.ball.phase === 'ready' || state.ball.phase === 'pulling')){
+          const pivot = {x:p.w*0.35,y:p.h*0.63};
+          const angle = Math.atan2(p.y - pivot.y, p.x - pivot.x);
+          state.ball.armAngle = clamp(angle, 0, 1.22);
+          state.ball.pull = Math.abs(state.ball.armAngle)/1.22;
+          const handDrop = Math.sin(state.ball.armAngle) * 7;
+          state.ball.handSpeed = -((handDrop - state.ball.lastBallY) / dt);
+          state.ball.lastBallY = handDrop;
+          state.ball.phase = 'pulling';
+        }
+      }
+      state.interaction.lastX = e.clientX;
+      state.interaction.lastY = e.clientY;
+      state.interaction.lastT = now;
+    }
+
+    function onPointerUp(e){
+      if(state.pointers.has(e.pointerId)) state.pointers.delete(e.pointerId);
+      if(state.interaction?.type === 'arm' && state.running && !state.paused && state.verticalStage === 'ball' && state.ball.phase === 'pulling'){
+        if(state.ball.pull > .07){
+          state.ball.phase = 'flight';
+          state.ball.v = 6 + state.ball.pull * 16;
+          state.ball.y = 0;
+          state.ball.armAngle = 0;
+        }else{
+          state.ball.phase = 'ready';
+          state.ball.armAngle = 0;
+          state.ball.pull = 0;
+        }
+      }
+      state.horizontal.draggingPerson = false;
+      state.pinch = null;
+      state.interaction = null;
+    }
+
+    function onWheel(e){
+      // v0.11：固定視窗，滾輪不縮放舞台。
+      e.preventDefault();
+    }
+
+    function update(dt){
+      if(!state.running || state.paused) return;
+      state.elapsed += dt;
+      let v = 0;
+      if(state.scene === 'horizontal'){
+        v = (state.horizontal.x - state.horizontal.lastX) / Math.max(dt,.016);
+        v = clamp(v, -28, 28);
+        state.horizontal.lastX = state.horizontal.x;
+      }else if(state.scene === 'vertical'){
+        if(state.verticalStage === 'apple') v = updateApple(dt);
+        if(state.verticalStage === 'rocket') v = updateRocket(dt);
+        if(state.verticalStage === 'ball') v = updateBall(dt);
+      }
+      state.velocity = Math.abs(v) < .02 ? 0 : v;
+      addPoint(state.elapsed, state.velocity);
+      updateHint();
+    }
+
+    function updateApple(dt){
+      const a = state.apple;
+      a.sway *= Math.pow(.1, dt);
+      if(a.falling){
+        a.v -= G * dt;
+        a.y += a.v * dt;
+      }
+      return a.falling ? a.v : 0;
+    }
+
+    function updateRocket(dt){
+      const r = state.rocket;
+      if(r.phase === 'waiting' || r.complete) return 0;
+      if(r.phase === 'boost'){
+        r.burnTime += dt;
+        r.v += 15.2 * dt;
+        r.y += r.v * dt;
+        if(r.burnTime >= 3.2) r.phase = 'coast';
+      }else if(r.phase === 'coast'){
+        r.v -= G * dt;
+        r.y += r.v * dt;
+        if(r.v <= 0){ r.v = 0; r.phase = 'fall'; }
+      }else if(r.phase === 'fall'){
+        r.v -= G * dt;
+        r.y += r.v * dt;
+        if(r.y <= 0){
+          r.y = 0; r.v = 0; r.complete = true; r.phase = 'ground';
+          state.paused = true;
+        }
+      }
+      return r.v;
+    }
+
+    function updateBall(dt){
+      const b = state.ball;
+      if(b.phase === 'pulling'){
+        b.handSpeed *= Math.pow(.02, dt);
+        return clamp(b.handSpeed, -18, 8);
+      }
+      if(b.phase === 'flight'){
+        b.v -= G * dt;
+        b.y += b.v * dt;
+        if(b.y <= 0 && b.v < 0){
+          b.y = 0;
+          b.v = 0;
+          b.phase = 'ready';
+          b.pull = 0;
+          state.paused = true;
+        }
+        return b.v;
+      }
+      return 0;
+    }
+
+    function addPoint(t,v){
+      state.graph.push({t,v});
+      if(state.graph.length > MAX_POINTS) state.graph.shift();
+    }
+
+    function draw(){
+      resizeCanvas(els.stageCanvas, sctx);
+      resizeCanvas(els.graphCanvas, gctx);
+      const rect = els.stageCanvas.getBoundingClientRect();
+      sctx.clearRect(0,0,rect.width,rect.height);
+      drawStage(sctx, rect.width, rect.height);
+      const grect = els.graphCanvas.getBoundingClientRect();
+      drawGraph(gctx, grect.width, grect.height);
+      els.timeBadge.textContent = `${fmt(state.elapsed,1)} s`;
+      els.speedReadout.textContent = `v = ${fmt(state.velocity,2)} m/s`;
+    }
+
+    function drawStage(ctx,w,h){
+      ctx.save();
+      ctx.clearRect(0,0,w,h);
+      drawGrid(ctx,w,h);
+      if(state.scene === 'horizontal') drawHorizontal(ctx,w,h);
+      else if(state.scene === 'vertical') drawVertical(ctx,w,h);
+      else drawTopPlaceholder(ctx,w,h);
+      ctx.restore();
+    }
+
+    function drawGrid(ctx,w,h){
+      ctx.save();
+      ctx.strokeStyle = 'rgba(255,255,255,.08)';
+      ctx.lineWidth = 1;
+      const step = 40;
+      for(let x = (w%step); x<w; x+=step){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,h); ctx.stroke(); }
+      for(let y = (h%step); y<h; y+=step){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(w,y); ctx.stroke(); }
+      ctx.restore();
+    }
+
+    function drawHorizontal(ctx,w,h){
+      const g = lineGeom(w,h);
+      ctx.save();
+      ctx.strokeStyle='rgba(255,255,255,.82)';
+      ctx.lineWidth=4;
+      ctx.lineCap='round';
+      ctx.beginPath(); ctx.moveTo(g.x0,g.y); ctx.lineTo(g.x1,g.y); ctx.stroke();
+      for(let m=-20;m<=20;m+=10){
+        const x = worldToScreenX(m,w);
+        ctx.strokeStyle='rgba(255,255,255,.62)'; ctx.lineWidth=2;
+        ctx.beginPath(); ctx.moveTo(x,g.y-10); ctx.lineTo(x,g.y+10); ctx.stroke();
+        ctx.fillStyle='rgba(255,255,255,.75)'; ctx.font='12px system-ui'; ctx.textAlign='center';
+        ctx.fillText(`${m}m`, x, g.y+30);
+      }
+      drawTree(ctx, worldToScreenX(-10,w), g.y-15, Math.min(w,h)*.22, 1, 0);
+      drawSchool(ctx, worldToScreenX(10,w), g.y-6, Math.min(w,h)*.23);
+      drawPerson(ctx, worldToScreenX(state.horizontal.x,w), g.y-6, Math.min(w,h)*.14);
+      ctx.fillStyle='rgba(255,255,255,.9)'; ctx.font='13px system-ui'; ctx.textAlign='center';
+      ctx.fillText(`x = ${fmt(state.horizontal.x,1)} m`, worldToScreenX(state.horizontal.x,w), g.y+52);
+      ctx.restore();
+    }
+
+    function drawVertical(ctx,w,h){
+      if(state.verticalStage === 'apple') drawAppleStage(ctx,w,h);
+      if(state.verticalStage === 'rocket') drawRocketStage(ctx,w,h);
+      if(state.verticalStage === 'ball') drawBallStage(ctx,w,h);
+    }
+
+    function drawAppleStage(ctx,w,h){
+      const a = state.apple;
+      const tree = appleTreeScreen(w,h);
+      const s = tree.size;
+      const appleAttached = {x:tree.x + s*.07, y:tree.baseY - s*.55};
+      const appleY = a.falling ? lerp(appleAttached.y, h*.86, tree.far) : appleAttached.y;
+      const appleX = a.falling ? lerp(appleAttached.x, w*.53, tree.far) : appleAttached.x;
+      const appleR = Math.max(4, Math.min(w,h)*.025*tree.scale);
+      ctx.save();
+      if(a.falling){
+        ctx.strokeStyle='rgba(255,255,255,.28)'; ctx.lineWidth=2; ctx.setLineDash([5,7]);
+        ctx.beginPath(); ctx.moveTo(tree.x, tree.baseY - s*.35); ctx.lineTo(appleX, appleY); ctx.stroke();
+        ctx.setLineDash([]);
+      }
+      drawTree(ctx, tree.x, tree.baseY, s, 1, a.sway);
+      ctx.fillStyle='white';
+      ctx.beginPath(); ctx.arc(appleX, appleY, appleR, 0, Math.PI*2); ctx.fill();
+      ctx.fillRect(appleX-appleR*.12, appleY-appleR*1.65, appleR*.24, appleR*.8);
+      ctx.fillStyle='rgba(255,255,255,.8)'; ctx.font='13px system-ui'; ctx.textAlign='center';
+      ctx.fillText(a.falling ? `下降距離約 ${fmt(tree.distance,1)} m` : '搖動樹幹', w*.5, h*.92);
+      ctx.restore();
+    }
+
+    function drawRocketStage(ctx,w,h){
+      const r = state.rocket;
+      const view = rocketView(w,h);
+      const baseSize = Math.min(w,h)*.22;
+      const size = baseSize * view.scale;
+      ctx.save();
+      ctx.strokeStyle='rgba(255,255,255,.55)'; ctx.lineWidth=Math.max(1.5,3*view.scale);
+      ctx.beginPath(); ctx.moveTo(w*.28,view.groundY); ctx.lineTo(w*.72,view.groundY); ctx.stroke();
+      drawLaunchTower(ctx, w*.38, view.groundY, Math.min(w,h)*.28*view.scale);
+      drawRocket(ctx, view.rocketX, view.rocketY, size, r.phase === 'boost');
+      if(r.phase === 'waiting' || r.phase === 'boost'){
+        drawLighter(ctx, r.lighterX*w, r.lighterY*h, Math.min(w,h)*.09, r.phase === 'boost');
+      }
+      if(r.phase !== 'waiting'){
+        ctx.strokeStyle='rgba(255,255,255,.26)'; ctx.lineWidth=2; ctx.setLineDash([6,7]);
+        ctx.beginPath(); ctx.moveTo(view.rocketX, view.groundY); ctx.lineTo(view.rocketX, view.rocketY + size*.55); ctx.stroke();
+        ctx.setLineDash([]);
+      }
+      ctx.fillStyle='rgba(255,255,255,.85)'; ctx.font='13px system-ui'; ctx.textAlign='center';
+      const label = {waiting:'拖打火機點火',boost:'燃料燃燒・視角拉遠',coast:'上升減速・物體變小',fall:'自由落體・視角放大',ground:'落地'}[r.phase] || '';
+      ctx.fillText(label, w*.5, h*.92);
+      ctx.restore();
+    }
+
+    function drawBallStage(ctx,w,h){
+      const b = state.ball;
+      const pivot = {x:w*.35, y:h*.63};
+      const len = Math.min(w,h)*.30;
+      const angle = b.phase === 'flight' ? 0 : b.armAngle;
+      const hand = {x:pivot.x + Math.cos(angle)*len, y:pivot.y + Math.sin(angle)*len};
+      let ball = {x:hand.x + 14, y:hand.y - 28};
+      if(b.phase === 'flight'){
+        ball = {x:pivot.x + len + 14, y:pivot.y - 28 - b.y*12};
+      }
+      ctx.save();
+      ctx.strokeStyle='rgba(255,255,255,.25)'; ctx.lineWidth=2;
+      ctx.beginPath(); ctx.moveTo(pivot.x, pivot.y); ctx.lineTo(pivot.x + len + 18, pivot.y); ctx.stroke();
+      ctx.strokeStyle='white'; ctx.lineWidth=18; ctx.lineCap='round';
+      ctx.beginPath(); ctx.moveTo(pivot.x,pivot.y); ctx.lineTo(hand.x,hand.y); ctx.stroke();
+      ctx.fillStyle='white';
+      ctx.beginPath(); ctx.arc(pivot.x,pivot.y,17,0,Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(hand.x,hand.y,15,0,Math.PI*2); ctx.fill();
+      ctx.strokeStyle='rgba(255,255,255,.38)'; ctx.lineWidth=2;
+      for(let i=0;i<5;i++){
+        ctx.beginPath();
+        ctx.arc(pivot.x,pivot.y,30+i*9,0,angle,false);
+        ctx.stroke();
+      }
+      ctx.fillStyle='white';
+      ctx.beginPath(); ctx.arc(ball.x,ball.y,Math.min(w,h)*.035,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle='rgba(255,255,255,.82)'; ctx.font='13px system-ui'; ctx.textAlign='center';
+      ctx.fillText(b.phase === 'pulling' ? `蓄力 ${Math.round(b.pull*100)}%` : (b.phase === 'flight' ? '球離手後只受重力影響' : '往下扳手臂'), w*.5, h*.9);
+      ctx.restore();
+    }
+
+    function drawTopPlaceholder(ctx,w,h){
+      ctx.save();
+      ctx.strokeStyle='rgba(255,255,255,.7)'; ctx.lineWidth=3;
+      const cx=w*.5, cy=h*.52;
+      for(let r=50;r<Math.min(w,h)*.38;r+=42){ ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.stroke(); }
+      ctx.fillStyle='white'; ctx.beginPath(); ctx.arc(cx,cy,8,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle='rgba(255,255,255,.88)'; ctx.font='15px system-ui'; ctx.textAlign='center';
+      ctx.fillText('鳥瞰圖模式保留中', cx, cy + Math.min(w,h)*.34);
+      ctx.restore();
+    }
+
+    function drawGraph(ctx,w,h){
+      ctx.save();
+      ctx.clearRect(0,0,w,h);
+      const pad = {l:52,r:18,t:16,b:34};
+      const gx = pad.l, gy = pad.t, gw = w-pad.l-pad.r, gh = h-pad.t-pad.b;
+      ctx.fillStyle='#242424'; ctx.fillRect(0,0,w,h);
+      ctx.strokeStyle='rgba(255,255,255,.12)'; ctx.lineWidth=1;
+      for(let i=0;i<=4;i++){
+        const y = gy + gh*i/4;
+        ctx.beginPath(); ctx.moveTo(gx,y); ctx.lineTo(gx+gw,y); ctx.stroke();
+      }
+      for(let i=0;i<=6;i++){
+        const x = gx + gw*i/6;
+        ctx.beginPath(); ctx.moveTo(x,gy); ctx.lineTo(x,gy+gh); ctx.stroke();
+      }
+      const points = state.graph;
+      const tMax = Math.max(6, state.elapsed, points.length ? points[points.length-1].t : 6);
+      let vMax = 5;
+      for(const p of points) vMax = Math.max(vMax, Math.abs(p.v));
+      vMax = Math.ceil(vMax/5)*5;
+      const y0 = gy + gh/2;
+      ctx.strokeStyle='rgba(255,255,255,.62)'; ctx.lineWidth=1.5;
+      ctx.beginPath(); ctx.moveTo(gx,y0); ctx.lineTo(gx+gw,y0); ctx.stroke();
+      ctx.strokeStyle='rgba(255,255,255,.9)'; ctx.lineWidth=2;
+      ctx.beginPath(); ctx.moveTo(gx,gy); ctx.lineTo(gx,gy+gh); ctx.lineTo(gx+gw,gy+gh); ctx.stroke();
+      ctx.fillStyle='rgba(255,255,255,.82)'; ctx.font='12px system-ui'; ctx.textAlign='center';
+      ctx.fillText('t(s)', gx+gw-4, h-10);
+      ctx.save(); ctx.translate(15, gy+20); ctx.rotate(-Math.PI/2); ctx.fillText('v(m/s)',0,0); ctx.restore();
+      ctx.textAlign='right';
+      ctx.fillText(`${vMax}`, gx-7, gy+5);
+      ctx.fillText('0', gx-7, y0+4);
+      ctx.fillText(`${-vMax}`, gx-7, gy+gh+4);
+      ctx.textAlign='center';
+      ctx.fillText(`${fmt(tMax,0)}`, gx+gw, gy+gh+20);
+      if(points.length > 1){
+        ctx.strokeStyle='white'; ctx.lineWidth=3; ctx.lineJoin='round'; ctx.lineCap='round';
+        ctx.beginPath();
+        for(let i=0;i<points.length;i++){
+          const p = points[i];
+          const x = gx + (p.t/tMax)*gw;
+          const y = y0 - (p.v/vMax)*(gh/2);
+          if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+        }
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    function drawPerson(ctx,x,baseY,size){
+      ctx.save(); ctx.fillStyle='white';
+      const s=size;
+      ctx.beginPath(); ctx.arc(x,baseY-s*.92,s*.18,0,Math.PI*2); ctx.fill();
+      ctx.fillRect(x-s*.12,baseY-s*.72,s*.24,s*.38);
+      ctx.beginPath(); ctx.moveTo(x-s*.12,baseY-s*.60); ctx.lineTo(x-s*.38,baseY-s*.30); ctx.lineTo(x-s*.28,baseY-s*.24); ctx.lineTo(x,baseY-s*.50); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(x+s*.12,baseY-s*.60); ctx.lineTo(x+s*.38,baseY-s*.30); ctx.lineTo(x+s*.28,baseY-s*.24); ctx.lineTo(x,baseY-s*.50); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(x-s*.10,baseY-s*.35); ctx.lineTo(x-s*.30,baseY); ctx.lineTo(x-s*.14,baseY); ctx.lineTo(x+s*.02,baseY-s*.33); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(x+s*.10,baseY-s*.35); ctx.lineTo(x+s*.30,baseY); ctx.lineTo(x+s*.14,baseY); ctx.lineTo(x-s*.02,baseY-s*.33); ctx.fill();
+      ctx.restore();
+    }
+
+    function drawTree(ctx,x,baseY,size,scale=1,sway=0){
+      ctx.save(); ctx.translate(x,baseY); ctx.scale(scale,scale); ctx.rotate(sway*.06); ctx.fillStyle='white';
+      const s=size;
+      ctx.fillRect(-s*.055,-s*.58,s*.11,s*.58);
+      ctx.beginPath(); ctx.arc(0,-s*.72,s*.21,0,Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(-s*.16,-s*.61,s*.19,0,Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(s*.16,-s*.61,s*.19,0,Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(0,-s*.50,s*.23,0,Math.PI*2); ctx.fill();
+      ctx.restore();
+    }
+
+    function drawSchool(ctx,x,baseY,size){
+      ctx.save(); ctx.translate(x,baseY); ctx.fillStyle='white'; const s=size;
+      ctx.fillRect(-s*.42,-s*.42,s*.84,s*.42);
+      ctx.beginPath(); ctx.moveTo(-s*.5,-s*.42); ctx.lineTo(0,-s*.72); ctx.lineTo(s*.5,-s*.42); ctx.closePath(); ctx.fill();
+      ctx.fillStyle='rgba(0,0,0,.18)';
+      ctx.fillRect(-s*.08,-s*.22,s*.16,s*.22);
+      for(const wx of [-.28,.22]) ctx.fillRect(s*wx,-s*.32,s*.12,s*.10);
+      ctx.restore();
+    }
+
+    function drawLaunchTower(ctx,x,groundY,size){
+      ctx.save(); ctx.strokeStyle='white'; ctx.lineWidth=3; ctx.lineCap='round';
+      const top=groundY-size, bot=groundY;
+      ctx.beginPath(); ctx.moveTo(x,bot); ctx.lineTo(x+size*.25,top); ctx.moveTo(x+size*.25,bot); ctx.lineTo(x,top); ctx.stroke();
+      for(let i=0;i<4;i++){ const y=bot-size*i/4; ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(x+size*.25,y-size*.12); ctx.stroke(); }
+      ctx.restore();
+    }
+
+    function drawRocket(ctx,x,y,size,flame){
+      ctx.save(); ctx.translate(x,y); ctx.fillStyle='white'; const s=size;
+      ctx.beginPath(); ctx.moveTo(0,-s*.55); ctx.quadraticCurveTo(s*.20,-s*.36,s*.16,s*.05); ctx.lineTo(s*.12,s*.48); ctx.lineTo(-s*.12,s*.48); ctx.lineTo(-s*.16,s*.05); ctx.quadraticCurveTo(-s*.20,-s*.36,0,-s*.55); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(-s*.13,s*.25); ctx.lineTo(-s*.34,s*.48); ctx.lineTo(-s*.13,s*.48); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(s*.13,s*.25); ctx.lineTo(s*.34,s*.48); ctx.lineTo(s*.13,s*.48); ctx.fill();
+      ctx.fillStyle='rgba(0,0,0,.22)'; ctx.beginPath(); ctx.arc(0,-s*.18,s*.075,0,Math.PI*2); ctx.fill();
+      if(flame){
+        ctx.fillStyle='rgba(255,255,255,.9)';
+        ctx.beginPath(); ctx.moveTo(-s*.08,s*.50); ctx.lineTo(0,s*.92+Math.sin(performance.now()/80)*s*.08); ctx.lineTo(s*.08,s*.50); ctx.closePath(); ctx.fill();
+      }
+      ctx.restore();
+    }
+
+    function drawLighter(ctx,x,y,size,on){
+      ctx.save(); ctx.translate(x,y); ctx.fillStyle='white'; const s=size;
+      ctx.fillRect(-s*.12,-s*.05,s*.24,s*.42);
+      ctx.fillRect(-s*.07,-s*.19,s*.14,s*.16);
+      ctx.fillStyle='rgba(255,255,255,.82)'; ctx.beginPath(); ctx.arc(0,-s*.22,s*.09,0,Math.PI*2); ctx.fill();
+      if(on){
+        ctx.fillStyle='white'; ctx.beginPath(); ctx.moveTo(0,-s*.47); ctx.quadraticCurveTo(s*.16,-s*.28,0,-s*.17); ctx.quadraticCurveTo(-s*.13,-s*.28,0,-s*.47); ctx.fill();
+      }
+      ctx.restore();
+    }
+
+    function renderMarkdown(md){
+      const esc = txt => txt.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+      const lines = md.split(/\r?\n/);
+      let html = '';
+      let inList = false;
+      let table = [];
+      function flushList(){ if(inList){ html += '</ul>'; inList=false; } }
+      function flushTable(){
+        if(!table.length) return;
+        const rows = table.map(r=>r.split('|').map(c=>c.trim()).filter(Boolean));
+        if(rows.length >= 2){
+          html += '<table><thead><tr>' + rows[0].map(c=>`<th>${inline(c)}</th>`).join('') + '</tr></thead><tbody>';
+          for(let i=2;i<rows.length;i++) html += '<tr>' + rows[i].map(c=>`<td>${inline(c)}</td>`).join('') + '</tr>';
+          html += '</tbody></table>';
+        }
+        table = [];
+      }
+      function inline(t){
+        return esc(t)
+          .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
+          .replace(/`(.+?)`/g,'<code>$1</code>');
+      }
+      for(const raw of lines){
+        const line = raw.trimEnd();
+        if(line.trim().startsWith('|')){ flushList(); table.push(line); continue; }
+        flushTable();
+        if(!line.trim()){ flushList(); html += '<p></p>'; continue; }
+        if(line.startsWith('### ')){ flushList(); html += `<h3>${inline(line.slice(4))}</h3>`; continue; }
+        if(line.startsWith('## ')){ flushList(); html += `<h2>${inline(line.slice(3))}</h2>`; continue; }
+        if(line.startsWith('# ')){ flushList(); html += `<h1>${inline(line.slice(2))}</h1>`; continue; }
+        if(/^[-*] /.test(line.trim())){
+          if(!inList){ html += '<ul>'; inList=true; }
+          html += `<li>${inline(line.trim().slice(2))}</li>`;
+          continue;
+        }
+        flushList();
+        html += `<p>${inline(line)}</p>`;
+      }
+      flushList(); flushTable();
+      return html;
+    }
+
+    function initEvents(){
+      els.tabs.forEach(tab=>tab.addEventListener('click',()=>setScene(tab.dataset.scene)));
+      els.stageSelect.addEventListener('click', e=>{
+        const btn = e.target.closest('[data-stage]');
+        if(btn) setVerticalStage(btn.dataset.stage);
+      });
+      els.verticalChoices.addEventListener('click', e=>{
+        const btn = e.target.closest('[data-stage]');
+        if(btn) setVerticalStage(btn.dataset.stage);
+      });
+      els.startBtn.addEventListener('click',()=>{
+        if(state.running && state.paused){ state.paused=false; state.lastNow=performance.now(); updateButtons(); updateHint(); return; }
+        startRun();
+      });
+      els.resetBtn.addEventListener('click',()=>resetCommon(false));
+      els.pauseBtn.addEventListener('click',()=>{
+        if(!state.running) return;
+        state.paused = !state.paused;
+        state.lastNow = performance.now();
+        updateButtons(); updateHint();
+      });
+      els.nextBtn.addEventListener('click', nextStage);
+      els.helpBtn.addEventListener('click',()=>{ els.mdBody.innerHTML = renderMarkdown(readmeMd); els.modal.classList.add('show'); });
+      els.closeModal.addEventListener('click',()=>els.modal.classList.remove('show'));
+      els.modal.addEventListener('click',e=>{ if(e.target === els.modal) els.modal.classList.remove('show'); });
+      els.stageShell.addEventListener('pointerdown', onPointerDown, {passive:false});
+      els.stageShell.addEventListener('pointermove', onPointerMove, {passive:false});
+      els.stageShell.addEventListener('pointerup', onPointerUp, {passive:false});
+      els.stageShell.addEventListener('pointercancel', onPointerUp, {passive:false});
+      els.stageShell.addEventListener('wheel', onWheel, {passive:false});
+      window.addEventListener('resize',()=>draw());
+    }
+
+    function loop(now){
+      if(!state.lastNow) state.lastNow = now;
+      const dt = clamp((now - state.lastNow)/1000, 0, .08);
+      state.lastNow = now;
+      update(dt);
+      draw();
+      requestAnimationFrame(loop);
+    }
+
+    initEvents();
+    applyCameraTransform();
+    updateChoiceButtons();
+    updateButtons();
+    updateHint();
+    requestAnimationFrame(loop);
+  })();
+  </script>
+</body>
+</html>
