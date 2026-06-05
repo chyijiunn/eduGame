@@ -4,7 +4,7 @@
   <script src="/eduGame/ga4.js"></script>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="version" content="0.201" />
+  <meta name="version" content="0.202" />
   <title>流體壓力</title>
   <style>
     :root{
@@ -62,7 +62,7 @@
   </style>
 </head>
 <body>
-  <div id="app" data-version="0.201">
+  <div id="app" data-version="0.202">
     <div class="stage-wrap">
       <canvas id="world" aria-label="流體壓力互動舞台"></canvas>
       <div class="tabs" id="sceneTabs" aria-label="場景切換"></div>
@@ -98,7 +98,7 @@
 (() => {
   'use strict';
 
-  const APP_VERSION = '0.201';
+  const APP_VERSION = '0.202';
 
   const README_MD = `# 流體壓力 操作說明
 
@@ -742,7 +742,7 @@ function updateCenterInfo(){
     if(sim.tube.water <= 0.001){ centerInfo.textContent='連通管：點選灌水，之後可拖拉容器觀察液面與波動'; return; }
     if(sim.drawMode) { centerInfo.textContent='連通管：工具已開啟，點容器可旋轉，點空白處可續畫'; return; }
     if(sim.drill) { centerInfo.textContent='連通管：拖曳針可戳洞，直接拖拉容器本體仍可旋轉'; return; }
-    if(sim.glueMode){ centerInfo.textContent='連通管：已開啟自動填補，新戳出的洞會立即被補起來；仍可直接拖拉容器旋轉'; return; }
+    if(sim.glueMode){ centerInfo.textContent='連通管：已開啟膠水工具，點一下破洞就會補上一滴膠水；若沒點到洞，仍可拖拉容器旋轉'; return; }
     centerInfo.textContent='連通管：可拖拉容器旋轉，觀察液面保持水平與漏水變化';
     return;
   }
@@ -753,7 +753,7 @@ function updateCenterInfo(){
   const holesAbove = sim.holes.filter(h=>h.kind==='air' && h.y < airWaterSurfaceY(h.x)-6).length;
   const holesBelow = sim.holes.filter(h=>h.kind==='air' && h.y > airWaterSurfaceY(h.x)+4).length;
   if(sim.drill){ centerInfo.textContent = `針筒 ${airSyringePressure().toFixed(1)} kPa ｜ 大氣 ${ATM_PRESSURE.toFixed(1)} kPa ｜ 空腔 ${sim.air.airP.toFixed(1)} kPa ｜ 上孔 ${holesAbove} 下孔 ${holesBelow}`; return; }
-  if(sim.glueMode){ centerInfo.textContent='大氣壓力：已開啟自動填補，新戳出的洞會立即被補起來；仍可直接拖拉容器旋轉'; return; }
+  if(sim.glueMode){ centerInfo.textContent='大氣壓力：已開啟膠水工具，點一下破洞就會補上一滴膠水；若沒點到洞，仍可拖拉容器旋轉'; return; }
   centerInfo.textContent = `大氣壓力：可拖拉封閉容器；目前上孔 ${holesAbove}、下孔 ${holesBelow}，可切換針筒觀察壓力變化`;
 }
   function resize(){
@@ -1137,13 +1137,7 @@ function nearNeedle(p){
       return hypot(h.x-hole.x,h.y-hole.y)<18;
     });
     if(exists) return;
-    const stagedHole = {...hole, stage:sim.stage, cool:0};
-    if(sim.glueMode){
-      addPatchFromHole(stagedHole);
-      if(stagedHole.kind==='air') sim.air.syringe.insertedHole = -1;
-      return;
-    }
-    sim.holes.push(stagedHole);
+    sim.holes.push({...hole, stage:sim.stage, cool:0});
   }
 
   function drawHole(x,y,angle=0){
@@ -1834,6 +1828,11 @@ canvas.addEventListener('pointerdown', e=>{
     canvas.classList.add('dragging');
     pointer.active=true; pointer.id=e.pointerId; pointer.mode='syringeMove';
     sim.air.syringe.offX = p.x - sim.air.syringe.x; sim.air.syringe.offY = p.y - sim.air.syringe.y; return;
+  }
+
+  if(sim.glueMode && sealNearestCurrentHole(p)){
+    e.preventDefault();
+    return;
   }
 
   if(canDragTube() && isNearTubeWorld(p)){
