@@ -1,0 +1,877 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <script src="/eduGame/ga4.js"></script>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="version" content="0.11" />
+  <title>流體壓力</title>
+  <style>
+    :root{
+      --bg:#1f1f1f;
+      --panel:#292929;
+      --panel2:#333;
+      --line:#f2f2f2;
+      --muted:#aaa;
+      --water:#3aa7ff;
+      --water2:rgba(58,167,255,.38);
+      --danger:#ff6b6b;
+      --glass:rgba(255,255,255,.12);
+      --shadow:rgba(0,0,0,.38);
+      --radius:16px;
+      --bar-h:72px;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%;margin:0;background:var(--bg);color:var(--line);font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans TC",sans-serif;overscroll-behavior:none;}
+    body{overflow:hidden;}
+    #app{height:100%;display:grid;grid-template-rows:1fr auto;background:var(--bg);}
+    .stage-wrap{position:relative;min-height:0;overflow:hidden;background:#242424;}
+    #world{width:100%;height:100%;display:block;touch-action:none;background:#242424;cursor:grab;}
+    #world.dragging{cursor:grabbing;}
+    .tabs{position:absolute;left:10px;right:10px;top:10px;display:grid;grid-template-columns:repeat(3,1fr);gap:8px;z-index:10;pointer-events:auto;}
+    .stage-tabs{position:absolute;left:50%;bottom:10px;transform:translateX(-50%);display:flex;gap:8px;z-index:10;pointer-events:auto;max-width:calc(100% - 20px);overflow-x:auto;padding:4px 0;scrollbar-width:none;}
+    .stage-tabs::-webkit-scrollbar{display:none}
+    button{border:1px solid rgba(255,255,255,.22);background:rgba(34,34,34,.88);color:var(--line);border-radius:999px;min-height:42px;padding:0 14px;font-size:15px;line-height:1;letter-spacing:.03em;touch-action:manipulation;-webkit-tap-highlight-color:transparent;box-shadow:0 4px 14px var(--shadow);}
+    button:active{transform:translateY(1px)}
+    button.active{background:var(--line);color:#1f1f1f;border-color:var(--line);font-weight:700;}
+    .tabs button{height:44px;min-width:0;font-weight:700;}
+    .stage-tabs button{min-width:64px;height:38px;background:rgba(31,31,31,.88);}
+    .stage-tabs button.active{background:var(--line);color:#1f1f1f;}
+    .control{height:var(--bar-h);display:flex;align-items:center;gap:10px;padding:10px max(12px,env(safe-area-inset-left)) max(10px,env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left));background:linear-gradient(180deg,#242424,#1d1d1d);border-top:1px solid rgba(255,255,255,.1);overflow-x:auto;scrollbar-width:none;}
+    .control::-webkit-scrollbar{display:none}
+    .control .spacer{flex:1;min-width:8px}
+    .control button{min-width:50px;height:48px;font-size:20px;flex:0 0 auto;}
+    .control button.tool{font-size:18px;min-width:56px;}
+    .control button.hidden{display:none}
+    .pill{position:absolute;right:12px;bottom:12px;z-index:5;color:rgba(255,255,255,.48);font-size:11px;letter-spacing:.04em;user-select:none;pointer-events:none;}
+    .modal{position:fixed;inset:0;background:rgba(0,0,0,.68);display:none;z-index:50;align-items:center;justify-content:center;padding:18px;}
+    .modal.open{display:flex;}
+    .modal-card{width:min(760px,100%);max-height:min(760px,88vh);background:#262626;border:1px solid rgba(255,255,255,.18);border-radius:20px;box-shadow:0 22px 70px rgba(0,0,0,.55);display:grid;grid-template-rows:auto 1fr;overflow:hidden;}
+    .modal-top{height:52px;display:flex;align-items:center;justify-content:flex-end;border-bottom:1px solid rgba(255,255,255,.12);padding:0 10px;}
+    .close{width:40px;height:40px;min-width:40px;padding:0;font-size:24px;border-color:transparent;background:transparent;box-shadow:none;}
+    .md{overflow:auto;padding:20px 22px 28px;color:#eee;line-height:1.65;font-size:16px;}
+    .md h1,.md h2,.md h3{line-height:1.25;margin:0 0 .65em;}
+    .md h1{font-size:1.35rem}.md h2{font-size:1.15rem;margin-top:1.1em}.md h3{font-size:1rem;margin-top:.9em}
+    .md p{margin:.6em 0}.md ul{padding-left:1.25em;margin:.5em 0}.md li{margin:.35em 0}.md code{background:#1c1c1c;border:1px solid rgba(255,255,255,.1);border-radius:6px;padding:.05em .35em}.md strong{color:#fff}.md hr{border:0;border-top:1px solid rgba(255,255,255,.12);margin:1em 0}
+    @media (max-width:700px){
+      :root{--bar-h:68px}
+      .tabs{gap:6px;left:8px;right:8px;top:8px}.tabs button{height:40px;font-size:14px;padding:0 8px}.stage-tabs{bottom:8px}.stage-tabs button{height:36px;min-width:58px;font-size:13px}.control{gap:8px}.control button{height:46px;min-width:48px}.modal{padding:10px}.md{font-size:15px;padding:16px 18px 24px}
+    }
+  </style>
+</head>
+<body>
+  <div id="app" data-version="0.11">
+    <div class="stage-wrap">
+      <canvas id="world" aria-label="流體壓力互動舞台"></canvas>
+      <div class="tabs" id="sceneTabs" aria-label="場景切換"></div>
+      <div class="stage-tabs" id="stageTabs" aria-label="舞台切換"></div>
+      <div class="pill" id="statusPill"></div>
+    </div>
+    <div class="control" id="controlPanel" aria-label="控制台">
+      <button id="resetBtn" title="重置" aria-label="重置">↺</button>
+      <button id="playBtn" title="暫停 / 播放" aria-label="暫停 / 播放">⏸</button>
+      <button id="nextBtn" title="下一個" aria-label="下一個">⏭</button>
+      <button id="fillBtn" class="tool" title="灌水" aria-label="灌水">💧</button>
+      <button id="drillBtn" class="tool" title="鑽孔工具" aria-label="鑽孔工具">⊙</button>
+      <span class="spacer"></span>
+      <button id="helpBtn" title="說明" aria-label="說明">?</button>
+    </div>
+  </div>
+
+  <div class="modal" id="helpModal" role="dialog" aria-modal="true" aria-label="操作說明">
+    <div class="modal-card">
+      <div class="modal-top"><button class="close" id="closeHelp" aria-label="關閉">×</button></div>
+      <div class="md" id="mdContent"></div>
+    </div>
+  </div>
+
+<script>
+(() => {
+  'use strict';
+
+  const APP_VERSION = '0.11';
+  const README_MD = `# 流體壓力 操作說明
+
+## 目標
+這個互動頁面用三個主題觀察流體壓力：**液體壓力**、**連通管**、**大氣壓力**。目前 0.11 版先完成「液體壓力」三個舞台；連通管與大氣壓力先保留三個空白舞台，之後可直接接上實驗。
+
+## 基本操作
+- 上方三個按鈕可切換主題。
+- 若主題有多個舞台，舞台選擇器會出現在畫面下方，並用符號代表不同舞台。
+- 下方 \`↺\` 會重置目前舞台。
+- 下方 \`⏸ / ▶\` 會暫停或播放模擬。
+- 下方 \`⏭\` 會前往下一個舞台；若已經是該主題最後一個舞台，會進入下一個主題。
+- 滑鼠滾輪可縮放畫面。
+- 舞台不會旋轉。滑鼠或單指拖曳可平移畫面；雙指可拖曳與縮放。
+
+## 液體壓力工具
+- \`💧\`：灌水。透明杯與水球會出現水龍頭；河堤會出現雨雲。
+- \`⊙\`：鑽孔工具。按下後會出現從右往左戳的水平針。拖曳針尖去碰容器壁，就會產生破孔。
+
+## 觀察重點
+### 杯子舞台
+水位越高，越低的破孔受到的液體壓力越大，所以水噴得越遠。若水位低於破孔，該孔就不再噴水。
+
+### 水球舞台
+灌水後水球會變大。水太多時，水球會爆裂，需要重置。破孔後水會流出；水越少，水球越扁縮。
+
+### 水壩舞台
+河道水位上升時，水壩下方承受較大的側向壓力。水壩剖面為梯形，左側是垂直面，右側是斜面。針從右側戳入後會形成水平貫通孔；破孔位置越低，漏水速度越強。水太多會從上方溢出。
+
+## 科學概念
+液體壓力和深度有關。越深的位置，上方壓著的水越多，壓力越大。因此同一個容器中，下方洞口通常會噴得比較遠。
+`;
+
+  const canvas = document.getElementById('world');
+  const ctx = canvas.getContext('2d');
+  const sceneTabs = document.getElementById('sceneTabs');
+  const stageTabs = document.getElementById('stageTabs');
+  const resetBtn = document.getElementById('resetBtn');
+  const playBtn = document.getElementById('playBtn');
+  const nextBtn = document.getElementById('nextBtn');
+  const fillBtn = document.getElementById('fillBtn');
+  const drillBtn = document.getElementById('drillBtn');
+  const helpBtn = document.getElementById('helpBtn');
+  const helpModal = document.getElementById('helpModal');
+  const closeHelp = document.getElementById('closeHelp');
+  const mdContent = document.getElementById('mdContent');
+  const statusPill = document.getElementById('statusPill');
+
+  const scenes = [
+    { id:'liquid', label:'液壓', stages:[
+      { id:'cup', icon:'▱', label:'杯子' },
+      { id:'balloon', icon:'◯', label:'水球' },
+      { id:'dam', icon:'▰', label:'水壩' },
+    ] },
+    { id:'tube', label:'連管', stages:[
+      { id:'tube-a', icon:'∪', label:'連通管舞台一' },
+      { id:'tube-b', icon:'⇄', label:'連通管舞台二' },
+      { id:'tube-c', icon:'≈', label:'連通管舞台三' },
+    ] },
+    { id:'air', label:'氣壓', stages:[
+      { id:'air-a', icon:'○', label:'大氣壓力舞台一' },
+      { id:'air-b', icon:'◌', label:'大氣壓力舞台二' },
+      { id:'air-c', icon:'⇣', label:'大氣壓力舞台三' },
+    ] },
+  ];
+
+  const camera = { angle:0, zoom:1, x:0, y:0 };
+  const pointer = {
+    active:false,
+    mode:null,
+    id:null,
+    lastX:0,
+    lastY:0,
+    touches:new Map(),
+    pinchDist:0,
+    pinchZoom:1,
+    pinchCenter:{x:0,y:0},
+    pinchCam:{x:0,y:0}
+  };
+
+  const sim = {
+    scene:0,
+    stage:0,
+    paused:false,
+    filling:false,
+    drill:false,
+    lastTime:performance.now(),
+    particles:[],
+    holes:[],
+    needle:{x:-260,y:20,len:118,grab:false},
+    cup:{water:0.56,capacity:1.03},
+    balloon:{water:0.42,capacity:1,burst:false},
+    river:{water:0.50,capacity:1.12},
+    rain:[],
+  };
+
+  function clamp(v,min,max){return Math.max(min,Math.min(max,v));}
+  function lerp(a,b,t){return a+(b-a)*t;}
+  function hypot(a,b){return Math.sqrt(a*a+b*b);}
+
+  function resize(){
+    const dpr = Math.max(1, Math.min(2.5, window.devicePixelRatio || 1));
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = Math.max(1, Math.floor(rect.width * dpr));
+    canvas.height = Math.max(1, Math.floor(rect.height * dpr));
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+  }
+  window.addEventListener('resize', resize, {passive:true});
+  resize();
+
+  function worldToScreen(p){
+    const rect = canvas.getBoundingClientRect();
+    return {
+      x: rect.width/2 + (p.x + camera.x) * camera.zoom,
+      y: rect.height/2 + (p.y + camera.y) * camera.zoom
+    };
+  }
+  function screenToWorld(x,y){
+    const rect = canvas.getBoundingClientRect();
+    return {
+      x: (x - rect.width/2) / camera.zoom - camera.x,
+      y: (y - rect.height/2) / camera.zoom - camera.y
+    };
+  }
+
+  function applyWorld(){
+    const rect = canvas.getBoundingClientRect();
+    ctx.translate(rect.width/2, rect.height/2);
+    ctx.scale(camera.zoom, camera.zoom);
+    ctx.translate(camera.x, camera.y);
+  }
+
+  function resetCamera(){
+    camera.angle = 0;
+    camera.zoom = Math.min(1.25, Math.max(.78, canvas.getBoundingClientRect().width / 720));
+    camera.x = 0;
+    camera.y = 20;
+  }
+
+  function resetStage(){
+    sim.particles.length = 0;
+    sim.holes.length = 0;
+    sim.rain.length = 0;
+    sim.filling = false;
+    sim.drill = false;
+    sim.needle.x = 290;
+    sim.needle.y = 20;
+    sim.cup.water = 0.56;
+    sim.balloon.water = 0.42;
+    sim.balloon.burst = false;
+    sim.river.water = 0.50;
+    resetCamera();
+    updateControls();
+  }
+
+  function setScene(i){
+    sim.scene = ((i % scenes.length) + scenes.length) % scenes.length;
+    sim.stage = 0;
+    resetStage();
+    renderTabs();
+  }
+  function setStage(i){
+    const max = scenes[sim.scene].stages.length;
+    sim.stage = ((i % max) + max) % max;
+    resetStage();
+    renderTabs();
+  }
+  function nextStage(){
+    if(sim.stage < scenes[sim.scene].stages.length - 1) setStage(sim.stage+1);
+    else setScene((sim.scene+1)%scenes.length);
+  }
+
+  function renderTabs(){
+    sceneTabs.innerHTML = '';
+    scenes.forEach((s,i)=>{
+      const b=document.createElement('button');
+      b.textContent=s.label;
+      b.className=i===sim.scene?'active':'';
+      b.setAttribute('aria-label', s.label);
+      b.addEventListener('click',()=>setScene(i));
+      sceneTabs.appendChild(b);
+    });
+    stageTabs.innerHTML = '';
+    const stages = scenes[sim.scene].stages;
+    if(stages.length > 1){
+      stages.forEach((st,i)=>{
+        const b=document.createElement('button');
+        b.textContent=st.icon || '•';
+        b.className=i===sim.stage?'active':'';
+        b.title=st.label || '舞台';
+        b.setAttribute('aria-label', st.label || '舞台');
+        b.addEventListener('click',()=>setStage(i));
+        stageTabs.appendChild(b);
+      });
+    }
+    updateControls();
+  }
+
+  function updateControls(){
+    playBtn.textContent = sim.paused ? '▶' : '⏸';
+    fillBtn.classList.toggle('hidden', sim.scene !== 0);
+    drillBtn.classList.toggle('hidden', sim.scene !== 0);
+    fillBtn.classList.toggle('active', sim.filling);
+    drillBtn.classList.toggle('active', sim.drill);
+    statusPill.textContent = '';
+  }
+
+  resetBtn.addEventListener('click', resetStage);
+  playBtn.addEventListener('click', ()=>{ sim.paused=!sim.paused; updateControls(); });
+  nextBtn.addEventListener('click', nextStage);
+  fillBtn.addEventListener('click', ()=>{ sim.filling=!sim.filling; updateControls(); });
+  drillBtn.addEventListener('click', ()=>{ sim.drill=!sim.drill; updateControls(); });
+  helpBtn.addEventListener('click', ()=>{ mdContent.innerHTML = renderMarkdown(README_MD); helpModal.classList.add('open'); });
+  closeHelp.addEventListener('click', ()=>helpModal.classList.remove('open'));
+  helpModal.addEventListener('click', e=>{ if(e.target===helpModal) helpModal.classList.remove('open'); });
+  window.addEventListener('keydown', e=>{ if(e.key==='Escape') helpModal.classList.remove('open'); });
+
+  function renderMarkdown(md){
+    const esc = s => s.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+    const lines = esc(md).split('\n');
+    let html = '', inList = false;
+    for(const raw of lines){
+      const line = raw.trimEnd();
+      if(!line.trim()){
+        if(inList){ html += '</ul>'; inList=false; }
+        continue;
+      }
+      if(line.startsWith('---')){ if(inList){html+='</ul>';inList=false;} html+='<hr>'; continue; }
+      const h = line.match(/^(#{1,3})\s+(.*)$/);
+      if(h){ if(inList){html+='</ul>';inList=false;} const level=h[1].length; html += `<h${level}>${inlineMd(h[2])}</h${level}>`; continue; }
+      const li = line.match(/^[-*]\s+(.*)$/);
+      if(li){ if(!inList){html+='<ul>';inList=true;} html += `<li>${inlineMd(li[1])}</li>`; continue; }
+      if(inList){ html+='</ul>'; inList=false; }
+      html += `<p>${inlineMd(line)}</p>`;
+    }
+    if(inList) html+='</ul>';
+    return html;
+  }
+  function inlineMd(s){
+    return s
+      .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
+      .replace(/`(.+?)`/g,'<code>$1</code>');
+  }
+
+  function drawRoundedRect(x,y,w,h,r, fill, stroke){
+    ctx.beginPath();
+    ctx.moveTo(x+r,y);
+    ctx.lineTo(x+w-r,y);
+    ctx.quadraticCurveTo(x+w,y,x+w,y+r);
+    ctx.lineTo(x+w,y+h-r);
+    ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+    ctx.lineTo(x+r,y+h);
+    ctx.quadraticCurveTo(x,y+h,x,y+h-r);
+    ctx.lineTo(x,y+r);
+    ctx.quadraticCurveTo(x,y,x+r,y);
+    if(fill){ctx.fillStyle=fill;ctx.fill();}
+    if(stroke){ctx.strokeStyle=stroke;ctx.stroke();}
+  }
+
+  function drawWaterRect(x,y,w,h){
+    ctx.save();
+    const grad = ctx.createLinearGradient(0,y,0,y+h);
+    grad.addColorStop(0,'rgba(83,190,255,.72)');
+    grad.addColorStop(1,'rgba(44,132,228,.86)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(x,y,w,h);
+    ctx.strokeStyle = 'rgba(255,255,255,.18)';
+    ctx.beginPath();
+    ctx.moveTo(x,y); ctx.lineTo(x+w,y); ctx.stroke();
+    ctx.restore();
+  }
+
+  function spawnDrop(x,y,vx,vy,size=3,life=5){
+    sim.particles.push({x,y,vx,vy,r:size,life,maxLife:life,type:'water'});
+  }
+
+  function updateParticles(dt){
+    const g = 480;
+    for(let i=sim.particles.length-1;i>=0;i--){
+      const p = sim.particles[i];
+      p.vy += g * dt;
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      p.life -= dt;
+      if(p.life <= 0 || Math.abs(p.x)>900 || p.y>520) sim.particles.splice(i,1);
+    }
+    for(let i=sim.rain.length-1;i>=0;i--){
+      const r = sim.rain[i];
+      r.y += r.vy*dt;
+      r.life -= dt;
+      if(r.life<=0 || r.y>100) sim.rain.splice(i,1);
+    }
+  }
+
+  function drawParticles(){
+    ctx.save();
+    for(const p of sim.particles){
+      ctx.globalAlpha = clamp(p.life / p.maxLife, 0, 1);
+      ctx.fillStyle = 'rgba(70,178,255,.92)';
+      ctx.beginPath();
+      ctx.arc(p.x,p.y,p.r,0,Math.PI*2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    for(const r of sim.rain){
+      ctx.strokeStyle = 'rgba(94,188,255,.72)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(r.x,r.y-9); ctx.lineTo(r.x-2,r.y+9); ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function drawNeedle(){
+    if(!sim.drill || sim.scene !== 0) return;
+    const n = sim.needle;
+    ctx.save();
+    ctx.lineWidth = 4;
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = '#f2f2f2';
+    ctx.beginPath();
+    ctx.moveTo(n.x - n.len/2, n.y); ctx.lineTo(n.x + n.len/2, n.y); ctx.stroke();
+    ctx.fillStyle = '#f2f2f2';
+    ctx.beginPath();
+    ctx.moveTo(n.x - n.len/2 - 15, n.y);
+    ctx.lineTo(n.x - n.len/2 + 8, n.y - 8);
+    ctx.lineTo(n.x - n.len/2 + 8, n.y + 8);
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle='rgba(255,255,255,.25)';
+    ctx.lineWidth=1;
+    ctx.beginPath();
+    ctx.arc(n.x-n.len/2-15,n.y,12,0,Math.PI*2);ctx.stroke();
+    ctx.restore();
+  }
+
+  function needleTip(){ return {x:sim.needle.x - sim.needle.len/2 - 15, y:sim.needle.y}; }
+  function nearNeedle(p){
+    const n = sim.needle;
+    return p.x > n.x - n.len/2 - 36 && p.x < n.x + n.len/2 + 20 && Math.abs(p.y - n.y) < 28;
+  }
+
+  function addHole(hole){
+    const exists = sim.holes.some(h=>h.stage===sim.stage && h.kind===hole.kind && hypot(h.x-hole.x,h.y-hole.y)<18);
+    if(!exists) sim.holes.push({...hole, stage:sim.stage, cool:0});
+  }
+
+  function drawHole(x,y,angle=0){
+    ctx.save();
+    ctx.translate(x,y); ctx.rotate(angle);
+    ctx.fillStyle = '#111';
+    ctx.strokeStyle = 'rgba(255,255,255,.9)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.ellipse(0,0,8,5,0,0,Math.PI*2); ctx.fill(); ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawRiverTunnel(h){
+    const outX = h.outX || damRightFaceX(h.y);
+    ctx.save();
+    ctx.strokeStyle = 'rgba(0,0,0,.95)';
+    ctx.lineWidth = 7;
+    ctx.beginPath();
+    ctx.moveTo(h.x, h.y);
+    ctx.lineTo(outX, h.y);
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,255,255,.86)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(h.x, h.y-5);
+    ctx.lineTo(outX, h.y-5);
+    ctx.moveTo(h.x, h.y+5);
+    ctx.lineTo(outX, h.y+5);
+    ctx.stroke();
+    ctx.restore();
+    drawHole(outX, h.y, -0.32);
+  }
+
+  function simulateCup(dt){
+    const cup = {x:-90,y:-150,w:180,h:270,bottom:120};
+    const waterH = clamp(sim.cup.water,0,1) * cup.h;
+    const waterY = cup.bottom - waterH;
+    if(sim.filling){
+      sim.cup.water += 0.18*dt;
+      for(let i=0;i<4;i++) spawnDrop(-5 + Math.random()*10, -215 + Math.random()*20, (Math.random()-.5)*30, 180+Math.random()*70, 2.4, 1.2);
+    }
+    if(sim.cup.water > sim.cup.capacity){
+      sim.cup.water = sim.cup.capacity;
+      for(let i=0;i<5;i++){
+        const side = Math.random()<.5?-1:1;
+        spawnDrop(side*(cup.w/2+4), cup.y+8+Math.random()*8, side*(90+Math.random()*70), -40+Math.random()*80, 3, 2.8);
+      }
+      sim.cup.water -= 0.05*dt;
+    }
+    handleCupNeedle(cup);
+    for(const h of sim.holes.filter(h=>h.stage===0 && h.kind==='cup')){
+      if(h.y > waterY && sim.cup.water > .005){
+        const depth = h.y - waterY;
+        const power = Math.sqrt(Math.max(0,depth))*29;
+        h.cool -= dt;
+        if(h.cool <= 0){
+          h.cool = clamp(.10 - depth*.00032,.018,.08);
+          spawnDrop(h.x, h.y, h.side*power, -32 + Math.random()*18, 2.7, 3.2);
+          sim.cup.water = Math.max(0, sim.cup.water - (0.0018 + depth*0.000012));
+        }
+      }
+    }
+  }
+
+  function handleCupNeedle(cup){
+    if(!sim.drill) return;
+    const tip = needleTip();
+    const left = cup.x - cup.w/2;
+    const right = cup.x + cup.w/2;
+    const inY = tip.y > cup.y+8 && tip.y < cup.bottom-4;
+    if(inY && Math.abs(tip.x-right)<10) addHole({kind:'cup',x:right,y:tip.y,side:1});
+  }
+
+  function drawCup(){
+    const cup = {x:-90,y:-150,w:180,h:270,bottom:120};
+    const waterH = clamp(sim.cup.water,0,1) * cup.h;
+    const waterY = cup.bottom - waterH;
+    ctx.save();
+    ctx.lineWidth=4;
+    ctx.strokeStyle='rgba(255,255,255,.92)';
+    ctx.fillStyle='rgba(255,255,255,.04)';
+    ctx.beginPath();
+    ctx.moveTo(cup.x-cup.w/2,cup.y);
+    ctx.lineTo(cup.x-cup.w/2,cup.bottom);
+    ctx.quadraticCurveTo(cup.x,cup.bottom+18,cup.x+cup.w/2,cup.bottom);
+    ctx.lineTo(cup.x+cup.w/2,cup.y);
+    ctx.stroke();
+    ctx.globalCompositeOperation='source-over';
+    if(waterH>1){
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(cup.x-cup.w/2+4,cup.y,cup.w-8,cup.h+24); ctx.clip();
+      drawWaterRect(cup.x-cup.w/2+5,waterY,cup.w-10,cup.bottom-waterY+10);
+      ctx.restore();
+    }
+    ctx.strokeStyle='rgba(255,255,255,.42)';
+    ctx.lineWidth=1.3;
+    for(let y=cup.bottom-50;y>cup.y+35;y-=50){
+      ctx.beginPath(); ctx.moveTo(cup.x+cup.w/2+8,y); ctx.lineTo(cup.x+cup.w/2+24,y); ctx.stroke();
+    }
+    if(sim.filling){ drawFaucet(0,-245); }
+    for(const h of sim.holes.filter(h=>h.stage===0 && h.kind==='cup')) drawHole(h.x,h.y,0);
+    ctx.restore();
+  }
+
+  function drawFaucet(x,y){
+    ctx.save();
+    ctx.strokeStyle='rgba(255,255,255,.9)'; ctx.lineWidth=5; ctx.lineCap='round';
+    ctx.beginPath(); ctx.moveTo(x-50,y); ctx.lineTo(x+20,y); ctx.lineTo(x+20,y+24); ctx.stroke();
+    ctx.lineWidth=3; ctx.beginPath(); ctx.moveTo(x+7,y+24); ctx.lineTo(x+33,y+24); ctx.stroke();
+    ctx.strokeStyle='rgba(83,190,255,.75)'; ctx.lineWidth=3;
+    for(let i=0;i<4;i++){ const dx=(i-1.5)*5; ctx.beginPath(); ctx.moveTo(x+20+dx,y+32); ctx.lineTo(x+20+dx,y+88); ctx.stroke(); }
+    ctx.restore();
+  }
+
+  function balloonRadius(){
+    if(sim.balloon.burst) return 0;
+    return 42 + Math.sqrt(Math.max(0, sim.balloon.water))*96;
+  }
+
+  function simulateBalloon(dt){
+    if(sim.balloon.burst){ return; }
+    if(sim.filling){
+      sim.balloon.water += 0.22*dt;
+      for(let i=0;i<4;i++) spawnDrop(-3+Math.random()*6,-190+Math.random()*15,(Math.random()-.5)*24,150+Math.random()*60,2.5,1.0);
+    }
+    if(sim.balloon.water > 1.04){
+      sim.balloon.burst = true;
+      const r = balloonRadius() || 135;
+      for(let i=0;i<120;i++){
+        const a = Math.random()*Math.PI*2;
+        const sp = 70 + Math.random()*360;
+        spawnDrop(Math.cos(a)*r*.35, 28+Math.sin(a)*r*.35, Math.cos(a)*sp, Math.sin(a)*sp-80, 2+Math.random()*2.5, 2.2+Math.random()*1.6);
+      }
+      sim.balloon.water = 0;
+      return;
+    }
+    handleBalloonNeedle();
+    const r = balloonRadius();
+    const top = 40 - r;
+    for(const h of sim.holes.filter(h=>h.stage===1 && h.kind==='balloon')){
+      if(sim.balloon.water <= .003) continue;
+      const depth = h.y - top;
+      const power = Math.sqrt(Math.max(0, depth))*30;
+      h.cool -= dt;
+      if(h.cool <= 0){
+        h.cool = clamp(.09-depth*.00024,.018,.08);
+        spawnDrop(h.x,h.y,Math.cos(h.a)*power,Math.sin(h.a)*power-24,2.8,3.0);
+        sim.balloon.water = Math.max(0, sim.balloon.water - (0.0015 + depth*0.00001));
+      }
+    }
+  }
+
+  function handleBalloonNeedle(){
+    if(!sim.drill) return;
+    const tip = needleTip();
+    const cx=0, cy=40, r=balloonRadius();
+    const d = hypot(tip.x-cx, tip.y-cy);
+    if(r>18 && tip.x >= cx && Math.abs(d-r)<12){
+      const a = Math.atan2(tip.y-cy, tip.x-cx);
+      addHole({kind:'balloon',x:cx+Math.cos(a)*r,y:cy+Math.sin(a)*r,a});
+    }
+  }
+
+  function drawBalloon(){
+    ctx.save();
+    if(sim.filling) drawFaucet(0,-245);
+    if(sim.balloon.burst){
+      ctx.strokeStyle='rgba(255,255,255,.8)'; ctx.lineWidth=3;
+      for(let i=0;i<12;i++){
+        const a=i/12*Math.PI*2;
+        ctx.beginPath(); ctx.moveTo(Math.cos(a)*34,40+Math.sin(a)*22); ctx.lineTo(Math.cos(a)*(70+Math.random()*6),40+Math.sin(a)*(50+Math.random()*6)); ctx.stroke();
+      }
+      ctx.restore(); return;
+    }
+    const r = balloonRadius();
+    const flat = sim.balloon.water < .02;
+    const rx = flat ? 82 : r;
+    const ry = flat ? 23 : r*0.92;
+    ctx.fillStyle = flat ? 'rgba(58,167,255,.12)' : 'rgba(58,167,255,.56)';
+    ctx.strokeStyle = 'rgba(255,255,255,.92)';
+    ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.ellipse(0,40,rx,ry,0,0,Math.PI*2); ctx.fill(); ctx.stroke();
+    ctx.fillStyle='rgba(255,255,255,.8)';
+    ctx.beginPath(); ctx.ellipse(-r*.28,40-r*.22,Math.max(6,r*.12),Math.max(3,r*.045),-.55,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle='rgba(255,255,255,.8)'; ctx.lineWidth=3;
+    ctx.beginPath(); ctx.moveTo(-10,40+ry); ctx.quadraticCurveTo(0,40+ry+25,16,40+ry+7); ctx.stroke();
+    for(const h of sim.holes.filter(h=>h.stage===1 && h.kind==='balloon')) drawHole(h.x,h.y,h.a);
+    ctx.restore();
+  }
+
+  function damLeftFaceX(){ return 62; }
+  function damRightFaceX(y){
+    const yTop = -120, yBot = 150;
+    const t = clamp((y - yTop) / (yBot - yTop), 0, 1);
+    return lerp(220, 292, t);
+  }
+
+  function simulateRiver(dt){
+    if(sim.filling){
+      sim.river.water += 0.14*dt;
+      if(Math.random()<.75){ sim.rain.push({x:-210+Math.random()*210,y:-240+Math.random()*45,vy:220+Math.random()*120,life:1.4}); }
+    }
+    if(sim.river.water > sim.river.capacity){
+      sim.river.water = sim.river.capacity;
+      for(let i=0;i<8;i++) spawnDrop(48 + Math.random()*28, -128 + Math.random()*14, 80+Math.random()*120, -20+Math.random()*60, 3, 2.5);
+      sim.river.water -= 0.045*dt;
+    }
+    handleRiverNeedle();
+    const bottom = 150, top = -120, h = bottom-top;
+    const waterY = bottom - clamp(sim.river.water,0,1)*h;
+    for(const hole of sim.holes.filter(h=>h.stage===2 && h.kind==='river')){
+      if(hole.y > waterY && sim.river.water > .005){
+        const depth = hole.y - waterY;
+        const power = Math.sqrt(Math.max(0,depth))*33;
+        hole.cool -= dt;
+        if(hole.cool <= 0){
+          hole.cool = clamp(.12-depth*.0003,.02,.09);
+          spawnDrop((hole.outX || hole.x)+4,hole.y,power,-20+Math.random()*20,2.8,3.2);
+          sim.river.water = Math.max(0, sim.river.water - (0.0015 + depth*0.000012));
+        }
+      }
+    }
+  }
+
+  function handleRiverNeedle(){
+    if(!sim.drill) return;
+    const tip = needleTip();
+    if(tip.y < -120 || tip.y > 150) return;
+    const inX = damLeftFaceX();
+    const outX = damRightFaceX(tip.y);
+    if(Math.abs(tip.x - outX)<12) addHole({kind:'river',x:inX,y:tip.y,outX,side:1});
+  }
+
+  function drawCloud(x,y){
+    ctx.save();
+    ctx.fillStyle='rgba(255,255,255,.85)';
+    ctx.beginPath();
+    ctx.arc(x-34,y+8,24,0,Math.PI*2);
+    ctx.arc(x-8,y-2,32,0,Math.PI*2);
+    ctx.arc(x+30,y+9,25,0,Math.PI*2);
+    ctx.rect(x-54,y+8,105,28);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawRiver(){
+    ctx.save();
+    const bottom=150, top=-120, height=bottom-top;
+    const waterY = bottom - clamp(sim.river.water,0,1)*height;
+    ctx.fillStyle='rgba(255,255,255,.06)';
+    ctx.fillRect(-280,top,345,height);
+    ctx.strokeStyle='rgba(255,255,255,.62)'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.moveTo(-280,bottom); ctx.lineTo(280,bottom); ctx.stroke();
+    ctx.save();
+    ctx.beginPath(); ctx.rect(-280,top,345,height); ctx.clip();
+    drawWaterRect(-280,waterY,342,bottom-waterY);
+    ctx.restore();
+    ctx.fillStyle='rgba(255,255,255,.16)';
+    ctx.strokeStyle='rgba(255,255,255,.9)'; ctx.lineWidth=4;
+    ctx.beginPath();
+    ctx.moveTo(62,top);
+    ctx.lineTo(220,top);
+    ctx.lineTo(292,bottom);
+    ctx.lineTo(62,bottom);
+    ctx.closePath();
+    ctx.fill(); ctx.stroke();
+    ctx.strokeStyle='rgba(255,255,255,.28)'; ctx.lineWidth=1;
+    for(let y=top+36;y<bottom;y+=38){
+      ctx.beginPath(); ctx.moveTo(72,y); ctx.lineTo(damRightFaceX(y)-10,y); ctx.stroke();
+    }
+    if(sim.filling) drawCloud(-115,-245);
+    for(const h of sim.holes.filter(h=>h.stage===2 && h.kind==='river')) drawRiverTunnel(h);
+    ctx.restore();
+  }
+
+  function drawSceneLiquid(){
+    if(sim.stage===0) drawCup();
+    if(sim.stage===1) drawBalloon();
+    if(sim.stage===2) drawRiver();
+    drawParticles();
+    drawNeedle();
+  }
+
+  function simulateLiquid(dt){
+    if(sim.stage===0) simulateCup(dt);
+    if(sim.stage===1) simulateBalloon(dt);
+    if(sim.stage===2) simulateRiver(dt);
+  }
+
+  function drawPlaceholder(kind){
+    ctx.save();
+    ctx.strokeStyle='rgba(255,255,255,.78)';
+    ctx.fillStyle='rgba(255,255,255,.06)';
+    ctx.lineWidth=4;
+    ctx.lineCap='round'; ctx.lineJoin='round';
+    if(kind==='tube'){
+      ctx.beginPath();
+      ctx.moveTo(-180,-95); ctx.lineTo(-180,110); ctx.quadraticCurveTo(-180,155,-135,155); ctx.lineTo(135,155); ctx.quadraticCurveTo(180,155,180,110); ctx.lineTo(180,-95); ctx.stroke();
+      ctx.strokeStyle='rgba(58,167,255,.62)'; ctx.lineWidth=18;
+      ctx.beginPath(); ctx.moveTo(-180,42); ctx.lineTo(-180,110); ctx.quadraticCurveTo(-180,155,-135,155); ctx.lineTo(135,155); ctx.quadraticCurveTo(180,155,180,110); ctx.lineTo(180,42); ctx.stroke();
+      ctx.fillStyle='rgba(58,167,255,.5)'; ctx.beginPath(); ctx.ellipse(-180,42,28,8,0,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.ellipse(180,42,28,8,0,0,Math.PI*2); ctx.fill();
+    } else {
+      ctx.beginPath(); ctx.arc(0,35,125,0,Math.PI*2); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(-200,160); ctx.lineTo(200,160); ctx.stroke();
+      ctx.strokeStyle='rgba(255,255,255,.35)'; ctx.lineWidth=2;
+      for(let i=0;i<15;i++){
+        const x=-180+i*26; const y=-20+Math.sin(i*.8)*30;
+        ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(x+28,y-18); ctx.stroke();
+      }
+      ctx.fillStyle='rgba(255,255,255,.08)'; ctx.beginPath(); ctx.arc(0,35,120,0,Math.PI*2); ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  function drawGrid(){
+    const rect = canvas.getBoundingClientRect();
+    ctx.save();
+    ctx.clearRect(0,0,rect.width,rect.height);
+    ctx.fillStyle='#242424'; ctx.fillRect(0,0,rect.width,rect.height);
+    ctx.strokeStyle='rgba(255,255,255,.045)'; ctx.lineWidth=1;
+    const step=48;
+    for(let x=((rect.width/2)%step);x<rect.width;x+=step){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,rect.height);ctx.stroke();}
+    for(let y=((rect.height/2)%step);y<rect.height;y+=step){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(rect.width,y);ctx.stroke();}
+    ctx.restore();
+  }
+
+  function draw(){
+    const rect = canvas.getBoundingClientRect();
+    ctx.save();
+    ctx.setTransform(1,0,0,1,0,0);
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    ctx.restore();
+    drawGrid();
+    ctx.save();
+    applyWorld();
+    ctx.lineCap='round'; ctx.lineJoin='round';
+    if(sim.scene===0) drawSceneLiquid();
+    if(sim.scene===1) drawPlaceholder('tube');
+    if(sim.scene===2) drawPlaceholder('air');
+    ctx.restore();
+    if(sim.paused){
+      ctx.save();
+      ctx.fillStyle='rgba(0,0,0,.18)'; ctx.fillRect(0,0,rect.width,rect.height);
+      ctx.fillStyle='rgba(255,255,255,.78)'; ctx.font='700 42px system-ui'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('Ⅱ',rect.width/2,rect.height/2);
+      ctx.restore();
+    }
+  }
+
+  function tick(now){
+    const dt = clamp((now - sim.lastTime)/1000, 0, .04);
+    sim.lastTime = now;
+    if(!sim.paused){
+      if(sim.scene===0) simulateLiquid(dt);
+      updateParticles(dt);
+    }
+    draw();
+    requestAnimationFrame(tick);
+  }
+
+  canvas.addEventListener('wheel', e=>{
+    e.preventDefault();
+    const factor = e.deltaY < 0 ? 1.08 : 0.92;
+    camera.zoom = clamp(camera.zoom * factor, .42, 2.8);
+  }, {passive:false});
+
+  canvas.addEventListener('pointerdown', e=>{
+    canvas.setPointerCapture(e.pointerId);
+    canvas.classList.add('dragging');
+    const p = screenToWorld(e.clientX, e.clientY);
+    pointer.touches.set(e.pointerId, {x:e.clientX,y:e.clientY});
+    if(pointer.touches.size === 2){
+      const pts = [...pointer.touches.values()];
+      pointer.pinchDist = hypot(pts[0].x-pts[1].x, pts[0].y-pts[1].y);
+      pointer.pinchZoom = camera.zoom;
+      pointer.pinchCenter = {x:(pts[0].x+pts[1].x)/2,y:(pts[0].y+pts[1].y)/2};
+      pointer.pinchCam = {x:camera.x,y:camera.y};
+      pointer.mode = 'pinch';
+      return;
+    }
+    pointer.active = true;
+    pointer.id = e.pointerId;
+    pointer.lastX = e.clientX;
+    pointer.lastY = e.clientY;
+    if(sim.drill && sim.scene===0 && nearNeedle(p)){
+      pointer.mode='needle';
+      sim.needle.grab=true;
+      sim.needle.offX = p.x - sim.needle.x;
+      sim.needle.offY = p.y - sim.needle.y;
+    }else{
+      pointer.mode='pan';
+    }
+  });
+
+  canvas.addEventListener('pointermove', e=>{
+    if(pointer.touches.has(e.pointerId)) pointer.touches.set(e.pointerId, {x:e.clientX,y:e.clientY});
+    if(pointer.touches.size === 2){
+      const pts = [...pointer.touches.values()];
+      const dist = Math.max(20, hypot(pts[0].x-pts[1].x, pts[0].y-pts[1].y));
+      const center = {x:(pts[0].x+pts[1].x)/2,y:(pts[0].y+pts[1].y)/2};
+      camera.zoom = clamp(pointer.pinchZoom * (dist / Math.max(20,pointer.pinchDist)), .42, 2.8);
+      camera.x = pointer.pinchCam.x + (center.x - pointer.pinchCenter.x) / camera.zoom;
+      camera.y = pointer.pinchCam.y + (center.y - pointer.pinchCenter.y) / camera.zoom;
+      return;
+    }
+    if(!pointer.active || e.pointerId !== pointer.id) return;
+    if(pointer.mode==='needle'){
+      const p = screenToWorld(e.clientX, e.clientY);
+      sim.needle.x = p.x - (sim.needle.offX || 0);
+      sim.needle.y = p.y - (sim.needle.offY || 0);
+      if(sim.stage===0) handleCupNeedle({x:-90,y:-150,w:180,h:270,bottom:120});
+      if(sim.stage===1) handleBalloonNeedle();
+      if(sim.stage===2) handleRiverNeedle();
+    } else if(pointer.mode==='pan'){
+      const dx = e.clientX - pointer.lastX;
+      const dy = e.clientY - pointer.lastY;
+      camera.x += dx / camera.zoom;
+      camera.y += dy / camera.zoom;
+      pointer.lastX = e.clientX;
+      pointer.lastY = e.clientY;
+    }
+  });
+
+  function endPointer(e){
+    pointer.touches.delete(e.pointerId);
+    if(pointer.touches.size < 2 && pointer.mode==='pinch') pointer.mode = null;
+    if(e.pointerId === pointer.id){
+      pointer.active=false; pointer.id=null; pointer.mode=null; sim.needle.grab=false;
+      canvas.classList.remove('dragging');
+    }
+  }
+  canvas.addEventListener('pointerup', endPointer);
+  canvas.addEventListener('pointercancel', endPointer);
+  canvas.addEventListener('pointerleave', e=>{ if(e.pointerType==='mouse' && pointer.active) endPointer(e); });
+
+  resetCamera();
+  renderTabs();
+  requestAnimationFrame(tick);
+})();
+</script>
+</body>
+</html>
