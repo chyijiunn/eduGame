@@ -1,0 +1,1688 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <script src="/eduGame/ga4.js"></script>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="version" content="0.191" />
+  <title>流體壓力</title>
+  <style>
+    :root{
+      --bg:#1f1f1f;
+      --panel:#292929;
+      --panel2:#333;
+      --line:#f2f2f2;
+      --muted:#aaa;
+      --water:#3aa7ff;
+      --water2:rgba(58,167,255,.38);
+      --danger:#ff6b6b;
+      --glass:rgba(255,255,255,.12);
+      --shadow:rgba(0,0,0,.38);
+      --radius:16px;
+      --bar-h:72px;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%;margin:0;background:var(--bg);color:var(--line);font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans TC",sans-serif;overscroll-behavior:none;}
+    body{overflow:hidden;}
+    #app{height:100%;display:grid;grid-template-rows:1fr auto;background:var(--bg);}
+    .stage-wrap{position:relative;min-height:0;overflow:hidden;background:#242424;}
+    #world{width:100%;height:100%;display:block;touch-action:none;background:#242424;cursor:grab;}
+    #world.dragging{cursor:grabbing;}
+    .tabs{position:absolute;left:10px;right:10px;top:10px;display:grid;grid-template-columns:repeat(3,1fr);gap:8px;z-index:10;pointer-events:auto;}
+    .stage-tabs{display:flex;gap:8px;z-index:10;pointer-events:auto;max-width:min(42vw,360px);overflow-x:auto;padding:0;scrollbar-width:none;flex:0 0 auto;align-items:center;}
+    .stage-tabs::-webkit-scrollbar{display:none}
+    button{border:1px solid rgba(255,255,255,.22);background:rgba(34,34,34,.88);color:var(--line);border-radius:999px;min-height:42px;padding:0 14px;font-size:15px;line-height:1;letter-spacing:.03em;touch-action:manipulation;-webkit-tap-highlight-color:transparent;box-shadow:0 4px 14px var(--shadow);}
+    button:active{transform:translateY(1px)}
+    button.active{background:var(--line);color:#1f1f1f;border-color:var(--line);font-weight:700;}
+    .tabs button{height:44px;min-width:0;font-weight:700;}
+    .stage-tabs button{background:rgba(34,34,34,.88);}
+    .stage-tabs button.active{background:var(--line);color:#1f1f1f;}
+    .control .stage-tabs button{min-width:50px;height:48px;font-size:20px;flex:0 0 auto;padding:0 14px;}
+    .control{height:var(--bar-h);display:flex;align-items:center;gap:10px;padding:10px max(12px,env(safe-area-inset-left)) max(10px,env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left));background:linear-gradient(180deg,#242424,#1d1d1d);border-top:1px solid rgba(255,255,255,.1);overflow-x:auto;scrollbar-width:none;}
+    .control::-webkit-scrollbar{display:none}
+    .control .spacer{flex:1;min-width:8px}
+    .center-info{flex:1 1 240px;min-width:160px;max-width:48vw;text-align:center;font-size:13px;line-height:1.35;color:rgba(255,255,255,.92);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    .control button{min-width:50px;height:48px;font-size:20px;flex:0 0 auto;}
+    .control button.tool{font-size:18px;min-width:56px;}
+    .control button.hidden{display:none}
+    .pill{position:absolute;right:12px;bottom:12px;z-index:5;color:rgba(255,255,255,.48);font-size:11px;letter-spacing:.04em;user-select:none;pointer-events:none;}
+    .modal{position:fixed;inset:0;background:rgba(0,0,0,.68);display:none;z-index:50;align-items:center;justify-content:center;padding:18px;}
+    .modal.open{display:flex;}
+    .modal-card{width:min(760px,100%);max-height:min(760px,88vh);background:#262626;border:1px solid rgba(255,255,255,.18);border-radius:20px;box-shadow:0 22px 70px rgba(0,0,0,.55);display:grid;grid-template-rows:auto 1fr;overflow:hidden;}
+    .modal-top{height:52px;display:flex;align-items:center;justify-content:flex-end;border-bottom:1px solid rgba(255,255,255,.12);padding:0 10px;}
+    .close{width:40px;height:40px;min-width:40px;padding:0;font-size:24px;border-color:transparent;background:transparent;box-shadow:none;}
+    .md{overflow:auto;padding:20px 22px 28px;color:#eee;line-height:1.65;font-size:16px;}
+    .md h1,.md h2,.md h3{line-height:1.25;margin:0 0 .65em;}
+    .md h1{font-size:1.35rem}.md h2{font-size:1.15rem;margin-top:1.1em}.md h3{font-size:1rem;margin-top:.9em}
+    .md p{margin:.6em 0}.md ul{padding-left:1.25em;margin:.5em 0}.md li{margin:.35em 0}.md code{background:#1c1c1c;border:1px solid rgba(255,255,255,.1);border-radius:6px;padding:.05em .35em}.md strong{color:#fff}.md hr{border:0;border-top:1px solid rgba(255,255,255,.12);margin:1em 0}
+    @media (max-width:700px){
+      :root{--bar-h:68px}
+      .tabs{gap:6px;left:8px;right:8px;top:8px}.tabs button{height:40px;font-size:14px;padding:0 8px}.stage-tabs{max-width:44vw}.control{gap:8px}.control button{height:46px;min-width:48px}.control .stage-tabs button{height:46px;min-width:48px;font-size:19px;padding:0 12px}.center-info{font-size:12px;max-width:42vw}.modal{padding:10px}.md{font-size:15px;padding:16px 18px 24px}
+    }
+  </style>
+</head>
+<body>
+  <div id="app" data-version="0.191">
+    <div class="stage-wrap">
+      <canvas id="world" aria-label="流體壓力互動舞台"></canvas>
+      <div class="tabs" id="sceneTabs" aria-label="場景切換"></div>
+      <div class="pill" id="statusPill"></div>
+    </div>
+    <div class="control" id="controlPanel" aria-label="控制台">
+      <button id="resetBtn" title="重置" aria-label="重置">↺</button>
+      <button id="playBtn" title="暫停 / 播放" aria-label="暫停 / 播放">⏸</button>
+      <button id="nextBtn" title="下一個" aria-label="下一個">⏭</button>
+      <button id="fillBtn" class="tool" title="灌水" aria-label="灌水">💧</button>
+      <button id="drillBtn" class="tool" title="鑽孔工具" aria-label="鑽孔工具">⊙</button>
+      <button id="drawBtn" class="tool" title="繪圖工具" aria-label="繪圖工具">✎</button>
+      <button id="sealBtn" class="tool hidden" title="封閉" aria-label="封閉">⬒</button>
+      <div class="center-info" id="centerInfo"></div>
+      <span class="spacer"></span>
+      <div class="stage-tabs" id="stageTabs" aria-label="舞台切換"></div>
+      <button id="helpBtn" title="說明" aria-label="說明">?</button>
+    </div>
+  </div>
+
+  <div class="modal" id="helpModal" role="dialog" aria-modal="true" aria-label="操作說明">
+    <div class="modal-card">
+      <div class="modal-top"><button class="close" id="closeHelp" aria-label="關閉">×</button></div>
+      <div class="md" id="mdContent"></div>
+    </div>
+  </div>
+
+<script>
+(() => {
+  'use strict';
+
+  const APP_VERSION = '0.191';
+
+  const README_MD = `# 流體壓力 操作說明
+
+## 主題
+這個互動頁面目前有三個主題：**器壁液壓**、**連通管**、**大氣壓力**。
+
+## 基本操作
+- 上方頁籤可以切換三個主題。
+- 下方控制列有 **重置、暫停 / 播放、下一個、灌水、鑽孔工具、繪圖工具、說明**。
+- 畫面固定，不提供縮放、旋轉或平移舞台。
+- 只有工具本身可以操作：繪圖工具可畫線，鑽孔工具可拖曳針。
+
+## 器壁液壓
+### 杯子
+- 按 **💧** 灌水，水龍頭會往杯中加水。
+- 按 **⊙** 後，針會從右邊出現，往左戳破杯壁。
+- 洞越低，水噴得通常越遠。
+
+### 水球
+- 灌水後水球會變大，水太多會爆掉。
+- 破洞後，洞會跟著水球的大小一起移動。
+
+### 水壩
+- 左邊是河道，右邊是梯形水壩。
+- 針從右側戳入會形成水平貫通孔。
+- 位置越低，水流越強。
+
+## 連通管
+- 這個主題只有一個舞台。
+- 按 **✎** 後，可以在舞台上畫出一條開口容器曲線，系統會把這條曲線視為容器壁；曲線不會被強制封閉。
+- 按 **💧** 後，上方水龍頭會開始加水，容器內會盛水。
+- 按 **⊙** 後，針會從上方出現，往下戳穿你畫出的器壁。
+- 若洞口低於液面，水會**垂直向上噴出**；噴到最高的位置，會和容器內的最高液面一樣高。
+- 隨著液面下降，噴泉的高度也會跟著下降。
+- 洞越多，失水越快。
+- 若容器線段沒有形成封閉輪廓，水位碰到開口端時會從開口漏出；封閉容器則只會從孔洞漏水。
+- 灌入液體後，可以直接拖拉已畫好的容器，容器會繞著圖形上下左右正中央旋轉傾斜。
+- 液體表面會受重力影響維持水平，並因拖拉產生晃動波浪。
+- 液體不會從開口或邊緣外漏，只會從被針戳出的孔洞噴出。
+
+## 大氣壓力
+- 先用繪圖工具畫一個開放式容器。
+- 先灌水，再按封閉按鈕把容器封起來。
+- 封閉後可像連通管一樣拖拉旋轉。
+- 點選鑽孔工具後會出現針筒。針筒可戳洞，也能推拉活塞來加壓或抽氣。
+- 控制台中央會顯示針筒、大氣與容器空腔的壓力值。
+`;
+
+
+  const canvas = document.getElementById('world');
+  const ctx = canvas.getContext('2d');
+  const sceneTabs = document.getElementById('sceneTabs');
+  const stageTabs = document.getElementById('stageTabs');
+  const resetBtn = document.getElementById('resetBtn');
+  const playBtn = document.getElementById('playBtn');
+  const nextBtn = document.getElementById('nextBtn');
+  const fillBtn = document.getElementById('fillBtn');
+  const drillBtn = document.getElementById('drillBtn');
+  const drawBtn = document.getElementById('drawBtn');
+  const sealBtn = document.getElementById('sealBtn');
+  const centerInfo = document.getElementById('centerInfo');
+  const helpBtn = document.getElementById('helpBtn');
+  const helpModal = document.getElementById('helpModal');
+  const closeHelp = document.getElementById('closeHelp');
+  const mdContent = document.getElementById('mdContent');
+  const statusPill = document.getElementById('statusPill');
+
+
+const scenes = [
+  { id:'liquid', label:'器壁液壓', stages:[
+    { id:'cup', icon:'▱', label:'杯子' },
+    { id:'balloon', icon:'◯', label:'水球' },
+    { id:'dam', icon:'▰', label:'水壩' },
+  ] },
+  { id:'tube', label:'連通管', stages:[
+    { id:'tube-a', icon:'∪', label:'連通管' },
+  ] },
+  { id:'air', label:'大氣壓力', stages:[
+    { id:'air-a', icon:'◉', label:'大氣壓力' },
+  ] },
+];
+
+  const camera = { angle:0, zoom:1, x:0, y:0 };
+  const pointer = {
+    active:false,
+    mode:null,
+    id:null,
+    lastX:0,
+    lastY:0,
+    touches:new Map(),
+    pinchDist:0,
+    pinchZoom:1,
+    pinchCenter:{x:0,y:0},
+    pinchCam:{x:0,y:0}
+  };
+
+
+const sim = {
+  scene:0,
+  stage:0,
+  paused:false,
+  filling:false,
+  drill:false,
+  drawMode:false,
+  lastTime:performance.now(),
+  particles:[],
+  holes:[],
+  needle:{x:-260,y:20,len:118,grab:false},
+  cup:{water:0.56,capacity:1.03},
+  balloon:{water:0.42,capacity:1,burst:false},
+  river:{water:0.50,capacity:1.12},
+  tube:{strokes:[],current:[],drawing:false,water:0,capacity:1},
+  air:{strokes:[],current:[],drawing:false,water:0,capacity:1},
+  rain:[],
+};
+
+  function clamp(v,min,max){return Math.max(min,Math.min(max,v));}
+  function lerp(a,b,t){return a+(b-a)*t;}
+  function hypot(a,b){return Math.sqrt(a*a+b*b);}
+
+
+
+function tubeDefault(){
+  return {
+    strokes:[],
+    current:[],
+    drawing:false,
+    water:0,
+    capacity:1,
+    angle:0,
+    waveAmp:0,
+    wavePhase:0,
+    dragging:false,
+    dragLastAngle:0,
+    dragLastTime:0
+  };
+}
+function clampPointToTubeArea(p){
+  return {x:p.x, y:p.y};
+}
+function simplifyPath(points, minDist=6){
+  const out = [];
+  for(const p of points){
+    if(!out.length || hypot(p.x-out[out.length-1].x, p.y-out[out.length-1].y) >= minDist) out.push({x:p.x,y:p.y});
+  }
+  if(out.length && points.length){
+    const last = points[points.length-1];
+    const cur = out[out.length-1];
+    if(cur.x !== last.x || cur.y !== last.y) out.push({x:last.x,y:last.y});
+  }
+  return out;
+}
+function finalizeTubePath(points){
+  const pts = simplifyPath(points.map(clampPointToTubeArea), 5);
+  return pts.length >= 2 ? pts : [];
+}
+function tubeStrokes(includeCurrent=false){
+  const strokes = sim.tube.strokes.filter(s=>s && s.length >= 2);
+  if(includeCurrent && sim.tube.current && sim.tube.current.length >= 2) strokes.push(sim.tube.current);
+  return strokes;
+}
+function tubeAllPoints(includeCurrent=false){
+  return tubeStrokes(includeCurrent).flat();
+}
+function tubeMetrics(includeCurrent=true){
+  const strokes = includeCurrent ? tubeStrokes(true) : tubeStrokes(false);
+  const pts = strokes.flat();
+  if(pts.length < 2) return null;
+  const xs = pts.map(p=>p.x), ys = pts.map(p=>p.y);
+  const ends = [];
+  for(const s of strokes){
+    if(s.length >= 2){ ends.push(s[0].y, s[s.length-1].y); }
+  }
+  const rimY = ends.length ? Math.max(...ends) : Math.min(...ys);
+  const bottomY = Math.max(...ys);
+  const minX = Math.min(...xs), maxX = Math.max(...xs);
+  const minY = Math.min(...ys), maxY = Math.max(...ys);
+  const sortedStrokes = strokes.slice().sort((a,b)=>a[0].x-b[0].x);
+  const first = sortedStrokes[0];
+  const last = sortedStrokes[sortedStrokes.length-1];
+  const left = first ? first[0] : {x:minX,y:rimY};
+  const right = last ? last[last.length-1] : {x:maxX,y:rimY};
+  const center = {x:(minX+maxX)/2, y:(minY+maxY)/2};
+  return {rimY,bottomY,minX,maxX,minY,maxY,left,right,center};
+}
+function tubeCenter(){
+  const m = tubeMetrics(true);
+  return m ? m.center : {x:0,y:0};
+}
+function rotateAround(p,c,a){
+  const dx=p.x-c.x, dy=p.y-c.y;
+  const ca=Math.cos(a), sa=Math.sin(a);
+  return {x:c.x + dx*ca - dy*sa, y:c.y + dx*sa + dy*ca};
+}
+function vectorRotate(v,a){
+  const ca=Math.cos(a), sa=Math.sin(a);
+  return {x:v.x*ca - v.y*sa, y:v.x*sa + v.y*ca};
+}
+function tubePointToWorld(p){
+  return rotateAround(p, tubeCenter(), sim.tube.angle || 0);
+}
+function tubePointToLocal(p){
+  return rotateAround(p, tubeCenter(), -(sim.tube.angle || 0));
+}
+function tubeWorldStrokes(includeCurrent=false){
+  return tubeStrokes(includeCurrent).map(stroke=>stroke.map(tubePointToWorld));
+}
+function tubeWorldMetrics(){
+  const strokes = tubeWorldStrokes(true);
+  const pts = strokes.flat();
+  if(pts.length < 2) return null;
+  const xs = pts.map(p=>p.x), ys = pts.map(p=>p.y);
+  return {minX:Math.min(...xs), maxX:Math.max(...xs), minY:Math.min(...ys), maxY:Math.max(...ys), center:tubePointToWorld(tubeCenter())};
+}
+function tubeWaterBaseY(){
+  const wm = tubeWorldMetrics();
+  if(!wm) return 9999;
+  const h = Math.max(1, wm.maxY - wm.minY);
+  return wm.maxY - clamp(sim.tube.water,0,1) * h;
+}
+function tubeWaterSurfaceY(x){
+  const wm = tubeWorldMetrics();
+  const base = tubeWaterBaseY();
+  if(!wm) return base;
+  // 水面基準保持水平，只疊加小幅波動，避免看起來整體傾斜。
+  const amp = Math.min(sim.tube.waveAmp || 0, 14);
+  const phase = sim.tube.wavePhase || 0;
+  return base + Math.sin((x - wm.center.x)*0.03 + phase) * amp;
+}
+function closestPointOnSegment(px,py,ax,ay,bx,by){
+  const abx = bx-ax, aby = by-ay;
+  const ab2 = abx*abx + aby*aby || 1;
+  const t = clamp(((px-ax)*abx + (py-ay)*aby)/ab2, 0, 1);
+  return {x:ax + abx*t, y:ay + aby*t, t};
+}
+function closestPointOnTube(pLocal){
+  const strokes = tubeStrokes(false);
+  if(!strokes.length) return null;
+  const c = tubeCenter();
+  let best = null;
+  for(const stroke of strokes){
+    for(let i=0;i<stroke.length-1;i++){
+      const a = stroke[i], b = stroke[i+1];
+      const q = closestPointOnSegment(pLocal.x,pLocal.y,a.x,a.y,b.x,b.y);
+      const d = hypot(q.x-pLocal.x, q.y-pLocal.y);
+      const tx = b.x - a.x;
+      const ty = b.y - a.y;
+      const len = hypot(tx,ty) || 1;
+      let n1 = {x:-ty/len, y:tx/len};
+      const out = {x:q.x-c.x, y:q.y-c.y};
+      if(n1.x*out.x + n1.y*out.y < 0) n1 = {x:-n1.x, y:-n1.y};
+      if(!best || d < best.d) best = {x:q.x,y:q.y,d,index:i,nx:n1.x,ny:n1.y};
+    }
+  }
+  return best;
+}
+function drawStrokePath(stroke){
+  if(!stroke || stroke.length < 2) return false;
+  ctx.beginPath();
+  ctx.moveTo(stroke[0].x, stroke[0].y);
+  for(let i=1;i<stroke.length;i++) ctx.lineTo(stroke[i].x, stroke[i].y);
+  return true;
+}
+function tubeClipPathWorld(){
+  const strokes = tubeStrokes(true);
+  if(!strokes.length) return false;
+  ctx.beginPath();
+  for(const stroke of strokes){
+    if(!stroke || stroke.length < 2) continue;
+    const first = tubePointToWorld(stroke[0]);
+    ctx.moveTo(first.x, first.y);
+    for(let i=1;i<stroke.length;i++){
+      const q = tubePointToWorld(stroke[i]);
+      ctx.lineTo(q.x, q.y);
+    }
+    // 直接以首尾連線封閉，避免用人工 rimY 造成奇怪的缺口與斜切。
+    ctx.closePath();
+  }
+  return true;
+}
+
+function tubeEndpointData(){
+  const strokes = tubeStrokes(false);
+  const endpoints = [];
+  for(let si=0; si<strokes.length; si++){
+    const s = strokes[si];
+    if(!s || s.length < 2) continue;
+    const first = s[0], second = s[1];
+    const last = s[s.length-1], prev = s[s.length-2];
+    const tvStart = {x:first.x-second.x, y:first.y-second.y};
+    const tvEnd = {x:last.x-prev.x, y:last.y-prev.y};
+    endpoints.push({stroke:si, end:'start', p:first, tangent:tvStart, paired:false});
+    endpoints.push({stroke:si, end:'end', p:last, tangent:tvEnd, paired:false});
+  }
+  const pairDist = 14;
+  for(let i=0;i<endpoints.length;i++){
+    if(endpoints[i].paired) continue;
+    let best=-1, bestD=Infinity;
+    for(let j=i+1;j<endpoints.length;j++){
+      if(endpoints[j].paired) continue;
+      const d = hypot(endpoints[i].p.x-endpoints[j].p.x, endpoints[i].p.y-endpoints[j].p.y);
+      if(d < bestD){ bestD=d; best=j; }
+    }
+    if(best >= 0 && bestD <= pairDist){
+      endpoints[i].paired = true;
+      endpoints[best].paired = true;
+    }
+  }
+  return endpoints;
+}
+function tubeOpenings(){
+  return tubeEndpointData().filter(e=>!e.paired);
+}
+function tubeIsClosedShape(){
+  const endpoints = tubeEndpointData();
+  return endpoints.length >= 2 && endpoints.every(e=>e.paired);
+}
+function normalized(v){
+  const len = hypot(v.x, v.y) || 1;
+  return {x:v.x/len, y:v.y/len};
+}
+function simulateTubeOpenLeaks(dt, m){
+  if(!m || sim.tube.water <= .001) return;
+  const openings = tubeOpenings();
+  if(!openings.length) return;
+  let leakCount = 0;
+  for(const op of openings){
+    const pWorld = tubePointToWorld(op.p);
+    const surfaceY = tubeWaterSurfaceY(pWorld.x);
+    const head = pWorld.y - surfaceY;
+    // y 軸向下；head >= 0 代表開口已低於液面。保留一點容差讓水面碰到開口時就會外漏。
+    if(head >= -6){
+      leakCount++;
+      const tangent = vectorRotate(normalized(op.tangent), sim.tube.angle || 0);
+      const fallBias = 42 + Math.max(0, head) * 0.35;
+      const speed = 65 + Math.sqrt(Math.max(0, head + 8)) * 22;
+      const vx = tangent.x * speed + (Math.random()-.5)*24;
+      const vy = Math.max(36, tangent.y * speed + fallBias + (Math.random()-.5)*18);
+      if(Math.random() < clamp(.35 + Math.max(0, head)*.008, .35, .95)){
+        spawnDrop(pWorld.x + tangent.x*5, pWorld.y + tangent.y*5, vx, vy, 2.8, 2.2);
+      }
+      sim.tube.water = Math.max(0, sim.tube.water - dt * (0.045 + Math.max(0, head)*0.00075));
+    }
+  }
+  if(leakCount > 0){
+    sim.tube.waveAmp = clamp((sim.tube.waveAmp || 0) + leakCount * 0.05, 0, 42);
+  }
+}
+function resetTubeState(){
+  sim.tube = tubeDefault();
+}
+
+const ATM_PRESSURE = 101.3;
+function airDefault(){
+  return {
+    strokes:[], current:[], drawing:false, water:0, capacity:1, sealed:false,
+    angle:0, waveAmp:0, wavePhase:0, dragging:false, dragLastAngle:0,
+    bubbles:[], airP:ATM_PRESSURE, gasK:ATM_PRESSURE*1,
+    syringe:{x:280,y:-170,angle:-Math.PI/4, plunger:0.5, insertedHole:-1, attached:false, mode:null}
+  };
+}
+function airStrokes(includeCurrent=false){
+  const strokes = sim.air.strokes.filter(s=>s && s.length >= 2);
+  if(includeCurrent && sim.air.current && sim.air.current.length >= 2) strokes.push(sim.air.current);
+  return strokes;
+}
+function airMetrics(includeCurrent=true){
+  const strokes = includeCurrent ? airStrokes(true) : airStrokes(false);
+  const pts = strokes.flat();
+  if(pts.length < 2) return null;
+  const xs=pts.map(p=>p.x), ys=pts.map(p=>p.y);
+  return {minX:Math.min(...xs), maxX:Math.max(...xs), minY:Math.min(...ys), maxY:Math.max(...ys), center:{x:(Math.min(...xs)+Math.max(...xs))/2,y:(Math.min(...ys)+Math.max(...ys))/2}};
+}
+function airCenter(){ const m = airMetrics(true); return m ? m.center : {x:0,y:0}; }
+function airPointToWorld(p){ return rotateAround(p, airCenter(), sim.air.angle || 0); }
+function airPointToLocal(p){ return rotateAround(p, airCenter(), -(sim.air.angle || 0)); }
+function airWorldStrokes(includeCurrent=false){ return airStrokes(includeCurrent).map(st=>st.map(airPointToWorld)); }
+function airWorldMetrics(){ const pts=airWorldStrokes(true).flat(); if(pts.length<2) return null; const xs=pts.map(p=>p.x), ys=pts.map(p=>p.y); return {minX:Math.min(...xs), maxX:Math.max(...xs), minY:Math.min(...ys), maxY:Math.max(...ys), center:airPointToWorld(airCenter())}; }
+function airClipPathWorld(){
+  const strokes = airStrokes(true);
+  if(!strokes.length) return false;
+  ctx.beginPath();
+  for(const stroke of strokes){
+    if(stroke.length < 2) continue;
+    const first=airPointToWorld(stroke[0]);
+    ctx.moveTo(first.x, first.y);
+    for(let i=1;i<stroke.length;i++){ const q=airPointToWorld(stroke[i]); ctx.lineTo(q.x,q.y); }
+    ctx.closePath();
+  }
+  return true;
+}
+function airEndpointData(){
+  const strokes = airStrokes(false); const endpoints=[];
+  for(let si=0; si<strokes.length; si++){ const s=strokes[si]; if(!s||s.length<2) continue; const first=s[0], second=s[1], last=s[s.length-1], prev=s[s.length-2]; endpoints.push({stroke:si,end:'start',p:first,tangent:{x:first.x-second.x,y:first.y-second.y},paired:false}); endpoints.push({stroke:si,end:'end',p:last,tangent:{x:last.x-prev.x,y:last.y-prev.y},paired:false}); }
+  const pairDist=14;
+  for(let i=0;i<endpoints.length;i++){ if(endpoints[i].paired) continue; let best=-1,bestD=1e9; for(let j=i+1;j<endpoints.length;j++){ if(endpoints[j].paired) continue; const d=hypot(endpoints[i].p.x-endpoints[j].p.x,endpoints[i].p.y-endpoints[j].p.y); if(d<bestD){ bestD=d; best=j; } } if(best>=0 && bestD<=pairDist){ endpoints[i].paired=true; endpoints[best].paired=true; } }
+  return endpoints;
+}
+function airOpenings(){ return airEndpointData().filter(e=>!e.paired); }
+function airCanSeal(){ return airStrokes(false).length && sim.air.water > 0.001 && !sim.air.sealed; }
+function sealAirContainer(){
+  if(!airCanSeal()) return;
+  sim.air.sealed = true;
+  const gasVol = Math.max(0.08, 1 - sim.air.water);
+  sim.air.airP = ATM_PRESSURE;
+  sim.air.gasK = sim.air.airP * gasVol;
+  sim.drawMode = false;
+  updateControls();
+}
+function airWaterBaseY(){ const wm=airWorldMetrics(); if(!wm) return 9999; const h=Math.max(1, wm.maxY-wm.minY); return wm.maxY - clamp(sim.air.water,0,1)*h; }
+function airWaterSurfaceY(x){ const wm=airWorldMetrics(); const base=airWaterBaseY(); if(!wm) return base; const amp=Math.min(sim.air.waveAmp||0,14); const phase=sim.air.wavePhase||0; return base + Math.sin((x-wm.center.x)*0.03 + phase) * amp; }
+function closestPointOnAir(pLocal){
+  const strokes=sim.air.strokes.filter(s=>s&&s.length>=2); if(!strokes.length) return null; const c=airCenter(); let best=null;
+  for(const stroke of strokes){ for(let i=0;i<stroke.length-1;i++){ const a=stroke[i], b=stroke[i+1]; const q=closestPointOnSegment(pLocal.x,pLocal.y,a.x,a.y,b.x,b.y); const d=hypot(q.x-pLocal.x,q.y-pLocal.y); const tx=b.x-a.x, ty=b.y-a.y; const len=hypot(tx,ty)||1; let n1={x:-ty/len,y:tx/len}; const out={x:q.x-c.x,y:q.y-c.y}; if(n1.x*out.x+n1.y*out.y<0) n1={x:-n1.x,y:-n1.y}; if(!best||d<best.d) best={x:q.x,y:q.y,d,nx:n1.x,ny:n1.y}; } }
+  return best;
+}
+function airSyringePressure(){ return ATM_PRESSURE + (0.5 - sim.air.syringe.plunger) * 110; }
+function placeAirSyringeDefault(){
+  const p = screenToWorld(canvas.width*0.82, canvas.height*0.24);
+  sim.air.syringe.x = p.x;
+  sim.air.syringe.y = p.y;
+  sim.air.syringe.angle = -Math.PI/4;
+  sim.air.syringe.plunger = 0.5;
+}
+function applySyringeStroke(){
+  const s = sim.air.syringe;
+  const delta = 0.5 - s.plunger;
+  if(Math.abs(delta) < 0.01){ s.plunger = 0.5; return; }
+  const holes = sim.holes.filter(h=>h.kind==='air');
+  const hole = (s.insertedHole>=0) ? holes[s.insertedHole] : null;
+  if(hole && sim.air.sealed){
+    const surfaceY = airWaterSurfaceY(hole.x);
+    const above = hole.y < surfaceY - 8;
+    if(above){
+      const gasVol = Math.max(0.06, 1 - sim.air.water);
+      sim.air.airP = clamp(sim.air.airP + delta*38, 20, 240);
+      sim.air.gasK = sim.air.airP * gasVol;
+    }
+  }
+  s.plunger = 0.5;
+}
+function airSyringeTip(){ const s=sim.air.syringe; const dir={x:Math.cos(s.angle), y:Math.sin(s.angle)}; return {x:s.x - dir.x*62, y:s.y - dir.y*62}; }
+function airSyringeBack(){ const s=sim.air.syringe; const dir={x:Math.cos(s.angle), y:Math.sin(s.angle)}; return {x:s.x + dir.x*62, y:s.y + dir.y*62}; }
+function nearAirSyringeBody(p){ const a=airSyringeTip(), b=airSyringeBack(); const q=closestPointOnSegment(p.x,p.y,a.x,a.y,b.x,b.y); return hypot(p.x-q.x,p.y-q.y) < 18; }
+function nearAirSyringePlunger(p){ const back=airSyringeBack(); return hypot(p.x-back.x,p.y-back.y) < 22; }
+function drawAirSyringe(){
+  if(!sim.drill) return;
+  const s=sim.air.syringe, dir={x:Math.cos(s.angle),y:Math.sin(s.angle)}, n={x:-dir.y,y:dir.x};
+  const tip=airSyringeTip(), back=airSyringeBack();
+  const barrelFront={x:s.x-dir.x*42, y:s.y-dir.y*42};
+  const barrelBack={x:s.x+dir.x*34, y:s.y+dir.y*34};
+  const plgCenter={x:lerp(barrelBack.x-dir.x*10, barrelFront.x+dir.x*12, s.plunger), y:lerp(barrelBack.y-dir.y*10, barrelFront.y+dir.y*12, s.plunger)};
+  const handle={x:plgCenter.x+dir.x*32, y:plgCenter.y+dir.y*32};
+  ctx.save();
+  ctx.lineCap='round'; ctx.lineJoin='round';
+  // barrel
+  ctx.fillStyle='rgba(255,255,255,.08)'; ctx.strokeStyle='#f2f2f2'; ctx.lineWidth=2.6;
+  ctx.beginPath();
+  ctx.moveTo(barrelBack.x+n.x*13, barrelBack.y+n.y*13);
+  ctx.lineTo(barrelFront.x+n.x*13, barrelFront.y+n.y*13);
+  ctx.lineTo(barrelFront.x-n.x*13, barrelFront.y-n.y*13);
+  ctx.lineTo(barrelBack.x-n.x*13, barrelBack.y-n.y*13);
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+  // barrel ticks + center mark so plunger motion is visible
+  for(let i=0;i<4;i++){
+    const t=0.2+i*0.2; const cx=lerp(barrelBack.x,barrelFront.x,t), cy=lerp(barrelBack.y,barrelFront.y,t);
+    ctx.strokeStyle = i===1 ? 'rgba(90,190,255,.95)' : 'rgba(255,255,255,.55)';
+    ctx.lineWidth = i===1 ? 2.2 : 1.2;
+    ctx.beginPath(); ctx.moveTo(cx+n.x*(i===1?10:7), cy+n.y*(i===1?10:7)); ctx.lineTo(cx-n.x*(i===1?10:7), cy-n.y*(i===1?10:7)); ctx.stroke();
+  }
+  // needle hub + needle (clearly visible)
+  const hub={x:barrelFront.x-dir.x*8, y:barrelFront.y-dir.y*8};
+  ctx.strokeStyle='#f2f2f2'; ctx.lineWidth=2.4; ctx.beginPath(); ctx.moveTo(hub.x,hub.y); ctx.lineTo(tip.x,tip.y); ctx.stroke();
+  ctx.lineWidth=1.3; ctx.beginPath(); ctx.moveTo(hub.x+dir.x*3,hub.y+dir.y*3); ctx.lineTo(tip.x,tip.y); ctx.stroke();
+  ctx.fillStyle='#f2f2f2';
+  ctx.beginPath(); ctx.moveTo(tip.x,tip.y); ctx.lineTo(tip.x+n.x*4-dir.x*8, tip.y+n.y*4-dir.y*8); ctx.lineTo(tip.x-n.x*4-dir.x*8, tip.y-n.y*4-dir.y*8); ctx.closePath(); ctx.fill();
+  // piston plate
+  ctx.strokeStyle='#f2f2f2'; ctx.lineWidth=2.6;
+  ctx.beginPath(); ctx.moveTo(plgCenter.x+n.x*14, plgCenter.y+n.y*14); ctx.lineTo(plgCenter.x-n.x*14, plgCenter.y-n.y*14); ctx.stroke();
+  // plunger rod and handle
+  ctx.strokeStyle='rgba(255,255,255,.95)'; ctx.lineWidth=2.2;
+  ctx.beginPath(); ctx.moveTo(plgCenter.x,plgCenter.y); ctx.lineTo(handle.x,handle.y); ctx.stroke();
+  ctx.lineWidth=2.8; ctx.beginPath(); ctx.moveTo(handle.x+n.x*12,handle.y+n.y*12); ctx.lineTo(handle.x-n.x*12,handle.y-n.y*12); ctx.stroke();
+  // visible plunger cap
+  ctx.fillStyle='rgba(90,190,255,.22)'; ctx.beginPath(); ctx.arc(handle.x,handle.y,4.5,0,Math.PI*2); ctx.fill();
+  ctx.restore();
+}
+function startAirStroke(e){
+  const p=airPointToLocal(screenToWorld(e.clientX,e.clientY)); pointer.active=true; pointer.id=e.pointerId; pointer.mode='airDraw'; sim.air.drawing=true; sim.air.current=[p]; try{canvas.setPointerCapture(e.pointerId);}catch(err){}
+}
+function addAirStrokePoint(e){ if(!sim.air.drawing || pointer.mode!=='airDraw' || e.pointerId!==pointer.id) return; if(!pointerStillPressed(e)){ finishAirStroke(); return; } const p=airPointToLocal(screenToWorld(e.clientX,e.clientY)); const path=sim.air.current||[]; if(!path.length || hypot(p.x-path[path.length-1].x,p.y-path[path.length-1].y)>3){ path.push(p); sim.air.current=path; } }
+function finishAirStroke(){ if(pointer.mode==='airDraw'){ const stroke=finalizeTubePath(sim.air.current||[]); if(stroke.length>=2) sim.air.strokes.push(stroke); sim.air.current=[]; sim.air.drawing=false; } pointer.active=false; pointer.id=null; pointer.mode=null; canvas.classList.remove('dragging'); }
+function canDragAir(){ return sim.scene===2 && sim.air.sealed && sim.air.water > .001 && airStrokes(false).length && !sim.drawMode && !sim.drill; }
+function isNearAirWorld(pWorld){ const hit = closestPointOnAir(airPointToLocal(pWorld)); return !!(hit && hit.d < 34); }
+function pointerAngleAroundAir(e){ const c=airCenter(); const p=screenToWorld(e.clientX,e.clientY); return Math.atan2(p.y-c.y,p.x-c.x); }
+function startAirDrag(e){ pointer.active=true; pointer.id=e.pointerId; pointer.mode='airDrag'; sim.air.dragging=true; sim.air.dragLastAngle=pointerAngleAroundAir(e); canvas.classList.add('dragging'); try{canvas.setPointerCapture(e.pointerId);}catch(err){} }
+function updateAirDrag(e){ const a=pointerAngleAroundAir(e); const prev=sim.air.dragLastAngle||a; const delta=Math.atan2(Math.sin(a-prev),Math.cos(a-prev)); if(Number.isFinite(delta)){ sim.air.angle=clamp((sim.air.angle||0)+delta,-Math.PI*0.82,Math.PI*0.82); sim.air.waveAmp=clamp((sim.air.waveAmp||0)+Math.abs(delta)*92,0,40); } sim.air.dragLastAngle=a; }
+function finishAirDrag(){ sim.air.dragging=false; pointer.active=false; pointer.id=null; pointer.mode=null; canvas.classList.remove('dragging'); }
+function handleAirSyringeNeedle(){
+  if(!sim.drill || !sim.air.sealed || !airStrokes(false).length) return;
+  const tipWorld = airSyringeTip(); const tipLocal = airPointToLocal(tipWorld); const hit = closestPointOnAir(tipLocal);
+  if(hit && hit.d < 11){ addHole({kind:'air', x:tipWorld.x, y:tipWorld.y, lx:hit.x, ly:hit.y, nx:hit.nx, ny:hit.ny, inserted:false}); }
+}
+function findAirHoleAtTip(){ const tip=airSyringeTip(); let idx=-1,best=18; const holes=sim.holes.filter(h=>h.kind==='air'); holes.forEach((h,i)=>{ const p=airPointToWorld({x:h.lx ?? h.x, y:h.ly ?? h.y}); const d=hypot(tip.x-p.x, tip.y-p.y); if(d<best){ best=d; idx=i; } }); return idx; }
+function syncAirHolePositions(){ for(const h of sim.holes.filter(h=>h.kind==='air')){ const p=airPointToWorld({x:h.lx ?? h.x, y:h.ly ?? h.y}); h.x=p.x; h.y=p.y; } }
+function updateAirGasByVolume(){ const gasVol=Math.max(0.06, 1 - sim.air.water); sim.air.airP = clamp(sim.air.gasK / gasVol, 20, 240); }
+function updateAirSyringePump(dt){
+  sim.air.syringeP = airSyringePressure();
+  const idx = sim.air.syringe.insertedHole;
+  sim.holes.filter(h=>h.kind==='air').forEach((h,i)=>h.inserted = (i===idx));
+}
+function simulateAir(dt){
+  const m=airMetrics(false);
+  if(sim.filling && m){ sim.air.water = Math.min(sim.air.capacity, sim.air.water + 0.18*dt); for(let i=0;i<4;i++) spawnDrop(-5+Math.random()*10,-220+Math.random()*20,(Math.random()-.5)*18,160+Math.random()*70,2.4,1.1); }
+  sim.air.wavePhase += dt * (4 + (sim.air.waveAmp||0)*0.08); sim.air.waveAmp *= Math.exp(-dt*1.45); if(sim.air.waveAmp<0.2) sim.air.waveAmp=0;
+  handleAirSyringeNeedle(); syncAirHolePositions();
+  if(sim.air.sealed) updateAirGasByVolume();
+  updateAirSyringePump(dt);
+  // seal button logic already external
+  const holes = sim.holes.filter(h=>h.kind==='air');
+  const ventHoles = []; const subHoles=[];
+  for(const h of holes){ const surfaceY=airWaterSurfaceY(h.x); if(h.y < surfaceY - 6){ if(!h.inserted) ventHoles.push(h); } else if(h.y > surfaceY + 4){ subHoles.push(h); } }
+  if(sim.air.sealed && ventHoles.length>0){ sim.air.airP = ATM_PRESSURE; const gasVol=Math.max(0.06,1-sim.air.water); sim.air.gasK = sim.air.airP * gasVol; }
+  if(sim.air.sealed){
+    for(const h of subHoles){
+      const surfaceY=airWaterSurfaceY(h.x); const depth=Math.max(0,h.y-surfaceY);
+      const pressurePush = depth*0.22 + (sim.air.airP - ATM_PRESSURE);
+      const pressurePull = (ATM_PRESSURE - sim.air.airP) - depth*0.02;
+      if((ventHoles.length>0 || sim.air.airP > ATM_PRESSURE + 0.35) && pressurePush > 0.4){
+        h.cool -= dt; if(h.cool<=0){ h.cool=clamp(.12 - depth*0.00034,.02,.09); const normal=vectorRotate({x:h.nx ?? 1,y:h.ny ?? 0}, sim.air.angle || 0); const nLen=hypot(normal.x,normal.y)||1; const nx=normal.x/nLen, ny=normal.y/nLen; const speed = 50 + Math.sqrt(depth*180) + Math.max(0, sim.air.airP - ATM_PRESSURE)*2.8; for(let i=0;i<2;i++) spawnDrop(h.x + nx*4, h.y + ny*4, nx*speed + (Math.random()-.5)*12, ny*speed + (Math.random()-.5)*12, 2.5, 2.6); sim.air.water = Math.max(0, sim.air.water - (0.0013 + depth*0.00001 + Math.max(0,sim.air.airP-ATM_PRESSURE)*0.00006)); }
+      } else if(pressurePull > 0.5){
+        if(Math.random() < clamp(0.2 + pressurePull*0.08,0.18,0.9)){ sim.air.bubbles.push({x:h.x + (Math.random()-.5)*6, y:h.y, r:2+Math.random()*3, vy: -36 - Math.random()*26, drift:(Math.random()-.5)*10, life:4}); const gasVol=Math.max(0.06,1-sim.air.water); sim.air.gasK = Math.min((sim.air.gasK||ATM_PRESSURE*gasVol) + 0.05, 240*gasVol); }
+      }
+    }
+  }
+  // bubbles rise in water and merge to air cavity
+  const surfaceBase = airWaterBaseY();
+  sim.air.bubbles = sim.air.bubbles.filter(b=>{ b.y += b.vy*dt; b.x += Math.sin(sim.air.wavePhase + b.y*0.02) * b.drift*dt*0.15; b.life -= dt; if(b.y <= airWaterSurfaceY(b.x)){ const gasVol=Math.max(0.06,1-sim.air.water); sim.air.gasK = Math.min((sim.air.gasK||ATM_PRESSURE*gasVol) + 0.18, 240*gasVol); return false; } return b.life>0; });
+}
+function drawAirWater(wm){
+  const baseY=airWaterBaseY(); const amp=Math.min(sim.air.waveAmp||0,14); const phase=sim.air.wavePhase||0; const x0=wm.minX-180, x1=wm.maxX+180, yBottom=wm.maxY+220;
+  ctx.save(); if(airClipPathWorld()){ ctx.clip(); const grad=ctx.createLinearGradient(0,baseY-90,0,yBottom); grad.addColorStop(0,'rgba(83,190,255,.66)'); grad.addColorStop(1,'rgba(44,132,228,.88)'); ctx.fillStyle=grad; ctx.beginPath(); ctx.moveTo(x0,yBottom); ctx.lineTo(x0,baseY); const steps=72; for(let i=0;i<=steps;i++){ const x=x0+(x1-x0)*i/steps; const y=baseY + Math.sin((x-wm.center.x)*0.03 + phase) * amp; ctx.lineTo(x,y);} ctx.lineTo(x1,yBottom); ctx.closePath(); ctx.fill(); ctx.strokeStyle='rgba(255,255,255,.16)'; ctx.lineWidth=1.2; ctx.beginPath(); for(let i=0;i<=steps;i++){ const x=x0+(x1-x0)*i/steps; const y=baseY + Math.sin((x-wm.center.x)*0.03 + phase) * amp; if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);} ctx.stroke(); } ctx.restore();
+}
+function drawAirBubbles(){ ctx.save(); for(const b of sim.air.bubbles){ ctx.strokeStyle='rgba(255,255,255,.75)'; ctx.lineWidth=1.2; ctx.beginPath(); ctx.arc(b.x,b.y,b.r,0,Math.PI*2); ctx.stroke(); } ctx.restore(); }
+function drawAir(){
+  ctx.save(); drawFaucet(0,-245); const strokes=airStrokes(true); if(!strokes.length){ ctx.restore(); return; } const wm=airWorldMetrics(); if(wm && sim.air.water>.001) drawAirWater(wm); ctx.save(); ctx.strokeStyle='rgba(255,255,255,.92)'; ctx.lineWidth=4; for(const stroke of sim.air.strokes){ const ws=stroke.map(airPointToWorld); if(drawStrokePath(ws)) ctx.stroke(); } ctx.restore(); if(sim.air.current && sim.air.current.length>1){ ctx.save(); ctx.strokeStyle='rgba(255,255,255,.45)'; ctx.lineWidth=2; const ws=sim.air.current.map(airPointToWorld); if(drawStrokePath(ws)) ctx.stroke(); ctx.restore(); }
+  if(sim.air.sealed){ const st=sim.air.strokes[0]; if(st && st.length>=2){ const a=airPointToWorld(st[0]), b=airPointToWorld(st[st.length-1]); ctx.save(); ctx.strokeStyle='rgba(255,255,255,.75)'; ctx.lineWidth=3; ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke(); ctx.restore(); } }
+  drawAirBubbles();
+  for(const h of sim.holes.filter(h=>h.kind==='air')){ const p=airPointToWorld({x:h.lx ?? h.x, y:h.ly ?? h.y}); const normal=vectorRotate({x:h.nx ?? 0,y:h.ny ?? -1}, sim.air.angle || 0); drawHole(p.x,p.y,Math.atan2(normal.y, normal.x)); }
+  if(sim.air.sealed && sim.air.water>.001 && airStrokes(false).length){ const c=airCenter(); ctx.save(); ctx.strokeStyle='rgba(255,255,255,.35)'; ctx.lineWidth=1.5; ctx.beginPath(); ctx.arc(c.x,c.y,6,0,Math.PI*2); ctx.stroke(); ctx.restore(); }
+  drawAirSyringe();
+  ctx.restore();
+}
+function updateCenterInfo(){
+  if(sim.scene !== 2){ centerInfo.textContent=''; return; }
+  if(sim.air.sealed || sim.drill){ centerInfo.textContent = `針筒 ${airSyringePressure().toFixed(1)} kPa ｜ 大氣 ${ATM_PRESSURE.toFixed(1)} kPa ｜ 空腔 ${sim.air.airP.toFixed(1)} kPa`; return; }
+  if(!airStrokes(false).length){ centerInfo.textContent='請使用繪圖工具畫一個開放式容器'; return; }
+  if(sim.air.water <= 0.001){ centerInfo.textContent='請點選灌水，液面會保持水平'; return; }
+  if(!sim.air.sealed){ centerInfo.textContent='請點選封閉按鈕，將液體封閉在容器中'; return; }
+  centerInfo.textContent='可拖拉封閉容器，或點選針筒工具進行戳洞、抽氣、灌氣';
+}
+  function resize(){
+    const dpr = Math.max(1, Math.min(2.5, window.devicePixelRatio || 1));
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = Math.max(1, Math.floor(rect.width * dpr));
+    canvas.height = Math.max(1, Math.floor(rect.height * dpr));
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+  }
+  window.addEventListener('resize', resize, {passive:true});
+  resize();
+
+  function worldToScreen(p){
+    const rect = canvas.getBoundingClientRect();
+    return {
+      x: rect.width/2 + p.x,
+      y: rect.height/2 + p.y
+    };
+  }
+  function screenToWorld(x,y){
+    const rect = canvas.getBoundingClientRect();
+    return {
+      x: x - rect.width/2,
+      y: y - rect.height/2
+    };
+  }
+
+  function applyWorld(){
+    const rect = canvas.getBoundingClientRect();
+    ctx.translate(rect.width/2, rect.height/2);
+  }
+
+
+function resetCamera(){
+  camera.angle = 0;
+  camera.zoom = 1;
+  camera.x = 0;
+  camera.y = 0;
+}
+
+function placeNeedleForScene(){
+  const rect = canvas.getBoundingClientRect();
+  let p;
+  if(sim.scene===1){
+    p = screenToWorld(rect.width * 0.52, rect.height * 0.18);
+  } else {
+    p = screenToWorld(rect.width * 0.82, rect.height * 0.52);
+  }
+  sim.needle.x = p.x;
+  sim.needle.y = p.y;
+}
+
+
+
+
+function resetStage(){
+  sim.particles.length = 0;
+  sim.holes.length = 0;
+  sim.rain.length = 0;
+  sim.filling = false;
+  sim.drill = false;
+  sim.drawMode = false;
+  sim.needle.x = 340;
+  sim.needle.y = 20;
+  sim.cup.water = 0.56;
+  sim.balloon.water = 0.42;
+  sim.balloon.burst = false;
+  sim.river.water = 0.50;
+  resetTubeState();
+  sim.air = airDefault();
+  resetCamera();
+  updateControls();
+}
+
+  function setScene(i){
+    sim.scene = ((i % scenes.length) + scenes.length) % scenes.length;
+    sim.stage = 0;
+    resetStage();
+    renderTabs();
+  }
+  function setStage(i){
+    const max = scenes[sim.scene].stages.length;
+    sim.stage = ((i % max) + max) % max;
+    resetStage();
+    renderTabs();
+  }
+  function nextStage(){
+    if(sim.stage < scenes[sim.scene].stages.length - 1) setStage(sim.stage+1);
+    else setScene((sim.scene+1)%scenes.length);
+  }
+
+  function renderTabs(){
+    sceneTabs.innerHTML = '';
+    scenes.forEach((s,i)=>{
+      const b=document.createElement('button');
+      b.textContent=s.label;
+      b.className=i===sim.scene?'active':'';
+      b.setAttribute('aria-label', s.label);
+      b.addEventListener('click',()=>setScene(i));
+      sceneTabs.appendChild(b);
+    });
+    stageTabs.innerHTML = '';
+    const stages = scenes[sim.scene].stages;
+    if(stages.length > 1){
+      stages.forEach((st,i)=>{
+        const b=document.createElement('button');
+        b.textContent=st.icon || '•';
+        b.className=i===sim.stage?'active':'';
+        b.title=st.label || '舞台';
+        b.setAttribute('aria-label', st.label || '舞台');
+        b.addEventListener('click',()=>setStage(i));
+        stageTabs.appendChild(b);
+      });
+    }
+    updateControls();
+  }
+
+
+function updateControls(){
+  playBtn.textContent = sim.paused ? '▶' : '⏸';
+  const liquidTools = sim.scene === 0;
+  const tubeTools = sim.scene === 1;
+  const airTools = sim.scene === 2;
+  fillBtn.classList.toggle('hidden', !(liquidTools || tubeTools || airTools));
+  drillBtn.classList.toggle('hidden', !(liquidTools || tubeTools || airTools));
+  drawBtn.classList.toggle('hidden', !(tubeTools || airTools));
+  sealBtn.classList.toggle('hidden', !(airTools && airCanSeal()));
+  fillBtn.classList.toggle('active', sim.filling);
+  drillBtn.classList.toggle('active', sim.drill);
+  drawBtn.classList.toggle('active', sim.drawMode);
+  sealBtn.classList.toggle('active', airTools && sim.air.sealed);
+  statusPill.textContent = '';
+  updateCenterInfo();
+}
+
+
+  resetBtn.addEventListener('click', resetStage);
+  playBtn.addEventListener('click', ()=>{ sim.paused=!sim.paused; updateControls(); });
+  nextBtn.addEventListener('click', nextStage);
+  fillBtn.addEventListener('click', ()=>{ sim.filling=!sim.filling; updateControls(); });
+  drillBtn.addEventListener('click', ()=>{ sim.drill=!sim.drill; if(sim.drill){ sim.drawMode=false; if(sim.scene!==2) placeNeedleForScene(); else placeAirSyringeDefault(); } updateControls(); });
+  drawBtn.addEventListener('click', ()=>{ if(sim.scene!==1 && sim.scene!==2) return; sim.drawMode=!sim.drawMode; if(sim.drawMode){ sim.drill=false; } updateControls(); });
+  sealBtn.addEventListener('click', ()=>{ if(sim.scene===2) sealAirContainer(); });
+  helpBtn.addEventListener('click', ()=>{ mdContent.innerHTML = renderMarkdown(README_MD); helpModal.classList.add('open'); });
+  closeHelp.addEventListener('click', ()=>helpModal.classList.remove('open'));
+  helpModal.addEventListener('click', e=>{ if(e.target===helpModal) helpModal.classList.remove('open'); });
+  window.addEventListener('keydown', e=>{ if(e.key==='Escape') helpModal.classList.remove('open'); });
+
+  function renderMarkdown(md){
+    const esc = s => s.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+    const lines = esc(md).split('\n');
+    let html = '', inList = false;
+    for(const raw of lines){
+      const line = raw.trimEnd();
+      if(!line.trim()){
+        if(inList){ html += '</ul>'; inList=false; }
+        continue;
+      }
+      if(line.startsWith('---')){ if(inList){html+='</ul>';inList=false;} html+='<hr>'; continue; }
+      const h = line.match(/^(#{1,3})\s+(.*)$/);
+      if(h){ if(inList){html+='</ul>';inList=false;} const level=h[1].length; html += `<h${level}>${inlineMd(h[2])}</h${level}>`; continue; }
+      const li = line.match(/^[-*]\s+(.*)$/);
+      if(li){ if(!inList){html+='<ul>';inList=true;} html += `<li>${inlineMd(li[1])}</li>`; continue; }
+      if(inList){ html+='</ul>'; inList=false; }
+      html += `<p>${inlineMd(line)}</p>`;
+    }
+    if(inList) html+='</ul>';
+    return html;
+  }
+  function inlineMd(s){
+    return s
+      .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
+      .replace(/`(.+?)`/g,'<code>$1</code>');
+  }
+
+  function drawRoundedRect(x,y,w,h,r, fill, stroke){
+    ctx.beginPath();
+    ctx.moveTo(x+r,y);
+    ctx.lineTo(x+w-r,y);
+    ctx.quadraticCurveTo(x+w,y,x+w,y+r);
+    ctx.lineTo(x+w,y+h-r);
+    ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+    ctx.lineTo(x+r,y+h);
+    ctx.quadraticCurveTo(x,y+h,x,y+h-r);
+    ctx.lineTo(x,y+r);
+    ctx.quadraticCurveTo(x,y,x+r,y);
+    if(fill){ctx.fillStyle=fill;ctx.fill();}
+    if(stroke){ctx.strokeStyle=stroke;ctx.stroke();}
+  }
+
+  function drawWaterRect(x,y,w,h){
+    ctx.save();
+    const grad = ctx.createLinearGradient(0,y,0,y+h);
+    grad.addColorStop(0,'rgba(83,190,255,.72)');
+    grad.addColorStop(1,'rgba(44,132,228,.86)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(x,y,w,h);
+    ctx.strokeStyle = 'rgba(255,255,255,.18)';
+    ctx.beginPath();
+    ctx.moveTo(x,y); ctx.lineTo(x+w,y); ctx.stroke();
+    ctx.restore();
+  }
+
+  function spawnDrop(x,y,vx,vy,size=3,life=5){
+    sim.particles.push({x,y,vx,vy,r:size,life,maxLife:life,type:'water'});
+  }
+
+  function updateParticles(dt){
+    const g = 480;
+    for(let i=sim.particles.length-1;i>=0;i--){
+      const p = sim.particles[i];
+      p.vy += g * dt;
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      p.life -= dt;
+      if(p.life <= 0 || Math.abs(p.x)>900 || p.y>520) sim.particles.splice(i,1);
+    }
+    for(let i=sim.rain.length-1;i>=0;i--){
+      const r = sim.rain[i];
+      r.y += r.vy*dt;
+      r.life -= dt;
+      if(r.life<=0 || r.y>100) sim.rain.splice(i,1);
+    }
+  }
+
+  function drawParticles(){
+    ctx.save();
+    for(const p of sim.particles){
+      ctx.globalAlpha = clamp(p.life / p.maxLife, 0, 1);
+      ctx.fillStyle = 'rgba(70,178,255,.92)';
+      ctx.beginPath();
+      ctx.arc(p.x,p.y,p.r,0,Math.PI*2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    for(const r of sim.rain){
+      ctx.strokeStyle = 'rgba(94,188,255,.72)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(r.x,r.y-9); ctx.lineTo(r.x-2,r.y+9); ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+
+function drawNeedle(){
+  if(!sim.drill || (sim.scene !== 0 && sim.scene !== 1)) return;
+  const n = sim.needle;
+  ctx.save();
+  ctx.lineWidth = 4;
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = '#f2f2f2';
+  ctx.fillStyle = '#f2f2f2';
+  if(sim.scene===1){
+    ctx.beginPath();
+    ctx.moveTo(n.x, n.y - n.len/2);
+    ctx.lineTo(n.x, n.y + n.len/2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(n.x, n.y + n.len/2 + 15);
+    ctx.lineTo(n.x - 8, n.y + n.len/2 - 8);
+    ctx.lineTo(n.x + 8, n.y + n.len/2 - 8);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle='rgba(255,255,255,.25)';
+    ctx.lineWidth=1;
+    ctx.beginPath();
+    ctx.arc(n.x, n.y - n.len/2 - 15, 12, 0, Math.PI*2);
+    ctx.stroke();
+  } else {
+    ctx.beginPath();
+    ctx.moveTo(n.x - n.len/2, n.y); ctx.lineTo(n.x + n.len/2, n.y); ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(n.x - n.len/2 - 15, n.y);
+    ctx.lineTo(n.x - n.len/2 + 8, n.y - 8);
+    ctx.lineTo(n.x - n.len/2 + 8, n.y + 8);
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle='rgba(255,255,255,.25)';
+    ctx.lineWidth=1;
+    ctx.beginPath();
+    ctx.arc(n.x-n.len/2-15,n.y,12,0,Math.PI*2);ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function needleTip(){
+  return sim.scene===1 ? {x:sim.needle.x, y:sim.needle.y + sim.needle.len/2 + 15} : {x:sim.needle.x - sim.needle.len/2 - 15, y:sim.needle.y};
+}
+function nearNeedle(p){
+  const n = sim.needle;
+  if(sim.scene===1) return Math.abs(p.x - n.x) < 28 && p.y > n.y - n.len/2 - 36 && p.y < n.y + n.len/2 + 24;
+  return p.x > n.x - n.len/2 - 36 && p.x < n.x + n.len/2 + 20 && Math.abs(p.y - n.y) < 28;
+}
+
+
+
+  function angleDiff(a,b){
+    return Math.atan2(Math.sin(a-b), Math.cos(a-b));
+  }
+
+  function addHole(hole){
+    const exists = sim.holes.some(h=>{
+      if(h.stage!==sim.stage || h.kind!==hole.kind) return false;
+      if(hole.kind==='balloon') return Math.abs(angleDiff(h.a, hole.a)) < 0.14;
+      if(hole.kind==='tube') return hypot((h.lx ?? h.x)-(hole.lx ?? hole.x),(h.ly ?? h.y)-(hole.ly ?? hole.y))<18;
+      return hypot(h.x-hole.x,h.y-hole.y)<18;
+    });
+    if(!exists) sim.holes.push({...hole, stage:sim.stage, cool:0});
+  }
+
+  function drawHole(x,y,angle=0){
+    ctx.save();
+    ctx.translate(x,y); ctx.rotate(angle);
+    ctx.fillStyle = '#111';
+    ctx.strokeStyle = 'rgba(255,255,255,.9)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.ellipse(0,0,8,5,0,0,Math.PI*2); ctx.fill(); ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawRiverTunnel(h){
+    const outX = h.outX || damRightFaceX(h.y);
+    ctx.save();
+    ctx.strokeStyle = 'rgba(0,0,0,.95)';
+    ctx.lineWidth = 7;
+    ctx.beginPath();
+    ctx.moveTo(h.x, h.y);
+    ctx.lineTo(outX, h.y);
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,255,255,.86)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(h.x, h.y-5);
+    ctx.lineTo(outX, h.y-5);
+    ctx.moveTo(h.x, h.y+5);
+    ctx.lineTo(outX, h.y+5);
+    ctx.stroke();
+    ctx.restore();
+    drawHole(outX, h.y, -0.32);
+  }
+
+  function simulateCup(dt){
+    const cup = {x:0,y:-150,w:180,h:270,bottom:120};
+    const waterH = clamp(sim.cup.water,0,1) * cup.h;
+    const waterY = cup.bottom - waterH;
+    if(sim.filling){
+      sim.cup.water += 0.18*dt;
+      for(let i=0;i<4;i++) spawnDrop(-5 + Math.random()*10, -215 + Math.random()*20, (Math.random()-.5)*30, 180+Math.random()*70, 2.4, 1.2);
+    }
+    if(sim.cup.water > sim.cup.capacity){
+      sim.cup.water = sim.cup.capacity;
+      for(let i=0;i<5;i++){
+        const side = Math.random()<.5?-1:1;
+        spawnDrop(side*(cup.w/2+4), cup.y+8+Math.random()*8, side*(90+Math.random()*70), -40+Math.random()*80, 3, 2.8);
+      }
+      sim.cup.water -= 0.05*dt;
+    }
+    handleCupNeedle(cup);
+    for(const h of sim.holes.filter(h=>h.stage===0 && h.kind==='cup')){
+      if(h.y > waterY && sim.cup.water > .005){
+        const depth = h.y - waterY;
+        const power = Math.sqrt(Math.max(0,depth))*29;
+        h.cool -= dt;
+        if(h.cool <= 0){
+          h.cool = clamp(.10 - depth*.00032,.018,.08);
+          spawnDrop(h.x, h.y, h.side*power, -32 + Math.random()*18, 2.7, 3.2);
+          sim.cup.water = Math.max(0, sim.cup.water - (0.0018 + depth*0.000012));
+        }
+      }
+    }
+  }
+
+  function handleCupNeedle(cup){
+    if(!sim.drill) return;
+    const tip = needleTip();
+    const left = cup.x - cup.w/2;
+    const right = cup.x + cup.w/2;
+    const inY = tip.y > cup.y+8 && tip.y < cup.bottom-4;
+    if(inY && Math.abs(tip.x-right)<10) addHole({kind:'cup',x:right,y:tip.y,side:1});
+  }
+
+  function drawCup(){
+    const cup = {x:0,y:-150,w:180,h:270,bottom:120};
+    const waterH = clamp(sim.cup.water,0,1) * cup.h;
+    const waterY = cup.bottom - waterH;
+    ctx.save();
+    ctx.lineWidth=4;
+    ctx.strokeStyle='rgba(255,255,255,.92)';
+    ctx.fillStyle='rgba(255,255,255,.04)';
+    ctx.beginPath();
+    ctx.moveTo(cup.x-cup.w/2,cup.y);
+    ctx.lineTo(cup.x-cup.w/2,cup.bottom);
+    ctx.quadraticCurveTo(cup.x,cup.bottom+18,cup.x+cup.w/2,cup.bottom);
+    ctx.lineTo(cup.x+cup.w/2,cup.y);
+    ctx.stroke();
+    ctx.globalCompositeOperation='source-over';
+    if(waterH>1){
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(cup.x-cup.w/2+4,cup.y,cup.w-8,cup.h+24); ctx.clip();
+      drawWaterRect(cup.x-cup.w/2+5,waterY,cup.w-10,cup.bottom-waterY+10);
+      ctx.restore();
+    }
+    ctx.strokeStyle='rgba(255,255,255,.42)';
+    ctx.lineWidth=1.3;
+    for(let y=cup.bottom-50;y>cup.y+35;y-=50){
+      ctx.beginPath(); ctx.moveTo(cup.x+cup.w/2+8,y); ctx.lineTo(cup.x+cup.w/2+24,y); ctx.stroke();
+    }
+    if(sim.filling){ drawFaucet(0,-245); }
+    for(const h of sim.holes.filter(h=>h.stage===0 && h.kind==='cup')) drawHole(h.x,h.y,0);
+    ctx.restore();
+  }
+
+  function drawFaucet(x,y){
+    ctx.save();
+    ctx.strokeStyle='rgba(255,255,255,.9)'; ctx.lineWidth=5; ctx.lineCap='round';
+    ctx.beginPath(); ctx.moveTo(x-64,y); ctx.lineTo(x,y); ctx.lineTo(x,y+24); ctx.stroke();
+    ctx.lineWidth=3; ctx.beginPath(); ctx.moveTo(x-13,y+24); ctx.lineTo(x+13,y+24); ctx.stroke();
+    ctx.strokeStyle='rgba(83,190,255,.75)'; ctx.lineWidth=3;
+    for(let i=0;i<4;i++){ const dx=(i-1.5)*5; ctx.beginPath(); ctx.moveTo(x+dx,y+32); ctx.lineTo(x+dx,y+88); ctx.stroke(); }
+    ctx.restore();
+  }
+
+  function balloonRadius(){
+    if(sim.balloon.burst) return 0;
+    return 42 + Math.sqrt(Math.max(0, sim.balloon.water))*96;
+  }
+
+  function balloonShape(){
+    const r = balloonRadius();
+    const flat = sim.balloon.water < .02;
+    return {cx:0, cy:40, r, flat, rx:flat ? 82 : r, ry:flat ? 23 : r*0.92};
+  }
+
+  function balloonMembranePoint(a){
+    const b = balloonShape();
+    return {x:b.cx + Math.cos(a)*b.rx, y:b.cy + Math.sin(a)*b.ry, shape:b};
+  }
+
+  function simulateBalloon(dt){
+    if(sim.balloon.burst){ return; }
+    if(sim.filling){
+      sim.balloon.water += 0.22*dt;
+      for(let i=0;i<4;i++) spawnDrop(-3+Math.random()*6,-190+Math.random()*15,(Math.random()-.5)*24,150+Math.random()*60,2.5,1.0);
+    }
+    if(sim.balloon.water > 1.04){
+      sim.balloon.burst = true;
+      const r = balloonRadius() || 135;
+      for(let i=0;i<120;i++){
+        const a = Math.random()*Math.PI*2;
+        const sp = 70 + Math.random()*360;
+        spawnDrop(Math.cos(a)*r*.35, 28+Math.sin(a)*r*.35, Math.cos(a)*sp, Math.sin(a)*sp-80, 2+Math.random()*2.5, 2.2+Math.random()*1.6);
+      }
+      sim.balloon.water = 0;
+      return;
+    }
+    handleBalloonNeedle();
+    const shape = balloonShape();
+    const top = shape.cy - shape.ry;
+    for(const h of sim.holes.filter(h=>h.stage===1 && h.kind==='balloon')){
+      if(sim.balloon.water <= .003) continue;
+      const p = balloonMembranePoint(h.a);
+      h.x = p.x; h.y = p.y;
+      const depth = p.y - top;
+      const power = Math.sqrt(Math.max(0, depth))*30;
+      h.cool -= dt;
+      if(h.cool <= 0){
+        h.cool = clamp(.09-depth*.00024,.018,.08);
+        spawnDrop(p.x,p.y,Math.cos(h.a)*power,Math.sin(h.a)*power-24,2.8,3.0);
+        sim.balloon.water = Math.max(0, sim.balloon.water - (0.0015 + depth*0.00001));
+      }
+    }
+  }
+
+  function handleBalloonNeedle(){
+    if(!sim.drill) return;
+    const tip = needleTip();
+    const b = balloonShape();
+    if(b.rx <= 18 || b.ry <= 10 || tip.x < b.cx) return;
+    const nx = (tip.x - b.cx) / b.rx;
+    const ny = (tip.y - b.cy) / b.ry;
+    const q = nx*nx + ny*ny;
+    if(Math.abs(q - 1) < 0.18){
+      const a = Math.atan2(ny, nx);
+      const p = balloonMembranePoint(a);
+      addHole({kind:'balloon',x:p.x,y:p.y,a});
+    }
+  }
+
+  function drawBalloon(){
+    ctx.save();
+    if(sim.filling) drawFaucet(0,-245);
+    if(sim.balloon.burst){
+      ctx.strokeStyle='rgba(255,255,255,.8)'; ctx.lineWidth=3;
+      for(let i=0;i<12;i++){
+        const a=i/12*Math.PI*2;
+        ctx.beginPath(); ctx.moveTo(Math.cos(a)*34,40+Math.sin(a)*22); ctx.lineTo(Math.cos(a)*(70+Math.random()*6),40+Math.sin(a)*(50+Math.random()*6)); ctx.stroke();
+      }
+      ctx.restore(); return;
+    }
+    const b = balloonShape();
+    const r = b.r, rx = b.rx, ry = b.ry, flat = b.flat;
+    ctx.fillStyle = flat ? 'rgba(58,167,255,.12)' : 'rgba(58,167,255,.56)';
+    ctx.strokeStyle = 'rgba(255,255,255,.92)';
+    ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.ellipse(b.cx,b.cy,rx,ry,0,0,Math.PI*2); ctx.fill(); ctx.stroke();
+    ctx.fillStyle='rgba(255,255,255,.8)';
+    ctx.beginPath(); ctx.ellipse(b.cx-r*.28,b.cy-r*.22,Math.max(6,r*.12),Math.max(3,r*.045),-.55,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle='rgba(255,255,255,.8)'; ctx.lineWidth=3;
+    const knotY = b.cy - ry;
+    ctx.beginPath(); ctx.moveTo(b.cx-15,knotY+2); ctx.quadraticCurveTo(b.cx,knotY-27,b.cx+17,knotY+4); ctx.stroke();
+    ctx.fillStyle='rgba(255,255,255,.16)';
+    ctx.beginPath(); ctx.ellipse(b.cx,knotY-8,18,8,0,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle='rgba(255,255,255,.75)'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.ellipse(b.cx,knotY-8,18,8,0,0,Math.PI*2); ctx.stroke();
+    for(const h of sim.holes.filter(h=>h.stage===1 && h.kind==='balloon')){
+      const p = balloonMembranePoint(h.a);
+      h.x = p.x; h.y = p.y;
+      drawHole(p.x,p.y,h.a);
+    }
+    ctx.restore();
+  }
+
+  function damLeftFaceX(){ return 62; }
+  function damRightFaceX(y){
+    const yTop = -120, yBot = 150;
+    const t = clamp((y - yTop) / (yBot - yTop), 0, 1);
+    return lerp(220, 292, t);
+  }
+
+  function simulateRiver(dt){
+    if(sim.filling){
+      sim.river.water += 0.14*dt;
+      if(Math.random()<.75){ sim.rain.push({x:-210+Math.random()*210,y:-240+Math.random()*45,vy:220+Math.random()*120,life:1.4}); }
+    }
+    if(sim.river.water > sim.river.capacity){
+      sim.river.water = sim.river.capacity;
+      for(let i=0;i<8;i++) spawnDrop(48 + Math.random()*28, -128 + Math.random()*14, 80+Math.random()*120, -20+Math.random()*60, 3, 2.5);
+      sim.river.water -= 0.045*dt;
+    }
+    handleRiverNeedle();
+    const bottom = 150, top = -120, h = bottom-top;
+    const waterY = bottom - clamp(sim.river.water,0,1)*h;
+    for(const hole of sim.holes.filter(h=>h.stage===2 && h.kind==='river')){
+      if(hole.y > waterY && sim.river.water > .005){
+        const depth = hole.y - waterY;
+        const power = Math.sqrt(Math.max(0,depth))*33;
+        hole.cool -= dt;
+        if(hole.cool <= 0){
+          hole.cool = clamp(.12-depth*.0003,.02,.09);
+          spawnDrop((hole.outX || hole.x)+4,hole.y,power,-20+Math.random()*20,2.8,3.2);
+          sim.river.water = Math.max(0, sim.river.water - (0.0015 + depth*0.000012));
+        }
+      }
+    }
+  }
+
+  function handleRiverNeedle(){
+    if(!sim.drill) return;
+    const tip = needleTip();
+    if(tip.y < -120 || tip.y > 150) return;
+    const inX = damLeftFaceX();
+    const outX = damRightFaceX(tip.y);
+    if(Math.abs(tip.x - outX)<12) addHole({kind:'river',x:inX,y:tip.y,outX,side:1});
+  }
+
+  function drawCloud(x,y){
+    ctx.save();
+    ctx.fillStyle='rgba(255,255,255,.85)';
+    ctx.beginPath();
+    ctx.arc(x-34,y+8,24,0,Math.PI*2);
+    ctx.arc(x-8,y-2,32,0,Math.PI*2);
+    ctx.arc(x+30,y+9,25,0,Math.PI*2);
+    ctx.rect(x-54,y+8,105,28);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawRiver(){
+    ctx.save();
+    const bottom=150, top=-120, height=bottom-top;
+    const waterY = bottom - clamp(sim.river.water,0,1)*height;
+    ctx.fillStyle='rgba(255,255,255,.06)';
+    ctx.fillRect(-280,top,345,height);
+    ctx.strokeStyle='rgba(255,255,255,.62)'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.moveTo(-280,bottom); ctx.lineTo(280,bottom); ctx.stroke();
+    ctx.save();
+    ctx.beginPath(); ctx.rect(-280,top,345,height); ctx.clip();
+    drawWaterRect(-280,waterY,342,bottom-waterY);
+    ctx.restore();
+    ctx.fillStyle='rgba(255,255,255,.16)';
+    ctx.strokeStyle='rgba(255,255,255,.9)'; ctx.lineWidth=4;
+    ctx.beginPath();
+    ctx.moveTo(62,top);
+    ctx.lineTo(220,top);
+    ctx.lineTo(292,bottom);
+    ctx.lineTo(62,bottom);
+    ctx.closePath();
+    ctx.fill(); ctx.stroke();
+    ctx.strokeStyle='rgba(255,255,255,.28)'; ctx.lineWidth=1;
+    for(let y=top+36;y<bottom;y+=38){
+      ctx.beginPath(); ctx.moveTo(72,y); ctx.lineTo(damRightFaceX(y)-10,y); ctx.stroke();
+    }
+    if(sim.filling) drawCloud(-115,-245);
+    for(const h of sim.holes.filter(h=>h.stage===2 && h.kind==='river')) drawRiverTunnel(h);
+    ctx.restore();
+  }
+
+  function drawSceneLiquid(){
+    if(sim.stage===0) drawCup();
+    if(sim.stage===1) drawBalloon();
+    if(sim.stage===2) drawRiver();
+    drawParticles();
+    drawNeedle();
+  }
+
+  function simulateLiquid(dt){
+    if(sim.stage===0) simulateCup(dt);
+    if(sim.stage===1) simulateBalloon(dt);
+    if(sim.stage===2) simulateRiver(dt);
+  }
+
+
+
+function handleTubeNeedle(){
+  if(!sim.drill || !tubeStrokes(false).length) return;
+  const tipWorld = needleTip();
+  const tipLocal = tubePointToLocal(tipWorld);
+  const hit = closestPointOnTube(tipLocal);
+  if(hit && hit.d < 11){
+    const pWorld = tubePointToWorld({x:hit.x, y:hit.y});
+    addHole({kind:'tube', x:pWorld.x, y:pWorld.y, lx:hit.x, ly:hit.y, nx:hit.nx, ny:hit.ny});
+  }
+}
+
+function simulateTube(dt){
+  const m = tubeMetrics(false);
+  if(sim.filling && m){
+    sim.tube.water += 0.18*dt;
+    for(let i=0;i<4;i++) spawnDrop(-5 + Math.random()*10, -220 + Math.random()*20, (Math.random()-.5)*18, 160 + Math.random()*70, 2.4, 1.1);
+    if(sim.tube.water > sim.tube.capacity) sim.tube.water = sim.tube.capacity;
+  }
+  sim.tube.wavePhase += dt * (4.2 + (sim.tube.waveAmp || 0) * 0.08);
+  sim.tube.waveAmp *= Math.exp(-dt * 1.45);
+  if(sim.tube.waveAmp < 0.2) sim.tube.waveAmp = 0;
+  handleTubeNeedle();
+  simulateTubeOpenLeaks(dt, m);
+  for(const h of sim.holes.filter(h=>h.stage===0 && h.kind==='tube')){
+    if(!m || sim.tube.water <= .001) continue;
+    const local = {x:h.lx ?? h.x, y:h.ly ?? h.y};
+    const pWorld = tubePointToWorld(local);
+    h.x = pWorld.x; h.y = pWorld.y;
+    const surfaceY = tubeWaterSurfaceY(pWorld.x);
+    if(pWorld.y > surfaceY){
+      const depth = pWorld.y - surfaceY;
+      const normal = vectorRotate({x:h.nx ?? 0, y:h.ny ?? -1}, sim.tube.angle || 0);
+      const nLen = hypot(normal.x, normal.y) || 1;
+      const nx = normal.x / nLen;
+      const ny = normal.y / nLen;
+      const speed = Math.sqrt(Math.max(0, 2*520*depth));
+      h.cool -= dt;
+      if(h.cool <= 0){
+        h.cool = clamp(.12 - depth*.00034, .018, .09);
+        for(let i=0;i<2;i++){
+          const jitter = (Math.random()-.5) * 12;
+          spawnDrop(pWorld.x + nx*4, pWorld.y + ny*4, nx*speed + jitter, ny*speed + (Math.random()-.5)*12, 2.5, 2.8);
+        }
+        sim.tube.water = Math.max(0, sim.tube.water - (0.0015 + depth*0.000012));
+      }
+    }
+  }
+}
+
+function drawTubeWater(wm){
+  const baseY = tubeWaterBaseY();
+  const amp = Math.min(sim.tube.waveAmp || 0, 14);
+  const phase = sim.tube.wavePhase || 0;
+  const x0 = wm.minX - 180;
+  const x1 = wm.maxX + 180;
+  const yBottom = wm.maxY + 220;
+  ctx.save();
+  if(tubeClipPathWorld()){
+    ctx.clip();
+    const grad = ctx.createLinearGradient(0,baseY-90,0,yBottom);
+    grad.addColorStop(0,'rgba(83,190,255,.66)');
+    grad.addColorStop(1,'rgba(44,132,228,.88)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.moveTo(x0, yBottom);
+    ctx.lineTo(x0, baseY);
+    const steps = 72;
+    for(let i=0;i<=steps;i++){
+      const x = x0 + (x1-x0)*i/steps;
+      const y = baseY + Math.sin((x - wm.center.x)*0.03 + phase) * amp;
+      ctx.lineTo(x,y);
+    }
+    ctx.lineTo(x1,yBottom);
+    ctx.closePath();
+    ctx.fill();
+    // 水面描邊維持接近水平，避免視覺上出現整塊斜掉的錯覺。
+    ctx.strokeStyle='rgba(255,255,255,.16)';
+    ctx.lineWidth=1.2;
+    ctx.beginPath();
+    for(let i=0;i<=steps;i++){
+      const x = x0 + (x1-x0)*i/steps;
+      const y = baseY + Math.sin((x - wm.center.x)*0.03 + phase) * amp;
+      if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    }
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawTube(){
+  ctx.save();
+  drawFaucet(0,-245);
+  const strokes = tubeStrokes(true);
+  if(!strokes.length){
+    ctx.restore();
+    return;
+  }
+  const wm = tubeWorldMetrics();
+  if(wm && sim.tube.water > 0.001) drawTubeWater(wm);
+  ctx.save();
+  ctx.strokeStyle='rgba(255,255,255,.92)';
+  ctx.lineWidth=4;
+  for(const stroke of sim.tube.strokes){
+    const ws = stroke.map(tubePointToWorld);
+    if(drawStrokePath(ws)) ctx.stroke();
+  }
+  ctx.restore();
+  if(sim.tube.current && sim.tube.current.length>1){
+    ctx.save();
+    ctx.strokeStyle='rgba(255,255,255,.45)';
+    ctx.lineWidth=2;
+    const ws = sim.tube.current.map(tubePointToWorld);
+    if(drawStrokePath(ws)) ctx.stroke();
+    ctx.restore();
+  }
+  for(const h of sim.holes.filter(h=>h.stage===0 && h.kind==='tube')){
+    const p = tubePointToWorld({x:h.lx ?? h.x, y:h.ly ?? h.y});
+    const normal = vectorRotate({x:h.nx ?? 0, y:h.ny ?? -1}, sim.tube.angle || 0);
+    drawHole(p.x,p.y,Math.atan2(normal.y, normal.x));
+  }
+  if(sim.tube.water > .001 && tubeStrokes(false).length){
+    const c = tubeCenter();
+    ctx.save();
+    ctx.strokeStyle='rgba(255,255,255,.35)';
+    ctx.lineWidth=1.5;
+    ctx.beginPath();
+    ctx.arc(c.x,c.y,6,0,Math.PI*2);
+    ctx.stroke();
+    ctx.restore();
+  }
+  ctx.restore();
+}
+
+
+  function drawPlaceholder(kind){
+    ctx.save();
+    ctx.strokeStyle='rgba(255,255,255,.78)';
+    ctx.fillStyle='rgba(255,255,255,.06)';
+    ctx.lineWidth=4;
+    ctx.lineCap='round'; ctx.lineJoin='round';
+    if(kind==='tube'){
+      ctx.beginPath();
+      ctx.moveTo(-180,-95); ctx.lineTo(-180,110); ctx.quadraticCurveTo(-180,155,-135,155); ctx.lineTo(135,155); ctx.quadraticCurveTo(180,155,180,110); ctx.lineTo(180,-95); ctx.stroke();
+      ctx.strokeStyle='rgba(58,167,255,.62)'; ctx.lineWidth=18;
+      ctx.beginPath(); ctx.moveTo(-180,42); ctx.lineTo(-180,110); ctx.quadraticCurveTo(-180,155,-135,155); ctx.lineTo(135,155); ctx.quadraticCurveTo(180,155,180,110); ctx.lineTo(180,42); ctx.stroke();
+      ctx.fillStyle='rgba(58,167,255,.5)'; ctx.beginPath(); ctx.ellipse(-180,42,28,8,0,0,Math.PI*2); ctx.fill(); ctx.beginPath(); ctx.ellipse(180,42,28,8,0,0,Math.PI*2); ctx.fill();
+    } else {
+      ctx.beginPath(); ctx.arc(0,35,125,0,Math.PI*2); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(-200,160); ctx.lineTo(200,160); ctx.stroke();
+      ctx.strokeStyle='rgba(255,255,255,.35)'; ctx.lineWidth=2;
+      for(let i=0;i<15;i++){
+        const x=-180+i*26; const y=-20+Math.sin(i*.8)*30;
+        ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(x+28,y-18); ctx.stroke();
+      }
+      ctx.fillStyle='rgba(255,255,255,.08)'; ctx.beginPath(); ctx.arc(0,35,120,0,Math.PI*2); ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  function drawGrid(){
+    const rect = canvas.getBoundingClientRect();
+    ctx.save();
+    ctx.clearRect(0,0,rect.width,rect.height);
+    ctx.fillStyle='#242424'; ctx.fillRect(0,0,rect.width,rect.height);
+    ctx.strokeStyle='rgba(255,255,255,.045)'; ctx.lineWidth=1;
+    const step=48;
+    for(let x=((rect.width/2)%step);x<rect.width;x+=step){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,rect.height);ctx.stroke();}
+    for(let y=((rect.height/2)%step);y<rect.height;y+=step){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(rect.width,y);ctx.stroke();}
+    ctx.restore();
+  }
+
+  function draw(){
+    const rect = canvas.getBoundingClientRect();
+    ctx.save();
+    ctx.setTransform(1,0,0,1,0,0);
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    ctx.restore();
+    drawGrid();
+    ctx.save();
+    applyWorld();
+    ctx.lineCap='round'; ctx.lineJoin='round';
+    if(sim.scene===0) drawSceneLiquid();
+    if(sim.scene===1){ drawTube(); drawParticles(); drawNeedle(); }
+    if(sim.scene===2){ drawAir(); drawParticles(); }
+    ctx.restore();
+    if(sim.paused){
+      ctx.save();
+      ctx.fillStyle='rgba(0,0,0,.18)'; ctx.fillRect(0,0,rect.width,rect.height);
+      ctx.fillStyle='rgba(255,255,255,.78)'; ctx.font='700 42px system-ui'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('Ⅱ',rect.width/2,rect.height/2);
+      ctx.restore();
+    }
+  }
+
+  function tick(now){
+    const dt = clamp((now - sim.lastTime)/1000, 0, .04);
+    sim.lastTime = now;
+    if(!sim.paused){
+      if(sim.scene===0) simulateLiquid(dt);
+      if(sim.scene===1) simulateTube(dt);
+      if(sim.scene===2) simulateAir(dt);
+      updateParticles(dt);
+      updateCenterInfo();
+    }
+    draw();
+    requestAnimationFrame(tick);
+  }
+
+
+canvas.addEventListener('wheel', e=>{ e.preventDefault(); }, {passive:false});
+canvas.addEventListener('contextmenu', e=>e.preventDefault());
+
+function pointerStillPressed(e){
+  if(e.pointerType === 'mouse' || e.pointerType === 'pen') return (e.buttons & 1) === 1;
+  return true;
+}
+
+function startTubeStroke(e){
+  const p = clampPointToTubeArea(tubePointToLocal(screenToWorld(e.clientX, e.clientY)));
+  pointer.active = true;
+  pointer.id = e.pointerId;
+  pointer.mode = 'draw';
+  pointer.lastX = e.clientX;
+  pointer.lastY = e.clientY;
+  sim.tube.drawing = true;
+  sim.tube.current = [p];
+  try{ canvas.setPointerCapture(e.pointerId); }catch(err){}
+}
+
+function addTubeStrokePoint(e){
+  if(!sim.tube.drawing || pointer.mode !== 'draw' || e.pointerId !== pointer.id) return;
+  if(!pointerStillPressed(e)){
+    finishTubeStroke();
+    return;
+  }
+  const p = clampPointToTubeArea(tubePointToLocal(screenToWorld(e.clientX, e.clientY)));
+  const path = sim.tube.current || [];
+  if(!path.length || hypot(p.x-path[path.length-1].x, p.y-path[path.length-1].y) > 3){
+    path.push(p);
+    sim.tube.current = path;
+  }
+}
+
+function finishTubeStroke(){
+  if(pointer.mode === 'draw'){
+    const stroke = finalizeTubePath(sim.tube.current || []);
+    if(stroke.length >= 2) sim.tube.strokes.push(stroke);
+    sim.tube.current = [];
+    sim.tube.drawing = false;
+  }
+  pointer.active = false;
+  pointer.id = null;
+  pointer.mode = null;
+  sim.needle.grab = false;
+  canvas.classList.remove('dragging');
+}
+
+
+function finishNeedleDrag(){
+  pointer.active = false;
+  pointer.id = null;
+  pointer.mode = null;
+  sim.needle.grab = false;
+  canvas.classList.remove('dragging');
+}
+
+function airHoleArray(){ return sim.holes.filter(h=>h.kind==='air'); }
+function finishSyringeDrag(){
+  if(pointer.mode==='syringePlunger'){
+    applySyringeStroke();
+  }
+  const idx = findAirHoleAtTip();
+  sim.air.syringe.insertedHole = idx;
+  sim.air.syringe.plunger = 0.5;
+  pointer.active = false; pointer.id = null; pointer.mode = null; canvas.classList.remove('dragging');
+  updateCenterInfo();
+}
+function updateSyringeMove(e){
+  const p=screenToWorld(e.clientX,e.clientY); const s=sim.air.syringe; s.x = p.x - (s.offX||0); s.y = p.y - (s.offY||0); handleAirSyringeNeedle();
+}
+function updateSyringePlunger(e){
+  const s=sim.air.syringe; const dir={x:Math.cos(s.angle), y:Math.sin(s.angle)}; const p=screenToWorld(e.clientX,e.clientY); const back=airSyringeBack();
+  const t=((p.x-back.x)*dir.x + (p.y-back.y)*dir.y)/44;
+  s.plunger = clamp(0.5 + t, 0.08, 0.92);
+  updateCenterInfo();
+}
+
+function canDragTube(){
+  return sim.scene===1 && !sim.drawMode && !sim.drill && sim.tube.water > .001 && tubeStrokes(false).length;
+}
+function isNearTubeWorld(pWorld){
+  const hit = closestPointOnTube(tubePointToLocal(pWorld));
+  return !!(hit && hit.d < 34);
+}
+function pointerAngleAroundTube(e){
+  const c = tubeCenter();
+  const p = screenToWorld(e.clientX, e.clientY);
+  return Math.atan2(p.y-c.y, p.x-c.x);
+}
+function startTubeDrag(e){
+  pointer.active = true;
+  pointer.id = e.pointerId;
+  pointer.mode = 'tubeDrag';
+  pointer.lastX = e.clientX;
+  pointer.lastY = e.clientY;
+  sim.tube.dragging = true;
+  sim.tube.dragLastAngle = pointerAngleAroundTube(e);
+  sim.tube.dragLastTime = performance.now();
+  canvas.classList.add('dragging');
+  try{ canvas.setPointerCapture(e.pointerId); }catch(err){}
+}
+function updateTubeDrag(e){
+  const now = performance.now();
+  const a = pointerAngleAroundTube(e);
+  const prev = sim.tube.dragLastAngle || a;
+  const delta = Math.atan2(Math.sin(a-prev), Math.cos(a-prev));
+  if(Number.isFinite(delta)){
+    sim.tube.angle = clamp((sim.tube.angle || 0) + delta, -Math.PI*0.82, Math.PI*0.82);
+    sim.tube.waveAmp = clamp((sim.tube.waveAmp || 0) + Math.abs(delta)*95, 0, 42);
+  }
+  sim.tube.dragLastAngle = a;
+  sim.tube.dragLastTime = now;
+  pointer.lastX = e.clientX;
+  pointer.lastY = e.clientY;
+}
+function finishTubeDrag(){
+  sim.tube.dragging = false;
+  pointer.active = false;
+  pointer.id = null;
+  pointer.mode = null;
+  canvas.classList.remove('dragging');
+}
+
+canvas.addEventListener('pointerdown', e=>{
+  if(!e.isPrimary) return;
+  pointer.touches.set(e.pointerId, {x:e.clientX,y:e.clientY});
+  const p = screenToWorld(e.clientX, e.clientY);
+  if(sim.scene===1 && sim.drawMode){
+    e.preventDefault(); startTubeStroke(e); return;
+  }
+  if(sim.scene===2 && sim.drawMode){
+    e.preventDefault(); startAirStroke(e); return;
+  }
+  if(sim.drill && (sim.scene===0 || sim.scene===1) && nearNeedle(p)){
+    e.preventDefault();
+    try{ canvas.setPointerCapture(e.pointerId); }catch(err){}
+    canvas.classList.add('dragging');
+    pointer.active = true; pointer.id = e.pointerId; pointer.mode = 'needle';
+    sim.needle.grab = true; sim.needle.offX = p.x - sim.needle.x; sim.needle.offY = p.y - sim.needle.y; return;
+  }
+  if(sim.drill && sim.scene===2 && nearAirSyringePlunger(p)){
+    e.preventDefault(); try{ canvas.setPointerCapture(e.pointerId); }catch(err){} canvas.classList.add('dragging'); pointer.active=true; pointer.id=e.pointerId; pointer.mode='syringePlunger'; return;
+  }
+  if(sim.drill && sim.scene===2 && nearAirSyringeBody(p)){
+    e.preventDefault(); try{ canvas.setPointerCapture(e.pointerId); }catch(err){} canvas.classList.add('dragging'); pointer.active=true; pointer.id=e.pointerId; pointer.mode='syringeMove'; sim.air.syringe.offX = p.x - sim.air.syringe.x; sim.air.syringe.offY = p.y - sim.air.syringe.y; return;
+  }
+  if(canDragTube() && isNearTubeWorld(p)){ e.preventDefault(); startTubeDrag(e); return; }
+  if(canDragAir() && isNearAirWorld(p)){ e.preventDefault(); startAirDrag(e); return; }
+}, {passive:false});
+
+canvas.addEventListener('pointermove', e=>{
+  if(pointer.touches.has(e.pointerId)) pointer.touches.set(e.pointerId, {x:e.clientX,y:e.clientY});
+  if(!pointer.active || e.pointerId !== pointer.id) return;
+  if(pointer.mode==='draw'){ e.preventDefault(); addTubeStrokePoint(e); return; }
+  if(pointer.mode==='airDraw'){ e.preventDefault(); addAirStrokePoint(e); return; }
+  if(pointer.mode==='needle'){
+    e.preventDefault(); const p = screenToWorld(e.clientX, e.clientY); sim.needle.x = p.x - (sim.needle.offX || 0); sim.needle.y = p.y - (sim.needle.offY || 0);
+    if(sim.scene===0){ if(sim.stage===0) handleCupNeedle({x:0,y:-150,w:180,h:270,bottom:120}); if(sim.stage===1) handleBalloonNeedle(); if(sim.stage===2) handleRiverNeedle(); }
+    if(sim.scene===1) handleTubeNeedle(); return;
+  }
+  if(pointer.mode==='syringeMove'){ e.preventDefault(); updateSyringeMove(e); return; }
+  if(pointer.mode==='syringePlunger'){ e.preventDefault(); updateSyringePlunger(e); return; }
+  if(pointer.mode==='tubeDrag'){ e.preventDefault(); updateTubeDrag(e); return; }
+  if(pointer.mode==='airDrag'){ e.preventDefault(); updateAirDrag(e); return; }
+}, {passive:false});
+
+function endPointer(e){
+  pointer.touches.delete(e.pointerId);
+  if(e.pointerId !== pointer.id) return;
+  if(pointer.mode==='draw') finishTubeStroke();
+  else if(pointer.mode==='airDraw') finishAirStroke();
+  else if(pointer.mode==='needle') finishNeedleDrag();
+  else if(pointer.mode==='syringeMove' || pointer.mode==='syringePlunger') finishSyringeDrag();
+  else if(pointer.mode==='tubeDrag') finishTubeDrag();
+  else if(pointer.mode==='airDrag') finishAirDrag();
+  else finishNeedleDrag();
+  try{ canvas.releasePointerCapture(e.pointerId); }catch(err){}
+}
+
+canvas.addEventListener('pointerup', endPointer);
+canvas.addEventListener('pointercancel', endPointer);
+canvas.addEventListener('lostpointercapture', e=>{
+  if(e.pointerId === pointer.id && pointer.mode === 'draw') finishTubeStroke();
+  if(e.pointerId === pointer.id && pointer.mode === 'airDraw') finishAirStroke();
+  if(e.pointerId === pointer.id && pointer.mode === 'tubeDrag') finishTubeDrag();
+  if(e.pointerId === pointer.id && pointer.mode === 'airDrag') finishAirDrag();
+});
+canvas.addEventListener('pointerleave', e=>{
+  if(e.pointerType==='mouse' && e.pointerId === pointer.id && pointer.mode === 'draw') finishTubeStroke();
+  if(e.pointerType==='mouse' && e.pointerId === pointer.id && pointer.mode === 'airDraw') finishAirStroke();
+});
+
+  resetCamera();
+  renderTabs();
+  requestAnimationFrame(tick);
+})();
+</script>
+</body>
+</html>
