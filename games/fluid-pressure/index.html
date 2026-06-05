@@ -4,7 +4,7 @@
   <script src="/eduGame/ga4.js"></script>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="version" content="0.193" />
+  <meta name="version" content="0.201" />
   <title>流體壓力</title>
   <style>
     :root{
@@ -62,7 +62,7 @@
   </style>
 </head>
 <body>
-  <div id="app" data-version="0.193">
+  <div id="app" data-version="0.201">
     <div class="stage-wrap">
       <canvas id="world" aria-label="流體壓力互動舞台"></canvas>
       <div class="tabs" id="sceneTabs" aria-label="場景切換"></div>
@@ -70,7 +70,8 @@
     </div>
     <div class="control" id="controlPanel" aria-label="控制台">
       <button id="resetBtn" title="重置" aria-label="重置">↺</button>
-      <button id="eraseHolesBtn" title="填補孔洞" aria-label="填補孔洞">⌫</button>
+      <button id="eraseHolesBtn" class="hidden" title="填補全部孔洞" aria-label="填補全部孔洞">⌫</button>
+      <button id="glueBtn" title="自動填補新洞" aria-label="自動填補新洞">🩹</button>
       <button id="playBtn" title="暫停 / 播放" aria-label="暫停 / 播放">⏸</button>
       <button id="nextBtn" title="下一個" aria-label="下一個">⏭</button>
       <button id="fillBtn" class="tool" title="灌水" aria-label="灌水">💧</button>
@@ -97,7 +98,7 @@
 (() => {
   'use strict';
 
-  const APP_VERSION = '0.193';
+  const APP_VERSION = '0.201';
 
   const README_MD = `# 流體壓力 操作說明
 
@@ -153,6 +154,7 @@
   const stageTabs = document.getElementById('stageTabs');
   const resetBtn = document.getElementById('resetBtn');
   const eraseHolesBtn = document.getElementById('eraseHolesBtn');
+  const glueBtn = document.getElementById('glueBtn');
   const playBtn = document.getElementById('playBtn');
   const nextBtn = document.getElementById('nextBtn');
   const fillBtn = document.getElementById('fillBtn');
@@ -194,7 +196,9 @@ const scenes = [
     pinchDist:0,
     pinchZoom:1,
     pinchCenter:{x:0,y:0},
-    pinchCam:{x:0,y:0}
+    pinchCam:{x:0,y:0},
+    worldX:0,
+    worldY:0
   };
 
 
@@ -208,6 +212,8 @@ const sim = {
   lastTime:performance.now(),
   particles:[],
   holes:[],
+  patches:[],
+  glueMode:false,
   needle:{x:-260,y:20,len:118,grab:false},
   cup:{water:0.56,capacity:1.03},
   balloon:{water:0.42,capacity:1,burst:false},
@@ -618,8 +624,8 @@ function startAirStroke(e){
 }
 function addAirStrokePoint(e){ if(!sim.air.drawing || pointer.mode!=='airDraw' || e.pointerId!==pointer.id) return; if(!pointerStillPressed(e)){ finishAirStroke(); return; } const p=airPointToLocal(screenToWorld(e.clientX,e.clientY)); const path=sim.air.current||[]; if(!path.length || hypot(p.x-path[path.length-1].x,p.y-path[path.length-1].y)>3){ path.push(p); sim.air.current=path; } }
 function finishAirStroke(){ if(pointer.mode==='airDraw'){ const stroke=finalizeTubePath(sim.air.current||[]); if(stroke.length>=2) sim.air.strokes.push(stroke); sim.air.current=[]; sim.air.drawing=false; } pointer.active=false; pointer.id=null; pointer.mode=null; canvas.classList.remove('dragging'); }
-function canDragAir(){ return sim.scene===2 && sim.air.sealed && sim.air.water > .001 && airStrokes(false).length && !sim.drawMode && !sim.drill; }
-function isNearAirWorld(pWorld){ const hit = closestPointOnAir(airPointToLocal(pWorld)); return !!(hit && hit.d < 34); }
+function canDragAir(){ return sim.scene===2 && sim.air.sealed && sim.air.water > .001 && airStrokes(false).length; }
+function isNearAirWorld(pWorld){ const hit = closestPointOnAir(airPointToLocal(pWorld)); return !!((hit && hit.d < 34) || airContainsWorldPoint(pWorld)); }
 function pointerAngleAroundAir(e){ const c=airCenter(); const p=screenToWorld(e.clientX,e.clientY); return Math.atan2(p.y-c.y,p.x-c.x); }
 function startAirDrag(e){ pointer.active=true; pointer.id=e.pointerId; pointer.mode='airDrag'; sim.air.dragging=true; sim.air.dragLastAngle=pointerAngleAroundAir(e); canvas.classList.add('dragging'); try{canvas.setPointerCapture(e.pointerId);}catch(err){} }
 function updateAirDrag(e){ const a=pointerAngleAroundAir(e); const prev=sim.air.dragLastAngle||a; const delta=Math.atan2(Math.sin(a-prev),Math.cos(a-prev)); if(Number.isFinite(delta)){ sim.air.angle=clamp((sim.air.angle||0)+delta,-Math.PI*0.82,Math.PI*0.82); sim.air.waveAmp=clamp((sim.air.waveAmp||0)+Math.abs(delta)*92,0,40); } sim.air.dragLastAngle=a; }
@@ -641,30 +647,79 @@ function simulateAir(dt){
   const m=airMetrics(false);
   if(sim.filling && m){ sim.air.water = Math.min(sim.air.capacity, sim.air.water + 0.18*dt); for(let i=0;i<4;i++) spawnDrop(-5+Math.random()*10,-220+Math.random()*20,(Math.random()-.5)*18,160+Math.random()*70,2.4,1.1); }
   sim.air.syringe.plunger += (0.5 - sim.air.syringe.plunger) * Math.min(1, dt*8);
-  sim.air.wavePhase += dt * (4 + (sim.air.waveAmp||0)*0.08); sim.air.waveAmp *= Math.exp(-dt*1.45); if(sim.air.waveAmp<0.2) sim.air.waveAmp=0;
-  handleAirSyringeNeedle(); syncAirHolePositions();
+  sim.air.wavePhase += dt * (4 + (sim.air.waveAmp||0)*0.08);
+  sim.air.waveAmp *= Math.exp(-dt*1.45);
+  if(sim.air.waveAmp<0.2) sim.air.waveAmp=0;
+  handleAirSyringeNeedle();
+  syncAirHolePositions();
   if(sim.air.sealed) updateAirGasByVolume();
   updateAirSyringePump(dt);
-  // seal button logic already external
+
   const holes = sim.holes.filter(h=>h.kind==='air');
-  const ventHoles = []; const subHoles=[];
-  for(const h of holes){ const surfaceY=airWaterSurfaceY(h.x); if(h.y < surfaceY - 6){ if(!h.inserted) ventHoles.push(h); } else if(h.y > surfaceY + 4){ subHoles.push(h); } }
-  if(sim.air.sealed && ventHoles.length>0){ sim.air.airP = ATM_PRESSURE; const gasVol=Math.max(0.06,1-sim.air.water); sim.air.gasK = sim.air.airP * gasVol; }
+  const upperOpen = [];
+  const lowerWet = [];
+  for(const h of holes){
+    const surfaceY=airWaterSurfaceY(h.x);
+    if(h.y < surfaceY - 6){ if(!h.inserted) upperOpen.push(h); }
+    else if(h.y > surfaceY + 4){ lowerWet.push(h); }
+  }
+  upperOpen.sort((a,b)=>a.y-b.y);
+  const topVent = upperOpen[0] || null;
+  if(sim.air.sealed && topVent){
+    sim.air.airP += (ATM_PRESSURE - sim.air.airP) * Math.min(1, dt*4.2);
+    const gasVol=Math.max(0.06,1-sim.air.water);
+    sim.air.gasK = sim.air.airP * gasVol;
+  }
+
   if(sim.air.sealed){
-    for(const h of subHoles){
-      const surfaceY=airWaterSurfaceY(h.x); const depth=Math.max(0,h.y-surfaceY);
-      const pressurePush = depth*0.22 + (sim.air.airP - ATM_PRESSURE);
+    for(const h of lowerWet){
+      const surfaceY=airWaterSurfaceY(h.x);
+      const depth=Math.max(0,h.y-surfaceY);
+      const hydroPush = depth*0.22;
+      const pressurePush = hydroPush + (sim.air.airP - ATM_PRESSURE);
       const pressurePull = (ATM_PRESSURE - sim.air.airP) - depth*0.02;
-      if((ventHoles.length>0 || sim.air.airP > ATM_PRESSURE + 0.35) && pressurePush > 0.4){
-        h.cool -= dt; if(h.cool<=0){ h.cool=clamp(.12 - depth*0.00034,.02,.09); const normal=vectorRotate({x:h.nx ?? 1,y:h.ny ?? 0}, sim.air.angle || 0); const nLen=hypot(normal.x,normal.y)||1; const nx=normal.x/nLen, ny=normal.y/nLen; const speed = 50 + Math.sqrt(depth*180) + Math.max(0, sim.air.airP - ATM_PRESSURE)*2.8; for(let i=0;i<2;i++) spawnDrop(h.x + nx*4, h.y + ny*4, nx*speed + (Math.random()-.5)*12, ny*speed + (Math.random()-.5)*12, 2.5, 2.6); sim.air.water = Math.max(0, sim.air.water - (0.0013 + depth*0.00001 + Math.max(0,sim.air.airP-ATM_PRESSURE)*0.00006)); }
-      } else if(pressurePull > 0.5){
-        if(Math.random() < clamp(0.2 + pressurePull*0.08,0.18,0.9)){ sim.air.bubbles.push({x:h.x + (Math.random()-.5)*6, y:h.y, r:2+Math.random()*3, vy: -36 - Math.random()*26, drift:(Math.random()-.5)*10, life:4}); const gasVol=Math.max(0.06,1-sim.air.water); sim.air.gasK = Math.min((sim.air.gasK||ATM_PRESSURE*gasVol) + 0.05, 240*gasVol); }
+      const canLeakOut = (!!topVent && h.y > topVent.y + 8) || sim.air.airP > ATM_PRESSURE + 0.35;
+      const canBubbleIn = !topVent && pressurePull > 0.55;
+      if(canLeakOut && pressurePush > 0.42){
+        h.cool -= dt;
+        if(h.cool<=0){
+          h.cool=clamp(.12 - depth*0.00034,.02,.09);
+          const normal=vectorRotate({x:h.nx ?? 1,y:h.ny ?? 0}, sim.air.angle || 0);
+          const nLen=hypot(normal.x,normal.y)||1;
+          const nx=normal.x/nLen, ny=normal.y/nLen;
+          const speed = 50 + Math.sqrt(depth*180) + Math.max(0, sim.air.airP - ATM_PRESSURE)*2.8;
+          for(let i=0;i<2;i++) spawnDrop(h.x + nx*4, h.y + ny*4, nx*speed + (Math.random()-.5)*12, ny*speed + (Math.random()-.5)*12, 2.5, 2.6);
+          sim.air.water = Math.max(0, sim.air.water - (0.0013 + depth*0.00001 + Math.max(0,sim.air.airP-ATM_PRESSURE)*0.00006));
+        }
+      } else if(canBubbleIn){
+        if(Math.random() < clamp(0.22 + pressurePull*0.08,0.18,0.88)){
+          sim.air.bubbles.push({x:h.x + (Math.random()-.5)*5, y:h.y-1, r:2+Math.random()*3, vy:-34-Math.random()*22, drift:(Math.random()-.5)*12, life:4.6});
+          const gasVol=Math.max(0.06,1-sim.air.water);
+          sim.air.gasK = Math.min((sim.air.gasK||ATM_PRESSURE*gasVol) + 0.05, 240*gasVol);
+        }
       }
     }
   }
-  // bubbles rise in water and merge to air cavity
-  const surfaceBase = airWaterBaseY();
-  sim.air.bubbles = sim.air.bubbles.filter(b=>{ b.y += b.vy*dt; b.x += Math.sin(sim.air.wavePhase + b.y*0.02) * b.drift*dt*0.15; b.life -= dt; if(b.y <= airWaterSurfaceY(b.x)){ const gasVol=Math.max(0.06,1-sim.air.water); sim.air.gasK = Math.min((sim.air.gasK||ATM_PRESSURE*gasVol) + 0.18, 240*gasVol); return false; } return b.life>0; });
+
+  const cAir = airPointToWorld(airCenter());
+  sim.air.bubbles = sim.air.bubbles.filter(b=>{
+    let nx = b.x + Math.sin(sim.air.wavePhase + b.y*0.02) * b.drift*dt*0.15;
+    let ny = b.y + b.vy*dt;
+    b.life -= dt;
+    if(!airContainsWorldPoint({x:nx,y:ny})){
+      for(let k=0;k<8 && !airContainsWorldPoint({x:nx,y:ny});k++){
+        nx = lerp(nx, cAir.x, 0.18);
+        ny = lerp(ny, b.y-12, 0.22);
+      }
+    }
+    b.x = nx; b.y = ny;
+    if(b.y <= airWaterSurfaceY(b.x)){
+      const gasVol=Math.max(0.06,1-sim.air.water);
+      sim.air.gasK = Math.min((sim.air.gasK||ATM_PRESSURE*gasVol) + 0.18, 240*gasVol);
+      return false;
+    }
+    return b.life>0 && airContainsWorldPoint({x:b.x,y:b.y});
+  });
 }
 function drawAirWater(wm){
   const baseY=airWaterBaseY(); const amp=Math.min(sim.air.waveAmp||0,14); const phase=sim.air.wavePhase||0; const x0=wm.minX-180, x1=wm.maxX+180, yBottom=wm.maxY+220;
@@ -676,17 +731,30 @@ function drawAir(){
   if(sim.air.sealed){ const st=sim.air.strokes[0]; if(st && st.length>=2){ const a=airPointToWorld(st[0]), b=airPointToWorld(st[st.length-1]); ctx.save(); ctx.strokeStyle='rgba(255,255,255,.75)'; ctx.lineWidth=3; ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke(); ctx.restore(); } }
   drawAirBubbles();
   for(const h of sim.holes.filter(h=>h.kind==='air')){ const p=airPointToWorld({x:h.lx ?? h.x, y:h.ly ?? h.y}); const normal=vectorRotate({x:h.nx ?? 0,y:h.ny ?? -1}, sim.air.angle || 0); drawHole(p.x,p.y,Math.atan2(normal.y, normal.x)); }
+  for(const h of sim.patches.filter(h=>h.kind==='air')){ const p=airPointToWorld({x:h.lx ?? h.x, y:h.ly ?? h.y}); const normal=vectorRotate({x:h.nx ?? 0,y:h.ny ?? -1}, sim.air.angle || 0); drawPatchBlob(p.x,p.y,Math.atan2(normal.y, normal.x)); }
   if(sim.air.sealed && sim.air.water>.001 && airStrokes(false).length){ const c=airCenter(); ctx.save(); ctx.strokeStyle='rgba(255,255,255,.35)'; ctx.lineWidth=1.5; ctx.beginPath(); ctx.arc(c.x,c.y,6,0,Math.PI*2); ctx.stroke(); ctx.restore(); }
   drawAirSyringe();
   ctx.restore();
 }
 function updateCenterInfo(){
+  if(sim.scene === 1){
+    if(!tubeStrokes(false).length){ centerInfo.textContent='連通管：先用繪圖工具畫容器'; return; }
+    if(sim.tube.water <= 0.001){ centerInfo.textContent='連通管：點選灌水，之後可拖拉容器觀察液面與波動'; return; }
+    if(sim.drawMode) { centerInfo.textContent='連通管：工具已開啟，點容器可旋轉，點空白處可續畫'; return; }
+    if(sim.drill) { centerInfo.textContent='連通管：拖曳針可戳洞，直接拖拉容器本體仍可旋轉'; return; }
+    if(sim.glueMode){ centerInfo.textContent='連通管：已開啟自動填補，新戳出的洞會立即被補起來；仍可直接拖拉容器旋轉'; return; }
+    centerInfo.textContent='連通管：可拖拉容器旋轉，觀察液面保持水平與漏水變化';
+    return;
+  }
   if(sim.scene !== 2){ centerInfo.textContent=''; return; }
-  if(sim.air.sealed || sim.drill){ centerInfo.textContent = `針筒 ${airSyringePressure().toFixed(1)} kPa ｜ 大氣 ${ATM_PRESSURE.toFixed(1)} kPa ｜ 空腔 ${sim.air.airP.toFixed(1)} kPa`; return; }
-  if(!airStrokes(false).length){ centerInfo.textContent='請使用繪圖工具畫一個開放式容器'; return; }
-  if(sim.air.water <= 0.001){ centerInfo.textContent='請點選灌水，液面會保持水平'; return; }
-  if(!sim.air.sealed){ centerInfo.textContent='請點選封閉按鈕，將液體封閉在容器中'; return; }
-  centerInfo.textContent='可拖拉封閉容器，或點選針筒工具進行戳洞；灌氣與抽氣請用旁邊按鈕';
+  if(!airStrokes(false).length){ centerInfo.textContent='大氣壓力：先用繪圖工具畫一個開放式容器'; return; }
+  if(sim.air.water <= 0.001){ centerInfo.textContent='大氣壓力：請先灌水，液面會保持在同一水平面'; return; }
+  if(!sim.air.sealed){ centerInfo.textContent='大氣壓力：請點選封閉按鈕，把上方開口封起來'; return; }
+  const holesAbove = sim.holes.filter(h=>h.kind==='air' && h.y < airWaterSurfaceY(h.x)-6).length;
+  const holesBelow = sim.holes.filter(h=>h.kind==='air' && h.y > airWaterSurfaceY(h.x)+4).length;
+  if(sim.drill){ centerInfo.textContent = `針筒 ${airSyringePressure().toFixed(1)} kPa ｜ 大氣 ${ATM_PRESSURE.toFixed(1)} kPa ｜ 空腔 ${sim.air.airP.toFixed(1)} kPa ｜ 上孔 ${holesAbove} 下孔 ${holesBelow}`; return; }
+  if(sim.glueMode){ centerInfo.textContent='大氣壓力：已開啟自動填補，新戳出的洞會立即被補起來；仍可直接拖拉容器旋轉'; return; }
+  centerInfo.textContent = `大氣壓力：可拖拉封閉容器；目前上孔 ${holesAbove}、下孔 ${holesBelow}，可切換針筒觀察壓力變化`;
 }
   function resize(){
     const dpr = Math.max(1, Math.min(2.5, window.devicePixelRatio || 1));
@@ -744,10 +812,12 @@ function placeNeedleForScene(){
 function resetStage(){
   sim.particles.length = 0;
   sim.holes.length = 0;
+  sim.patches.length = 0;
   sim.rain.length = 0;
   sim.filling = false;
   sim.drill = false;
   sim.drawMode = false;
+  sim.glueMode = false;
   sim.needle.x = 340;
   sim.needle.y = 20;
   sim.cup.water = 0.56;
@@ -760,17 +830,68 @@ function resetStage(){
   updateControls();
 }
 
-  function clearCurrentHoles(){
+  function holeBelongsToCurrentScene(h){
   if(sim.scene===0){
     const kind = sim.stage===0 ? 'cup' : sim.stage===1 ? 'balloon' : 'river';
-    sim.holes = sim.holes.filter(h=>!(h.kind===kind && h.stage===sim.stage));
-  } else if(sim.scene===1){
-    sim.holes = sim.holes.filter(h=>!(h.kind==='tube' && h.stage===sim.stage));
-  } else if(sim.scene===2){
-    sim.holes = sim.holes.filter(h=>h.kind!=='air');
-    sim.air.syringe.insertedHole = -1;
+    return h.kind===kind && h.stage===sim.stage;
   }
+  if(sim.scene===1) return h.kind==='tube' && h.stage===sim.stage;
+  if(sim.scene===2) return h.kind==='air';
+  return false;
+}
+
+  function holeWorldPos(h){
+  if(h.kind==='balloon'){
+    const c={x:0,y:-40};
+    const r=balloonRadius();
+    return {x:c.x+Math.cos(h.a)*r, y:c.y+Math.sin(h.a)*r};
+  }
+  if(h.kind==='tube') return tubePointToWorld({x:h.lx ?? h.x, y:h.ly ?? h.y});
+  if(h.kind==='air') return airPointToWorld({x:h.lx ?? h.x, y:h.ly ?? h.y});
+  if(h.kind==='river') return {x:h.outX ?? h.x, y:h.y};
+  return {x:h.x, y:h.y};
+}
+
+  function addPatchFromHole(h){
+  const pos = holeWorldPos(h);
+  const exists = sim.patches.some(p=>p.kind===h.kind && p.stage===h.stage && hypot(holeWorldPos(p).x-pos.x, holeWorldPos(p).y-pos.y) < 12);
+  if(!exists) sim.patches.push({...h, patched:true});
+}
+
+  function sealHoleIndex(idx){
+  const h = sim.holes[idx];
+  if(!h) return;
+  addPatchFromHole(h);
+  sim.holes.splice(idx,1);
+  if(h.kind==='air') sim.air.syringe.insertedHole = -1;
+}
+
+  function nearestCurrentHoleIndex(pWorld){
+  let best=-1, bestD=22;
+  for(let i=0;i<sim.holes.length;i++){
+    const h=sim.holes[i];
+    if(!holeBelongsToCurrentScene(h)) continue;
+    const pos = holeWorldPos(h);
+    const d = hypot(pos.x-pWorld.x, pos.y-pWorld.y);
+    if(d < bestD){ bestD=d; best=i; }
+  }
+  return best;
+}
+
+  function clearCurrentHoles(){
+  const kept=[];
+  for(const h of sim.holes){
+    if(holeBelongsToCurrentScene(h)) addPatchFromHole(h); else kept.push(h);
+  }
+  sim.holes = kept;
+  if(sim.scene===2) sim.air.syringe.insertedHole = -1;
   updateControls();
+}
+
+  function sealNearestCurrentHole(pWorld){
+  const idx = nearestCurrentHoleIndex(pWorld);
+  if(idx>=0){ sealHoleIndex(idx); updateControls(); return true; }
+  return false;
 }
 
 function setScene(i){
@@ -830,7 +951,8 @@ function updateControls(){
   sealBtn.classList.toggle('hidden', !(airTools && airCanSeal()));
   fillBtn.classList.toggle('active', sim.filling);
   drillBtn.classList.toggle('active', sim.drill);
-  eraseHolesBtn.classList.toggle('active', sim.holes.length>0);
+  eraseHolesBtn.classList.add('hidden');
+  glueBtn.classList.toggle('active', sim.glueMode);
   injectBtn.classList.remove('active');
   vacuumBtn.classList.remove('active');
   drawBtn.classList.toggle('active', sim.drawMode);
@@ -841,7 +963,7 @@ function updateControls(){
 
 
   resetBtn.addEventListener('click', resetStage);
-  eraseHolesBtn.addEventListener('click', clearCurrentHoles);
+  glueBtn.addEventListener('click', ()=>{ sim.glueMode=!sim.glueMode; updateControls(); });
   playBtn.addEventListener('click', ()=>{ sim.paused=!sim.paused; updateControls(); });
   nextBtn.addEventListener('click', nextStage);
   fillBtn.addEventListener('click', ()=>{ sim.filling=!sim.filling; updateControls(); });
@@ -1011,10 +1133,17 @@ function nearNeedle(p){
     const exists = sim.holes.some(h=>{
       if(h.stage!==sim.stage || h.kind!==hole.kind) return false;
       if(hole.kind==='balloon') return Math.abs(angleDiff(h.a, hole.a)) < 0.14;
-      if(hole.kind==='tube') return hypot((h.lx ?? h.x)-(hole.lx ?? hole.x),(h.ly ?? h.y)-(hole.ly ?? hole.y))<18;
+      if(hole.kind==='tube' || hole.kind==='air') return hypot((h.lx ?? h.x)-(hole.lx ?? hole.x),(h.ly ?? h.y)-(hole.ly ?? hole.y))<18;
       return hypot(h.x-hole.x,h.y-hole.y)<18;
     });
-    if(!exists) sim.holes.push({...hole, stage:sim.stage, cool:0});
+    if(exists) return;
+    const stagedHole = {...hole, stage:sim.stage, cool:0};
+    if(sim.glueMode){
+      addPatchFromHole(stagedHole);
+      if(stagedHole.kind==='air') sim.air.syringe.insertedHole = -1;
+      return;
+    }
+    sim.holes.push(stagedHole);
   }
 
   function drawHole(x,y,angle=0){
@@ -1025,6 +1154,36 @@ function nearNeedle(p){
     ctx.lineWidth = 1.5;
     ctx.beginPath(); ctx.ellipse(0,0,8,5,0,0,Math.PI*2); ctx.fill(); ctx.stroke();
     ctx.restore();
+  }
+
+  function drawPatchBlob(x,y,angle=0){
+    ctx.save();
+    ctx.translate(x,y); ctx.rotate(angle);
+    const g=ctx.createRadialGradient(-2,-2,1,0,0,11);
+    g.addColorStop(0,'rgba(120,210,255,.95)');
+    g.addColorStop(1,'rgba(70,160,255,.68)');
+    ctx.fillStyle=g;
+    ctx.strokeStyle='rgba(255,255,255,.78)';
+    ctx.lineWidth=1.2;
+    ctx.beginPath();
+    ctx.moveTo(-8,0);
+    ctx.bezierCurveTo(-7,-7,5,-8,8,-1);
+    ctx.bezierCurveTo(10,5,2,9,-4,8);
+    ctx.bezierCurveTo(-9,7,-11,3,-8,0);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function tubeContainsWorldPoint(p){
+    if(!tubeClipPathWorld()) return false;
+    return ctx.isPointInPath(p.x,p.y);
+  }
+
+  function airContainsWorldPoint(p){
+    if(!airClipPathWorld()) return false;
+    return ctx.isPointInPath(p.x,p.y);
   }
 
   function drawRiverTunnel(h){
@@ -1117,6 +1276,7 @@ function nearNeedle(p){
     }
     if(sim.filling){ drawFaucet(0,-245); }
     for(const h of sim.holes.filter(h=>h.stage===0 && h.kind==='cup')) drawHole(h.x,h.y,0);
+    for(const h of sim.patches.filter(h=>h.stage===0 && h.kind==='cup')) drawPatchBlob(h.x,h.y,0);
     ctx.restore();
   }
 
@@ -1312,6 +1472,7 @@ function nearNeedle(p){
     }
     if(sim.filling) drawCloud(-115,-245);
     for(const h of sim.holes.filter(h=>h.stage===2 && h.kind==='river')) drawRiverTunnel(h);
+    for(const h of sim.patches.filter(h=>h.stage===2 && h.kind==='river')) drawPatchBlob(h.outX ?? h.x,h.y,0);
     ctx.restore();
   }
 
@@ -1609,11 +1770,11 @@ function updateSyringeMove(e){
 }
 
 function canDragTube(){
-  return sim.scene===1 && !sim.drawMode && !sim.drill && sim.tube.water > .001 && tubeStrokes(false).length;
+  return sim.scene===1 && sim.tube.water > .001 && tubeStrokes(false).length;
 }
 function isNearTubeWorld(pWorld){
   const hit = closestPointOnTube(tubePointToLocal(pWorld));
-  return !!(hit && hit.d < 34);
+  return !!((hit && hit.d < 34) || tubeContainsWorldPoint(pWorld));
 }
 function pointerAngleAroundTube(e){
   const c = tubeCenter();
@@ -1658,12 +1819,8 @@ canvas.addEventListener('pointerdown', e=>{
   if(!e.isPrimary) return;
   pointer.touches.set(e.pointerId, {x:e.clientX,y:e.clientY});
   const p = screenToWorld(e.clientX, e.clientY);
-  if(sim.scene===1 && sim.drawMode){
-    e.preventDefault(); startTubeStroke(e); return;
-  }
-  if(sim.scene===2 && sim.drawMode){
-    e.preventDefault(); startAirStroke(e); return;
-  }
+  pointer.worldX = p.x; pointer.worldY = p.y;
+
   if(sim.drill && (sim.scene===0 || sim.scene===1) && nearNeedle(p)){
     e.preventDefault();
     try{ canvas.setPointerCapture(e.pointerId); }catch(err){}
@@ -1672,14 +1829,36 @@ canvas.addEventListener('pointerdown', e=>{
     sim.needle.grab = true; sim.needle.offX = p.x - sim.needle.x; sim.needle.offY = p.y - sim.needle.y; return;
   }
   if(sim.drill && sim.scene===2 && nearAirSyringeBody(p)){
-    e.preventDefault(); try{ canvas.setPointerCapture(e.pointerId); }catch(err){} canvas.classList.add('dragging'); pointer.active=true; pointer.id=e.pointerId; pointer.mode='syringeMove'; sim.air.syringe.offX = p.x - sim.air.syringe.x; sim.air.syringe.offY = p.y - sim.air.syringe.y; return;
+    e.preventDefault();
+    try{ canvas.setPointerCapture(e.pointerId); }catch(err){}
+    canvas.classList.add('dragging');
+    pointer.active=true; pointer.id=e.pointerId; pointer.mode='syringeMove';
+    sim.air.syringe.offX = p.x - sim.air.syringe.x; sim.air.syringe.offY = p.y - sim.air.syringe.y; return;
   }
-  if(canDragTube() && isNearTubeWorld(p)){ e.preventDefault(); startTubeDrag(e); return; }
-  if(canDragAir() && isNearAirWorld(p)){ e.preventDefault(); startAirDrag(e); return; }
+
+  if(canDragTube() && isNearTubeWorld(p)){
+    e.preventDefault();
+    startTubeDrag(e);
+    return;
+  }
+  if(canDragAir() && isNearAirWorld(p)){
+    e.preventDefault();
+    startAirDrag(e);
+    return;
+  }
+
+  if(sim.scene===1 && sim.drawMode){
+    e.preventDefault(); startTubeStroke(e); return;
+  }
+  if(sim.scene===2 && sim.drawMode){
+    e.preventDefault(); startAirStroke(e); return;
+  }
 }, {passive:false});
 
 canvas.addEventListener('pointermove', e=>{
   if(pointer.touches.has(e.pointerId)) pointer.touches.set(e.pointerId, {x:e.clientX,y:e.clientY});
+  const wp = screenToWorld(e.clientX, e.clientY);
+  pointer.worldX = wp.x; pointer.worldY = wp.y;
   if(!pointer.active || e.pointerId !== pointer.id) return;
   if(pointer.mode==='draw'){ e.preventDefault(); addTubeStrokePoint(e); return; }
   if(pointer.mode==='airDraw'){ e.preventDefault(); addAirStrokePoint(e); return; }
