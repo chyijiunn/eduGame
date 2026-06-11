@@ -1,0 +1,993 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<script src="/eduGame/ga4.js"></script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>浮力 buoyancy 0.14</title>
+<style>
+  :root{
+    --bg:#202020;
+    --panel:#2a2a2a;
+    --panel2:#333;
+    --line:#f2f2f2;
+    --muted:#aaa;
+    --soft:#555;
+    --water:rgba(255,255,255,.16);
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;margin:0;background:var(--bg);color:var(--line);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans TC",Arial,sans-serif;overscroll-behavior:none;}
+  body{overflow:hidden;}
+  #app{height:100dvh;width:100vw;display:flex;flex-direction:column;background:var(--bg);}
+  #tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:0;border-bottom:1px solid var(--soft);background:#242424;min-height:48px;}
+  .tab{appearance:none;border:0;border-right:1px solid var(--soft);background:#242424;color:var(--line);font-size:18px;font-weight:700;letter-spacing:.02em;min-height:48px;cursor:pointer;}
+  .tab:last-child{border-right:0;}
+  .tab.active{background:var(--line);color:#202020;}
+  #stageWrap{position:relative;flex:1;min-height:260px;background:var(--bg);overflow:hidden;}
+  #stage{display:block;width:100%;height:100%;touch-action:none;cursor:grab;}
+  #stage.dragging{cursor:grabbing;}
+  #controlPanel{background:transparent;border-top:0;padding:8px max(10px,env(safe-area-inset-right)) max(8px,env(safe-area-inset-bottom)) max(10px,env(safe-area-inset-left));display:grid;gap:8px;box-shadow:none;outline:0;}
+  .row{display:flex;gap:8px;align-items:center;justify-content:center;flex-wrap:wrap;}
+  .btn{appearance:none;border:1px solid var(--line);background:transparent;color:var(--line);border-radius:999px;min-width:48px;height:38px;padding:0 13px;font-size:17px;font-weight:700;cursor:pointer;line-height:1;}
+  .btn.on,.btn:active{background:var(--line);color:#202020;}
+  .sliderGroup{display:flex;align-items:center;gap:7px;min-width:min(320px,100%);background:transparent;border:0;border-radius:999px;padding:6px 10px;}
+  .sliderGroup label{font-size:14px;white-space:nowrap;min-width:52px;color:var(--line);}
+  .sliderGroup output{font-variant-numeric:tabular-nums;font-size:13px;color:var(--muted);min-width:62px;text-align:right;}
+  input[type="range"]{width:160px;max-width:38vw;accent-color:#f2f2f2;}
+  .sceneControls{display:none;gap:8px;justify-content:center;align-items:center;flex-wrap:wrap;}
+  .sceneControls.active{display:flex;}
+  .infoStrip{display:flex;gap:8px;justify-content:center;align-items:center;flex-wrap:wrap;width:100%;}
+  .infoPill{border:0;background:transparent;border-radius:0;padding:2px 6px;font-size:13px;font-variant-numeric:tabular-nums;color:#f2f2f2;white-space:nowrap;}
+  .shapeRow{display:contents;}
+  #modal{position:fixed;inset:0;background:rgba(0,0,0,.58);display:none;align-items:center;justify-content:center;z-index:20;padding:18px;}
+  #modal.open{display:flex;}
+  #modalBox{width:min(760px,94vw);height:min(82dvh,760px);background:#242424;color:#f2f2f2;border:1px solid #777;border-radius:18px;box-shadow:0 18px 40px rgba(0,0,0,.45);display:flex;flex-direction:column;overflow:hidden;}
+  #modalTop{display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #555;padding:10px 12px 10px 18px;}
+  #modalTop strong{font-size:16px;letter-spacing:.02em;}
+  #closeModal{border:0;background:transparent;color:#f2f2f2;font-size:28px;line-height:1;cursor:pointer;width:42px;height:36px;}
+  #mdContent{overflow:auto;padding:14px 20px 24px;line-height:1.7;font-size:16px;}
+  #mdContent h1{font-size:22px;margin:0 0 10px;}
+  #mdContent h2{font-size:18px;margin:18px 0 6px;border-top:1px solid #555;padding-top:14px;}
+  #mdContent h3{font-size:16px;margin:14px 0 4px;}
+  #mdContent p{margin:8px 0;}
+  #mdContent ul,#mdContent ol{padding-left:1.4em;margin:8px 0;}
+  #mdContent code{background:#333;border:1px solid #555;border-radius:4px;padding:0 4px;}
+  @media (max-width:640px){
+    .tab{font-size:16px;min-height:46px;}
+    #controlPanel{gap:7px;padding-top:7px;}
+    .btn{min-width:45px;height:36px;font-size:16px;padding:0 11px;}
+    .sliderGroup{width:100%;justify-content:center;border-radius:18px;}
+    input[type="range"]{flex:1;max-width:none;}
+    #mdContent{font-size:15px;padding:12px 16px 22px;}
+  }
+</style>
+</head>
+<body>
+<div id="app" data-version="0.14">
+  <div id="tabs" role="tablist" aria-label="浮力場景">
+    <button class="tab active" data-scene="1" aria-selected="true">Ⅰ</button>
+    <button class="tab" data-scene="2" aria-selected="false">Ⅱ</button>
+    <button class="tab" data-scene="3" aria-selected="false">Ⅲ</button>
+  </div>
+  <div id="stageWrap"><canvas id="stage"></canvas></div>
+  <div id="controlPanel">
+    <div id="scene1Controls" class="sceneControls active" aria-label="場景一控制">
+      <div id="scene1Info" class="infoStrip" aria-live="polite"></div>
+    </div>
+    <div class="row">
+      <button id="shapeToggle" class="btn" title="切換球體／立方體">○</button>
+      <button id="resetBtn" class="btn" title="重置">↺</button>
+      <button id="forceBtn" class="btn" title="重力與浮力力圖線">F↕</button>
+      <button id="pressureBtn" class="btn" title="壓力力圖線">p↔</button>
+      <button id="helpBtn" class="btn" title="說明">?</button>
+    </div>
+    <div id="scene2Controls" class="sceneControls" aria-label="場景二控制">
+      <div class="sliderGroup"><label for="rhoBall2">ρ球</label><input id="rhoBall2" type="range" min="150" max="950" step="10" value="650"><output id="rhoBall2Out">650</output></div>
+    </div>
+    <div id="scene3Controls" class="sceneControls" aria-label="場景三控制">
+      <div class="sliderGroup"><label for="rhoBall3">ρ球</label><input id="rhoBall3" type="range" min="150" max="4200" step="10" value="820"><output id="rhoBall3Out">820</output></div>
+      <div class="sliderGroup"><label for="rhoLiquid3">ρ液</label><input id="rhoLiquid3" type="range" min="500" max="1800" step="10" value="1000"><output id="rhoLiquid3Out">1000</output></div>
+      <div class="sliderGroup"><label for="volBall3">V球</label><input id="volBall3" type="range" min="250" max="2600" step="10" value="900"><output id="volBall3Out">900</output></div>
+    </div>
+  </div>
+</div>
+<div id="modal" role="dialog" aria-modal="true" aria-label="readme.md 說明">
+  <div id="modalBox">
+    <div id="modalTop"><strong>readme.md</strong><button id="closeModal" aria-label="關閉">×</button></div>
+    <div id="mdContent"></div>
+  </div>
+</div>
+<script type="text/markdown" id="readmeSource">
+# 浮力操作說明
+
+這個互動頁面用三個場景觀察浮力。畫面中的球會受到重力與浮力，運動時依照合力造成加速度，也就是 `F = ma`。
+
+## 基本操作
+
+- 上方 `Ⅰ、Ⅱ、Ⅲ` 可以切換三個場景。
+- 用滑鼠左鍵拖曳球；手機和平板可用單指拖曳，也可用雙指拖曳球的位置。
+- `↺` 重新開始目前場景。
+- `F↕` 顯示重力與總浮力。向下箭頭是重力 `W`，向上箭頭是浮力 `B`。箭頭越長代表力越大。
+- `p↔` 顯示球四周受到的液體壓力。越深的位置，壓力箭頭越長；液體密度越大，壓力也越大。
+
+## 場景Ⅰ：鐵球沉入滿水杯
+
+水槽一開始是滿水位。場景Ⅰ可以切換鐵球與鐵立方體：球體直徑預設為 10 cm，立方體預設為 10 cm × 10 cm × 10 cm。物體進入水中的體積越多，擠出的水越多，右側量筒讀數會同步增加；物體完全沒入時，溢出體積會等於物體體積。把物體抓出來後，已經流出去的水不會自動回到水槽，所以水面會比原本低。
+
+## 場景Ⅱ：低密度球被水推上來
+
+球的密度預設小於水。當你把球往下壓再放手，球沒入越深，排開水的體積越大，浮力越大。當浮力大於重力，球會向上加速；如果速度夠大，會衝出水面。離開水面後浮力變小或消失，只剩重力把球往下拉。
+
+可用 `ρ球` 改變球的密度。密度越接近水，浮起來越不明顯；密度越小，被水推上來的效果越強。
+
+## 場景Ⅲ：密度與體積一起比較
+
+這個場景可以調整三個量：
+
+- `ρ球`：球的密度。
+- `ρ液`：液體的密度。
+- `V球`：球的體積。
+
+判斷是否浮起的核心不是只看重量，而是比較重力和浮力：
+
+- 重力：`W = ρ球 × V球 × g`
+- 浮力：`B = ρ液 × V沒入 × g`
+- 合力：`F合 = B - W`
+- 加速度：`a = F合 / m`
+
+若球完全沒入時，液體能提供的最大浮力仍小於重力，球會下沉。若最大浮力大於重力，球會上浮，最後停在只有一部分沒入水中的位置。
+
+## 壓力與浮力的關係
+
+水壓約可看成 `p = ρ液 × g × h`。深度 `h` 越大，壓力越大。球底部通常比頂部深，因此底部受到的向上壓力較大，所有壓力合起來就形成向上的浮力。
+</script>
+<script>
+(() => {
+  'use strict';
+  const VERSION = '0.14';
+  const canvas = document.getElementById('stage');
+  const ctx = canvas.getContext('2d');
+  const tabs = [...document.querySelectorAll('.tab')];
+  const sceneControls = [1,2,3].map(n => document.getElementById(`scene${n}Controls`));
+  const forceBtn = document.getElementById('forceBtn');
+  const pressureBtn = document.getElementById('pressureBtn');
+  const resetBtn = document.getElementById('resetBtn');
+  const helpBtn = document.getElementById('helpBtn');
+  const shapeToggle = document.getElementById('shapeToggle');
+  const modal = document.getElementById('modal');
+  const closeModal = document.getElementById('closeModal');
+  const mdContent = document.getElementById('mdContent');
+  const sliders = {
+    rhoBall2: document.getElementById('rhoBall2'),
+    rhoBall3: document.getElementById('rhoBall3'),
+    rhoLiquid3: document.getElementById('rhoLiquid3'),
+    volBall3: document.getElementById('volBall3'),
+  };
+  const outs = {
+    rhoBall2: document.getElementById('rhoBall2Out'),
+    rhoBall3: document.getElementById('rhoBall3Out'),
+    rhoLiquid3: document.getElementById('rhoLiquid3Out'),
+    volBall3: document.getElementById('volBall3Out'),
+  };
+
+  const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+  const lerp = (a,b,t) => a + (b-a)*t;
+  const TAU = Math.PI * 2;
+  const G = 9.8;
+
+  const state = {
+    version: VERSION,
+    scene: 1,
+    width: 0,
+    height: 0,
+    dpr: 1,
+    showForce: false,
+    showPressure: false,
+    dragging: false,
+    activePointers: new Map(),
+    lastT: performance.now(),
+    layout: null,
+    scene1Activated: false,
+    scene1Shape: 'sphere',
+    overflowMax: 0,
+    overflowRead: 0,
+    ball: {
+      x: 0, y: 0, vx: 0, vy: 0,
+      r: 44, volumeCm3: 900, rho: 7800,
+      heldOffsetX: 0, heldOffsetY: 0,
+      submergedFraction: 0,
+      buoyancy: 0,
+      weight: 0,
+      waterY: 0,
+      inWater: false
+    }
+  };
+
+  function resizeCanvas(){
+    const rect = canvas.parentElement.getBoundingClientRect();
+    state.dpr = Math.max(1, Math.min(2.5, window.devicePixelRatio || 1));
+    state.width = Math.max(320, rect.width);
+    state.height = Math.max(240, rect.height);
+    canvas.width = Math.floor(state.width * state.dpr);
+    canvas.height = Math.floor(state.height * state.dpr);
+    canvas.style.width = `${state.width}px`;
+    canvas.style.height = `${state.height}px`;
+    ctx.setTransform(state.dpr,0,0,state.dpr,0,0);
+    const old = state.layout;
+    state.layout = computeLayout();
+    if(!old) resetScene();
+    else keepBallVisible();
+  }
+
+  function computeLayout(){
+    const W = state.width, H = state.height;
+    const narrow = W < 620;
+    const margin = narrow ? 14 : 24;
+    let tankW = narrow ? W * 0.68 : W * 0.54;
+    let tankH = H * (narrow ? 0.64 : 0.68);
+    let tankX = narrow ? margin : W * 0.14;
+    let tankY = H * (narrow ? 0.13 : 0.12);
+    if(state.scene === 1){
+      tankW = narrow ? W * 0.36 : W * 0.27;       // 0.13：場景一大桶寬度約為原本一半
+      tankH = H * (narrow ? 0.43 : 0.45);         // 0.13：場景一大桶高度約為原本 2/3
+      tankX = narrow ? W * 0.22 : W * 0.34;
+      tankY = H * (narrow ? 0.25 : 0.24);
+    }
+    const rimY = tankY + 18;
+    const cylGap = state.scene === 1 ? (narrow ? 18 : 34) : (narrow ? 18 : 42);
+    const cylX = tankX + tankW + cylGap;
+    const cylW = state.scene === 1 ? Math.min(88, Math.max(62, W - cylX - margin)) : Math.min(92, Math.max(54, W - cylX - margin));
+    const cylH = state.scene === 1 ? tankH * .88 : H * .46;
+    const cylY = tankY + tankH - cylH;
+    return {
+      tankX, tankY, tankW, tankH, rimY,
+      left:tankX, right:tankX+tankW, bottom:tankY+tankH,
+      cylX, cylY, cylW, cylH,
+      spoutX:tankX+tankW, spoutY:rimY+12,
+      pxPerMeter: Math.max(54, Math.min(100, H * .13))
+    };
+  }
+
+  function getParams(){
+    if(state.scene === 1){
+      if(state.scene1Shape === 'cube'){
+        return {rhoBall: 7800, rhoLiquid: 1000, volumeCm3: 1000, fixedIron: true, shape: 'cube', sideCm: 10};
+      }
+      const radiusCm = 5; // 直徑 10 cm
+      return {rhoBall: 7800, rhoLiquid: 1000, volumeCm3: (4/3) * Math.PI * Math.pow(radiusCm, 3), fixedIron: true, shape: 'sphere', radiusCm, diameterCm: 10};
+    }
+    if(state.scene === 2){
+      return {rhoBall: Number(sliders.rhoBall2.value), rhoLiquid: 1000, volumeCm3: 900, shape: 'sphere'};
+    }
+    return {
+      rhoBall: Number(sliders.rhoBall3.value),
+      rhoLiquid: Number(sliders.rhoLiquid3.value),
+      volumeCm3: Number(sliders.volBall3.value),
+      shape: 'sphere'
+    };
+  }
+
+  function scene1PxPerCm(){
+    const L = state.layout || computeLayout();
+    return clamp(Math.min(L.tankW / 48, L.tankH / 42), 3.0, 5.0);
+  }
+
+  function applyScene1VisualSize(){
+    const p = getParams();
+    const pxPerCm = scene1PxPerCm();
+    if(p.shape === 'cube'){
+      state.ball.r = (p.sideCm * pxPerCm) / 2;
+      state.ball.sidePx = p.sideCm * pxPerCm;
+    }else{
+      state.ball.r = p.radiusCm * pxPerCm;
+      state.ball.sidePx = 0;
+    }
+  }
+
+  function scene1MeasureMax(){
+    if(state.scene1Shape === 'cube') return 1000;
+    return 600; // 直徑 10 cm 球體體積約 524 mL，量筒縮小到 600 mL
+  }
+
+  function radiusFromVolume(volumeCm3){
+    return clamp(18 + Math.cbrt(volumeCm3) * 2.85, 32, 62);
+  }
+
+  function updateOutputs(){
+    outs.rhoBall2.value = `${formatDensity(Number(sliders.rhoBall2.value))}`;
+    outs.rhoBall3.value = `${formatDensity(Number(sliders.rhoBall3.value))}`;
+    outs.rhoLiquid3.value = `${formatDensity(Number(sliders.rhoLiquid3.value))}`;
+    outs.volBall3.value = `${sliders.volBall3.value}`;
+    updateScene1Info();
+  }
+
+  function resetScene(){
+    const p = getParams();
+    state.layout = computeLayout();
+    const L = state.layout;
+    state.scene1Activated = false;
+    state.overflowMax = 0;
+    state.overflowRead = 0;
+    if(state.scene === 1) applyScene1VisualSize();
+    else state.ball.r = radiusFromVolume(p.volumeCm3);
+    state.ball.volumeCm3 = p.volumeCm3;
+    state.ball.rho = p.rhoBall;
+    if(state.scene === 1){
+      state.ball.x = (L.left + L.right) / 2;
+      state.ball.y = Math.max(state.ball.r + 8, L.tankY - state.ball.r - 14); // 放在大桶上方，不自動落下
+    }else{
+      state.ball.x = (L.left + L.right) / 2;
+      state.ball.y = L.rimY - state.ball.r * 2.9;
+    }
+    state.ball.vx = 0;
+    state.ball.vy = state.scene === 1 ? 0 : 18;
+    state.ball.submergedFraction = 0;
+    state.ball.buoyancy = 0;
+    state.ball.weight = 0;
+    state.ball.waterY = L.rimY;
+    state.ball.inWater = false;
+    updateScene1Info();
+  }
+
+  function keepBallVisible(){
+    const L = state.layout;
+    if(!L) return;
+    if(state.scene === 1){
+      state.ball.x = clamp(state.ball.x, state.ball.r + 4, state.width - state.ball.r - 4);
+      state.ball.y = clamp(state.ball.y, state.ball.r + 4, L.bottom - state.ball.r);
+    }else{
+      state.ball.x = clamp(state.ball.x, L.left + state.ball.r, L.right - state.ball.r);
+      state.ball.y = clamp(state.ball.y, 8 + state.ball.r, L.bottom - state.ball.r);
+    }
+  }
+
+  function submergedFractionAt(waterY, cy, r){
+    // y 軸向下。水面以下才是沒入體積；球完全在水面下時為 1。
+    const h = clamp((cy + r) - waterY, 0, 2*r);
+    return clamp((h*h*(3*r - h)) / (4*r*r*r), 0, 1);
+  }
+
+  function scene1BallInsideTank(){
+    const L = state.layout;
+    const b = state.ball;
+    return b.x >= L.left && b.x <= L.right;
+  }
+
+  function scene1SubmergedFractionAt(waterY){
+    if(!scene1BallInsideTank()) return 0;
+    const b = state.ball;
+    if(state.scene1Shape === 'cube'){
+      const side = b.sidePx || b.r * 2;
+      const top = b.y - side/2;
+      const bottom = b.y + side/2;
+      return clamp((bottom - waterY) / side, 0, 1);
+    }
+    return submergedFractionAt(waterY, b.y, b.r);
+  }
+
+  function scene1VolumePerPixel(){
+    const L = state.layout;
+    // 視覺化用截面量：物體取出後，流失水量會造成可見但不過度誇張的水位下降。
+    const full = getParams().volumeCm3;
+    return Math.max(clamp(L.tankW * 0.065, 12, 24), full / Math.max(70, L.tankH * .55));
+  }
+
+  function scene1WaterLine(){
+    const L = state.layout;
+    const b = state.ball;
+    if(state.overflowMax <= 0) return L.rimY;
+
+    // 若現在以滿水位計算的沒入量已達目前已溢流量，水面仍保持滿水位。
+    const subAtRim = scene1SubmergedFractionAt(L.rimY) * b.volumeCm3;
+    if(subAtRim >= state.overflowMax - 0.05) return L.rimY;
+
+    // 球被拉出或沒入量變小時，流出去的水不會回來，水位只能下降。
+    let waterY = L.rimY;
+    const cm3PerPx = scene1VolumePerPixel();
+    for(let i=0;i<10;i++){
+      const subVol = scene1SubmergedFractionAt(waterY) * b.volumeCm3;
+      const drop = clamp((state.overflowMax - subVol) / cm3PerPx, 0, L.tankH * .55);
+      waterY = L.rimY + drop;
+    }
+    return waterY;
+  }
+
+  function waterLine(){
+    return state.scene === 1 ? scene1WaterLine() : state.layout.rimY;
+  }
+
+  function updatePhysics(dt){
+    const L = state.layout;
+    const b = state.ball;
+    const p = getParams();
+    const oldR = b.r;
+    if(state.scene === 1) applyScene1VisualSize();
+    else b.r = radiusFromVolume(p.volumeCm3);
+    b.volumeCm3 = p.volumeCm3;
+    b.rho = p.rhoBall;
+    if(Math.abs(oldR - b.r) > .01) keepBallVisible();
+
+    let yWater = waterLine();
+    if(state.scene === 1){
+      // 滿水位狀態下，右側量筒讀數直接等於曾經達到的最大沒入體積，無延遲動畫。
+      const subAtRim = scene1SubmergedFractionAt(L.rimY) * b.volumeCm3;
+      if(subAtRim > state.overflowMax) state.overflowMax = clamp(subAtRim, 0, b.volumeCm3);
+      state.overflowRead = state.overflowMax;
+      yWater = waterLine();
+    }
+
+    const subFrac = state.scene === 1 ? scene1SubmergedFractionAt(yWater) : submergedFractionAt(yWater, b.y, b.r);
+    const volumeM3 = b.volumeCm3 * 1e-6;
+    const mass = Math.max(.0001, p.rhoBall * volumeM3);
+    const weight = mass * G;
+    const buoyancy = p.rhoLiquid * G * volumeM3 * subFrac;
+    b.submergedFraction = subFrac;
+    b.buoyancy = buoyancy;
+    b.weight = weight;
+    b.waterY = yWater;
+    b.inWater = subFrac > 0.002;
+
+    updateScene1Info();
+
+    if(state.dragging){
+      b.vx *= .35;
+      b.vy *= .35;
+      return;
+    }
+
+    // 場景一初始球不自動掉落；球在桶外釋放時也不做自由落體，避免一開始直接落入水中。
+    if(state.scene === 1 && (!state.scene1Activated || !scene1BallInsideTank())){
+      b.vx *= .55;
+      b.vy *= .55;
+      return;
+    }
+
+    const ayDown = ((weight - buoyancy) / mass) * L.pxPerMeter;
+    b.vy += ayDown * dt;
+    const waterDrag = b.inWater ? (1.8 + subFrac * 2.4) : .08;
+    const speedDrag = 1 / (1 + waterDrag * dt);
+    b.vx *= speedDrag;
+    b.vy *= speedDrag;
+    b.x += b.vx * dt;
+    b.y += b.vy * dt;
+
+    if(state.scene === 1){
+      if(scene1BallInsideTank()){
+        if(b.x - b.r < L.left){ b.x = L.left + b.r; b.vx = Math.abs(b.vx) * .15; }
+        if(b.x + b.r > L.right){ b.x = L.right - b.r; b.vx = -Math.abs(b.vx) * .15; }
+      }
+    }else{
+      if(b.x - b.r < L.left){ b.x = L.left + b.r; b.vx = Math.abs(b.vx) * .2; }
+      if(b.x + b.r > L.right){ b.x = L.right - b.r; b.vx = -Math.abs(b.vx) * .2; }
+    }
+    if(b.y + b.r > L.bottom){
+      b.y = L.bottom - b.r;
+      if(b.vy > 0) b.vy *= state.scene === 1 ? -.08 : -.18;
+      if(Math.abs(b.vy) < 18) b.vy = 0;
+    }
+    if(b.y - b.r < -L.tankH * .35){
+      b.y = -L.tankH * .35 + b.r;
+      if(b.vy < 0) b.vy *= -.15;
+    }
+  }
+
+  function drawArrow(x1,y1,x2,y2,head=9,width=2){
+    const dx = x2-x1, dy = y2-y1;
+    const len = Math.hypot(dx,dy);
+    if(len < 2) return;
+    const ux = dx/len, uy = dy/len;
+    ctx.save();
+    ctx.strokeStyle = '#f2f2f2';
+    ctx.fillStyle = '#f2f2f2';
+    ctx.lineWidth = width;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(x1,y1);
+    ctx.lineTo(x2 - ux*head, y2 - uy*head);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x2,y2);
+    ctx.lineTo(x2 - ux*head - uy*head*.52, y2 - uy*head + ux*head*.52);
+    ctx.lineTo(x2 - ux*head + uy*head*.52, y2 - uy*head - ux*head*.52);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
+
+  function drawPressureArrow(x1,y1,x2,y2,head=10,width=1.15){
+    const dx = x2-x1, dy = y2-y1;
+    const len = Math.hypot(dx,dy);
+    if(len < 2) return;
+    const ux = dx/len, uy = dy/len;
+    ctx.save();
+    ctx.strokeStyle = '#050505';
+    ctx.fillStyle = '#050505';
+    ctx.lineWidth = width;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    ctx.moveTo(x1,y1);
+    ctx.lineTo(x2 - ux*head, y2 - uy*head);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x2,y2);
+    ctx.lineTo(x2 - ux*head - uy*head*.62, y2 - uy*head + ux*head*.62);
+    ctx.lineTo(x2 - ux*head + uy*head*.62, y2 - uy*head - ux*head*.62);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawTank(){
+    const L = state.layout;
+    const waterY = state.ball.waterY || waterLine();
+    ctx.save();
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = '#f2f2f2';
+    ctx.lineJoin = 'round';
+    ctx.strokeRect(L.tankX, L.tankY, L.tankW, L.tankH);
+    ctx.beginPath();
+    ctx.rect(L.tankX+3, waterY, L.tankW-6, L.bottom - waterY - 3);
+    ctx.fillStyle = 'rgba(255,255,255,.14)';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,.62)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(L.left+4, waterY);
+    for(let x=L.left+4; x<=L.right-4; x+=18){
+      ctx.lineTo(x, waterY + Math.sin((x + performance.now()*0.001)*.05)*1.5);
+    }
+    ctx.stroke();
+
+    if(state.scene === 1){
+      ctx.strokeStyle = '#f2f2f2';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.moveTo(L.spoutX-1, L.spoutY);
+      ctx.lineTo(L.spoutX+34, L.spoutY);
+      ctx.lineTo(L.spoutX+34, L.spoutY+18);
+      ctx.stroke();
+      if(state.overflowRead > 1){
+        ctx.strokeStyle = 'rgba(255,255,255,.65)';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(L.spoutX+34, L.spoutY+17);
+        ctx.bezierCurveTo(L.spoutX+42, L.spoutY+48, L.cylX+L.cylW*.5, L.cylY-24, L.cylX+L.cylW*.5, L.cylY+4);
+        ctx.stroke();
+      }
+      drawCylinder();
+    }
+    ctx.restore();
+  }
+
+  function drawCylinder(){
+    const L = state.layout;
+    const maxMl = state.scene === 1 ? scene1MeasureMax() : Math.max(1000, state.ball.volumeCm3 * 1.1);
+    const displayMl = state.scene === 1 ? state.overflowMax : state.overflowRead;
+    const fillH = clamp(displayMl / maxMl, 0, 1) * (L.cylH-16);
+    ctx.save();
+    ctx.strokeStyle = '#f2f2f2';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(L.cylX, L.cylY, L.cylW, L.cylH);
+    ctx.fillStyle = 'rgba(255,255,255,.18)';
+    ctx.fillRect(L.cylX+3, L.cylY+L.cylH-3-fillH, L.cylW-6, fillH);
+    ctx.strokeStyle = 'rgba(255,255,255,.72)';
+    ctx.lineWidth = 1;
+    ctx.font = '12px ui-monospace, SFMono-Regular, Menlo, monospace';
+    ctx.fillStyle = '#f2f2f2';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    for(let i=0;i<=5;i++){
+      const y = L.cylY + L.cylH - 8 - i*(L.cylH-16)/5;
+      const tick = i%5===0 ? 13 : 8;
+      ctx.beginPath(); ctx.moveTo(L.cylX, y); ctx.lineTo(L.cylX+tick, y); ctx.stroke();
+      if(i>0){
+        const label = Math.round(maxMl*i/5);
+        ctx.fillText(String(label), L.cylX+16, y);
+      }
+    }
+    ctx.font = 'bold 16px ui-monospace, SFMono-Regular, Menlo, monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(`${Math.round(displayMl)} mL`, L.cylX+L.cylW/2, L.cylY-14);
+    ctx.restore();
+  }
+
+  function drawBall(){
+    const b = state.ball;
+    ctx.save();
+    if(state.scene === 1 && state.scene1Shape === 'cube'){
+      const side = b.sidePx || b.r * 2;
+      const x = b.x - side/2, y = b.y - side/2;
+      const grad = ctx.createLinearGradient(x, y, x + side, y + side);
+      grad.addColorStop(0,'#f5f5f5');
+      grad.addColorStop(.58,'#9a9a9a');
+      grad.addColorStop(1,'#4a4a4a');
+      ctx.fillStyle = grad;
+      ctx.strokeStyle = '#f2f2f2';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.rect(x, y, side, side);
+      ctx.fill();
+      ctx.stroke();
+      ctx.globalAlpha = .28;
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(x+side*.14, y+side*.32);
+      ctx.lineTo(x+side*.86, y+side*.32);
+      ctx.moveTo(x+side*.14, y+side*.58);
+      ctx.lineTo(x+side*.86, y+side*.58);
+      ctx.stroke();
+      ctx.restore();
+      return;
+    }
+    const grad = ctx.createRadialGradient(b.x-b.r*.35,b.y-b.r*.42,b.r*.1,b.x,b.y,b.r);
+    if(state.scene === 1){
+      grad.addColorStop(0,'#f2f2f2'); grad.addColorStop(.55,'#9a9a9a'); grad.addColorStop(1,'#484848');
+    }else{
+      grad.addColorStop(0,'#ffffff'); grad.addColorStop(.65,'#cfcfcf'); grad.addColorStop(1,'#5f5f5f');
+    }
+    ctx.fillStyle = grad;
+    ctx.strokeStyle = '#f2f2f2';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(b.x,b.y,b.r,0,TAU);
+    ctx.fill();
+    ctx.stroke();
+    ctx.globalAlpha = .35;
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.ellipse(b.x,b.y,b.r*.74,b.r*.18,0,0,TAU);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawOutlineArrow(x1, y1, x2, y2, shaftW=16, headW=34, headLen=22){
+    const dx = x2-x1, dy = y2-y1;
+    const len = Math.hypot(dx,dy);
+    if(len < 8) return;
+    const ux = dx/len, uy = dy/len;
+    const px = -uy, py = ux;
+    const hLen = Math.min(headLen, len * .48);
+    const neckX = x2 - ux*hLen, neckY = y2 - uy*hLen;
+    const halfS = shaftW/2, halfH = headW/2;
+    ctx.save();
+    ctx.strokeStyle = '#f2f2f2';
+    ctx.fillStyle = 'rgba(255,255,255,.03)';
+    ctx.lineWidth = 3.2;
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(x1 + px*halfS, y1 + py*halfS);
+    ctx.lineTo(neckX + px*halfS, neckY + py*halfS);
+    ctx.lineTo(neckX + px*halfH, neckY + py*halfH);
+    ctx.lineTo(x2, y2);
+    ctx.lineTo(neckX - px*halfH, neckY - py*halfH);
+    ctx.lineTo(neckX - px*halfS, neckY - py*halfS);
+    ctx.lineTo(x1 - px*halfS, y1 - py*halfS);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawForceDiagram(){
+    if(!state.showForce) return;
+    const b = state.ball;
+    const maxF = Math.max(b.weight, b.buoyancy, .001);
+    const base = clamp(b.r * 3.8, 90, 170);
+    const buoyLen = (b.buoyancy/maxF) * base;
+    const weightLen = (b.weight/maxF) * base;
+    if(buoyLen > 6) drawOutlineArrow(b.x, b.y, b.x, b.y - buoyLen, 16, 34, 22);
+    if(weightLen > 6) drawOutlineArrow(b.x, b.y, b.x, b.y + weightLen, 16, 34, 22);
+    ctx.save();
+    ctx.fillStyle = '#f2f2f2';
+    ctx.font = 'bold 17px ui-monospace, SFMono-Regular, Menlo, monospace';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    if(buoyLen > 6) ctx.fillText('Ｂ', b.x + 23, b.y - buoyLen);
+    if(weightLen > 6) ctx.fillText('W', b.x + 23, b.y + weightLen);
+    ctx.restore();
+  }
+
+  function drawPressureDiagram(){
+    if(!state.showPressure) return;
+    const b = state.ball;
+    const p = getParams();
+    const L = state.layout;
+    const waterY = b.waterY || waterLine();
+    const rhoFactor = clamp(p.rhoLiquid / 1000, 0.25, 3.0);
+    const depthScale = 0.52;
+    const minLen = 5;
+    const maxLen = Math.max(95, Math.min(300, state.height * 0.36));
+
+    function lengthFromDepth(y){
+      const depthPx = y - waterY;
+      if(depthPx <= 0) return 0;
+      return clamp(minLen + depthPx * rhoFactor * depthScale, minLen, maxLen);
+    }
+
+    // PRESSURE_MODEL_0_14_SPHERE_CUBE_ABSOLUTE_DEPTH
+    // 壓力箭頭只畫在物體表面，長度依該作用點到液面的實際深度與液體密度決定。
+    if(state.scene === 1 && state.scene1Shape === 'cube'){
+      const side = b.sidePx || b.r*2;
+      const left = b.x - side/2, right = b.x + side/2;
+      const top = b.y - side/2, bottom = b.y + side/2;
+      const inset = 5;
+      const samples = 7;
+
+      // 左右面：深度越深，水平壓力箭頭越長。
+      const y0 = Math.max(top + side*.08, waterY + 1);
+      const y1 = Math.min(bottom - side*.08, L.bottom - 2);
+      if(y1 > y0){
+        for(let i=0;i<samples;i++){
+          const y = samples === 1 ? (y0+y1)/2 : y0 + (y1-y0)*i/(samples-1);
+          const len = lengthFromDepth(y);
+          if(len <= minLen) continue;
+          const head = clamp(8 + len*.035, 9, 15);
+          drawPressureArrow(left - len, y, left + inset, y, head, 1.05);
+          drawPressureArrow(right + len, y, right - inset, y, head, 1.05);
+        }
+      }
+
+      // 上面：若上面在水中，壓力向下。
+      if(top > waterY && top < L.bottom){
+        const len = lengthFromDepth(top);
+        if(len > minLen){
+          const head = clamp(8 + len*.035, 9, 15);
+          for(let i=1;i<=3;i++){
+            const x = left + side*i/4;
+            drawPressureArrow(x, top - len, x, top + inset, head, 1.05);
+          }
+        }
+      }
+
+      // 底面：底部較深，壓力向上，應比上面更長。
+      if(bottom > waterY && bottom < L.bottom + 2){
+        const len = lengthFromDepth(bottom);
+        if(len > minLen){
+          const head = clamp(8 + len*.035, 9, 15);
+          for(let i=1;i<=3;i++){
+            const x = left + side*i/4;
+            drawPressureArrow(x, bottom + len, x, bottom - inset, head, 1.05);
+          }
+        }
+      }
+      return;
+    }
+
+    // 球體：箭頭沿半徑線由液體外側指向球心；球越深，所有箭頭越長；球底永遠比球頂長。
+    const samples = 32;
+    for(let i=0; i<samples; i++){
+      const a = i / samples * TAU;
+      const nx = Math.cos(a);
+      const ny = Math.sin(a);
+      const sx = b.x + nx * b.r;
+      const sy = b.y + ny * b.r;
+
+      if(sy <= waterY || sy >= L.bottom) continue;
+      if(state.scene === 1 && (sx <= L.left + 2 || sx >= L.right - 2)) continue;
+
+      const len = lengthFromDepth(sy);
+      if(len <= minLen + .5) continue;
+      const tailX = sx + nx * len;
+      const tailY = sy + ny * len;
+      const tipInset = 6;
+      const tipX = sx - nx * tipInset;
+      const tipY = sy - ny * tipInset;
+      const headSize = clamp(8 + len * 0.035, 9, 15);
+      drawPressureArrow(tailX, tailY, tipX, tipY, headSize, 1.05);
+    }
+  }
+
+  function formatDensity(rhoKgM3){
+    return (rhoKgM3 / 1000).toFixed(2).replace(/\.?0+$/,'');
+  }
+
+  function updateScene1Info(){
+    const el = document.getElementById('scene1Info');
+    if(!el) return;
+    const b = state.ball;
+    const p = getParams();
+    const subMl = clamp(b.submergedFraction * b.volumeCm3, 0, b.volumeCm3);
+    const shapeText = state.scene1Shape === 'cube' ? '立方體 10×10×10 cm' : '球體 Ø10 cm';
+    el.innerHTML = `
+      <span class="infoPill">${shapeText}</span>
+      <span class="infoPill">ρ物 ${formatDensity(7800)} g/cm³</span>
+      <span class="infoPill">ρ水 ${formatDensity(1000)} g/cm³</span>
+      <span class="infoPill">V物 ${Math.round(p.volumeCm3)} mL</span>
+      <span class="infoPill">V沒入 ${Math.round(b.submergedFraction*100)}% ｜ ${subMl.toFixed(0)} mL</span>
+      <span class="infoPill">溢出 ${Math.round(state.overflowMax)} mL</span>`;
+    if(shapeToggle){
+      shapeToggle.textContent = state.scene1Shape === 'cube' ? '□' : '○';
+      shapeToggle.classList.toggle('on', state.scene1Shape === 'cube');
+    }
+  }
+
+  function drawHud(){
+    if(state.scene === 1) return;
+    const L = state.layout;
+    const b = state.ball;
+    const p = getParams();
+    ctx.save();
+    ctx.font = '13px ui-monospace, SFMono-Regular, Menlo, monospace';
+    ctx.textBaseline = 'top';
+    ctx.textAlign = 'left';
+    ctx.fillStyle = 'rgba(255,255,255,.86)';
+    const lines = [];
+    if(state.scene === 1){
+      lines.push(`ρ球 ${formatDensity(7800)} g/cm³`);
+      lines.push(`ρ水 ${formatDensity(1000)} g/cm³`);
+      lines.push(`V沒入 ${Math.round(b.submergedFraction*100)}%`);
+    }else if(state.scene === 2){
+      lines.push(`ρ球 ${formatDensity(p.rhoBall)} g/cm³`);
+      lines.push(`ρ水 ${formatDensity(1000)} g/cm³`);
+      lines.push(`V沒入 ${Math.round(b.submergedFraction*100)}%`);
+    }else{
+      lines.push(`ρ球 ${formatDensity(p.rhoBall)} g/cm³`);
+      lines.push(`ρ液 ${formatDensity(p.rhoLiquid)} g/cm³`);
+      lines.push(`V球 ${p.volumeCm3}`);
+      lines.push(`V沒入 ${Math.round(b.submergedFraction*100)}%`);
+    }
+    const x = L.left + 10;
+    const y = Math.max(8, L.tankY - 4 - lines.length*17);
+    ctx.globalAlpha = .86;
+    for(let i=0;i<lines.length;i++) ctx.fillText(lines[i], x, y+i*17);
+    ctx.restore();
+  }
+
+  function render(){
+    ctx.clearRect(0,0,state.width,state.height);
+    ctx.fillStyle = '#202020';
+    ctx.fillRect(0,0,state.width,state.height);
+    drawTank();
+    drawPressureDiagram();
+    drawBall();
+    drawForceDiagram();
+    drawHud();
+  }
+
+  function loop(t){
+    const dt = clamp((t - state.lastT) / 1000, 0, .033);
+    state.lastT = t;
+    updatePhysics(dt);
+    render();
+    requestAnimationFrame(loop);
+  }
+
+  function pointerPos(e){
+    const rect = canvas.getBoundingClientRect();
+    return {x:e.clientX-rect.left, y:e.clientY-rect.top};
+  }
+  function isNearBall(x,y){
+    const b = state.ball;
+    return Math.hypot(x-b.x, y-b.y) <= b.r + 26;
+  }
+  function centroid(){
+    let x=0,y=0,n=0;
+    for(const p of state.activePointers.values()){ x += p.x; y += p.y; n++; }
+    return n ? {x:x/n,y:y/n,n} : null;
+  }
+  function startDragAt(pos, keepOffset){
+    const b = state.ball;
+    if(state.scene === 1) state.scene1Activated = true;
+    state.dragging = true;
+    canvas.classList.add('dragging');
+    b.heldOffsetX = keepOffset ? b.x - pos.x : 0;
+    b.heldOffsetY = keepOffset ? b.y - pos.y : 0;
+  }
+  function moveDraggedBall(pos){
+    const L = state.layout;
+    const b = state.ball;
+    const nx = pos.x + b.heldOffsetX;
+    const ny = pos.y + b.heldOffsetY;
+    b.vx = (nx - b.x) * 8;
+    b.vy = (ny - b.y) * 8;
+    if(state.scene === 1){
+      b.x = clamp(nx, b.r + 4, state.width - b.r - 4);
+      b.y = clamp(ny, b.r + 4, L.bottom - b.r);
+    }else{
+      b.x = clamp(nx, L.left + b.r, L.right - b.r);
+      b.y = clamp(ny, -L.tankH*.28 + b.r, L.bottom - b.r);
+    }
+  }
+  canvas.addEventListener('pointerdown', e => {
+    if(e.pointerType === 'mouse' && e.button !== 0) return;
+    canvas.setPointerCapture?.(e.pointerId);
+    const p = pointerPos(e);
+    state.activePointers.set(e.pointerId, p);
+    const c = centroid();
+    if(c && (c.n >= 2 || isNearBall(p.x,p.y))){
+      startDragAt(c, c.n < 2);
+      moveDraggedBall(c);
+    }
+  });
+  canvas.addEventListener('pointermove', e => {
+    if(!state.activePointers.has(e.pointerId)) return;
+    const p = pointerPos(e);
+    state.activePointers.set(e.pointerId, p);
+    const c = centroid();
+    if(!c) return;
+    if(!state.dragging && (c.n >= 2 || isNearBall(c.x,c.y))) startDragAt(c, c.n < 2);
+    if(state.dragging) moveDraggedBall(c);
+  });
+  function endPointer(e){
+    state.activePointers.delete(e.pointerId);
+    if(state.activePointers.size === 0){
+      state.dragging = false;
+      canvas.classList.remove('dragging');
+    }else{
+      const c = centroid();
+      if(c && state.dragging){
+        state.ball.heldOffsetX = state.ball.x - c.x;
+        state.ball.heldOffsetY = state.ball.y - c.y;
+      }
+    }
+  }
+  canvas.addEventListener('pointerup', endPointer);
+  canvas.addEventListener('pointercancel', endPointer);
+  canvas.addEventListener('lostpointercapture', endPointer);
+
+  tabs.forEach(tab => tab.addEventListener('click', () => {
+    state.scene = Number(tab.dataset.scene);
+    tabs.forEach(t => {
+      const on = t === tab;
+      t.classList.toggle('active', on);
+      t.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+    sceneControls.forEach((el,i) => el.classList.toggle('active', i+1 === state.scene));
+    state.layout = computeLayout();
+    resetScene();
+  }));
+  shapeToggle?.addEventListener('click', () => {
+    state.scene1Shape = state.scene1Shape === 'sphere' ? 'cube' : 'sphere';
+    if(state.scene !== 1) state.scene = 1;
+    resetScene();
+    updateScene1Info();
+  });
+  forceBtn.addEventListener('click', () => { state.showForce = !state.showForce; forceBtn.classList.toggle('on', state.showForce); });
+  pressureBtn.addEventListener('click', () => { state.showPressure = !state.showPressure; pressureBtn.classList.toggle('on', state.showPressure); });
+  resetBtn.addEventListener('click', resetScene);
+  Object.values(sliders).forEach(s => s.addEventListener('input', () => { updateOutputs(); }));
+
+  function escapeHTML(s){
+    return s.replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  }
+  function inlineMD(s){
+    return escapeHTML(s)
+      .replace(/`([^`]+)`/g,'<code>$1</code>')
+      .replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>');
+  }
+  function parseMD(md){
+    const lines = md.replace(/\r/g,'').trim().split('\n');
+    let html = '', list = false;
+    function closeList(){ if(list){ html += '</ul>'; list = false; } }
+    for(const raw of lines){
+      const line = raw.trim();
+      if(!line){ closeList(); continue; }
+      if(line.startsWith('### ')){ closeList(); html += `<h3>${inlineMD(line.slice(4))}</h3>`; }
+      else if(line.startsWith('## ')){ closeList(); html += `<h2>${inlineMD(line.slice(3))}</h2>`; }
+      else if(line.startsWith('# ')){ closeList(); html += `<h1>${inlineMD(line.slice(2))}</h1>`; }
+      else if(line.startsWith('- ')){ if(!list){ html += '<ul>'; list = true; } html += `<li>${inlineMD(line.slice(2))}</li>`; }
+      else { closeList(); html += `<p>${inlineMD(line)}</p>`; }
+    }
+    closeList();
+    return html;
+  }
+  mdContent.innerHTML = parseMD(document.getElementById('readmeSource').textContent);
+  helpBtn.addEventListener('click', () => modal.classList.add('open'));
+  closeModal.addEventListener('click', () => modal.classList.remove('open'));
+  modal.addEventListener('click', e => { if(e.target === modal) modal.classList.remove('open'); });
+  window.addEventListener('keydown', e => { if(e.key === 'Escape') modal.classList.remove('open'); });
+
+  updateOutputs();
+  new ResizeObserver(resizeCanvas).observe(canvas.parentElement);
+  requestAnimationFrame(t => { state.lastT = t; requestAnimationFrame(loop); });
+})();
+
+  // BUILD_0_14_REAL_FIX_DIAMETER_10_ONE_ROW_TRANSPARENT_20260611
+</script>
+</body>
+</html>
