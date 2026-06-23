@@ -3,9 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<meta name="version" content="0.4.3">
+<meta name="version" content="0.4">
 <script src="/eduGame/ga4.js"></script>
-<title>運動學賽車 v0.4.3</title>
+<title>運動學賽車 v0.4</title>
 <style>
   :root{
     --bg:#151515; --panel:#202020; --panel2:#2a2a2a; --line:#f2f2f2;
@@ -168,7 +168,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '0.4.3';
+  const VERSION = '0.4';
   const DPR = () => Math.max(1, Math.min(2.5, window.devicePixelRatio || 1));
   const COLORS = ['#7dd3fc', '#fda4af'];
   const ROAD_HALF_WIDTH = 6.2;
@@ -332,13 +332,6 @@
     while(d < -Math.PI) d += Math.PI*2;
     return a + d*t;
   }
-
-  function angleDiff(a,b){
-    let d = b - a;
-    while (d > Math.PI) d -= Math.PI * 2;
-    while (d < -Math.PI) d += Math.PI * 2;
-    return d;
-  }
   function cyclicForwardDelta(fromS, toS){
     if (!track) return 0;
     let d = mod(toS, track.length) - mod(fromS, track.length);
@@ -499,7 +492,7 @@
   }
 
   function generateWorld(){
-    const seed = Math.floor(track.length * 1000) ^ track.samples.length ^ 303 ^ Math.round(obstacleFrequency * 97);
+    const seed = Math.floor(track.length * 1000) ^ track.samples.length ^ 303;
     const rnd = mulberry32(seed);
     hillPhase = rnd() * Math.PI * 2;
     obstacles = [];
@@ -543,9 +536,6 @@
 
   function resetRace(){
     players = [makePlayer(0), makePlayer(1)];
-    keys.p0.throttle = keys.p0.left = keys.p0.right = false;
-    keys.p1.throttle = keys.p1.left = keys.p1.right = false;
-    document.querySelectorAll('.ctrlBtn.active').forEach(b => b.classList.remove('active'));
     raceTime = 0;
     countdownElapsed = 0;
     countdownBeepStep = -1;
@@ -591,48 +581,22 @@
         const fixedLat = clamp(nr.signed, -roadLimit, roadLimit);
         p.x = nr.x + nr.nx * fixedLat;
         p.y = nr.y + nr.ny * fixedLat;
-        if (raceTime - p.lastBoundaryBeep > 0.22) {
-          // 邊線碰撞：只做明顯但不歸零的減速，避免 v-t 圖變成斷裂直條。
-          p.speed *= 0.90;
+        p.speed *= 0.58;
+        p.heading = angleLerp(p.heading, nr.angle, 0.18);
+        if (raceTime - p.lastBoundaryBeep > 0.17) {
           sound('edge', i);
           p.lastBoundaryBeep = raceTime;
-        } else {
-          // 持續貼邊時避免每一幀連續重罰。
-          p.speed *= 0.997;
         }
-        p.heading = angleLerp(p.heading, nr.angle, 0.26);
       }
 
       const nr2 = nearestRoad(p, p.s, 42);
       let projected = unwrapS(nr2.s, p.s);
-      const alignment = Math.cos(angleDiff(p.heading, nr2.angle));
-      const forwardV = p.speed * Math.max(0, alignment);
-
       if (projected < p.s - 1.2) {
-        // 若曲線交會或貼邊導致最近點短暫回跳，不讓進度倒退，也不重罰到停車。
-        p.speed *= 0.94;
+        p.speed *= 0.86;
         projected = p.s;
       }
-
-      // 0.4.1 的問題多半來自最近道路點在複雜彎道/交會處停在同一取樣點，
-      // 使 s 不前進；這裡加入沿車頭方向的保底前進量，仍禁止倒退。
-      const minAlign = input.throttle ? 0.46 : 0.22;
-      const fallbackAdvance = p.speed * Math.max(minAlign, alignment) * dt;
-      const newS = Math.max(p.s, projected, oldS + fallbackAdvance);
-      p.s = clamp(newS, 0, track.length);
-
-      // 讓車體回貼到相同橫向位置的新道路截面，避免畫面看起來有速度但位置不更新。
-      const roadNow = sampleAt(track, p.s, false);
-      const latNow = clamp(nr2.signed, -roadLimit, roadLimit);
-      p.x = roadNow.x + roadNow.nx * latNow;
-      p.y = roadNow.y + roadNow.ny * latNow;
-      p.heading = angleLerp(p.heading, roadNow.angle + angleDiff(p.heading, nr2.angle) * 0.18, 0.10);
-
-      const rawTrackV = clamp((p.s - oldS) / Math.max(0.0001, dt), 0, MAX_SPEED_MS);
-      const targetGraphV = Math.max(rawTrackV, Math.min(forwardV * 0.86 + p.speed * 0.14, p.speed));
-      const smoothK = clamp(dt * 6.2, 0.06, 0.26);
-      p.graphV += (targetGraphV - p.graphV) * smoothK;
-      p.graphV = clamp(p.graphV, 0, MAX_SPEED_MS);
+      p.s = clamp(Math.max(p.s, projected), 0, track.length);
+      p.graphV = clamp((p.s - oldS) / Math.max(0.0001, dt), 0, MAX_SPEED_MS);
       p.area += p.graphV * dt;
 
       checkStaticObstacleCollision(p, i);
@@ -674,11 +638,10 @@
       const pos = objectWorld(ob);
       const threshold = CAR_RADIUS + ob.radius;
       if (Math.hypot(p.x-pos.x, p.y-pos.y) < threshold) {
-        pushAway(p, pos, 1.25);
-        if (raceTime - p.lastObjectHit > 0.42) {
-          // 障礙物碰撞：減速但保留動能，讓 v-t 圖呈現平滑下降而非歸零尖峰。
-          p.speed *= ob.type === 'puddle' ? 0.92 : 0.84;
-          p.graphV *= ob.type === 'puddle' ? 0.95 : 0.9;
+        p.speed *= ob.type === 'puddle' ? 0.66 : 0.38;
+        p.graphV *= 0.35;
+        pushAway(p, pos, 0.85);
+        if (raceTime - p.lastObjectHit > 0.28) {
           sound('object', playerIndex);
           p.lastObjectHit = raceTime;
         }
@@ -694,10 +657,10 @@
       const pos = dogWorld(dog, raceTime);
       const threshold = CAR_RADIUS + dog.radius;
       if (Math.hypot(p.x-pos.x, p.y-pos.y) < threshold) {
-        pushAway(p, pos, 1.55);
-        if (raceTime - p.lastObjectHit > 0.58) {
-          p.speed *= 0.78;
-          p.graphV *= 0.86;
+        p.speed *= 0.24;
+        p.graphV *= 0.2;
+        pushAway(p, pos, 1.15);
+        if (raceTime - p.lastObjectHit > 0.5) {
           sound('dog', playerIndex);
           p.lastObjectHit = raceTime;
         }
@@ -716,9 +679,9 @@
       const push = (minD - d) / 2 + 0.08;
       a.x += nx*push; a.y += ny*push;
       b.x -= nx*push; b.y -= ny*push;
-      if (raceTime - a.lastCarHit > 0.42 || raceTime - b.lastCarHit > 0.42) {
-        a.speed *= 0.84; b.speed *= 0.84;
-        a.graphV *= 0.9; b.graphV *= 0.9;
+      a.speed *= 0.48; b.speed *= 0.48;
+      a.graphV *= 0.45; b.graphV *= 0.45;
+      if (raceTime - a.lastCarHit > 0.35 || raceTime - b.lastCarHit > 0.35) {
         sound('car', 0);
         a.lastCarHit = b.lastCarHit = raceTime;
       }
@@ -1318,6 +1281,7 @@
       designerOverlay.classList.add('show');
       return;
     }
+    generateWorld();
     resetRace();
   });
 
@@ -1332,27 +1296,12 @@
   btns.forEach(btn => {
     const p = btn.dataset.player === '0' ? keys.p0 : keys.p1;
     const k = btn.dataset.key;
-    const on = (e) => {
-      if (e) e.preventDefault();
-      initAudio();
-      p[k] = true;
-      btn.classList.add('active');
-    };
-    const off = (e) => {
-      if (e) e.preventDefault();
-      p[k] = false;
-      btn.classList.remove('active');
-    };
+    const on = (e) => { e.preventDefault(); initAudio(); p[k] = true; btn.classList.add('active'); };
+    const off = (e) => { e.preventDefault(); p[k] = false; btn.classList.remove('active'); };
     btn.addEventListener('pointerdown', on);
     btn.addEventListener('pointerup', off);
     btn.addEventListener('pointercancel', off);
     btn.addEventListener('pointerleave', off);
-    btn.addEventListener('mousedown', on);
-    btn.addEventListener('mouseup', off);
-    btn.addEventListener('mouseleave', off);
-    btn.addEventListener('touchstart', on, {passive:false});
-    btn.addEventListener('touchend', off, {passive:false});
-    btn.addEventListener('touchcancel', off, {passive:false});
   });
 
   function loadKeyBindings(){
@@ -1443,7 +1392,7 @@
     replayIndex = Number(replayRange.value);
     mode = history.length && replayIndex < history.length-1 ? 'replay' : 'ended';
     const h = history[replayIndex];
-    timeText.textContent = h ? formatRaceTime(h.t) : '0:00.0';
+    timeText.textContent = h ? formatRaceTime(h.t) : '0分00.0秒';
   });
 
   playReplayBtn.addEventListener('click', () => {
@@ -1455,7 +1404,7 @@
     }
   });
 
-  const fallbackReadme = `# 運動學賽車：x-t 與 v-t 圖\n\n## 玩法\n- 開始時先用一筆畫出賽道。路線放開後會自動接回起點，形成一圈。\n- 玩家一：W 是油門，A / D 是左轉與右轉。\n- 玩家二：方向鍵 ↑ 是油門，← / → 是左轉與右轉。\n- 平板或手機可以直接按畫面下方的按鈕。\n- 紅燈、黃燈、綠燈倒數後，時間才會開始。\n- 這版是平面賽道模型：車子真的在平面道路上移動，不只是沿著一條一維線前進。上方車速以 km/h 顯示；v-t 圖仍使用 m/s。\n\n## 碰撞與障礙物\n- 撞到路邊、路上障礙物、移動小狗、對手車輛，都會減速；0.4.3 起改為不會過度歸零，並修正按鈕後車輛不前進的問題，讓 v-t 圖仍能維持可辨識的曲線。\n- 不同碰撞會有不同音效。\n- 小狗是移動障礙物，用來提醒駕駛者必須注意突發事件；遊戲中只用減速表示急煞。
+  const fallbackReadme = `# 運動學賽車：x-t 與 v-t 圖\n\n## 玩法\n- 開始時先用一筆畫出賽道。路線放開後會自動接回起點，形成一圈。\n- 玩家一：W 是油門，A / D 是左轉與右轉。\n- 玩家二：方向鍵 ↑ 是油門，← / → 是左轉與右轉。\n- 平板或手機可以直接按畫面下方的按鈕。\n- 紅燈、黃燈、綠燈倒數後，時間才會開始。\n- 這版是平面賽道模型：車子真的在平面道路上移動，不只是沿著一條一維線前進。上方車速以 km/h 顯示；v-t 圖仍使用 m/s。\n\n## 碰撞與障礙物\n- 撞到路邊、路上障礙物、移動小狗、對手車輛，都會大幅減速。\n- 不同碰撞會有不同音效。\n- 小狗是移動障礙物，用來提醒駕駛者必須注意突發事件；遊戲中只用減速表示急煞。
 - 賽道有上坡與下坡。上坡會使車輛減速，下坡會使車輛加速。最高時速設定為 228 km/h，但通常需要持續加速、少碰撞且遇到下坡才可能接近。\n\n## 圖怎麼看\n- 左下角是 x-t 圖。這裡的 x 代表「沿賽道方向從起點量到車子的距離」，單位是 m。\n- 曲線越陡，代表同樣時間內位置增加越多，也就是沿賽道方向速度越快。\n- 右下角是 v-t 圖。縱軸是沿賽道方向速度，單位是 m/s；橫軸是時間，單位是 s。\n- v-t 圖曲線下面積用 \`Σ v × Δt\` 估計，數值單位是 m，會接近 x-t 圖中位置增加量。\n\n## 觀察任務\n1. 哪一段 x-t 圖最陡？那時候 v-t 圖的速度是否也較高？\n2. 撞到障礙物時，v-t 圖會出現什麼變化？\n3. 第一位到終點後，另一位繼續跑完；兩人都完成後可以拖曳 replay 時間軸。\n4. 比較 v-t 面積和 x-t 位置變化，思考「速度－時間圖面積」為什麼可以代表位移。\n\n## 教學提醒\n此活動把彎曲賽道轉換成「沿賽道的位置 x」。這不是平面座標的水平 x，而是沿路徑量出的距離。若要講嚴格的二維運動，需另外區分速度大小、速度方向與位移向量。`;
 
   function escapeHtml(str){ return str.replace(/[&<>\"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[ch])); }
