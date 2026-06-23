@@ -1,0 +1,1396 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="version" content="0.3">
+<script src="/eduGame/ga4.js"></script>
+<title>運動學賽車 v0.3</title>
+<style>
+  :root{
+    --bg:#151515; --panel:#202020; --panel2:#2a2a2a; --line:#f2f2f2;
+    --muted:#9a9a9a; --p1:#7dd3fc; --p2:#fda4af; --warn:#facc15;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;touch-action:manipulation;}
+  html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--line);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans TC",sans-serif;}
+  button,input{font:inherit;color:inherit;}
+  #app{height:100svh;display:flex;flex-direction:column;background:var(--bg);}
+  #stageWrap{position:relative;flex:1 1 53%;min-height:230px;border-bottom:1px solid #3a3a3a;background:#101010;}
+  #raceCanvas{display:block;width:100%;height:100%;}
+  #controlPanel{flex:0 0 auto;display:grid;grid-template-columns:1fr auto 1fr;grid-template-rows:auto 168px auto;gap:8px;padding:8px;background:#191919;border-top:1px solid #303030;}
+  .pad{display:grid;grid-template-columns:repeat(3,minmax(44px,1fr));gap:8px;align-items:center;max-width:460px;width:100%;justify-self:center;}
+  .padTitle{display:none;}
+  .tag{display:inline-flex;gap:6px;align-items:center;white-space:nowrap;}
+  .dot{width:10px;height:10px;border-radius:50%;display:inline-block;background:currentColor;}
+  .p1{color:var(--p1)} .p2{color:var(--p2)}
+  .ctrlBtn,.smallBtn{border:1px solid #555;background:#242424;border-radius:12px;min-height:52px;cursor:pointer;box-shadow:inset 0 0 0 1px rgba(255,255,255,.04);}
+  .ctrlBtn{font-size:22px;font-weight:800;letter-spacing:.03em;display:flex;align-items:center;justify-content:center;gap:6px;}
+  .keyCap{font-size:16px;opacity:.86;min-width:18px;}
+  .ctrlBtn:active,.ctrlBtn.active,.smallBtn:active{background:#f1f1f1;color:#111;transform:translateY(1px);}
+  .centerTools{display:flex;flex-direction:column;gap:8px;align-self:start;min-width:58px;}
+  .smallBtn{min-height:40px;padding:0 12px;font-weight:800;font-size:18px;}
+  .chartBox{position:relative;background:#111;border:1px solid #3a3a3a;border-radius:12px;overflow:hidden;min-width:0;}
+  .chartBox canvas{display:block;width:100%;height:100%;}
+  .chartLabel{position:absolute;top:7px;left:9px;font-size:12px;color:#ddd;background:rgba(0,0,0,.35);border-radius:8px;padding:2px 6px;pointer-events:none;}
+  #areaReadout{position:absolute;right:8px;top:7px;text-align:right;font-size:11px;color:#eee;background:rgba(0,0,0,.42);border-radius:8px;padding:3px 6px;line-height:1.35;pointer-events:none;}
+  #xChartBox{grid-column:1/2;grid-row:2/3;}
+  #vChartBox{grid-column:3/4;grid-row:2/3;}
+  #replayBar{grid-column:1/-1;grid-row:3/4;display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center;padding:2px 0 0;}
+  #replayRange{width:100%;accent-color:#eee;}
+  #timeText{font-variant-numeric:tabular-nums;color:#d0d0d0;min-width:78px;text-align:right;font-size:12px;}
+  .disabledHint{opacity:.4;pointer-events:none;}
+
+  .modal{position:fixed;inset:0;background:rgba(0,0,0,.82);display:none;align-items:center;justify-content:center;z-index:50;padding:14px;}
+  .modal.show{display:flex;}
+  .dialog{width:min(980px,96vw);max-height:94svh;background:#181818;border:1px solid #555;border-radius:18px;box-shadow:0 20px 80px rgba(0,0,0,.65);overflow:hidden;display:flex;flex-direction:column;}
+  .modalHeader{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px;border-bottom:1px solid #3a3a3a;background:#202020;}
+  .modalHeader .hint{font-size:13px;color:#d8d8d8;line-height:1.4;}
+  .modalBtns{display:flex;gap:8px;align-items:center;}
+  #drawCanvas{width:100%;height:min(62svh,560px);display:block;background:#111;cursor:crosshair;touch-action:none;}
+  #helpContent{padding:18px 20px;overflow:auto;line-height:1.65;font-size:15px;color:#eee;}
+  #helpContent h1,#helpContent h2,#helpContent h3{line-height:1.25;margin:1em 0 .45em;}
+  #helpContent h1{font-size:22px} #helpContent h2{font-size:19px} #helpContent h3{font-size:17px}
+  #helpContent code{background:#292929;padding:1px 5px;border-radius:5px;color:#fff;}
+  #helpContent ul{padding-left:1.3em;}
+  .closeBtn{border:0;background:transparent;color:#fff;font-size:28px;line-height:1;cursor:pointer;padding:0 4px;}
+  .ghost{background:#111;border:1px solid #666;border-radius:10px;padding:8px 12px;cursor:pointer;}
+  .keyTable th,.keyTable td{border:1px solid #4a4a4a;padding:8px;text-align:center;}
+  .keyBind{min-width:96px;}
+  .keyBind.listening{background:#f2f2f2;color:#111;}
+  .primary{background:#f2f2f2;color:#111;border:1px solid #f2f2f2;border-radius:10px;padding:8px 14px;cursor:pointer;font-weight:800;}
+  .primary:disabled{opacity:.35;cursor:not-allowed;}
+  #drawMsg{font-size:12px;color:#aaa;padding:8px 12px;border-top:1px solid #333;background:#161616;}
+
+  @media (max-width: 720px){
+    #stageWrap{flex-basis:43%;min-height:210px;}
+    #controlPanel{grid-template-columns:1fr 1fr;grid-template-rows:auto auto 136px 136px auto;gap:7px;padding:7px;}
+    .pad{grid-template-columns:repeat(3,1fr);gap:6px;}
+    .ctrlBtn{min-height:48px;font-size:19px;border-radius:10px;gap:3px;}
+    .keyCap{font-size:13px;}
+    .centerTools{grid-column:1/-1;grid-row:2/3;flex-direction:row;justify-content:center;min-width:0;}
+    #xChartBox{grid-column:1/-1;grid-row:3/4;}
+    #vChartBox{grid-column:1/-1;grid-row:4/5;}
+    #replayBar{grid-row:5/6;}
+    .pad[data-player="0"]{grid-column:1/2;grid-row:1/2;}
+    .pad[data-player="1"]{grid-column:2/3;grid-row:1/2;}
+    .padTitle{font-size:11px;height:14px;}
+    #drawCanvas{height:58svh;}
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="stageWrap"><canvas id="raceCanvas" aria-label="雙人賽車舞台"></canvas></div>
+  <div id="controlPanel">
+    <div class="pad" data-player="0">
+      <div class="padTitle"><span class="tag p1"><span class="dot"></span>P1</span></div>
+      <button class="ctrlBtn" data-player="0" data-key="left" aria-label="玩家一左轉"><span class="keyCap">A</span><span>◀</span></button>
+      <button class="ctrlBtn" data-player="0" data-key="throttle" aria-label="玩家一油門"><span class="keyCap">W</span><span>▲</span></button>
+      <button class="ctrlBtn" data-player="0" data-key="right" aria-label="玩家一右轉"><span class="keyCap">D</span><span>▶</span></button>
+    </div>
+    <div class="centerTools">
+      <button id="helpBtn" class="smallBtn" aria-label="說明">?</button>
+      <button id="keyBtn" class="smallBtn" aria-label="鍵盤設定">⌨</button>
+      <button id="newTrackBtn" class="smallBtn" aria-label="重畫賽道">↻</button>
+    </div>
+    <div class="pad" data-player="1">
+      <div class="padTitle"><span class="tag p2"><span class="dot"></span>P2</span></div>
+      <button class="ctrlBtn" data-player="1" data-key="left" aria-label="玩家二左轉">←</button>
+      <button class="ctrlBtn" data-player="1" data-key="throttle" aria-label="玩家二油門">↑</button>
+      <button class="ctrlBtn" data-player="1" data-key="right" aria-label="玩家二右轉">→</button>
+    </div>
+    <div id="xChartBox" class="chartBox"><canvas id="xChart"></canvas><div class="chartLabel">x-t　m / s</div></div>
+    <div id="vChartBox" class="chartBox"><canvas id="vChart"></canvas><div class="chartLabel">v-t　m/s / s</div><div id="areaReadout"></div></div>
+    <div id="replayBar">
+      <button id="playReplayBtn" class="smallBtn disabledHint" aria-label="播放重播">▶</button>
+      <input id="replayRange" type="range" min="0" max="0" value="0" step="1" disabled>
+      <div id="timeText">0.0 s</div>
+    </div>
+  </div>
+</div>
+
+<div id="designerOverlay" class="modal show" role="dialog" aria-modal="true">
+  <div class="dialog">
+    <div class="modalHeader">
+      <div class="hint">一筆畫賽道。放開後自動封閉；交叉處依畫線順序判定為不同路段。</div>
+      <div class="modalBtns">
+        <button id="clearDrawBtn" class="ghost">重畫</button>
+        <button id="startRaceBtn" class="primary" disabled>開始</button>
+      </div>
+    </div>
+    <canvas id="drawCanvas" aria-label="賽道繪圖區"></canvas>
+    <div id="drawMsg">用滑鼠或手指畫一條封閉路徑；未完全封閉時，系統會接回起點。</div>
+  </div>
+</div>
+
+<div id="helpModal" class="modal" role="dialog" aria-modal="true">
+  <div class="dialog">
+    <div class="modalHeader">
+      <div class="hint">操作與物理說明</div>
+      <button id="closeHelpBtn" class="closeBtn" aria-label="關閉">×</button>
+    </div>
+    <div id="helpContent"></div>
+  </div>
+</div>
+
+<div id="keyModal" class="modal" role="dialog" aria-modal="true">
+  <div class="dialog" style="width:min(620px,94vw)">
+    <div class="modalHeader">
+      <div class="hint">鍵盤設定</div>
+      <button id="closeKeyBtn" class="closeBtn" aria-label="關閉">×</button>
+    </div>
+    <div id="keyContent" style="padding:16px 18px;overflow:auto">
+      <table class="keyTable" style="width:100%;border-collapse:collapse;font-size:14px">
+        <thead><tr><th>玩家</th><th>油門</th><th>左</th><th>右</th></tr></thead>
+        <tbody>
+          <tr><td>P1</td><td><button class="ghost keyBind" data-player="0" data-action="throttle"></button></td><td><button class="ghost keyBind" data-player="0" data-action="left"></button></td><td><button class="ghost keyBind" data-player="0" data-action="right"></button></td></tr>
+          <tr><td>P2</td><td><button class="ghost keyBind" data-player="1" data-action="throttle"></button></td><td><button class="ghost keyBind" data-player="1" data-action="left"></button></td><td><button class="ghost keyBind" data-player="1" data-action="right"></button></td></tr>
+        </tbody>
+      </table>
+      <div id="keyHint" style="margin-top:12px;color:#aaa;font-size:13px">點一個按鍵欄位，再按下新的鍵。</div>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  'use strict';
+
+  const VERSION = '0.3';
+  const DPR = () => Math.max(1, Math.min(2.5, window.devicePixelRatio || 1));
+  const COLORS = ['#7dd3fc', '#fda4af'];
+  const ROAD_HALF_WIDTH = 6.2;
+  const CAR_RADIUS = 1.15;
+  const CAR_HALF_WIDTH = 0.95;
+  const SAMPLE_STEP = 1.0;
+  const LOOK_AHEAD = 95;
+  const MAX_SPEED_MS = 228 / 3.6;
+  const MAX_HISTORY_FPS = 30;
+  const COUNT_RED = 0.85;
+  const COUNT_YELLOW = 0.85;
+  const COUNT_GREEN = 0.42;
+  const COUNT_TOTAL = COUNT_RED + COUNT_YELLOW + COUNT_GREEN;
+
+  const raceCanvas = document.getElementById('raceCanvas');
+  const raceCtx = raceCanvas.getContext('2d');
+  const xChart = document.getElementById('xChart');
+  const vChart = document.getElementById('vChart');
+  const xCtx = xChart.getContext('2d');
+  const vCtx = vChart.getContext('2d');
+  const areaReadout = document.getElementById('areaReadout');
+  const replayRange = document.getElementById('replayRange');
+  const playReplayBtn = document.getElementById('playReplayBtn');
+  const timeText = document.getElementById('timeText');
+
+  const designerOverlay = document.getElementById('designerOverlay');
+  const drawCanvas = document.getElementById('drawCanvas');
+  const drawCtx = drawCanvas.getContext('2d');
+  const clearDrawBtn = document.getElementById('clearDrawBtn');
+  const startRaceBtn = document.getElementById('startRaceBtn');
+  const drawMsg = document.getElementById('drawMsg');
+  const newTrackBtn = document.getElementById('newTrackBtn');
+
+  const helpBtn = document.getElementById('helpBtn');
+  const helpModal = document.getElementById('helpModal');
+  const closeHelpBtn = document.getElementById('closeHelpBtn');
+  const helpContent = document.getElementById('helpContent');
+  const keyBtn = document.getElementById('keyBtn');
+  const keyModal = document.getElementById('keyModal');
+  const closeKeyBtn = document.getElementById('closeKeyBtn');
+  const keyHint = document.getElementById('keyHint');
+  const keyBindBtns = Array.from(document.querySelectorAll('.keyBind'));
+
+  const keys = {
+    p0: { throttle:false, left:false, right:false },
+    p1: { throttle:false, left:false, right:false }
+  };
+  const defaultBindings = {
+    p0: { throttle:'KeyW', left:'KeyA', right:'KeyD' },
+    p1: { throttle:'ArrowUp', left:'ArrowLeft', right:'ArrowRight' }
+  };
+  let keyBindings = loadKeyBindings();
+  let bindingTarget = null;
+
+  let audioCtx = null;
+  let mode = 'design'; // design | countdown | racing | ended | replay
+  let track = null;
+  let players = [];
+  let history = [];
+  let obstacles = [];
+  let dogs = [];
+  let scenery = [];
+  let hillPhase = 0;
+  let raceTime = 0;
+  let countdownElapsed = 0;
+  let lastFrame = performance.now();
+  let lastHistoryT = -999;
+  let replayIndex = 0;
+  let replayPlaying = false;
+  let replayTimer = 0;
+  let drawing = false;
+  let drawnPoints = [];
+
+  function makePlayer(index){
+    const base = sampleAt(track, 0.5, true);
+    const lat = index === 0 ? -1.75 : 1.75;
+    const pos = pointOnRoad(0.5, lat);
+    return {
+      index,
+      x: pos.x,
+      y: pos.y,
+      heading: base.angle,
+      speed: 0,
+      s: 0,
+      prevS: 0,
+      graphV: 0,
+      area: 0,
+      finished: false,
+      finishTime: null,
+      lastBoundaryBeep: -10,
+      lastObjectHit: -10,
+      lastCarHit: -10
+    };
+  }
+
+  function setupCanvasSize(canvas, ctx){
+    const rect = canvas.getBoundingClientRect();
+    const d = DPR();
+    const w = Math.max(1, Math.round(rect.width * d));
+    const h = Math.max(1, Math.round(rect.height * d));
+    if (canvas.width !== w || canvas.height !== h) {
+      canvas.width = w; canvas.height = h;
+      ctx.setTransform(d,0,0,d,0,0);
+    }
+  }
+
+  function resizeAll(){
+    setupCanvasSize(raceCanvas, raceCtx);
+    setupCanvasSize(xChart, xCtx);
+    setupCanvasSize(vChart, vCtx);
+    setupCanvasSize(drawCanvas, drawCtx);
+    drawDesigner();
+    drawCharts(getVisibleHistory());
+    render();
+  }
+  window.addEventListener('resize', resizeAll);
+  window.addEventListener('orientationchange', () => setTimeout(resizeAll, 120));
+
+  function initAudio(){
+    if (!audioCtx) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (AC) audioCtx = new AC();
+    }
+    if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+  }
+
+  function beep(freq=130, duration=0.055, gain=0.045, type='square'){
+    if (!audioCtx) return;
+    const now = audioCtx.currentTime;
+    const osc = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, now);
+    g.gain.setValueAtTime(gain, now);
+    g.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+    osc.connect(g).connect(audioCtx.destination);
+    osc.start(now); osc.stop(now + duration);
+  }
+
+  function sound(kind, playerIndex=0){
+    if (kind === 'edge') beep(105 + playerIndex*35, 0.045, 0.04, 'square');
+    if (kind === 'object') { beep(260, 0.055, 0.05, 'sawtooth'); setTimeout(()=>beep(160,0.045,0.035,'square'), 35); }
+    if (kind === 'dog') { beep(520, 0.05, 0.04, 'triangle'); setTimeout(()=>beep(390,0.05,0.035,'triangle'), 45); }
+    if (kind === 'car') { beep(90, 0.075, 0.065, 'square'); setTimeout(()=>beep(140,0.06,0.045,'square'), 45); }
+    if (kind === 'finish') beep(700 + playerIndex*120, 0.12, 0.045, 'triangle');
+  }
+
+  function dist(a,b){ return Math.hypot(a.x-b.x, a.y-b.y); }
+  function lerp(a,b,t){ return a + (b-a)*t; }
+  function clamp(x,a,b){ return Math.max(a, Math.min(b, x)); }
+  function mod(x,m){ return ((x % m) + m) % m; }
+  function angleLerp(a,b,t){
+    let d = b-a;
+    while(d > Math.PI) d -= Math.PI*2;
+    while(d < -Math.PI) d += Math.PI*2;
+    return a + d*t;
+  }
+  function cyclicForwardDelta(fromS, toS){
+    if (!track) return 0;
+    let d = mod(toS, track.length) - mod(fromS, track.length);
+    if (d < -track.length*0.5) d += track.length;
+    if (d < 0) d += track.length;
+    return d;
+  }
+
+  function formatRaceTime(t){
+    t = Math.max(0, t || 0);
+    const m = Math.floor(t / 60);
+    const s = Math.floor(t % 60);
+    const tenths = Math.floor((t - Math.floor(t)) * 10);
+    return `${m}分${String(s).padStart(2,'0')}.${tenths}秒`;
+  }
+
+  function roadGrade(s){
+    if (!track) return 0;
+    const u = mod(s, track.length) / track.length;
+    const g = 0.055 * Math.sin(u * Math.PI * 2 * 2.35 + hillPhase)
+            + 0.035 * Math.sin(u * Math.PI * 2 * 5.10 + hillPhase * 0.61);
+    return clamp(g, -0.09, 0.09);
+  }
+
+  function gradeSymbol(g){
+    if (g > 0.018) return '▲';
+    if (g < -0.018) return '▼';
+    return '→';
+  }
+
+  function chaikinClosed(points, iterations=2){
+    let pts = points.slice();
+    for(let k=0;k<iterations;k++){
+      const out = [];
+      const n = pts.length;
+      for(let i=0;i<n;i++){
+        const p = pts[i], q = pts[(i+1)%n];
+        out.push({x: 0.75*p.x + 0.25*q.x, y: 0.75*p.y + 0.25*q.y});
+        out.push({x: 0.25*p.x + 0.75*q.x, y: 0.25*p.y + 0.75*q.y});
+      }
+      pts = out;
+    }
+    return pts;
+  }
+
+  function buildTrackFromDraw(points){
+    let pts = points.filter((p,i,arr) => i===0 || Math.hypot(p.x-arr[i-1].x, p.y-arr[i-1].y) > 4);
+    if (pts.length < 8) pts = makeDefaultDrawPath();
+    pts = chaikinClosed(pts, 2);
+
+    let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+    pts.forEach(p=>{minX=Math.min(minX,p.x);minY=Math.min(minY,p.y);maxX=Math.max(maxX,p.x);maxY=Math.max(maxY,p.y);});
+    const cx=(minX+maxX)/2, cy=(minY+maxY)/2;
+    const maxDim = Math.max(maxX-minX, maxY-minY, 1);
+    const worldScale = 165 / maxDim;
+    const worldPts = pts.map(p=>({x:(p.x-cx)*worldScale, y:(p.y-cy)*worldScale}));
+    const closed = worldPts.concat([worldPts[0]]);
+    const cum = [0];
+    for(let i=1;i<closed.length;i++) cum.push(cum[i-1] + dist(closed[i-1], closed[i]));
+    const total = cum[cum.length-1];
+    const sampleCount = Math.max(80, Math.ceil(total / SAMPLE_STEP));
+    const samples = [];
+    for(let si=0; si<sampleCount; si++){
+      const s = si * total / sampleCount;
+      samples.push(sampleOnPolyline(closed, cum, s));
+    }
+    const cleanSamples = samples.map((p,i,arr)=>{
+      const prev = arr[(i-1+arr.length)%arr.length];
+      const next = arr[(i+1)%arr.length];
+      const angle = Math.atan2(next.y - prev.y, next.x - prev.x);
+      const nx = -Math.sin(angle), ny = Math.cos(angle);
+      return {...p, angle, nx, ny};
+    });
+    return { points: closed, samples: cleanSamples, length: total };
+  }
+
+  function sampleOnPolyline(pts, cum, s){
+    s = clamp(s, 0, cum[cum.length-1]);
+    let lo = 0, hi = cum.length-1;
+    while(lo < hi){
+      const mid = (lo + hi) >> 1;
+      if(cum[mid] < s) lo = mid + 1; else hi = mid;
+    }
+    const idx = Math.max(1, lo);
+    const s0 = cum[idx-1], s1 = cum[idx];
+    const t = s1 === s0 ? 0 : (s - s0) / (s1 - s0);
+    const a = pts[idx-1], b = pts[idx];
+    return {x:lerp(a.x,b.x,t), y:lerp(a.y,b.y,t), s};
+  }
+
+  function sampleAt(trackObj, s, wrapIt=true){
+    if (!trackObj) return {x:0,y:0,angle:0,nx:0,ny:1,s:0};
+    const total = trackObj.length;
+    let ss = wrapIt ? mod(s, total) : clamp(s, 0, total - 0.001);
+    const arr = trackObj.samples;
+    const pos = ss / total * arr.length;
+    const i = Math.floor(pos) % arr.length;
+    const j = (i + 1) % arr.length;
+    const t = pos - Math.floor(pos);
+    const a = arr[i], b = arr[j];
+    const angle = angleLerp(a.angle, b.angle, t);
+    return { x: lerp(a.x, b.x, t), y: lerp(a.y, b.y, t), angle, nx:-Math.sin(angle), ny:Math.cos(angle), s:ss };
+  }
+
+  function pointOnRoad(s, lateral){
+    const p = sampleAt(track, s, true);
+    return {x:p.x + p.nx*lateral, y:p.y + p.ny*lateral, angle:p.angle, s:p.s};
+  }
+
+  function nearestRoad(pos, hintS=0, range=34){
+    const arr = track.samples;
+    const total = track.length;
+    let best = null;
+    for(let pass=0; pass<2; pass++){
+      const useRange = pass === 0 ? range : total;
+      for(let i=0;i<arr.length;i++){
+        const sm = arr[i].s;
+        let ddS = Math.abs(sm - mod(hintS,total));
+        ddS = Math.min(ddS, total - ddS);
+        if (ddS > useRange) continue;
+        const p = arr[i];
+        const dx = pos.x - p.x, dy = pos.y - p.y;
+        const d2 = dx*dx + dy*dy;
+        if (!best || d2 < best.d2) best = {sample:p, index:i, d2, dx, dy};
+      }
+      if (best) break;
+    }
+    const p = best.sample;
+    const signed = best.dx*p.nx + best.dy*p.ny;
+    return {x:p.x,y:p.y,s:p.s,angle:p.angle,nx:p.nx,ny:p.ny,dist:Math.sqrt(best.d2),signed};
+  }
+
+  function unwrapS(wrappedS, referenceS){
+    const total = track.length;
+    const k = Math.round((referenceS - wrappedS) / total);
+    return wrappedS + k * total;
+  }
+
+  function makeDefaultDrawPath(){
+    const w = drawCanvas.getBoundingClientRect().width || 800;
+    const h = drawCanvas.getBoundingClientRect().height || 460;
+    const pts = [];
+    const cx=w/2, cy=h/2, rx=w*0.32, ry=h*0.27;
+    for(let i=0;i<240;i++){
+      const a = i/240 * Math.PI*2;
+      pts.push({x:cx + Math.cos(a)*rx, y:cy + Math.sin(a)*ry});
+    }
+    return pts;
+  }
+
+  function mulberry32(seed){
+    return function(){
+      let t = seed += 0x6D2B79F5;
+      t = Math.imul(t ^ t >>> 15, t | 1);
+      t ^= t + Math.imul(t ^ t >>> 7, t | 61);
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+  }
+
+  function generateWorld(){
+    const seed = Math.floor(track.length * 1000) ^ track.samples.length ^ 303;
+    const rnd = mulberry32(seed);
+    hillPhase = rnd() * Math.PI * 2;
+    obstacles = [];
+    dogs = [];
+    scenery = [];
+    const len = track.length;
+    const obstacleCount = clamp(Math.round(len / 48), 5, 12);
+    for(let i=0;i<obstacleCount;i++){
+      const s = 18 + (i + 0.45 + rnd()*0.35) * (len - 36) / obstacleCount;
+      const lateral = (rnd()*2-1) * (ROAD_HALF_WIDTH - 2.1);
+      const types = ['cone','box','puddle'];
+      obstacles.push({s:mod(s,len), lateral, type:types[Math.floor(rnd()*types.length)], radius: rnd()<0.65 ? 1.0 : 1.35});
+    }
+    const dogCount = clamp(Math.round(len / 105), 2, 5);
+    for(let i=0;i<dogCount;i++){
+      const s = 34 + (i + 0.35 + rnd()*0.45) * (len - 68) / dogCount;
+      dogs.push({s:mod(s,len), phase:rnd()*Math.PI*2, speed:0.75 + rnd()*0.6, radius:0.85, dir:rnd()<0.5?-1:1});
+    }
+    const sceneCount = clamp(Math.round(len / 12), 24, 80);
+    for(let i=0;i<sceneCount;i++){
+      const s = i * len / sceneCount + rnd()*4;
+      const side = rnd()<0.5 ? -1 : 1;
+      const offset = ROAD_HALF_WIDTH + 3 + rnd()*13;
+      const type = rnd() < 0.62 ? 'tree' : 'building';
+      const size = type === 'tree' ? 1.6 + rnd()*1.8 : 2.5 + rnd()*4.5;
+      scenery.push({s:mod(s,len), side, offset, type, size});
+    }
+  }
+
+  function objectWorld(obj){
+    return pointOnRoad(obj.s, obj.lateral || 0);
+  }
+  function dogWorld(dog, t){
+    const span = ROAD_HALF_WIDTH - 1.0;
+    const lateral = Math.sin(t * dog.speed + dog.phase) * span * dog.dir;
+    return pointOnRoad(dog.s, lateral);
+  }
+  function sceneWorld(sc){
+    return pointOnRoad(sc.s, sc.side * sc.offset);
+  }
+
+  function resetRace(){
+    players = [makePlayer(0), makePlayer(1)];
+    raceTime = 0;
+    countdownElapsed = 0;
+    history = [];
+    lastHistoryT = -999;
+    replayIndex = 0;
+    replayPlaying = false;
+    mode = 'countdown';
+    replayRange.value = '0';
+    replayRange.max = '0';
+    replayRange.disabled = true;
+    playReplayBtn.classList.add('disabledHint');
+    playReplayBtn.textContent = '▶';
+    drawCharts(history);
+  }
+
+  function updatePhysics(dt){
+    if (!track) return;
+    const inputs = [keys.p0, keys.p1];
+    players.forEach((p, i) => {
+      if (p.finished) return;
+      const input = inputs[i];
+      const throttle = input.throttle ? 1 : 0;
+      const steer = (input.right ? 1 : 0) - (input.left ? 1 : 0);
+      const oldS = p.s;
+
+      const grade = roadGrade(oldS);
+      const engine = throttle ? 5.8 : 0;
+      const rolling = throttle ? 0.42 : 1.75;
+      const drag = 0.00135 * p.speed * p.speed;
+      const slopeAccel = -9.8 * grade;
+      p.speed += (engine + slopeAccel - rolling - drag) * dt;
+      p.speed = clamp(p.speed, 0, MAX_SPEED_MS);
+
+      const steerRate = steer * (0.95 + p.speed * 0.055) * (p.speed > 0.25 ? 1 : 0.25);
+      p.heading += steerRate * dt;
+      p.x += Math.cos(p.heading) * p.speed * dt;
+      p.y += Math.sin(p.heading) * p.speed * dt;
+
+      const nr = nearestRoad(p, p.s, 38);
+      const roadLimit = ROAD_HALF_WIDTH - CAR_HALF_WIDTH;
+      if (Math.abs(nr.signed) > roadLimit) {
+        const fixedLat = clamp(nr.signed, -roadLimit, roadLimit);
+        p.x = nr.x + nr.nx * fixedLat;
+        p.y = nr.y + nr.ny * fixedLat;
+        p.speed *= 0.58;
+        p.heading = angleLerp(p.heading, nr.angle, 0.18);
+        if (raceTime - p.lastBoundaryBeep > 0.17) {
+          sound('edge', i);
+          p.lastBoundaryBeep = raceTime;
+        }
+      }
+
+      const nr2 = nearestRoad(p, p.s, 42);
+      let projected = unwrapS(nr2.s, p.s);
+      if (projected < p.s - 1.2) {
+        p.speed *= 0.86;
+        projected = p.s;
+      }
+      p.s = clamp(Math.max(p.s, projected), 0, track.length);
+      p.graphV = clamp((p.s - oldS) / Math.max(0.0001, dt), 0, MAX_SPEED_MS);
+      p.area += p.graphV * dt;
+
+      checkStaticObstacleCollision(p, i);
+      checkDogCollision(p, i);
+
+      if (p.s >= track.length - 0.4) {
+        p.s = track.length;
+        p.graphV = 0;
+        p.speed = 0;
+        p.finished = true;
+        p.finishTime = raceTime;
+        sound('finish', i);
+      }
+    });
+    checkCarCollision();
+
+    if (players.every(p => p.finished)) {
+      mode = 'ended';
+      replayRange.disabled = false;
+      playReplayBtn.classList.remove('disabledHint');
+      replayRange.max = String(Math.max(0, history.length - 1));
+      replayRange.value = String(history.length - 1);
+      replayIndex = history.length - 1;
+    }
+  }
+
+  function pushAway(p, target, amount=1.3){
+    const dx = p.x - target.x, dy = p.y - target.y;
+    const d = Math.max(0.001, Math.hypot(dx,dy));
+    p.x += dx/d * amount;
+    p.y += dy/d * amount;
+  }
+
+  function checkStaticObstacleCollision(p, playerIndex){
+    for(const ob of obstacles){
+      const dS = cyclicForwardDelta(p.s, ob.s);
+      const backD = cyclicForwardDelta(ob.s, p.s);
+      if (Math.min(dS, backD) > 18) continue;
+      const pos = objectWorld(ob);
+      const threshold = CAR_RADIUS + ob.radius;
+      if (Math.hypot(p.x-pos.x, p.y-pos.y) < threshold) {
+        p.speed *= ob.type === 'puddle' ? 0.66 : 0.38;
+        p.graphV *= 0.35;
+        pushAway(p, pos, 0.85);
+        if (raceTime - p.lastObjectHit > 0.28) {
+          sound('object', playerIndex);
+          p.lastObjectHit = raceTime;
+        }
+      }
+    }
+  }
+
+  function checkDogCollision(p, playerIndex){
+    for(const dog of dogs){
+      const dS = cyclicForwardDelta(p.s, dog.s);
+      const backD = cyclicForwardDelta(dog.s, p.s);
+      if (Math.min(dS, backD) > 16) continue;
+      const pos = dogWorld(dog, raceTime);
+      const threshold = CAR_RADIUS + dog.radius;
+      if (Math.hypot(p.x-pos.x, p.y-pos.y) < threshold) {
+        p.speed *= 0.24;
+        p.graphV *= 0.2;
+        pushAway(p, pos, 1.15);
+        if (raceTime - p.lastObjectHit > 0.5) {
+          sound('dog', playerIndex);
+          p.lastObjectHit = raceTime;
+        }
+      }
+    }
+  }
+
+  function checkCarCollision(){
+    if (players.length < 2 || players[0].finished || players[1].finished) return;
+    const a = players[0], b = players[1];
+    const d = Math.hypot(a.x-b.x, a.y-b.y);
+    const minD = CAR_RADIUS * 2 + 0.35;
+    if (d < minD) {
+      const nx = (a.x-b.x) / Math.max(0.001,d);
+      const ny = (a.y-b.y) / Math.max(0.001,d);
+      const push = (minD - d) / 2 + 0.08;
+      a.x += nx*push; a.y += ny*push;
+      b.x -= nx*push; b.y -= ny*push;
+      a.speed *= 0.48; b.speed *= 0.48;
+      a.graphV *= 0.45; b.graphV *= 0.45;
+      if (raceTime - a.lastCarHit > 0.35 || raceTime - b.lastCarHit > 0.35) {
+        sound('car', 0);
+        a.lastCarHit = b.lastCarHit = raceTime;
+      }
+    }
+  }
+
+  function recordHistory(force=false){
+    if (!force && raceTime - lastHistoryT < 1 / MAX_HISTORY_FPS) return;
+    lastHistoryT = raceTime;
+    history.push({
+      t: raceTime,
+      players: players.map(p => ({x:p.x, y:p.y, heading:p.heading, s:p.s, speed:p.speed, v:p.graphV, area:p.area, finished:p.finished, finishTime:p.finishTime}))
+    });
+    replayRange.max = String(Math.max(0, history.length - 1));
+    if (mode === 'racing') replayRange.value = String(history.length - 1);
+  }
+
+  function getDisplayTime(){
+    if ((mode === 'replay' || mode === 'ended') && history.length) {
+      const h = history[Number(replayRange.value)] || history[history.length-1];
+      return h.t;
+    }
+    return raceTime;
+  }
+
+  function getVisibleHistory(){
+    if (mode === 'replay' && history.length) return history.slice(0, replayIndex + 1);
+    if (mode === 'ended' && history.length && Number(replayRange.value) < history.length - 1) return history.slice(0, Number(replayRange.value) + 1);
+    return history;
+  }
+
+  function getDisplayPlayers(){
+    if ((mode === 'replay' || mode === 'ended') && history.length) {
+      const h = history[Number(replayRange.value)] || history[history.length-1];
+      return h.players.map((q,i) => ({...players[i], ...q, graphV:q.v}));
+    }
+    return players;
+  }
+
+  function loop(now){
+    const dtRaw = Math.min(0.05, (now - lastFrame) / 1000);
+    lastFrame = now;
+    if (mode === 'countdown') {
+      countdownElapsed += dtRaw;
+      if (countdownElapsed >= COUNT_TOTAL) {
+        mode = 'racing';
+        raceTime = 0;
+        recordHistory(true);
+      }
+    } else if (mode === 'racing') {
+      raceTime += dtRaw;
+      updatePhysics(dtRaw);
+      recordHistory(false);
+    } else if (mode === 'replay' && replayPlaying && history.length > 1) {
+      replayTimer += dtRaw;
+      const idx = clamp(Math.floor(replayTimer * MAX_HISTORY_FPS), 0, history.length - 1);
+      replayIndex = idx;
+      replayRange.value = String(idx);
+      if (idx >= history.length - 1) {
+        replayPlaying = false;
+        mode = 'ended';
+        playReplayBtn.textContent = '▶';
+      }
+    }
+    render();
+    drawCharts(getVisibleHistory());
+    requestAnimationFrame(loop);
+  }
+
+  function render(){
+    setupCanvasSize(raceCanvas, raceCtx);
+    const r = raceCanvas.getBoundingClientRect();
+    const w = r.width, h = r.height;
+    const ctx = raceCtx;
+    ctx.clearRect(0,0,w,h);
+    ctx.fillStyle = '#121212'; ctx.fillRect(0,0,w,h);
+
+    if (!track) {
+      ctx.fillStyle = '#777'; ctx.textAlign = 'center'; ctx.font = '16px sans-serif';
+      ctx.fillText('draw track', w/2, h/2);
+      return;
+    }
+    const mapW = Math.min(w * (w < 720 ? 0.28 : 0.18), w < 720 ? 132 : 178);
+    const leftW = (w - mapW) / 2;
+    const leftRect = {x:0,y:0,w:leftW,h};
+    const mapRect = {x:leftW,y:0,w:mapW,h};
+    const rightRect = {x:leftW+mapW,y:0,w:leftW,h};
+    const displayPlayers = getDisplayPlayers();
+    const t = getDisplayTime();
+    drawDriverView(ctx, leftRect, displayPlayers[0], 0, displayPlayers, t);
+    drawMinimap(ctx, mapRect, displayPlayers, t);
+    drawDriverView(ctx, rightRect, displayPlayers[1], 1, displayPlayers, t);
+
+    ctx.strokeStyle = '#3d3d3d'; ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(mapRect.x,0); ctx.lineTo(mapRect.x,h);
+    ctx.moveTo(mapRect.x+mapRect.w,0); ctx.lineTo(mapRect.x+mapRect.w,h);
+    ctx.stroke();
+
+    if (mode === 'countdown') drawCountdown(ctx, mapRect);
+  }
+
+  function drawDriverView(ctx, rect, player, idx, displayPlayers, t){
+    const {x,y,w,h} = rect;
+    ctx.save();
+    ctx.beginPath(); ctx.rect(x,y,w,h); ctx.clip();
+    const horizon = y + h * 0.43;
+    const grad = ctx.createLinearGradient(0,y,0,y+h);
+    grad.addColorStop(0,'#1d1d1d');
+    grad.addColorStop(0.42,'#282828');
+    grad.addColorStop(0.43,'#151515');
+    grad.addColorStop(1,'#0e0e0e');
+    ctx.fillStyle = grad; ctx.fillRect(x,y,w,h);
+
+    drawSpeedLines(ctx, rect, player);
+    drawRoadPerspective(ctx, rect, player);
+    drawWorldObjects(ctx, rect, player, idx, displayPlayers, t);
+    drawOwnCarTail(ctx, rect, idx, player);
+    drawHud(ctx, rect, player, idx);
+    ctx.restore();
+  }
+
+  function drawSpeedLines(ctx, rect, player){
+    const {x,y,w,h} = rect;
+    const horizon = y + h * 0.43;
+    const speedShift = (getDisplayTime() * (player?.speed || 0) * 9) % 36;
+    ctx.strokeStyle = 'rgba(255,255,255,.11)';
+    ctx.lineWidth = 1;
+    for(let k=-2;k<15;k++){
+      const yy = horizon + k*36 + speedShift;
+      if(yy>horizon && yy<y+h){
+        ctx.beginPath(); ctx.moveTo(x+12, yy); ctx.lineTo(x+42, yy+22); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(x+w-12, yy); ctx.lineTo(x+w-42, yy+22); ctx.stroke();
+      }
+    }
+  }
+
+  function drawRoadPerspective(ctx, rect, player){
+    const {x,y,w,h} = rect;
+    const horizon = y + h * 0.43;
+    const forward = {x:Math.cos(player.heading), y:Math.sin(player.heading)};
+    const right = {x:Math.cos(player.heading + Math.PI/2), y:Math.sin(player.heading + Math.PI/2)};
+    const cam = {x: player.x - forward.x*8.0, y: player.y - forward.y*8.0};
+    const steps = 38;
+    const roadPts = [];
+    for(let i=0;i<=steps;i++){
+      const u = i/steps;
+      const d = 2 + Math.pow(u, 1.72) * LOOK_AHEAD;
+      const c = sampleAt(track, player.s + d, true);
+      const lx = c.x - c.nx*ROAD_HALF_WIDTH;
+      const ly = c.y - c.ny*ROAD_HALF_WIDTH;
+      const rx = c.x + c.nx*ROAD_HALF_WIDTH;
+      const ry = c.y + c.ny*ROAD_HALF_WIDTH;
+      const centerLocalX = ((c.x-cam.x)*right.x + (c.y-cam.y)*right.y);
+      const persp = 510 / (d + 13);
+      const centerX = x + w/2 + centerLocalX * persp;
+      const sy = horizon + (1-u) * h * 0.52;
+      const leftLocalX = ((lx-cam.x)*right.x + (ly-cam.y)*right.y);
+      const rightLocalX = ((rx-cam.x)*right.x + (ry-cam.y)*right.y);
+      roadPts.push({
+        leftX: x + w/2 + leftLocalX * persp,
+        rightX: x + w/2 + rightLocalX * persp,
+        centerX, y: sy, u, d
+      });
+    }
+    for(let i=steps-1;i>=0;i--){
+      const a = roadPts[i], b = roadPts[i+1];
+      ctx.fillStyle = i%2 ? '#303030' : '#292929';
+      ctx.beginPath();
+      ctx.moveTo(a.leftX, a.y); ctx.lineTo(a.rightX, a.y); ctx.lineTo(b.rightX, b.y); ctx.lineTo(b.leftX, b.y);
+      ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = '#f2f2f2'; ctx.lineWidth = Math.max(1, (1-a.u)*2.1);
+      ctx.beginPath();
+      ctx.moveTo(a.leftX, a.y); ctx.lineTo(b.leftX, b.y);
+      ctx.moveTo(a.rightX, a.y); ctx.lineTo(b.rightX, b.y);
+      ctx.stroke();
+    }
+    ctx.strokeStyle = 'rgba(255,255,255,.62)';
+    for(let i=0;i<steps;i+=3){
+      const a = roadPts[i], b = roadPts[Math.min(steps, i+1)];
+      ctx.lineWidth = Math.max(1, (1-a.u)*2.5);
+      ctx.beginPath(); ctx.moveTo(a.centerX, a.y); ctx.lineTo(b.centerX, b.y); ctx.stroke();
+    }
+    const remain = track.length - player.s;
+    if (remain > 0 && remain < LOOK_AHEAD) {
+      const finish = sampleAt(track, track.length - 0.5, true);
+      const pr = projectWorld(finish, rect, player, remain);
+      if (pr) drawFlag(ctx, pr.x, pr.y - 20*pr.scale, Math.max(0.32, pr.scale*0.42));
+    }
+  }
+
+  function projectWorld(pt, rect, player, forcedD=null){
+    const {x,y,w,h} = rect;
+    const horizon = y + h * 0.43;
+    const f = {x:Math.cos(player.heading), y:Math.sin(player.heading)};
+    const r = {x:Math.cos(player.heading + Math.PI/2), y:Math.sin(player.heading + Math.PI/2)};
+    const cam = {x:player.x - f.x*8.0, y:player.y - f.y*8.0};
+    const dx = pt.x-cam.x, dy = pt.y-cam.y;
+    const depth = forcedD !== null ? forcedD + 8 : dx*f.x + dy*f.y;
+    const lat = dx*r.x + dy*r.y;
+    if (depth < 1.5 || depth > LOOK_AHEAD + 15) return null;
+    const u = clamp(depth / (LOOK_AHEAD + 15), 0, 1);
+    const persp = 510 / (depth + 13);
+    const sx = x + w/2 + lat * persp;
+    const sy = horizon + (1 - Math.pow(u, 0.74)) * h * 0.52;
+    if (sx < x-80 || sx > x+w+80 || sy < y-60 || sy > y+h+80) return null;
+    return {x:sx, y:sy, scale:clamp(persp/17, 0.16, 2.4), depth};
+  }
+
+  function drawWorldObjects(ctx, rect, player, idx, displayPlayers, t){
+    const drawList = [];
+    scenery.forEach(sc => {
+      const d = cyclicForwardDelta(player.s, sc.s);
+      if (d < LOOK_AHEAD) drawList.push({kind:'scene', data:sc, pos:sceneWorld(sc), d});
+    });
+    obstacles.forEach(ob => {
+      const d = cyclicForwardDelta(player.s, ob.s);
+      if (d < LOOK_AHEAD) drawList.push({kind:'obstacle', data:ob, pos:objectWorld(ob), d});
+    });
+    dogs.forEach(dog => {
+      const d = cyclicForwardDelta(player.s, dog.s);
+      if (d < LOOK_AHEAD) drawList.push({kind:'dog', data:dog, pos:dogWorld(dog, t), d});
+    });
+
+    // 對手車使用真實平面座標投影，不再只用沿賽道的 s 值。
+    // 這樣對手從後方、側邊到前方超車時，會在自己的視窗中連續移動。
+    displayPlayers.forEach((op, j) => {
+      if (j === idx) return;
+      const pr = projectWorld({x:op.x, y:op.y}, rect, player, null);
+      if (pr) drawList.push({kind:'car', data:op, pr, d:pr.depth});
+    });
+
+    drawList.sort((a,b)=>b.d-a.d);
+    for(const item of drawList){
+      const pr = item.pr || projectWorld(item.pos, rect, player, item.d === 0 ? null : item.d);
+      if (!pr) continue;
+      if (item.kind === 'scene') drawSceneItem(ctx, pr, item.data);
+      if (item.kind === 'obstacle') drawObstacle(ctx, pr, item.data);
+      if (item.kind === 'dog') drawDog(ctx, pr, item.data, t);
+      if (item.kind === 'car') drawOtherCar(ctx, pr, item.data, player);
+    }
+  }
+
+  function drawSceneItem(ctx, pr, item){
+    ctx.save(); ctx.translate(pr.x, pr.y); ctx.scale(pr.scale, pr.scale);
+    if (item.type === 'tree') {
+      ctx.strokeStyle = '#cfcfcf'; ctx.lineWidth = Math.max(1, item.size*0.55);
+      ctx.beginPath(); ctx.moveTo(0, 12*item.size); ctx.lineTo(0, -8*item.size); ctx.stroke();
+      ctx.fillStyle = '#6f6f6f'; ctx.beginPath(); ctx.arc(0, -12*item.size, 7*item.size, 0, Math.PI*2); ctx.fill();
+      ctx.strokeStyle = '#f2f2f2'; ctx.lineWidth = 1; ctx.stroke();
+    } else {
+      const w = 8*item.size, h = 12*item.size;
+      ctx.fillStyle = '#333'; ctx.fillRect(-w/2, -h, w, h);
+      ctx.strokeStyle = '#ddd'; ctx.lineWidth = 1.2; ctx.strokeRect(-w/2, -h, w, h);
+      ctx.fillStyle = 'rgba(255,255,255,.22)';
+      for(let r=0;r<3;r++) for(let c=0;c<2;c++) ctx.fillRect(-w/3 + c*w/3, -h+4+r*h/4, w/7, h/9);
+    }
+    ctx.restore();
+  }
+
+  function drawObstacle(ctx, pr, ob){
+    ctx.save(); ctx.translate(pr.x, pr.y); ctx.scale(pr.scale, pr.scale);
+    if (ob.type === 'cone') {
+      ctx.fillStyle = '#d8d8d8';
+      ctx.beginPath(); ctx.moveTo(0,-15); ctx.lineTo(12,12); ctx.lineTo(-12,12); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#222'; ctx.fillRect(-8,3,16,4);
+      ctx.strokeStyle = '#111'; ctx.lineWidth = 1.5; ctx.stroke();
+    } else if (ob.type === 'box') {
+      ctx.fillStyle = '#bdbdbd'; ctx.fillRect(-13,-13,26,26);
+      ctx.strokeStyle = '#111'; ctx.lineWidth = 2; ctx.strokeRect(-13,-13,26,26);
+      ctx.beginPath(); ctx.moveTo(-13,-13); ctx.lineTo(13,13); ctx.moveTo(13,-13); ctx.lineTo(-13,13); ctx.stroke();
+    } else {
+      ctx.fillStyle = 'rgba(230,230,230,.35)';
+      ctx.beginPath(); ctx.ellipse(0,4,18,8,0,0,Math.PI*2); ctx.fill();
+      ctx.strokeStyle = '#ddd'; ctx.lineWidth = 1.5; ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function drawDog(ctx, pr, dog, t){
+    ctx.save(); ctx.translate(pr.x, pr.y); ctx.scale(pr.scale, pr.scale);
+    ctx.fillStyle = '#efefef';
+    ctx.beginPath(); ctx.ellipse(0, 0, 13, 7, 0, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(13, -5, 5, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle = '#111'; ctx.lineWidth = 2;
+    const step = Math.sin(t*10 + dog.phase) * 3;
+    ctx.beginPath();
+    ctx.moveTo(-7,6); ctx.lineTo(-9,14+step);
+    ctx.moveTo(4,6); ctx.lineTo(2,14-step);
+    ctx.moveTo(11,-1); ctx.lineTo(16,5);
+    ctx.stroke();
+    ctx.strokeStyle = '#eee'; ctx.lineWidth = 1; ctx.strokeRect(-14,-8,31,20);
+    ctx.restore();
+  }
+
+  function drawOtherCar(ctx, pr, car, observer){
+    const rel = observer ? car.heading - observer.heading : 0;
+    const skew = Math.sin(rel) * 5;
+    ctx.save(); ctx.translate(pr.x, pr.y); ctx.scale(pr.scale, pr.scale);
+    ctx.fillStyle = 'rgba(0,0,0,.42)';
+    ctx.beginPath(); ctx.ellipse(0, 16, 24, 7, 0, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = COLORS[car.index] || '#fff';
+    ctx.beginPath();
+    ctx.moveTo(-18 + skew, 14);
+    ctx.lineTo(18 + skew, 14);
+    ctx.lineTo(13 - skew, -14);
+    ctx.lineTo(-13 - skew, -14);
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#111';
+    ctx.fillRect(-10 - skew*0.15, -9, 20, 9);
+    ctx.fillStyle = 'rgba(255,255,255,.8)';
+    ctx.fillRect(-14 + skew, 9, 7, 3);
+    ctx.fillRect(7 + skew, 9, 7, 3);
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.8; ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawOwnCarTail(ctx, rect, idx, player){
+    const {x,y,w,h} = rect;
+    const baseY = y + h - 4;
+    const cx = x + w/2;
+    ctx.save();
+    ctx.fillStyle = 'rgba(0,0,0,.72)';
+    ctx.beginPath();
+    ctx.moveTo(cx - w*0.25, baseY); ctx.lineTo(cx + w*0.25, baseY);
+    ctx.lineTo(cx + w*0.16, baseY - h*0.16); ctx.lineTo(cx - w*0.16, baseY - h*0.16);
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = COLORS[idx];
+    ctx.beginPath();
+    ctx.moveTo(cx - w*0.17, baseY - 8); ctx.lineTo(cx + w*0.17, baseY - 8);
+    ctx.lineTo(cx + w*0.11, baseY - h*0.13); ctx.lineTo(cx - w*0.11, baseY - h*0.13);
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#111';
+    ctx.fillRect(cx - w*0.09, baseY - h*0.118, w*0.18, h*0.045);
+    ctx.fillStyle = 'rgba(255,255,255,.74)';
+    ctx.fillRect(cx - w*0.15, baseY - h*0.035, w*0.055, 5);
+    ctx.fillRect(cx + w*0.095, baseY - h*0.035, w*0.055, 5);
+    if (player.speed > 15) {
+      ctx.strokeStyle = 'rgba(255,255,255,.22)'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(cx-w*0.20, baseY-h*0.03); ctx.lineTo(cx-w*0.32, baseY-h*0.00); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(cx+w*0.20, baseY-h*0.03); ctx.lineTo(cx+w*0.32, baseY-h*0.00); ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function drawHud(ctx, rect, player, idx){
+    const {x,y,w,h} = rect;
+    ctx.fillStyle = 'rgba(0,0,0,.50)';
+    ctx.fillRect(x+8, y+8, Math.min(184,w-16), 56);
+    ctx.fillStyle = COLORS[idx]; ctx.font = '700 13px sans-serif'; ctx.textAlign = 'left';
+    ctx.fillText('P' + (idx+1), x+16, y+28);
+    ctx.fillStyle = '#eee'; ctx.font = '12px monospace';
+    ctx.fillText(Math.round((player.speed || 0) * 3.6) + ' km/h ' + gradeSymbol(roadGrade(player.s)), x+54, y+28);
+    ctx.fillText(Math.min(track.length, player.s).toFixed(0) + ' / ' + track.length.toFixed(0) + ' m', x+16, y+49);
+    if (player.finished) {
+      ctx.fillStyle = 'rgba(255,255,255,.88)';
+      ctx.fillRect(x+w/2-70, y+h*0.18, 140, 34);
+      ctx.fillStyle = '#111'; ctx.textAlign = 'center'; ctx.font = '800 16px sans-serif';
+      ctx.fillText('FINISH ' + player.finishTime.toFixed(1) + 's', x+w/2, y+h*0.18+23);
+    }
+  }
+
+  function drawFlag(ctx, x, y, scale=1){
+    ctx.save(); ctx.translate(x,y); ctx.scale(scale,scale);
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(0,52); ctx.stroke();
+    const cell = 8;
+    for(let r=0;r<3;r++) for(let c=0;c<4;c++){
+      ctx.fillStyle = (r+c)%2 ? '#111' : '#fff'; ctx.fillRect(c*cell, r*cell, cell, cell);
+    }
+    ctx.restore();
+  }
+
+  function getTrackBounds(){
+    let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+    track.samples.forEach(p=>{minX=Math.min(minX,p.x);minY=Math.min(minY,p.y);maxX=Math.max(maxX,p.x);maxY=Math.max(maxY,p.y);});
+    return {minX,minY,maxX,maxY};
+  }
+
+  function worldToMap(p, rect, bounds){
+    const pad = 14;
+    const sx = (rect.w - pad*2) / Math.max(1, bounds.maxX - bounds.minX + ROAD_HALF_WIDTH*8);
+    const sy = (rect.h - pad*2 - 26) / Math.max(1, bounds.maxY - bounds.minY + ROAD_HALF_WIDTH*8);
+    const s = Math.min(sx, sy);
+    const cx = (bounds.minX + bounds.maxX) / 2;
+    const cy = (bounds.minY + bounds.maxY) / 2;
+    return {x: rect.x + rect.w/2 + (p.x - cx)*s, y: rect.y + 24 + (rect.h-24)/2 + (p.y - cy)*s};
+  }
+
+  function drawMinimap(ctx, rect, displayPlayers, t){
+    ctx.save();
+    ctx.beginPath(); ctx.rect(rect.x, rect.y, rect.w, rect.h); ctx.clip();
+    ctx.fillStyle = '#171717'; ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+    ctx.fillStyle = '#0f0f0f'; ctx.fillRect(rect.x, rect.y, rect.w, 28);
+    ctx.fillStyle = '#ddd'; ctx.font = '700 11px monospace'; ctx.textAlign = 'center';
+    ctx.fillText('TIME ' + formatRaceTime(getTimeForMap()), rect.x + rect.w/2, rect.y + 18);
+    const bounds = getTrackBounds();
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.strokeStyle = '#515151'; ctx.lineWidth = Math.max(8, rect.w*0.075);
+    ctx.beginPath();
+    track.samples.forEach((p,i)=>{ const m = worldToMap(p, rect, bounds); if(i===0) ctx.moveTo(m.x,m.y); else ctx.lineTo(m.x,m.y); });
+    ctx.closePath(); ctx.stroke();
+    ctx.strokeStyle = '#f2f2f2'; ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    track.samples.forEach((p,i)=>{ const m = worldToMap(p, rect, bounds); if(i===0) ctx.moveTo(m.x,m.y); else ctx.lineTo(m.x,m.y); });
+    ctx.closePath(); ctx.stroke();
+
+    const start = worldToMap(sampleAt(track,0,true), rect, bounds);
+    drawFlag(ctx, start.x + 3, start.y - 18, 0.32);
+    obstacles.forEach(ob=>{
+      const m = worldToMap(objectWorld(ob), rect, bounds);
+      ctx.fillStyle = '#ddd'; ctx.fillRect(m.x-2.5,m.y-2.5,5,5);
+    });
+    dogs.forEach(dog=>{
+      const m = worldToMap(dogWorld(dog, t), rect, bounds);
+      ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(m.x,m.y,3,0,Math.PI*2); ctx.fill();
+    });
+    displayPlayers.forEach((pl,i)=>{
+      const m = worldToMap({x:pl.x,y:pl.y}, rect, bounds);
+      ctx.fillStyle = COLORS[i]; ctx.beginPath(); ctx.arc(m.x,m.y,5.6,0,Math.PI*2); ctx.fill();
+      ctx.strokeStyle = '#111'; ctx.lineWidth = 1.5; ctx.stroke();
+      const hx = Math.cos(pl.heading)*8, hy = Math.sin(pl.heading)*8;
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(m.x,m.y); ctx.lineTo(m.x+hx,m.y+hy); ctx.stroke();
+    });
+    ctx.restore();
+  }
+
+  function getTimeForMap(){
+    if (mode === 'countdown') return 0;
+    return getDisplayTime();
+  }
+
+  function drawCountdown(ctx, mapRect){
+    const phase = countdownElapsed;
+    const lights = [
+      {x:mapRect.x + mapRect.w*0.28, color:'#ef4444', on:phase < COUNT_RED},
+      {x:mapRect.x + mapRect.w*0.50, color:'#facc15', on:phase >= COUNT_RED && phase < COUNT_RED + COUNT_YELLOW},
+      {x:mapRect.x + mapRect.w*0.72, color:'#22c55e', on:phase >= COUNT_RED + COUNT_YELLOW}
+    ];
+    const y = mapRect.y + Math.min(74, mapRect.h*0.20);
+    const r = Math.max(8, Math.min(16, mapRect.w*0.09));
+    ctx.save();
+    ctx.fillStyle = 'rgba(0,0,0,.72)';
+    ctx.roundRect(mapRect.x+8, y-r-13, mapRect.w-16, r*2+26, 14);
+    ctx.fill();
+    lights.forEach(l=>{
+      ctx.fillStyle = l.on ? l.color : '#333';
+      ctx.beginPath(); ctx.arc(l.x, y, r, 0, Math.PI*2); ctx.fill();
+      if (l.on) {
+        ctx.shadowColor = l.color; ctx.shadowBlur = 14;
+        ctx.beginPath(); ctx.arc(l.x, y, r, 0, Math.PI*2); ctx.fill();
+        ctx.shadowBlur = 0;
+      }
+      ctx.strokeStyle = '#ddd'; ctx.lineWidth = 1; ctx.stroke();
+    });
+    ctx.restore();
+  }
+
+  function drawCharts(data){
+    setupCanvasSize(xChart, xCtx); setupCanvasSize(vChart, vCtx);
+    drawXT(data); drawVT(data);
+  }
+
+  function chartBase(ctx, canvas, maxY, maxT){
+    const rect = canvas.getBoundingClientRect();
+    const w = rect.width, h = rect.height;
+    ctx.clearRect(0,0,w,h); ctx.fillStyle = '#111'; ctx.fillRect(0,0,w,h);
+    const padL = 36, padR = 14, padT = 22, padB = 24;
+    ctx.strokeStyle = '#464646'; ctx.lineWidth = 1; ctx.beginPath();
+    for(let i=0;i<=4;i++){ const yy = padT + (h-padT-padB)*i/4; ctx.moveTo(padL, yy); ctx.lineTo(w-padR, yy); }
+    for(let i=0;i<=5;i++){ const xx = padL + (w-padL-padR)*i/5; ctx.moveTo(xx, padT); ctx.lineTo(xx, h-padB); }
+    ctx.stroke();
+    ctx.strokeStyle = '#ddd'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(padL,padT); ctx.lineTo(padL,h-padB); ctx.lineTo(w-padR,h-padB); ctx.stroke();
+    ctx.fillStyle = '#a0a0a0'; ctx.font = '10px monospace'; ctx.textAlign = 'right';
+    ctx.fillText(maxY.toFixed(maxY < 10 ? 1 : 0), padL-5, padT+4); ctx.fillText('0', padL-5, h-padB+3);
+    ctx.textAlign = 'center'; ctx.fillText(maxT.toFixed(1)+'s', w-padR-16, h-6);
+    return {w,h,padL,padR,padT,padB,maxY,maxT};
+  }
+
+  function drawXT(data){
+    const maxT = Math.max(5, data.length ? data[data.length-1].t : 5);
+    const maxY = Math.max(10, track ? track.length : 100);
+    const box = chartBase(xCtx, xChart, maxY, maxT);
+    plotSeries(xCtx, box, data, 0, 's', COLORS[0]);
+    plotSeries(xCtx, box, data, 1, 's', COLORS[1]);
+  }
+
+  function drawVT(data){
+    const maxT = Math.max(5, data.length ? data[data.length-1].t : 5);
+    let maxY = 8;
+    data.forEach(h=>h.players.forEach(p=>maxY=Math.max(maxY,(p.v || 0)*1.15)));
+    const box = chartBase(vCtx, vChart, maxY, maxT);
+    plotSeries(vCtx, box, data, 0, 'v', COLORS[0], true);
+    plotSeries(vCtx, box, data, 1, 'v', COLORS[1], true);
+    const last = data[data.length-1];
+    areaReadout.innerHTML = last ? `<span style="color:${COLORS[0]}">P1</span> ${last.players[0].area.toFixed(1)} m<br><span style="color:${COLORS[1]}">P2</span> ${last.players[1].area.toFixed(1)} m` : '';
+  }
+
+  function plotSeries(ctx, box, data, pIndex, prop, color, fillArea=false){
+    if (!data.length) return;
+    const {w,h,padL,padR,padT,padB,maxY,maxT} = box;
+    const sx = t => padL + (w-padL-padR) * (t/maxT);
+    const sy = yv => h-padB - (h-padT-padB) * clamp(yv/maxY,0,1);
+    if (fillArea && data.length > 1) {
+      ctx.save(); ctx.globalAlpha = 0.16; ctx.fillStyle = color; ctx.beginPath();
+      ctx.moveTo(sx(data[0].t), sy(0));
+      data.forEach(hh => ctx.lineTo(sx(hh.t), sy(hh.players[pIndex][prop] || 0)));
+      ctx.lineTo(sx(data[data.length-1].t), sy(0)); ctx.closePath(); ctx.fill(); ctx.restore();
+    }
+    ctx.strokeStyle = color; ctx.lineWidth = 2.2; ctx.beginPath();
+    data.forEach((hh,i)=>{ const xx = sx(hh.t), yy = sy(hh.players[pIndex][prop] || 0); if(i===0) ctx.moveTo(xx, yy); else ctx.lineTo(xx, yy); });
+    ctx.stroke();
+  }
+
+  function drawDesigner(){
+    setupCanvasSize(drawCanvas, drawCtx);
+    const rect = drawCanvas.getBoundingClientRect();
+    const w = rect.width, h = rect.height;
+    const ctx = drawCtx;
+    ctx.clearRect(0,0,w,h); ctx.fillStyle = '#111'; ctx.fillRect(0,0,w,h);
+    ctx.strokeStyle = 'rgba(255,255,255,.08)'; ctx.lineWidth = 1;
+    for(let x=0;x<w;x+=32){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,h); ctx.stroke(); }
+    for(let y=0;y<h;y+=32){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(w,y); ctx.stroke(); }
+    if (drawnPoints.length) {
+      ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      ctx.strokeStyle = '#777'; ctx.lineWidth = 30; ctx.beginPath();
+      drawnPoints.forEach((p,i)=> i ? ctx.lineTo(p.x,p.y) : ctx.moveTo(p.x,p.y));
+      if (!drawing && drawnPoints.length > 5) ctx.lineTo(drawnPoints[0].x, drawnPoints[0].y);
+      ctx.stroke();
+      ctx.strokeStyle = '#f2f2f2'; ctx.lineWidth = 3; ctx.beginPath();
+      drawnPoints.forEach((p,i)=> i ? ctx.lineTo(p.x,p.y) : ctx.moveTo(p.x,p.y));
+      if (!drawing && drawnPoints.length > 5) ctx.lineTo(drawnPoints[0].x, drawnPoints[0].y);
+      ctx.stroke();
+      ctx.fillStyle = '#b6fcb6'; ctx.beginPath(); ctx.arc(drawnPoints[0].x, drawnPoints[0].y, 7, 0, Math.PI*2); ctx.fill();
+      const last = drawnPoints[drawnPoints.length-1];
+      ctx.fillStyle = '#fda4af'; ctx.beginPath(); ctx.arc(last.x, last.y, 5, 0, Math.PI*2); ctx.fill();
+    } else {
+      ctx.fillStyle = '#777'; ctx.textAlign='center'; ctx.font='16px sans-serif'; ctx.fillText('✎', w/2, h/2 - 8);
+      ctx.font='13px sans-serif'; ctx.fillText('一筆畫出賽道', w/2, h/2 + 18);
+    }
+  }
+
+  function getCanvasPoint(evt, canvas){
+    const rect = canvas.getBoundingClientRect();
+    return {x: evt.clientX - rect.left, y: evt.clientY - rect.top};
+  }
+
+  drawCanvas.addEventListener('pointerdown', e => {
+    initAudio(); drawing = true; drawnPoints = [getCanvasPoint(e, drawCanvas)];
+    drawCanvas.setPointerCapture(e.pointerId); startRaceBtn.disabled = true;
+    drawMsg.textContent = '正在繪製。放開後自動封閉。'; drawDesigner();
+  });
+  drawCanvas.addEventListener('pointermove', e => {
+    if (!drawing) return;
+    const p = getCanvasPoint(e, drawCanvas); const last = drawnPoints[drawnPoints.length-1];
+    if (!last || Math.hypot(p.x-last.x, p.y-last.y) > 3) { drawnPoints.push(p); drawDesigner(); }
+  });
+  function finishDrawing(){
+    if (!drawing) return;
+    drawing = false; startRaceBtn.disabled = drawnPoints.length < 8;
+    drawMsg.textContent = drawnPoints.length < 8 ? '路徑太短，請重畫。' : '已自動封閉。可開始比賽，或重畫。';
+    drawDesigner();
+  }
+  drawCanvas.addEventListener('pointerup', finishDrawing);
+  drawCanvas.addEventListener('pointercancel', finishDrawing);
+  clearDrawBtn.addEventListener('click', () => {
+    drawnPoints = []; startRaceBtn.disabled = true;
+    drawMsg.textContent = '用滑鼠或手指畫一條封閉路徑；未完全封閉時，系統會接回起點。';
+    drawDesigner();
+  });
+
+  startRaceBtn.addEventListener('click', () => {
+    initAudio();
+    track = buildTrackFromDraw(drawnPoints);
+    generateWorld();
+    designerOverlay.classList.remove('show');
+    resetRace();
+  });
+
+  newTrackBtn.addEventListener('click', () => {
+    mode = 'design'; replayPlaying = false; playReplayBtn.textContent = '▶';
+    drawnPoints = []; startRaceBtn.disabled = true; track = null;
+    designerOverlay.classList.add('show'); setTimeout(resizeAll, 40);
+  });
+
+  const btns = Array.from(document.querySelectorAll('.ctrlBtn'));
+  btns.forEach(btn => {
+    const p = btn.dataset.player === '0' ? keys.p0 : keys.p1;
+    const k = btn.dataset.key;
+    const on = (e) => { e.preventDefault(); initAudio(); p[k] = true; btn.classList.add('active'); };
+    const off = (e) => { e.preventDefault(); p[k] = false; btn.classList.remove('active'); };
+    btn.addEventListener('pointerdown', on);
+    btn.addEventListener('pointerup', off);
+    btn.addEventListener('pointercancel', off);
+    btn.addEventListener('pointerleave', off);
+  });
+
+  function loadKeyBindings(){
+    try {
+      const saved = JSON.parse(localStorage.getItem('kinematicsRacingKeysV03') || 'null');
+      if (saved && saved.p0 && saved.p1) return saved;
+    } catch(_err) {}
+    return JSON.parse(JSON.stringify(defaultBindings));
+  }
+  function saveKeyBindings(){
+    try { localStorage.setItem('kinematicsRacingKeysV03', JSON.stringify(keyBindings)); } catch(_err) {}
+  }
+  function codeLabel(code){
+    if (code === 'ArrowUp') return '↑'; if (code === 'ArrowLeft') return '←'; if (code === 'ArrowRight') return '→'; if (code === 'ArrowDown') return '↓';
+    if (/^Key[A-Z]$/.test(code)) return code.slice(3);
+    if (/^Digit[0-9]$/.test(code)) return code.slice(5);
+    return code.replace('Key','').replace('Digit','').replace('Space','空白');
+  }
+  function updateKeyBindUI(){
+    keyBindBtns.forEach(btn=>{
+      const player = btn.dataset.player === '0' ? 'p0' : 'p1';
+      btn.textContent = codeLabel(keyBindings[player][btn.dataset.action]);
+      btn.classList.toggle('listening', bindingTarget === btn);
+    });
+  }
+  keyBtn.addEventListener('click', () => { updateKeyBindUI(); keyModal.classList.add('show'); });
+  closeKeyBtn.addEventListener('click', () => { bindingTarget = null; updateKeyBindUI(); keyModal.classList.remove('show'); });
+  keyModal.addEventListener('click', e => { if(e.target === keyModal){ bindingTarget = null; updateKeyBindUI(); keyModal.classList.remove('show'); } });
+  keyBindBtns.forEach(btn=>btn.addEventListener('click', () => {
+    bindingTarget = btn; updateKeyBindUI(); keyHint.textContent = '請按下新的鍵。';
+  }));
+
+  window.addEventListener('keydown', e => {
+    initAudio();
+    if (bindingTarget) {
+      const player = bindingTarget.dataset.player === '0' ? 'p0' : 'p1';
+      const action = bindingTarget.dataset.action;
+      keyBindings[player][action] = e.code;
+      saveKeyBindings(); bindingTarget = null; updateKeyBindUI(); keyHint.textContent = '已更新。';
+      e.preventDefault(); return;
+    }
+    setKeyByCode(e.code, true);
+    if (e.code.startsWith('Arrow')) e.preventDefault();
+    syncButtonState();
+  });
+  window.addEventListener('keyup', e => {
+    setKeyByCode(e.code, false);
+    if (e.code.startsWith('Arrow')) e.preventDefault();
+    syncButtonState();
+  });
+  function setKeyByCode(code, down){
+    ['p0','p1'].forEach(pk=>{
+      ['throttle','left','right'].forEach(action=>{
+        if (keyBindings[pk][action] === code) keys[pk][action] = down;
+      });
+    });
+  }
+  function syncButtonState(){
+    btns.forEach(btn=>{
+      const p = btn.dataset.player === '0' ? keys.p0 : keys.p1;
+      btn.classList.toggle('active', !!p[btn.dataset.key]);
+    });
+  }
+
+  replayRange.addEventListener('input', () => {
+    if (!history.length) return;
+    replayPlaying = false; playReplayBtn.textContent = '▶';
+    replayIndex = Number(replayRange.value);
+    mode = history.length && replayIndex < history.length-1 ? 'replay' : 'ended';
+    const h = history[replayIndex];
+    timeText.textContent = h ? formatRaceTime(h.t) : '0分00.0秒';
+  });
+
+  playReplayBtn.addEventListener('click', () => {
+    if (!history.length || playReplayBtn.classList.contains('disabledHint')) return;
+    if (replayPlaying) {
+      replayPlaying = false; playReplayBtn.textContent = '▶'; mode = 'ended';
+    } else {
+      mode = 'replay'; replayPlaying = true; replayIndex = 0; replayTimer = 0; replayRange.value = '0'; playReplayBtn.textContent = 'Ⅱ';
+    }
+  });
+
+  const fallbackReadme = `# 運動學賽車：x-t 與 v-t 圖\n\n## 玩法\n- 開始時先用一筆畫出賽道。路線放開後會自動接回起點，形成一圈。\n- 玩家一：W 是油門，A / D 是左轉與右轉。\n- 玩家二：方向鍵 ↑ 是油門，← / → 是左轉與右轉。\n- 平板或手機可以直接按畫面下方的按鈕。\n- 紅燈、黃燈、綠燈倒數後，時間才會開始。\n- 這版是平面賽道模型：車子真的在平面道路上移動，不只是沿著一條一維線前進。上方車速以 km/h 顯示；v-t 圖仍使用 m/s。\n\n## 碰撞與障礙物\n- 撞到路邊、路上障礙物、移動小狗、對手車輛，都會大幅減速。\n- 不同碰撞會有不同音效。\n- 小狗是移動障礙物，用來提醒駕駛者必須注意突發事件；遊戲中只用減速表示急煞。
+- 賽道有上坡與下坡。上坡會使車輛減速，下坡會使車輛加速。最高時速設定為 228 km/h，但通常需要持續加速、少碰撞且遇到下坡才可能接近。\n\n## 圖怎麼看\n- 左下角是 x-t 圖。這裡的 x 代表「沿賽道方向從起點量到車子的距離」，單位是 m。\n- 曲線越陡，代表同樣時間內位置增加越多，也就是沿賽道方向速度越快。\n- 右下角是 v-t 圖。縱軸是沿賽道方向速度，單位是 m/s；橫軸是時間，單位是 s。\n- v-t 圖曲線下面積用 \`Σ v × Δt\` 估計，數值單位是 m，會接近 x-t 圖中位置增加量。\n\n## 觀察任務\n1. 哪一段 x-t 圖最陡？那時候 v-t 圖的速度是否也較高？\n2. 撞到障礙物時，v-t 圖會出現什麼變化？\n3. 第一位到終點後，另一位繼續跑完；兩人都完成後可以拖曳 replay 時間軸。\n4. 比較 v-t 面積和 x-t 位置變化，思考「速度－時間圖面積」為什麼可以代表位移。\n\n## 教學提醒\n此活動把彎曲賽道轉換成「沿賽道的位置 x」。這不是平面座標的水平 x，而是沿路徑量出的距離。若要講嚴格的二維運動，需另外區分速度大小、速度方向與位移向量。`;
+
+  function escapeHtml(str){ return str.replace(/[&<>\"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[ch])); }
+  function renderMarkdown(md){
+    const lines = md.replace(/\r/g,'').split('\n');
+    let html = '', inList = false;
+    lines.forEach(line => {
+      const raw = line;
+      if (/^\s*$/.test(raw)) { if (inList) { html += '</ul>'; inList=false; } return; }
+      if (/^###\s+/.test(raw)) { if(inList){html+='</ul>';inList=false;} html += '<h3>' + inline(raw.replace(/^###\s+/,'')) + '</h3>'; return; }
+      if (/^##\s+/.test(raw)) { if(inList){html+='</ul>';inList=false;} html += '<h2>' + inline(raw.replace(/^##\s+/,'')) + '</h2>'; return; }
+      if (/^#\s+/.test(raw)) { if(inList){html+='</ul>';inList=false;} html += '<h1>' + inline(raw.replace(/^#\s+/,'')) + '</h1>'; return; }
+      if (/^[-*]\s+/.test(raw)) { if (!inList) { html += '<ul>'; inList = true; } html += '<li>' + inline(raw.replace(/^[-*]\s+/,'')) + '</li>'; return; }
+      if (inList) { html += '</ul>'; inList=false; }
+      html += '<p>' + inline(raw) + '</p>';
+    });
+    if (inList) html += '</ul>';
+    return html;
+  }
+  function inline(s){
+    return escapeHtml(s).replace(/`([^`]+)`/g,'<code>$1</code>').replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>');
+  }
+
+  helpBtn.addEventListener('click', async () => {
+    let md = fallbackReadme;
+    try { const res = await fetch('readme.md', {cache:'no-store'}); if (res.ok) md = await res.text(); } catch(_err) {}
+    helpContent.innerHTML = renderMarkdown(md);
+    helpModal.classList.add('show');
+  });
+  closeHelpBtn.addEventListener('click', () => helpModal.classList.remove('show'));
+  helpModal.addEventListener('click', e => { if(e.target === helpModal) helpModal.classList.remove('show'); });
+
+  function updateTimeText(){
+    if ((mode === 'replay' || mode === 'ended') && history.length) {
+      const h = history[Number(replayRange.value)] || history[history.length-1];
+      timeText.textContent = formatRaceTime(h.t);
+    } else if (mode === 'countdown') {
+      timeText.textContent = '0分00.0秒';
+    } else {
+      timeText.textContent = formatRaceTime(raceTime);
+    }
+    requestAnimationFrame(updateTimeText);
+  }
+
+  resizeAll();
+  updateKeyBindUI();
+  updateTimeText();
+  requestAnimationFrame((t)=>{lastFrame=t; requestAnimationFrame(loop);});
+})();
+</script>
+</body>
+</html>
