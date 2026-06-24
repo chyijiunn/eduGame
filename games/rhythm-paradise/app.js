@@ -85,6 +85,22 @@ const RHYTHM_RULES = {
   bird: { actors: 5, minGap: 0.17, maxGap: 0.48, action: "hit", voices: ["lead", "answer", "bass"] },
 };
 
+const SOURCE_RHYTHM_INTERVALS = {
+  "01_glass_canon": [0.5, 1.0],
+  "02_marimba_pulse": [0.3, 0.375, 0.5],
+  "03_raindrop_shuffle": [0.352941, 0.588235, 0.882353],
+  "04_mountain_bass": [0.625, 0.833333, 1.25],
+  "05_bird_crystal_run": [0.194805, 0.272727, 0.454545],
+};
+
+const TYPE_TO_SOURCE = {
+  glass: "01_glass_canon",
+  marimba: "02_marimba_pulse",
+  rain: "03_raindrop_shuffle",
+  mountain: "04_mountain_bass",
+  bird: "05_bird_crystal_run",
+};
+
 const menu = document.getElementById("menu");
 const game = document.getElementById("game");
 const levelGrid = document.getElementById("levelGrid");
@@ -236,38 +252,65 @@ function buildPhrases(chart, level) {
       const type = SOURCE_TO_TYPE[section.sourceLevel] || "glass";
       const sectionEvents = chart.events.filter(event => event.time >= section.start && event.time < section.end);
       const sourceLevel = LEVELS.find(item => item.id === section.sourceLevel);
-      return buildSectionPhrases(type, section.start, section.end, sectionEvents, sourceLevel?.patternLimit || 3);
+      const sectionKeyPoints = (chart.musicKeyPoints || []).filter(point => point.time >= section.start && point.time < section.end);
+      return buildSectionPhrases(type, section.start, section.end, sectionEvents, sourceLevel?.patternLimit || 3, {
+        keyPoints: sectionKeyPoints,
+        intervals: section.rhythmIntervals,
+        sourceLevel: section.sourceLevel,
+      });
     });
   }
-  return buildSectionPhrases(level.type, 0, chart.durationSeconds || 64, chart.events, level.patternLimit);
+  return buildSectionPhrases(level.type, 0, chart.durationSeconds || 64, chart.events, level.patternLimit, {
+    keyPoints: chart.musicKeyPoints,
+    intervals: chart.rhythmIntervals,
+    sourceLevel: TYPE_TO_SOURCE[level.type],
+  });
 }
 
-function buildSectionPhrases(type, start, end, events, patternLimit) {
+function buildSectionPhrases(type, start, end, events, patternLimit, options = {}) {
   const rule = RHYTHM_RULES[type];
-  const filtered = events
-    .filter(event => event.time >= start + 1 && event.time < end - 0.6)
-    .filter(event => !rule.voices || rule.voices.includes(event.voice))
-    .sort((a, b) => a.time - b.time);
-  const candidates = [];
   const list = [];
+  const keyPoints = normalizedKeyPoints(events, start, end, options.keyPoints);
+  const intervals = musicalIntervals(type, options).slice(0, Math.max(1, patternLimit));
+  const candidates = [];
+  const targetPoints = keyPoints
+    .filter(point => point.time >= start + 2.0 && point.time < end - 0.75)
+    .filter(point => point.accent !== "note" || point.score >= 1.55)
+    .sort((a, b) => a.time - b.time);
 
-  for (const voice of rule.voices) {
-    const voiceEvents = filtered.filter(event => event.voice === voice);
-    for (let i = 0; i <= voiceEvents.length - rule.actors; i++) {
-      const chunk = voiceEvents.slice(i, i + rule.actors);
-      const actorTimes = chunk.map(event => event.time);
+  for (const targetPoint of targetPoints) {
+    for (const gap of intervals) {
+      const cuePoints = [];
+      let valid = true;
+      for (let actor = 0; actor < rule.actors - 1; actor++) {
+        const wanted = targetPoint.time - gap * (rule.actors - 1 - actor);
+        const cue = nearestKeyPoint(keyPoints, wanted, Math.min(0.11, Math.max(0.045, gap * 0.26)));
+        if (!cue || cue.time < start + 0.35) {
+          valid = false;
+          break;
+        }
+        cuePoints.push(cue);
+      }
+      if (!valid) continue;
+      const actorTimes = [...cuePoints.map(point => point.time), targetPoint.time];
       const gaps = actorTimes.slice(1).map((time, idx) => time - actorTimes[idx]);
-      if (!gaps.every(gap => gap >= rule.minGap && gap <= rule.maxGap)) continue;
-      const signature = `${voice}:` + gaps.map(gap => Math.round(gap / 0.05) * 0.05).join("-");
-      candidates.push({ voice, chunk, actorTimes, gaps, signature });
+      if (!gaps.every(item => item >= rule.minGap * 0.72 && item <= rule.maxGap * 1.18)) continue;
+      const eventsNearTimes = actorTimes.map(time => nearestEvent(events, time));
+      const signature = `${targetPoint.accent}:${Math.round(gap * 1000)}`;
+      const strength = targetPoint.score + cuePoints.reduce((sum, point) => sum + point.score * 0.28, 0);
+      candidates.push({ actorTimes, gaps, signature, strength, events: eventsNearTimes });
     }
   }
 
-  const timeSorted = candidates.sort((a, b) => a.actorTimes[0] - b.actorTimes[0]);
+  const timeSorted = candidates
+    .sort((a, b) => b.strength - a.strength)
+    .slice(0, Math.max(120, patternLimit * 44))
+    .sort((a, b) => a.actorTimes[0] - b.actorTimes[0]);
   const allowedSignatures = [];
-  for (const voice of rule.voices) {
-    const first = timeSorted.find(candidate => candidate.voice === voice && !allowedSignatures.includes(candidate.signature));
-    if (first) allowedSignatures.push(first.signature);
+  for (const interval of intervals) {
+    const rounded = Math.round(interval * 1000);
+    const candidate = timeSorted.find(item => item.signature.endsWith(`:${rounded}`));
+    if (candidate && !allowedSignatures.includes(candidate.signature)) allowedSignatures.push(candidate.signature);
     if (allowedSignatures.length >= patternLimit) break;
   }
   for (const candidate of timeSorted) {
@@ -280,11 +323,11 @@ function buildSectionPhrases(type, start, end, events, patternLimit) {
   while (true) {
       const eligible = timeSorted.filter(candidate =>
         allowedSignatures.includes(candidate.signature) &&
-        candidate.actorTimes[0] >= lastTarget + 0.55
+        candidate.actorTimes[0] >= lastTarget + Math.max(0.55, candidate.gaps[0] * 0.85)
       );
       if (!eligible.length) break;
       const candidate = eligible.find(item => item.signature !== lastSignature) || eligible[0];
-      const { chunk, actorTimes, gaps, signature } = candidate;
+      const { events: chunk, actorTimes, gaps, signature } = candidate;
       const expectedGap = gaps[gaps.length - 1];
       list.push({
         type,
@@ -304,6 +347,59 @@ function buildSectionPhrases(type, start, end, events, patternLimit) {
       lastSignature = signature;
   }
   return list.sort((a, b) => a.actorTimes[0] - b.actorTimes[0]);
+}
+
+function musicalIntervals(type, options) {
+  const source = options.sourceLevel || TYPE_TO_SOURCE[type];
+  const intervals = SOURCE_RHYTHM_INTERVALS[source] || options.intervals || [0.5, 0.75, 1.0];
+  return intervals
+    .filter(item => item >= RHYTHM_RULES[type].minGap * 0.72 && item <= RHYTHM_RULES[type].maxGap * 1.18)
+    .sort((a, b) => a - b);
+}
+
+function normalizedKeyPoints(events, start, end, provided = []) {
+  const source = provided.length ? provided : events.map(event => ({
+    time: event.time,
+    score: event.velocity || 1,
+    accent: "note",
+    voices: [event.voice],
+  }));
+  return source
+    .filter(point => point.time >= start && point.time < end)
+    .map(point => ({
+      ...point,
+      time: Number(point.time),
+      score: Number(point.score || 1),
+      accent: point.accent || "note",
+    }))
+    .sort((a, b) => a.time - b.time);
+}
+
+function nearestKeyPoint(points, time, tolerance) {
+  let best = null;
+  let bestDiff = Infinity;
+  for (const point of points) {
+    const diff = Math.abs(point.time - time);
+    if (diff < bestDiff) {
+      best = point;
+      bestDiff = diff;
+    }
+    if (point.time > time + tolerance) break;
+  }
+  return bestDiff <= tolerance ? best : null;
+}
+
+function nearestEvent(events, time) {
+  let best = null;
+  let bestDiff = Infinity;
+  for (const event of events) {
+    const diff = Math.abs(event.time - time);
+    if (diff < bestDiff) {
+      best = event;
+      bestDiff = diff;
+    }
+  }
+  return best || { time, voice: "cue", velocity: 1 };
 }
 
 function currentTime() {
