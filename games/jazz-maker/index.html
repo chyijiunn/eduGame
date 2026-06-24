@@ -1,0 +1,1142 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>節奏音樂生成器 0.1</title>
+<style>
+  :root{
+    --bg:#0e1117;
+    --panel:#151a23;
+    --panel2:#10141c;
+    --text:#eef2f7;
+    --muted:#9aa7b7;
+    --line:#293241;
+    --accent:#f7c948;
+    --ok:#7ee787;
+    --bad:#ff7b72;
+    --btn:#222b38;
+    --btn2:#2f3a4d;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans TC","PingFang TC",Arial,sans-serif;
+    background:radial-gradient(circle at top,#1c2432 0,#0e1117 45%,#090b10 100%);
+    color:var(--text);
+  }
+  .wrap{
+    width:min(960px,100%);
+    margin:0 auto;
+    padding:18px;
+  }
+  header{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    gap:16px;
+    margin-bottom:14px;
+  }
+  h1{
+    margin:0;
+    font-size:clamp(24px,5vw,36px);
+    letter-spacing:.02em;
+  }
+  .version{
+    color:var(--accent);
+    font-weight:700;
+    border:1px solid rgba(247,201,72,.35);
+    padding:6px 10px;
+    border-radius:999px;
+    background:rgba(247,201,72,.08);
+    white-space:nowrap;
+  }
+  .subtitle{
+    margin:6px 0 0;
+    color:var(--muted);
+    line-height:1.6;
+    font-size:14px;
+  }
+  .grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:14px;
+  }
+  .card{
+    background:linear-gradient(180deg,rgba(255,255,255,.035),rgba(255,255,255,.01)),var(--panel);
+    border:1px solid rgba(255,255,255,.08);
+    border-radius:18px;
+    padding:16px;
+    box-shadow:0 12px 38px rgba(0,0,0,.22);
+  }
+  .card h2{
+    margin:0 0 12px;
+    font-size:18px;
+  }
+  label{
+    display:block;
+    color:var(--muted);
+    font-size:13px;
+    margin:12px 0 7px;
+  }
+  select,input{
+    width:100%;
+    border:1px solid var(--line);
+    background:var(--panel2);
+    color:var(--text);
+    border-radius:12px;
+    padding:12px;
+    font-size:16px;
+    outline:none;
+  }
+  select:focus,input:focus{border-color:rgba(247,201,72,.65)}
+  .row{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:10px;
+  }
+  .buttons{
+    display:grid;
+    grid-template-columns:1.2fr 1fr 1fr;
+    gap:10px;
+    margin-top:14px;
+  }
+  button{
+    border:1px solid rgba(255,255,255,.1);
+    background:var(--btn);
+    color:var(--text);
+    border-radius:12px;
+    padding:12px 12px;
+    font-size:15px;
+    font-weight:700;
+    cursor:pointer;
+    min-height:46px;
+  }
+  button:hover{background:var(--btn2)}
+  button.primary{
+    background:linear-gradient(180deg,#ffdc64,#d9a514);
+    color:#171717;
+    border-color:#f5ca3d;
+  }
+  button:disabled{
+    opacity:.42;
+    cursor:not-allowed;
+  }
+  audio{
+    width:100%;
+    margin-top:10px;
+  }
+  .status{
+    min-height:42px;
+    padding:11px 12px;
+    border-radius:12px;
+    background:rgba(255,255,255,.04);
+    border:1px solid rgba(255,255,255,.07);
+    color:var(--muted);
+    line-height:1.45;
+    font-size:14px;
+    margin-top:12px;
+  }
+  .meter{
+    width:100%;
+    height:10px;
+    background:#0a0d12;
+    border:1px solid rgba(255,255,255,.09);
+    border-radius:999px;
+    overflow:hidden;
+    margin-top:10px;
+  }
+  .bar{
+    width:0%;
+    height:100%;
+    background:linear-gradient(90deg,#f7c948,#ff8c42);
+    transition:width .12s linear;
+  }
+  .meta{
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    gap:8px;
+    margin-top:12px;
+  }
+  .pill{
+    border:1px solid rgba(255,255,255,.08);
+    background:rgba(255,255,255,.035);
+    border-radius:14px;
+    padding:10px;
+  }
+  .pill b{
+    display:block;
+    font-size:18px;
+    margin-bottom:2px;
+  }
+  .pill span{
+    color:var(--muted);
+    font-size:12px;
+  }
+  .downloads{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:10px;
+    margin-top:14px;
+  }
+  textarea{
+    width:100%;
+    min-height:260px;
+    resize:vertical;
+    border:1px solid var(--line);
+    background:#070a0f;
+    color:#d5e0ef;
+    border-radius:14px;
+    padding:12px;
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    font-size:12px;
+    line-height:1.45;
+  }
+  canvas{
+    width:100%;
+    height:190px;
+    display:block;
+    background:#080b10;
+    border:1px solid rgba(255,255,255,.08);
+    border-radius:16px;
+  }
+  .note{
+    color:var(--muted);
+    font-size:13px;
+    line-height:1.65;
+    margin-top:10px;
+  }
+  .small{
+    font-size:12px;
+    color:var(--muted);
+  }
+  @media(max-width:760px){
+    .wrap{padding:14px}
+    header{display:block}
+    .version{display:inline-block;margin-top:10px}
+    .grid{grid-template-columns:1fr}
+    .buttons{grid-template-columns:1fr}
+    .downloads{grid-template-columns:1fr}
+    .meta{grid-template-columns:1fr 1fr}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>節奏音樂生成器</h1>
+      <p class="subtitle">本機端產生原創爵士節奏音樂，支援試聽、下載 WAV、下載節奏遊戲 JSON。</p>
+    </div>
+    <div class="version">0.1</div>
+  </header>
+
+  <div class="grid">
+    <section class="card">
+      <h2>生成設定</h2>
+
+      <div class="row">
+        <div>
+          <label for="length">樂曲長短</label>
+          <select id="length">
+            <option value="30">30 秒</option>
+            <option value="45">45 秒</option>
+            <option value="60" selected>60 秒</option>
+            <option value="90">90 秒</option>
+          </select>
+        </div>
+        <div>
+          <label for="difficulty">節奏難度</label>
+          <select id="difficulty">
+            <option value="easy">簡單</option>
+            <option value="medium" selected>中等</option>
+            <option value="hard">困難</option>
+          </select>
+        </div>
+      </div>
+
+      <label for="mood">曲風情緒</label>
+      <select id="mood">
+        <option value="clean" selected>乾淨 Swing Jazz</option>
+        <option value="noir">神秘 Noir Jazz</option>
+        <option value="playful">滑稽 Playful Jazz</option>
+        <option value="intense">緊張 Big Band 感</option>
+      </select>
+
+      <label for="motion">節奏變化</label>
+      <select id="motion">
+        <option value="ramp" selected>由慢到急，最後重落</option>
+        <option value="steady">穩定 Swing</option>
+        <option value="dense">越來越密集</option>
+        <option value="drop">多停頓，強烈落點</option>
+      </select>
+
+      <div class="row">
+        <div>
+          <label for="seed">Seed</label>
+          <input id="seed" value="" placeholder="留空＝隨機" />
+        </div>
+        <div>
+          <label for="swing">Swing 比例</label>
+          <select id="swing">
+            <option value="0.58">微 Swing</option>
+            <option value="0.62" selected>標準 Swing</option>
+            <option value="0.67">重 Swing</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="buttons">
+        <button class="primary" id="generateBtn">生成</button>
+        <button id="randomSeedBtn">換 Seed</button>
+        <button id="stopBtn" disabled>停止</button>
+      </div>
+
+      <div class="status" id="status">尚未生成。先按「生成」。</div>
+      <div class="meter"><div class="bar" id="progressBar"></div></div>
+      <div class="note">
+        0.1 版刻意限制在爵士／Swing 系統。這樣比較容易維持「好聽」與可控，不會變成完全亂數作曲。
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>試聽與下載</h2>
+      <canvas id="viz" width="900" height="240"></canvas>
+      <audio id="audio" controls></audio>
+      <div class="meta">
+        <div class="pill"><b id="metaDuration">—</b><span>長度</span></div>
+        <div class="pill"><b id="metaEvents">—</b><span>節奏點</span></div>
+        <div class="pill"><b id="metaSeed">—</b><span>Seed</span></div>
+      </div>
+      <div class="downloads">
+        <button id="downloadWavBtn" disabled>下載 WAV</button>
+        <button id="downloadJsonBtn" disabled>下載 JSON</button>
+      </div>
+      <p class="small">WAV 可直接放進網頁遊戲；JSON 包含 bpmMap、sections、events，可做 rhythm chart。</p>
+    </section>
+  </div>
+
+  <section class="card" style="margin-top:14px">
+    <h2>JSON 預覽</h2>
+    <textarea id="jsonPreview" spellcheck="false" readonly></textarea>
+  </section>
+</div>
+
+<script>
+(() => {
+  "use strict";
+
+  const $ = id => document.getElementById(id);
+  const els = {
+    length: $("length"),
+    difficulty: $("difficulty"),
+    mood: $("mood"),
+    motion: $("motion"),
+    seed: $("seed"),
+    swing: $("swing"),
+    generateBtn: $("generateBtn"),
+    randomSeedBtn: $("randomSeedBtn"),
+    stopBtn: $("stopBtn"),
+    status: $("status"),
+    progressBar: $("progressBar"),
+    audio: $("audio"),
+    viz: $("viz"),
+    metaDuration: $("metaDuration"),
+    metaEvents: $("metaEvents"),
+    metaSeed: $("metaSeed"),
+    downloadWavBtn: $("downloadWavBtn"),
+    downloadJsonBtn: $("downloadJsonBtn"),
+    jsonPreview: $("jsonPreview"),
+  };
+
+  let current = {
+    wavUrl: null,
+    jsonUrl: null,
+    wavBlob: null,
+    chart: null,
+    audioBuffer: null,
+    startedAt: 0,
+    raf: null,
+  };
+
+  function hashString(str){
+    let h = 2166136261 >>> 0;
+    for(let i=0;i<str.length;i++){
+      h ^= str.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+    return h >>> 0;
+  }
+
+  function mulberry32(a){
+    return function(){
+      let t = a += 0x6D2B79F5;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    }
+  }
+
+  function pick(rng, arr){ return arr[Math.floor(rng()*arr.length)]; }
+  function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
+  function midiToHz(n){ return 440 * Math.pow(2, (n - 69) / 12); }
+
+  function noteName(midi){
+    const names = ["C","C#","D","Eb","E","F","F#","G","Ab","A","Bb","B"];
+    return names[midi % 12] + (Math.floor(midi/12)-1);
+  }
+
+  function sec(n){ return Math.round(n * 1000) / 1000; }
+
+  const palettes = {
+    clean: {
+      key: "C major / A minor",
+      scale: [60,62,64,65,67,69,70,71,72,74,76,77],
+      blues: [60,63,65,66,67,70,72,75,77],
+      chords: [
+        {name:"Dm9", root:50, notes:[62,65,69,72,76]},
+        {name:"G13", root:43, notes:[59,65,69,74,76]},
+        {name:"Cmaj9", root:48, notes:[60,64,67,71,74]},
+        {name:"A7b9", root:45, notes:[61,67,69,72,75]}
+      ]
+    },
+    noir: {
+      key: "C minor",
+      scale: [60,62,63,65,67,68,70,72,74,75,77],
+      blues: [60,63,65,66,67,70,72,75,77],
+      chords: [
+        {name:"Cm9", root:48, notes:[60,63,67,70,74]},
+        {name:"Fm9", root:41, notes:[60,63,68,72,75]},
+        {name:"Dm7b5", root:50, notes:[62,65,68,72]},
+        {name:"G7b9", root:43, notes:[59,63,65,68,74]}
+      ]
+    },
+    playful: {
+      key: "F major",
+      scale: [53,55,57,58,60,62,64,65,67,69,70,72,74],
+      blues: [53,56,58,59,60,63,65,68,70],
+      chords: [
+        {name:"Gm7", root:43, notes:[58,62,65,69,72]},
+        {name:"C9", root:48, notes:[58,62,64,67,70]},
+        {name:"F6", root:41, notes:[57,60,65,69,72]},
+        {name:"D7", root:50, notes:[57,60,66,69,72]}
+      ]
+    },
+    intense: {
+      key: "Bb major",
+      scale: [58,60,62,63,65,67,69,70,72,74,75,77],
+      blues: [58,61,63,64,65,68,70,73,75],
+      chords: [
+        {name:"Cm9", root:48, notes:[60,63,67,70,74]},
+        {name:"F13", root:41, notes:[57,63,67,72,74]},
+        {name:"Bb6", root:46, notes:[58,62,65,67,72]},
+        {name:"G7alt", root:43, notes:[59,63,66,68,73]}
+      ]
+    }
+  };
+
+  function buildSections(duration, motion){
+    const d = duration;
+    if(motion === "steady"){
+      return [
+        {name:"intro", start:0, end:d*.14, bpm:104, density:.65},
+        {name:"theme", start:d*.14, end:d*.45, bpm:108, density:.85},
+        {name:"variation", start:d*.45, end:d*.76, bpm:112, density:1.0},
+        {name:"tag", start:d*.76, end:d*.93, bpm:112, density:1.15},
+        {name:"final_drop", start:d*.93, end:d, bpm:84, density:1.2}
+      ];
+    }
+    if(motion === "dense"){
+      return [
+        {name:"intro", start:0, end:d*.16, bpm:92, density:.45},
+        {name:"theme", start:d*.16, end:d*.42, bpm:102, density:.75},
+        {name:"busy", start:d*.42, end:d*.70, bpm:118, density:1.2},
+        {name:"climax", start:d*.70, end:d*.93, bpm:136, density:1.75},
+        {name:"final_drop", start:d*.93, end:d, bpm:76, density:1.5}
+      ];
+    }
+    if(motion === "drop"){
+      return [
+        {name:"intro", start:0, end:d*.16, bpm:86, density:.55},
+        {name:"space", start:d*.16, end:d*.38, bpm:96, density:.60},
+        {name:"breaks", start:d*.38, end:d*.63, bpm:114, density:.75},
+        {name:"climax", start:d*.63, end:d*.90, bpm:142, density:1.55},
+        {name:"final_drop", start:d*.90, end:d, bpm:66, density:1.1}
+      ];
+    }
+    return [
+      {name:"intro", start:0, end:d*.14, bpm:82, density:.50},
+      {name:"main_theme", start:d*.14, end:d*.36, bpm:96, density:.78},
+      {name:"syncopation", start:d*.36, end:d*.58, bpm:112, density:1.0},
+      {name:"drive", start:d*.58, end:d*.80, bpm:132, density:1.32},
+      {name:"climax", start:d*.80, end:d*.93, bpm:152, density:1.75},
+      {name:"final_drop", start:d*.93, end:d, bpm:72, density:1.1}
+    ];
+  }
+
+  function swingOffset(eighthIndex, beatDur, swingRatio){
+    // eighthIndex: 0,1,2...
+    const pair = Math.floor(eighthIndex / 2);
+    const inPair = eighthIndex % 2;
+    return pair * beatDur + (inPair ? beatDur * swingRatio : 0);
+  }
+
+  function addChartEvent(chart, time, type, section, lane, motif){
+    if(time < 0 || time > chart.duration) return;
+    const last = chart.events[chart.events.length-1];
+    if(last && Math.abs(last.time - time) < 0.055) return;
+    chart.events.push({
+      time: sec(time),
+      type,
+      lane,
+      section,
+      motif
+    });
+  }
+
+  function buildSongData(opts){
+    const seedString = opts.seed || String(Date.now());
+    const rng = mulberry32(hashString(seedString));
+    const duration = Number(opts.length);
+    const swingRatio = Number(opts.swing);
+    const palette = palettes[opts.mood];
+    const sections = buildSections(duration, opts.motion);
+    const difficultyMap = {easy:.65, medium:1.0, hard:1.35};
+    const diff = difficultyMap[opts.difficulty] || 1.0;
+
+    const song = {
+      title: "Jazz Rhythm Generator 0.1",
+      version: "0.1",
+      seed: seedString,
+      style: "Original browser-generated jazz swing",
+      mood: opts.mood,
+      motion: opts.motion,
+      difficulty: opts.difficulty,
+      duration,
+      key: palette.key,
+      sampleRate: 44100,
+      sections: sections.map(s => ({name:s.name, start:sec(s.start), end:sec(s.end), bpm:s.bpm, density:s.density})),
+      bpmMap: sections.map(s => ({time:sec(s.start), bpm:s.bpm})),
+      events: []
+    };
+
+    const notes = [];
+    const drums = [];
+    const hits = [];
+
+    function pushNote(inst, time, dur, midi, vel=0.75, meta={}){
+      if(time < 0 || time > duration) return;
+      notes.push({inst, time, dur, midi, vel, ...meta});
+    }
+
+    function pushDrum(kind, time, vel=0.7){
+      if(time < 0 || time > duration) return;
+      drums.push({kind, time, vel});
+    }
+
+    const motifCells = [
+      [0, 2, 3, 2],
+      [0, 3, 4, 6],
+      [4, 3, 2, 0],
+      [2, 4, 6, 7],
+      [7, 6, 4, 3],
+      [0, 2, 4, 3, 2]
+    ];
+
+    const motif = pick(rng, motifCells);
+    let phraseCounter = 0;
+
+    for(const secn of sections){
+      const len = secn.end - secn.start;
+      const beatDur = 60 / secn.bpm;
+      const barDur = beatDur * 4;
+      const bars = Math.max(1, Math.floor(len / barDur));
+      const sectionLevel = secn.density * diff;
+      const isFinal = secn.name === "final_drop";
+
+      if(isFinal){
+        const t = secn.start + Math.min(1.0, len*.38);
+        const chord = palette.chords[(phraseCounter) % palette.chords.length];
+        pushDrum("silence", secn.start, 0);
+        pushNote("finalBass", t, 1.1, chord.root, 1.0, {chord: chord.name});
+        chord.notes.forEach((m,i) => pushNote("brass", t + i*.012, 1.35, m + (i>2?12:0), .9, {chord: chord.name}));
+        pushDrum("finalKick", t, 1.0);
+        pushDrum("cymbal", t + .02, .9);
+        addChartEvent(song, t, "finalTap", secn.name, "center", "final_drop");
+        hits.push({time:t, strength:1});
+        continue;
+      }
+
+      for(let b=0;b<bars;b++){
+        const barStart = secn.start + b * barDur;
+        const chord = palette.chords[(phraseCounter + b) % palette.chords.length];
+        const nextChord = palette.chords[(phraseCounter + b + 1) % palette.chords.length];
+
+        // drums: kick, snare, ride
+        for(let beat=0; beat<4; beat++){
+          const t = barStart + beat * beatDur;
+          pushDrum((beat===0 || beat===2) ? "kick" : "ghostKick", t, beat===0 ? .72 : .36);
+          if(beat===1 || beat===3) pushDrum("snare", t + (rng()-.5)*.012, .54);
+          pushDrum("ride", t, .38);
+          const swingT = t + beatDur * swingRatio;
+          pushDrum("hat", swingT, .22 + rng()*.07);
+        }
+
+        // walking bass: root, chord tone, approach, next root
+        const bassLine = [
+          chord.root,
+          chord.root + pick(rng,[7,10,12]),
+          chord.root + pick(rng,[4,5,9]),
+          nextChord.root + pick(rng,[-1,1,2,-2])
+        ];
+        bassLine.forEach((m, beat) => {
+          pushNote("bass", barStart + beat*beatDur + (rng()-.5)*.015, beatDur*.88, m, .72 + rng()*.08, {chord: chord.name});
+        });
+
+        // piano comping
+        const compTimes = [
+          barStart + beatDur * swingRatio,
+          barStart + beatDur * 1.0 + beatDur * swingRatio,
+          barStart + beatDur * 2.0 + beatDur * (rng()>.5 ? .0 : swingRatio),
+          barStart + beatDur * 3.0 + beatDur * swingRatio
+        ];
+        compTimes.forEach((t, idx) => {
+          if(rng() < .45 + sectionLevel*.18){
+            chord.notes.slice(0,4).forEach((m,i) => {
+              pushNote("piano", t + i*.006, beatDur*.42, m + (idx>1 && rng()>.55 ? 12 : 0), .30 + sectionLevel*.08, {chord: chord.name});
+            });
+            if(idx === 1 || rng() < .35) {
+              hits.push({time:t, strength:.6});
+              if(rng() < .28 * sectionLevel) addChartEvent(song, t, "tap", secn.name, "right", "piano_comp");
+            }
+          }
+        });
+
+        // melody motif: call and response, not every bar
+        const shouldMelody = rng() < clamp(.48 + sectionLevel*.18, .35, .92);
+        if(shouldMelody){
+          const baseOct = opts.mood === "intense" ? 72 : 67;
+          const cell = (b + phraseCounter) % 2 === 0 ? motif : motif.slice().reverse();
+          const slots = opts.difficulty === "hard" ? [0,1,2,3,4,5,6] : [0,2,3,5];
+          slots.forEach((slot, idx) => {
+            if(rng() > clamp(.72 + sectionLevel*.05, .62, .95)) return;
+            const offset = swingOffset(slot, beatDur, swingRatio);
+            const t = barStart + offset + (rng()-.5)*.018;
+            const degree = cell[idx % cell.length] || 0;
+            const pool = (rng() < .22) ? palette.blues : palette.scale;
+            let midi = pool[(degree + Math.floor(rng()*2)) % pool.length];
+            while(midi < baseOct - 8) midi += 12;
+            while(midi > baseOct + 10) midi -= 12;
+            const dur = beatDur * pick(rng,[.38,.5,.62,.72]);
+            pushNote("lead", t, dur, midi, .45 + sectionLevel*.1, {motif:"lead_"+phraseCounter});
+            hits.push({time:t, strength:.75});
+            if(rng() < clamp(.38 + sectionLevel*.17, .30, .82)){
+              addChartEvent(song, t, "tap", secn.name, pick(rng,["left","right","center"]), "lead");
+            }
+          });
+        }
+
+        // harder rhythm-game accents
+        if(opts.difficulty !== "easy"){
+          const t = barStart + beatDur * 2 + beatDur * swingRatio;
+          if(rng() < .28 + sectionLevel*.16){
+            addChartEvent(song, t, "tap", secn.name, "center", "syncopation");
+          }
+        }
+
+        // hold/release for medium/hard, usually every 4 bars
+        if(opts.difficulty === "hard" && b % 4 === 2 && secn.name !== "intro"){
+          const start = barStart + beatDur * .5;
+          const end = start + beatDur * pick(rng,[1.5,2,2.5]);
+          if(end < secn.end - .2){
+            addChartEvent(song, start, "holdStart", secn.name, "center", "held_stab");
+            addChartEvent(song, end, "holdEnd", secn.name, "center", "held_stab");
+            chord.notes.slice(0,3).forEach((m,i) => pushNote("pad", start+i*.008, end-start, m, .16, {chord: chord.name}));
+          }
+        }
+
+        // climax brass stabs
+        if(secn.name === "climax" || secn.name === "drive" || secn.name === "busy"){
+          const stabChance = secn.name === "climax" ? .72 : .38;
+          if(rng() < stabChance){
+            const t = barStart + beatDur * pick(rng,[0, 1+swingRatio, 2, 3+swingRatio]);
+            chord.notes.forEach((m,i) => pushNote("brass", t + i*.007, beatDur*.82, m + 12, .42 + sectionLevel*.06, {chord: chord.name}));
+            pushDrum("crash", t, .45);
+            hits.push({time:t, strength:.9});
+            addChartEvent(song, t, "tap", secn.name, "center", "brass_stab");
+          }
+        }
+      }
+      phraseCounter += bars;
+    }
+
+    // stable downbeat events for easy mode
+    if(opts.difficulty === "easy"){
+      for(const secn of sections){
+        if(secn.name === "final_drop") continue;
+        const beatDur = 60 / secn.bpm;
+        const barDur = beatDur * 4;
+        for(let t = secn.start + barDur; t < secn.end - .5; t += barDur){
+          addChartEvent(song, t, "tap", secn.name, "center", "downbeat");
+        }
+      }
+    }
+
+    song.events.sort((a,b)=>a.time-b.time);
+    // Remove overly dense chart events for playability
+    const minGap = opts.difficulty === "hard" ? .16 : opts.difficulty === "medium" ? .22 : .34;
+    const filtered = [];
+    for(const e of song.events){
+      const last = filtered[filtered.length-1];
+      if(!last || e.time - last.time >= minGap || e.type === "holdEnd" || e.type === "finalTap") filtered.push(e);
+    }
+    song.events = filtered.map((e,i)=>({id:i+1, ...e}));
+
+    return {song, notes, drums, hits};
+  }
+
+  function noiseBuffer(ctx, dur=1, rng=Math.random){
+    const length = Math.max(1, Math.floor(ctx.sampleRate * dur));
+    const buffer = ctx.createBuffer(1, length, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for(let i=0;i<length;i++) data[i] = rng()*2-1;
+    return buffer;
+  }
+
+  function envGain(ctx, time, dur, peak, attack=.006, decay=.08, sustain=.45, release=.05){
+    const g = ctx.createGain();
+    const end = time + Math.max(.03, dur);
+    const aEnd = time + attack;
+    const dEnd = aEnd + decay;
+    const rStart = Math.max(dEnd, end - release);
+    g.gain.setValueAtTime(0.0001, time);
+    g.gain.exponentialRampToValueAtTime(Math.max(0.0002, peak), aEnd);
+    g.gain.exponentialRampToValueAtTime(Math.max(0.0002, peak*sustain), dEnd);
+    g.gain.setValueAtTime(Math.max(0.0002, peak*sustain), rStart);
+    g.gain.exponentialRampToValueAtTime(0.0001, end);
+    return g;
+  }
+
+  function connectFilter(ctx, node, type, freq, q=1.0){
+    const f = ctx.createBiquadFilter();
+    f.type = type;
+    f.frequency.value = freq;
+    f.Q.value = q;
+    node.connect(f);
+    return f;
+  }
+
+  function scheduleTone(ctx, master, n){
+    const t = n.time;
+    const dur = Math.max(.04, n.dur);
+    const freq = midiToHz(n.midi);
+    const pan = ctx.createStereoPanner ? ctx.createStereoPanner() : null;
+    if(pan) pan.pan.value = (n.inst === "bass" || n.inst === "finalBass") ? -.15 : (n.inst === "lead" ? .18 : 0);
+
+    if(n.inst === "bass" || n.inst === "finalBass"){
+      const osc = ctx.createOscillator();
+      osc.type = "triangle";
+      osc.frequency.setValueAtTime(freq, t);
+      if(n.inst === "finalBass"){
+        osc.frequency.exponentialRampToValueAtTime(Math.max(30, freq*.48), t + Math.min(dur,.9));
+      }
+      const g = envGain(ctx, t, dur, .075*n.vel, .008, .05, .65, .06);
+      const f = connectFilter(ctx, osc, "lowpass", 900, .7);
+      f.connect(g);
+      if(pan){ g.connect(pan); pan.connect(master); } else g.connect(master);
+      osc.start(t); osc.stop(t+dur+.08);
+      return;
+    }
+
+    if(n.inst === "piano"){
+      [0, .007].forEach((detune, idx)=>{
+        const osc = ctx.createOscillator();
+        osc.type = idx ? "sine" : "triangle";
+        osc.frequency.setValueAtTime(freq*(1+detune), t);
+        const g = envGain(ctx, t, dur, .030*n.vel/(idx+1), .004, .07, .25, .11);
+        const f = connectFilter(ctx, osc, "lowpass", 2600, .8);
+        f.connect(g);
+        if(pan){ g.connect(pan); pan.connect(master); } else g.connect(master);
+        osc.start(t); osc.stop(t+dur+.12);
+      });
+      return;
+    }
+
+    if(n.inst === "lead"){
+      const osc = ctx.createOscillator();
+      osc.type = "square";
+      osc.frequency.setValueAtTime(freq, t);
+      const g = envGain(ctx, t, dur, .018*n.vel, .012, .04, .55, .08);
+      const f = connectFilter(ctx, osc, "lowpass", 1450 + n.vel*900, .7);
+      f.connect(g);
+      if(pan){ g.connect(pan); pan.connect(master); } else g.connect(master);
+      osc.start(t); osc.stop(t+dur+.08);
+      return;
+    }
+
+    if(n.inst === "brass"){
+      const osc = ctx.createOscillator();
+      osc.type = "sawtooth";
+      osc.frequency.setValueAtTime(freq, t);
+      const g = envGain(ctx, t, dur, .020*n.vel, .018, .08, .50, .12);
+      const f = connectFilter(ctx, osc, "lowpass", 1250 + n.vel*1300, 1.2);
+      f.connect(g);
+      if(pan){ g.connect(pan); pan.connect(master); } else g.connect(master);
+      osc.start(t); osc.stop(t+dur+.15);
+      return;
+    }
+
+    if(n.inst === "pad"){
+      const osc = ctx.createOscillator();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(freq, t);
+      const g = envGain(ctx, t, dur, .016*n.vel, .08, .2, .85, .25);
+      const f = connectFilter(ctx, osc, "lowpass", 900, .5);
+      f.connect(g);
+      if(pan){ g.connect(pan); pan.connect(master); } else g.connect(master);
+      osc.start(t); osc.stop(t+dur+.28);
+    }
+  }
+
+  function scheduleDrum(ctx, master, d, noise){
+    const t = d.time;
+    const vel = d.vel || .5;
+
+    if(d.kind === "kick" || d.kind === "ghostKick" || d.kind === "finalKick"){
+      const osc = ctx.createOscillator();
+      osc.type = "sine";
+      const base = d.kind === "finalKick" ? 155 : 105;
+      osc.frequency.setValueAtTime(base, t);
+      osc.frequency.exponentialRampToValueAtTime(d.kind === "finalKick" ? 36 : 45, t + (d.kind === "finalKick" ? .45 : .18));
+      const g = envGain(ctx, t, d.kind === "finalKick" ? .55 : .22, (d.kind === "ghostKick" ? .035 : .075)*vel, .003, .05, .18, .08);
+      osc.connect(g); g.connect(master);
+      osc.start(t); osc.stop(t+.65);
+      return;
+    }
+
+    if(d.kind === "snare"){
+      const src = ctx.createBufferSource();
+      src.buffer = noise;
+      const hp = connectFilter(ctx, src, "highpass", 850, .8);
+      const bp = connectFilter(ctx, hp, "bandpass", 1800, .9);
+      const g = envGain(ctx, t, .17, .035*vel, .003, .035, .25, .05);
+      bp.connect(g); g.connect(master);
+      src.start(t); src.stop(t+.2);
+      return;
+    }
+
+    if(d.kind === "hat" || d.kind === "ride" || d.kind === "crash" || d.kind === "cymbal"){
+      const src = ctx.createBufferSource();
+      src.buffer = noise;
+      const hp = connectFilter(ctx, src, "highpass", d.kind === "ride" ? 4200 : 6200, .5);
+      const g = envGain(ctx, t, d.kind === "cymbal" ? 1.2 : d.kind === "crash" ? .55 : .08, 
+        (d.kind === "cymbal" ? .028 : d.kind === "crash" ? .018 : .009)*vel,
+        .002, .025, .25, d.kind === "cymbal" ? .65 : .08);
+      hp.connect(g); g.connect(master);
+      src.start(t); src.stop(t + (d.kind === "cymbal" ? 1.4 : .45));
+    }
+  }
+
+  async function renderSong(data){
+    const sr = 44100;
+    const duration = data.song.duration + 1.5;
+    const ctx = new OfflineAudioContext(2, Math.ceil(sr * duration), sr);
+    const master = ctx.createGain();
+    master.gain.value = .85;
+
+    const compressor = ctx.createDynamicsCompressor();
+    compressor.threshold.value = -18;
+    compressor.knee.value = 18;
+    compressor.ratio.value = 5;
+    compressor.attack.value = .006;
+    compressor.release.value = .18;
+
+    const reverb = ctx.createConvolver();
+    reverb.buffer = impulseResponse(ctx, 1.15, 1.8);
+    const dry = ctx.createGain();
+    const wet = ctx.createGain();
+    dry.gain.value = .78;
+    wet.gain.value = .18;
+
+    master.connect(dry);
+    master.connect(reverb);
+    reverb.connect(wet);
+    dry.connect(compressor);
+    wet.connect(compressor);
+    compressor.connect(ctx.destination);
+
+    const noise = noiseBuffer(ctx, 2);
+
+    data.notes.forEach(n => scheduleTone(ctx, master, n));
+    data.drums.forEach(d => scheduleDrum(ctx, master, d, noise));
+
+    // subtle room tone, fades out before end
+    const room = ctx.createOscillator();
+    room.type = "sine";
+    room.frequency.value = 55;
+    const rg = ctx.createGain();
+    rg.gain.setValueAtTime(.003, 0);
+    rg.gain.linearRampToValueAtTime(.001, data.song.duration);
+    room.connect(rg); rg.connect(master);
+    room.start(0); room.stop(duration);
+
+    return await ctx.startRendering();
+  }
+
+  function impulseResponse(ctx, seconds, decay){
+    const length = ctx.sampleRate * seconds;
+    const impulse = ctx.createBuffer(2, length, ctx.sampleRate);
+    for(let ch=0; ch<2; ch++){
+      const data = impulse.getChannelData(ch);
+      for(let i=0; i<length; i++){
+        data[i] = (Math.random()*2-1) * Math.pow(1 - i/length, decay);
+      }
+    }
+    return impulse;
+  }
+
+  function audioBufferToWavBlob(buffer){
+    const numChannels = buffer.numberOfChannels;
+    const sampleRate = buffer.sampleRate;
+    const length = buffer.length;
+    const bytesPerSample = 2;
+    const blockAlign = numChannels * bytesPerSample;
+    const dataSize = length * blockAlign;
+    const ab = new ArrayBuffer(44 + dataSize);
+    const view = new DataView(ab);
+
+    function writeString(offset, str){
+      for(let i=0;i<str.length;i++) view.setUint8(offset+i, str.charCodeAt(i));
+    }
+
+    writeString(0, "RIFF");
+    view.setUint32(4, 36 + dataSize, true);
+    writeString(8, "WAVE");
+    writeString(12, "fmt ");
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);
+    view.setUint16(22, numChannels, true);
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * blockAlign, true);
+    view.setUint16(32, blockAlign, true);
+    view.setUint16(34, 16, true);
+    writeString(36, "data");
+    view.setUint32(40, dataSize, true);
+
+    const channels = [];
+    for(let ch=0; ch<numChannels; ch++) channels.push(buffer.getChannelData(ch));
+
+    let offset = 44;
+    for(let i=0;i<length;i++){
+      for(let ch=0; ch<numChannels; ch++){
+        let s = clamp(channels[ch][i], -1, 1);
+        s = s < 0 ? s * 0x8000 : s * 0x7fff;
+        view.setInt16(offset, s, true);
+        offset += 2;
+      }
+    }
+    return new Blob([ab], {type:"audio/wav"});
+  }
+
+  function downloadBlob(blob, filename){
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+      URL.revokeObjectURL(a.href);
+      a.remove();
+    }, 800);
+  }
+
+  function setBusy(busy, text){
+    els.generateBtn.disabled = busy;
+    els.randomSeedBtn.disabled = busy;
+    els.downloadWavBtn.disabled = busy || !current.wavBlob;
+    els.downloadJsonBtn.disabled = busy || !current.chart;
+    els.status.textContent = text;
+  }
+
+  function drawViz(chart, hits=[]){
+    const canvas = els.viz;
+    const ctx = canvas.getContext("2d");
+    const w = canvas.width, h = canvas.height;
+    ctx.clearRect(0,0,w,h);
+    ctx.fillStyle = "#080b10";
+    ctx.fillRect(0,0,w,h);
+
+    // sections
+    chart.sections.forEach((s, i) => {
+      const x = s.start / chart.duration * w;
+      const ww = (s.end - s.start) / chart.duration * w;
+      ctx.fillStyle = i % 2 ? "rgba(255,255,255,.035)" : "rgba(255,255,255,.018)";
+      ctx.fillRect(x,0,ww,h);
+      ctx.fillStyle = "rgba(238,242,247,.56)";
+      ctx.font = "20px -apple-system, BlinkMacSystemFont, sans-serif";
+      ctx.fillText(s.name, x+10, 28);
+      ctx.font = "14px -apple-system, BlinkMacSystemFont, sans-serif";
+      ctx.fillText(s.bpm+" BPM", x+10, 48);
+    });
+
+    // grid
+    ctx.strokeStyle = "rgba(255,255,255,.08)";
+    ctx.lineWidth = 1;
+    for(let i=0;i<=10;i++){
+      const x = i/10*w;
+      ctx.beginPath();
+      ctx.moveTo(x,0); ctx.lineTo(x,h); ctx.stroke();
+    }
+
+    // events
+    chart.events.forEach(e => {
+      const x = e.time / chart.duration * w;
+      let y = h*.72;
+      if(e.lane === "left") y = h*.62;
+      if(e.lane === "right") y = h*.82;
+      if(e.type === "holdStart" || e.type === "holdEnd") y = h*.50;
+      if(e.type === "finalTap") y = h*.40;
+      ctx.beginPath();
+      ctx.arc(x,y,e.type === "finalTap" ? 7 : 4,0,Math.PI*2);
+      ctx.fillStyle = e.type === "finalTap" ? "#ff7b72" : e.type.startsWith("hold") ? "#7ee787" : "#f7c948";
+      ctx.fill();
+    });
+
+    ctx.fillStyle = "rgba(238,242,247,.75)";
+    ctx.font = "14px -apple-system, BlinkMacSystemFont, sans-serif";
+    ctx.fillText("節奏點視覺化：上方為段落，下方點位為遊戲判定事件", 12, h-14);
+  }
+
+  function startProgress(){
+    stopProgress();
+    const audio = els.audio;
+    function tick(){
+      if(audio.duration && !audio.paused){
+        const pct = clamp(audio.currentTime / audio.duration * 100, 0, 100);
+        els.progressBar.style.width = pct + "%";
+      }
+      current.raf = requestAnimationFrame(tick);
+    }
+    tick();
+  }
+
+  function stopProgress(){
+    if(current.raf) cancelAnimationFrame(current.raf);
+    current.raf = null;
+  }
+
+  function revokeOldUrls(){
+    if(current.wavUrl) URL.revokeObjectURL(current.wavUrl);
+    if(current.jsonUrl) URL.revokeObjectURL(current.jsonUrl);
+    current.wavUrl = null;
+    current.jsonUrl = null;
+  }
+
+  function makeOptions(){
+    let seed = els.seed.value.trim();
+    if(!seed){
+      seed = String(Math.floor(Math.random()*99999999));
+      els.seed.value = seed;
+    }
+    return {
+      length: Number(els.length.value),
+      difficulty: els.difficulty.value,
+      mood: els.mood.value,
+      motion: els.motion.value,
+      seed,
+      swing: Number(els.swing.value)
+    };
+  }
+
+  async function generate(){
+    stopProgress();
+    els.progressBar.style.width = "0%";
+    revokeOldUrls();
+    current.wavBlob = null;
+    current.chart = null;
+    els.downloadWavBtn.disabled = true;
+    els.downloadJsonBtn.disabled = true;
+    els.stopBtn.disabled = true;
+    els.audio.removeAttribute("src");
+    els.audio.load();
+
+    setBusy(true, "正在建立音樂資料與節奏點……");
+    await new Promise(r => setTimeout(r, 40));
+
+    const opts = makeOptions();
+    const data = buildSongData(opts);
+    current.chart = data.song;
+    drawViz(data.song, data.hits);
+
+    els.metaDuration.textContent = data.song.duration + "s";
+    els.metaEvents.textContent = data.song.events.length;
+    els.metaSeed.textContent = data.song.seed;
+    els.jsonPreview.value = JSON.stringify(data.song, null, 2);
+
+    setBusy(true, "正在離線渲染 WAV。手機上可能需要幾秒。");
+    await new Promise(r => setTimeout(r, 40));
+
+    try{
+      const audioBuffer = await renderSong(data);
+      current.audioBuffer = audioBuffer;
+      const wavBlob = audioBufferToWavBlob(audioBuffer);
+      current.wavBlob = wavBlob;
+      current.wavUrl = URL.createObjectURL(wavBlob);
+      els.audio.src = current.wavUrl;
+
+      const jsonBlob = new Blob([JSON.stringify(data.song, null, 2)], {type:"application/json"});
+      current.jsonUrl = URL.createObjectURL(jsonBlob);
+
+      els.downloadWavBtn.disabled = false;
+      els.downloadJsonBtn.disabled = false;
+      els.stopBtn.disabled = false;
+      setBusy(false, "生成完成。可直接播放、下載 WAV 或下載 JSON。");
+    }catch(err){
+      console.error(err);
+      setBusy(false, "生成失敗：" + (err && err.message ? err.message : err));
+    }
+  }
+
+  function randomSeed(){
+    els.seed.value = String(Math.floor(Math.random()*99999999));
+  }
+
+  els.generateBtn.addEventListener("click", generate);
+  els.randomSeedBtn.addEventListener("click", () => {
+    randomSeed();
+    generate();
+  });
+  els.stopBtn.addEventListener("click", () => {
+    els.audio.pause();
+    els.audio.currentTime = 0;
+    els.progressBar.style.width = "0%";
+  });
+  els.downloadWavBtn.addEventListener("click", () => {
+    if(current.wavBlob && current.chart){
+      downloadBlob(current.wavBlob, `jazz_generator_v01_${current.chart.seed}.wav`);
+    }
+  });
+  els.downloadJsonBtn.addEventListener("click", () => {
+    if(current.chart){
+      const blob = new Blob([JSON.stringify(current.chart, null, 2)], {type:"application/json"});
+      downloadBlob(blob, `jazz_generator_v01_${current.chart.seed}.json`);
+    }
+  });
+  els.audio.addEventListener("play", startProgress);
+  els.audio.addEventListener("pause", stopProgress);
+  els.audio.addEventListener("ended", () => {
+    stopProgress();
+    els.progressBar.style.width = "100%";
+  });
+
+  // initial blank visualization
+  drawViz({
+    duration:60,
+    sections:[{name:"未生成",start:0,end:60,bpm:"—"}],
+    events:[]
+  });
+})();
+</script>
+</body>
+</html>
