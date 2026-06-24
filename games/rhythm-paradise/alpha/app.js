@@ -114,7 +114,9 @@ const comboText = document.getElementById("comboText");
 const result = document.getElementById("result");
 const rankText = document.getElementById("rankText");
 const detailText = document.getElementById("detailText");
+const backBtn = document.getElementById("backBtn");
 const feedbackToggle = document.getElementById("feedbackToggle");
+const accuracyToggle = document.getElementById("accuracyToggle");
 const prevLevelBtn = document.getElementById("prevLevelBtn");
 const restartLevelBtn = document.getElementById("restartLevelBtn");
 const nextLevelBtn = document.getElementById("nextLevelBtn");
@@ -140,6 +142,7 @@ let startedAt = 0;
 let holdArmed = false;
 let currentLevelIndex = 0;
 let feedbackVisible = false;
+let accuracyVisible = false;
 let progress = loadProgress();
 
 function loadProgress() {
@@ -271,8 +274,8 @@ function buildSectionPhrases(type, start, end, events, patternLimit, options = {
   const intervals = musicalIntervals(type, options).slice(0, Math.max(1, patternLimit));
   const candidates = [];
   const targetPoints = keyPoints
-    .filter(point => point.time >= start + 1.0 && point.time < end - 0.45)
-    .filter(point => point.accent !== "note" || point.score >= 1.15)
+    .filter(point => point.time >= start + 2.0 && point.time < end - 0.75)
+    .filter(point => point.accent !== "note" || point.score >= 1.55)
     .sort((a, b) => a.time - b.time);
 
   for (const targetPoint of targetPoints) {
@@ -281,7 +284,7 @@ function buildSectionPhrases(type, start, end, events, patternLimit, options = {
       let valid = true;
       for (let actor = 0; actor < rule.actors - 1; actor++) {
         const wanted = targetPoint.time - gap * (rule.actors - 1 - actor);
-        const cue = nearestKeyPoint(keyPoints, wanted, Math.min(0.13, Math.max(0.055, gap * 0.30)));
+        const cue = nearestKeyPoint(keyPoints, wanted, Math.min(0.11, Math.max(0.045, gap * 0.26)));
         if (!cue || cue.time < start + 0.35) {
           valid = false;
           break;
@@ -301,7 +304,7 @@ function buildSectionPhrases(type, start, end, events, patternLimit, options = {
 
   const timeSorted = candidates
     .sort((a, b) => b.strength - a.strength)
-    .slice(0, Math.max(180, patternLimit * 64))
+    .slice(0, Math.max(120, patternLimit * 44))
     .sort((a, b) => a.actorTimes[0] - b.actorTimes[0]);
   const allowedSignatures = [];
   for (const interval of intervals) {
@@ -320,7 +323,7 @@ function buildSectionPhrases(type, start, end, events, patternLimit, options = {
   while (true) {
       const eligible = timeSorted.filter(candidate =>
         allowedSignatures.includes(candidate.signature) &&
-        candidate.actorTimes[0] >= lastTarget + Math.max(0.36, candidate.gaps[0] * 0.55)
+        candidate.actorTimes[0] >= lastTarget + Math.max(0.55, candidate.gaps[0] * 0.85)
       );
       if (!eligible.length) break;
       const candidate = eligible.find(item => item.signature !== lastSignature) || eligible[0];
@@ -518,9 +521,6 @@ function activeType() {
 
 function playSfx(type, actor, grade) {
   ensureSfx();
-  if (type === "marimba" && grade !== "miss") return playMarimbaSfx(actor, grade);
-  if (type === "rain" && grade !== "miss") return playRainSfx(actor, grade);
-  if (type === "mountain" && grade !== "miss") return playMountainPercussion(actor, grade);
   const now = sfxCtx.currentTime;
   const osc = sfxCtx.createOscillator();
   const gain = sfxCtx.createGain();
@@ -539,88 +539,6 @@ function playSfx(type, actor, grade) {
   gain.connect(sfxCtx.destination);
   osc.start(now);
   osc.stop(now + (grade === "miss" ? 0.30 : type === "mountain" ? 0.38 : 0.18));
-}
-
-function playMarimbaSfx(actor, grade) {
-  const now = sfxCtx.currentTime;
-  const base = [392, 523, 659][Math.min(actor, 2)] || 523;
-  [1, 3.02, 4.95].forEach((ratio, index) => {
-    const osc = sfxCtx.createOscillator();
-    const gain = sfxCtx.createGain();
-    osc.type = "triangle";
-    osc.frequency.setValueAtTime(base * ratio * (grade === "perfect" ? 1.02 : 1), now);
-    gain.gain.setValueAtTime(0.0001, now);
-    gain.gain.linearRampToValueAtTime((index === 0 ? 0.09 : 0.03) * (grade === "cue" ? 0.66 : 1), now + 0.004);
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.22 + index * 0.04);
-    osc.connect(gain);
-    gain.connect(sfxCtx.destination);
-    osc.start(now);
-    osc.stop(now + 0.28 + index * 0.04);
-  });
-}
-
-function playRainSfx(actor, grade) {
-  const now = sfxCtx.currentTime;
-  const osc = sfxCtx.createOscillator();
-  const gain = sfxCtx.createGain();
-  osc.type = "triangle";
-  osc.frequency.setValueAtTime(720 + actor * 45, now);
-  osc.frequency.exponentialRampToValueAtTime(280, now + 0.14);
-  gain.gain.setValueAtTime(0.0001, now);
-  gain.gain.linearRampToValueAtTime(grade === "cue" ? 0.035 : 0.08, now + 0.006);
-  gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.16);
-  osc.connect(gain);
-  gain.connect(sfxCtx.destination);
-  osc.start(now);
-  osc.stop(now + 0.18);
-
-  const burst = sfxCtx.createBufferSource();
-  const length = Math.floor(sfxCtx.sampleRate * 0.12);
-  const buffer = sfxCtx.createBuffer(1, length, sfxCtx.sampleRate);
-  const data = buffer.getChannelData(0);
-  for (let i = 0; i < length; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / length);
-  const filter = sfxCtx.createBiquadFilter();
-  filter.type = "bandpass";
-  filter.frequency.setValueAtTime(1800, now);
-  const noiseGain = sfxCtx.createGain();
-  noiseGain.gain.setValueAtTime(0.0001, now);
-  noiseGain.gain.linearRampToValueAtTime(grade === "cue" ? 0.015 : 0.035, now + 0.008);
-  noiseGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.11);
-  burst.buffer = buffer;
-  burst.connect(filter);
-  filter.connect(noiseGain);
-  noiseGain.connect(sfxCtx.destination);
-  burst.start(now);
-  burst.stop(now + 0.12);
-}
-
-function playMountainPercussion(actor, grade) {
-  const now = sfxCtx.currentTime;
-  const low = sfxCtx.createOscillator();
-  const lowGain = sfxCtx.createGain();
-  low.type = "sine";
-  low.frequency.setValueAtTime(96 + actor * 10, now);
-  low.frequency.exponentialRampToValueAtTime(74, now + 0.28);
-  lowGain.gain.setValueAtTime(0.0001, now);
-  lowGain.gain.linearRampToValueAtTime(grade === "cue" ? 0.05 : 0.12, now + 0.01);
-  lowGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.52);
-  low.connect(lowGain);
-  lowGain.connect(sfxCtx.destination);
-  low.start(now);
-  low.stop(now + 0.56);
-
-  const gong = sfxCtx.createOscillator();
-  const gongGain = sfxCtx.createGain();
-  gong.type = "triangle";
-  gong.frequency.setValueAtTime(430 + actor * 20, now);
-  gong.frequency.exponentialRampToValueAtTime(250, now + 0.46);
-  gongGain.gain.setValueAtTime(0.0001, now);
-  gongGain.gain.linearRampToValueAtTime(grade === "cue" ? 0.018 : 0.05, now + 0.015);
-  gongGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.62);
-  gong.connect(gongGain);
-  gongGain.connect(sfxCtx.destination);
-  gong.start(now);
-  gong.stop(now + 0.66);
 }
 
 function playResultSound(kind) {
@@ -666,7 +584,7 @@ function updateScore() {
   const total = stats.perfect + stats.good + stats.ok + stats.miss;
   const correct = stats.perfect + stats.good + stats.ok;
   const accuracy = total ? Math.round((correct / total) * 100) : 0;
-  if (feedbackVisible) {
+  if (accuracyVisible) {
     scoreText.textContent = `${accuracy}%`;
     comboText.textContent = `combo ${combo}`;
   } else {
@@ -680,14 +598,10 @@ function draw(t) {
   const w = stage.width;
   const h = stage.height;
   const type = activeType();
-  const scene = sceneRect(w, h);
   drawBackground(w, h, type, t);
-  ctx.save();
-  ctx.translate(scene.x, scene.y);
-  drawRhythmScene(scene.w, scene.h, type, t);
-  ctx.restore();
+  drawRhythmScene(w, h, type, t);
   drawFlash(w, h, t);
-  drawProgress(scene, t);
+  drawProgress(w, h, t);
 }
 
 function fitCanvas() {
@@ -699,27 +613,6 @@ function fitCanvas() {
     stage.width = width;
     stage.height = height;
   }
-}
-
-function sceneRect(w, h) {
-  const mobilePortrait = window.innerWidth < 780 && window.innerHeight > window.innerWidth;
-  const aspect = mobilePortrait ? 1.06 : 16 / 9;
-  const padX = Math.max(10, w * 0.03);
-  const padY = Math.max(10, h * 0.04);
-  const availW = w - padX * 2;
-  const availH = h - padY * 2;
-  let sceneW = availW;
-  let sceneH = sceneW / aspect;
-  if (sceneH > availH) {
-    sceneH = availH;
-    sceneW = sceneH * aspect;
-  }
-  return {
-    x: Math.round((w - sceneW) / 2),
-    y: Math.round((h - sceneH) / 2),
-    w: Math.round(sceneW),
-    h: Math.round(sceneH),
-  };
 }
 
 function drawBackground(w, h, type, t) {
@@ -787,17 +680,13 @@ function drawGlassLine(w, h, t) {
     ctx.arc(x, h * .52 + Math.sin(t * 2 + i) * 8 - p * 18, 26 + p * 12, 0, Math.PI * 2);
     ctx.fill();
     if (state.miss && isPlayer) {
-      ctx.strokeStyle = "#081018";
-      ctx.lineWidth = 8;
+      ctx.strokeStyle = "#ff806d";
+      ctx.lineWidth = 9;
       ctx.beginPath();
-      ctx.moveTo(x - 15, h * .52 - 14);
-      ctx.lineTo(x + 15, h * .52 + 14);
-      ctx.moveTo(x + 15, h * .52 - 14);
-      ctx.lineTo(x - 15, h * .52 + 14);
-      ctx.stroke();
-      ctx.lineWidth = 6;
-      ctx.beginPath();
-      ctx.arc(x + 32, h * .52 + 4, 18, -Math.PI / 2, Math.PI / 2);
+      ctx.moveTo(x - 31, h * .52 - 30);
+      ctx.lineTo(x + 31, h * .52 + 30);
+      ctx.moveTo(x + 31, h * .52 - 30);
+      ctx.lineTo(x - 31, h * .52 + 30);
       ctx.stroke();
     }
   });
@@ -808,73 +697,56 @@ function drawMarimbaLine(w, h, t) {
   xs.forEach((x, i) => {
     const state = pulseStateFor("marimba", i, t);
     const p = state.amount;
-    const keyY = h * .66;
-    ctx.fillStyle = i === 2 ? "#f4f4df" : "#d5a753";
-    ctx.fillRect(x - 64, keyY, 128, 40);
-    ctx.fillStyle = "#8f5c1e";
-    ctx.fillRect(x - 66, keyY + 38, 132, 10);
+    ctx.fillStyle = i === 2 ? "#eff8ff" : "#ffd166";
+    ctx.fillRect(x - 50, h * .58, 100, 130);
     ctx.strokeStyle = "#d79642";
     ctx.lineWidth = 10;
     ctx.beginPath();
     if (state.miss && i === 2) {
-      ctx.moveTo(x - 34, keyY - 10);
-      ctx.lineTo(x - 4, keyY - 40);
-      ctx.moveTo(x + 8, keyY - 36);
-      ctx.lineTo(x + 36, keyY - 8);
+      ctx.moveTo(x - 48, h * .52);
+      ctx.lineTo(x - 8, h * .45);
+      ctx.moveTo(x + 10, h * .47);
+      ctx.lineTo(x + 46, h * .57);
     } else {
-      ctx.moveTo(x - 40, keyY - 6 - p * 64);
-      ctx.lineTo(x + 22, keyY - 42 + p * 78);
+      ctx.moveTo(x - 44, h * .55 - p * 74);
+      ctx.lineTo(x + 28, h * .41 + p * 116);
     }
     ctx.stroke();
-    ctx.fillStyle = "#f05a28";
+    ctx.fillStyle = i === 2 ? "#72e6b2" : "#ff806d";
     ctx.beginPath();
-    ctx.arc(x - 44 + p * 82, keyY - 22 + p * 28, 16, 0, Math.PI * 2);
-    ctx.fill();
-    const roachX = x - 22 + Math.sin(t * 5 + i) * 10 + p * 16;
-    const roachY = keyY - 18 - p * 14;
-    ctx.fillStyle = i === 2 ? "#f7f6ff" : "#3f2613";
-    ctx.beginPath();
-    ctx.ellipse(roachX, roachY, 18, 10, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.beginPath();
-    ctx.arc(roachX + 15, roachY - 2, 6, 0, Math.PI * 2);
+    ctx.arc(x - 52 + p * 84, h * .52 + p * 54, 22, 0, Math.PI * 2);
     ctx.fill();
   });
 }
 
 function drawRainLine(w, h, t) {
   const xs = [w * .30, w * .50, w * .70];
+  for (let i = 0; i < 26; i++) {
+    const y = (i * 71 + t * 180) % h;
+    const x = (i * 101) % w;
+    ctx.strokeStyle = "rgba(114,184,255,.25)";
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x - 10, y + 28);
+    ctx.stroke();
+  }
   xs.forEach((x, i) => {
     const state = pulseStateFor("rain", i, t);
     const p = state.amount;
-    const umbrellaY = h * .68;
-    const open = Math.min(1, p * 1.4);
-    const tilt = state.miss && i === 2 ? 0.22 : 0;
+    const tilt = state.miss && i === 2 ? 0.38 : 0;
     ctx.save();
-    ctx.translate(x, umbrellaY);
+    ctx.translate(x, h * .61);
     ctx.rotate(tilt);
     ctx.strokeStyle = i === 2 ? "#eff8ff" : "#72b8ff";
     ctx.lineWidth = 8;
     ctx.beginPath();
-    ctx.arc(0, 0, 54 + open * 18, Math.PI, Math.PI * 2);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(0, 0);
-    ctx.lineTo(0, 72);
+    ctx.arc(0, 0, 62 + p * 18, Math.PI, Math.PI * 2);
     ctx.stroke();
     ctx.restore();
-    const dropY = h * .24 + (1 - open) * (umbrellaY - h * .26);
     ctx.fillStyle = "#72b8ff";
     ctx.beginPath();
-    ctx.arc(x + (state.miss && i === 2 ? 18 : 0), dropY, 12, 0, Math.PI * 2);
+    ctx.arc(x + (state.miss && i === 2 ? 34 : 0), h * .34 + p * h * .26, 12 + p * 10, 0, Math.PI * 2);
     ctx.fill();
-    if (open > 0.22) {
-      ctx.strokeStyle = "#bff6ff";
-      ctx.lineWidth = 5;
-      ctx.beginPath();
-      ctx.arc(x, umbrellaY - 8, 24 + open * 18, Math.PI * 1.06, Math.PI * 1.94);
-      ctx.stroke();
-    }
   });
 }
 
@@ -961,12 +833,12 @@ function drawFlash(w, h, t) {
   ctx.globalAlpha = 1;
 }
 
-function drawProgress(scene, t) {
+function drawProgress(w, h, t) {
   const duration = activeChart.durationSeconds || audio.duration || 64;
   ctx.fillStyle = "rgba(255,255,255,.16)";
-  ctx.fillRect(scene.x + scene.w * .06, scene.y + scene.h - 18, scene.w * .88, 6);
+  ctx.fillRect(w * .06, h - 24, w * .88, 8);
   ctx.fillStyle = activeLevel.color;
-  ctx.fillRect(scene.x + scene.w * .06, scene.y + scene.h - 18, scene.w * .88 * Math.min(1, t / duration), 6);
+  ctx.fillRect(w * .06, h - 24, w * .88 * Math.min(1, t / duration), 8);
 }
 
 function endLevel() {
@@ -1012,6 +884,7 @@ function restartLevel() {
 
 function updateNav() {
   prevLevelBtn.disabled = currentLevelIndex <= 0;
+  backBtn.disabled = currentLevelIndex <= 0;
   nextLevelBtn.disabled = currentLevelIndex + 1 > progress.unlocked || currentLevelIndex >= LEVELS.length - 1;
   levelStatusText.textContent = `${currentLevelIndex + 1} / ${LEVELS.length}`;
 }
@@ -1046,10 +919,17 @@ stage.addEventListener("pointerdown", () => {
 feedbackToggle.addEventListener("click", () => {
   feedbackVisible = !feedbackVisible;
   feedbackToggle.setAttribute("aria-pressed", String(feedbackVisible));
-  feedbackToggle.textContent = `回饋與分數 ${feedbackVisible ? "ON" : "OFF"}`;
+  feedbackToggle.textContent = `回饋 ${feedbackVisible ? "ON" : "OFF"}`;
+});
+
+accuracyToggle.addEventListener("click", () => {
+  accuracyVisible = !accuracyVisible;
+  accuracyToggle.setAttribute("aria-pressed", String(accuracyVisible));
+  accuracyToggle.textContent = `答對率 ${accuracyVisible ? "ON" : "OFF"}`;
   updateScore();
 });
 
+backBtn.addEventListener("click", () => goToLevel(currentLevelIndex - 1));
 document.getElementById("menuBtn").addEventListener("click", () => goToLevel(currentLevelIndex + 1));
 document.getElementById("retryBtn").addEventListener("click", restartLevel);
 prevLevelBtn.addEventListener("click", () => goToLevel(currentLevelIndex - 1));
