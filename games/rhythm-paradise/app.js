@@ -86,11 +86,11 @@ const RHYTHM_RULES = {
 };
 
 const SOURCE_RHYTHM_INTERVALS = {
-  "01_glass_canon": [0.5, 1.0],
-  "02_marimba_pulse": [0.3, 0.375, 0.5],
-  "03_raindrop_shuffle": [0.352941, 0.588235, 0.882353],
-  "04_mountain_bass": [0.625, 0.833333, 1.25],
-  "05_bird_crystal_run": [0.194805, 0.272727, 0.454545],
+  "01_glass_canon": [0.25, 0.333333, 0.5, 1.0],
+  "02_marimba_pulse": [0.3, 0.375, 0.5, 0.75],
+  "03_raindrop_shuffle": [0.352941, 0.588235, 0.882353, 1.764706],
+  "04_mountain_bass": [0.625, 0.833333, 1.25, 2.5],
+  "05_bird_crystal_run": [0.194805, 0.272727, 0.38961, 0.545455],
 };
 
 const TYPE_TO_SOURCE = {
@@ -771,6 +771,15 @@ function pulseStateFor(type, actor, t) {
   return { amount: Math.max(0, 1 - age / 0.42), miss: pulse.grade === "miss" };
 }
 
+function displayPhrase(activePhrases, t) {
+  if (!activePhrases.length) return null;
+  return activePhrases.reduce((best, phrase) => {
+    const center = phrase.actorTimes[Math.floor((phrase.actorTimes.length - 1) / 2)];
+    const bestCenter = best.actorTimes[Math.floor((best.actorTimes.length - 1) / 2)];
+    return Math.abs(center - t) < Math.abs(bestCenter - t) ? phrase : best;
+  });
+}
+
 function drawGlassLine(w, h, t) {
   const xs = [w * .30, w * .50, w * .70];
   xs.forEach((x, i) => {
@@ -803,76 +812,182 @@ function drawGlassLine(w, h, t) {
   });
 }
 
-function drawMarimbaLine(w, h, t) {
-  const xs = [w * .28, w * .50, w * .72];
+function drawMarimbaLine(w, h, t, activePhrases) {
+  const xs = [w * .22, w * .50, w * .78];
+  const keyY = h * .66;
+  const phrase = displayPhrase(activePhrases, t);
   xs.forEach((x, i) => {
+    const isPlayer = i === 2;
     const state = pulseStateFor("marimba", i, t);
-    const p = state.amount;
-    const keyY = h * .66;
-    ctx.fillStyle = i === 2 ? "#f4f4df" : "#d5a753";
-    ctx.fillRect(x - 64, keyY, 128, 40);
+    ctx.fillStyle = isPlayer ? "#f4f4df" : "#d5a753";
+    ctx.fillRect(x - 74, keyY, 148, 42);
     ctx.fillStyle = "#8f5c1e";
-    ctx.fillRect(x - 66, keyY + 38, 132, 10);
-    ctx.strokeStyle = "#d79642";
-    ctx.lineWidth = 10;
-    ctx.beginPath();
-    if (state.miss && i === 2) {
-      ctx.moveTo(x - 34, keyY - 10);
-      ctx.lineTo(x - 4, keyY - 40);
-      ctx.moveTo(x + 8, keyY - 36);
-      ctx.lineTo(x + 36, keyY - 8);
-    } else {
-      ctx.moveTo(x - 40, keyY - 6 - p * 64);
-      ctx.lineTo(x + 22, keyY - 42 + p * 78);
+    ctx.fillRect(x - 78, keyY + 38, 156, 10);
+    ctx.strokeStyle = isPlayer ? "#fff6d9" : "#f1ca7b";
+    ctx.lineWidth = 3;
+    ctx.strokeRect(x - 74, keyY, 148, 42);
+    if (state.miss && isPlayer) {
+      ctx.strokeStyle = "#8d4d2a";
+      ctx.lineWidth = 8;
+      ctx.beginPath();
+      ctx.moveTo(x - 38, keyY - 8);
+      ctx.lineTo(x - 6, keyY - 38);
+      ctx.moveTo(x + 10, keyY - 34);
+      ctx.lineTo(x + 40, keyY - 6);
+      ctx.stroke();
     }
-    ctx.stroke();
-    ctx.fillStyle = "#f05a28";
-    ctx.beginPath();
-    ctx.arc(x - 44 + p * 82, keyY - 22 + p * 28, 16, 0, Math.PI * 2);
-    ctx.fill();
-    const roachX = x - 22 + Math.sin(t * 5 + i) * 10 + p * 16;
-    const roachY = keyY - 18 - p * 14;
-    ctx.fillStyle = i === 2 ? "#f7f6ff" : "#3f2613";
-    ctx.beginPath();
-    ctx.ellipse(roachX, roachY, 18, 10, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.beginPath();
-    ctx.arc(roachX + 15, roachY - 2, 6, 0, Math.PI * 2);
-    ctx.fill();
   });
+
+  let roachX = xs[0];
+  let roachY = keyY - 18 + Math.sin(t * 8) * 2;
+  let roachTilt = 0;
+  if (phrase) {
+    const [a, b, c] = phrase.actorTimes;
+    const preA = Math.max(a - 0.18, a - (b - a) * 0.35);
+    const hop1End = Math.min(b - 0.08, a + (b - a) * 0.72);
+    const hop2Start = Math.max(b + 0.03, c - (c - b) * 0.34);
+    if (t < preA) {
+      roachX = xs[0];
+      roachY = keyY - 18 + Math.sin(t * 9) * 1.5;
+    } else if (t < hop1End) {
+      const k = Math.max(0, Math.min(1, (t - preA) / Math.max(hop1End - preA, 0.001)));
+      roachX = xs[0] + (xs[1] - xs[0]) * k;
+      roachY = keyY - 18 - Math.sin(k * Math.PI) * 42;
+      roachTilt = (k - 0.5) * 0.45;
+    } else if (t < hop2Start) {
+      roachX = xs[1];
+      roachY = keyY - 18 + Math.sin((t - hop1End) * 16) * 1.2;
+    } else if (t < c) {
+      const k = Math.max(0, Math.min(1, (t - hop2Start) / Math.max(c - hop2Start, 0.001)));
+      roachX = xs[1] + (xs[2] - xs[1]) * k;
+      roachY = keyY - 18 - Math.sin(k * Math.PI) * 50;
+      roachTilt = (k - 0.5) * 0.52;
+    } else {
+      roachX = xs[2];
+      roachY = keyY - 18 + Math.sin((t - c) * 10) * Math.max(0, 1 - (t - c) / 0.18);
+    }
+  }
+
+  ctx.save();
+  ctx.translate(roachX, roachY);
+  ctx.rotate(roachTilt);
+  ctx.fillStyle = "#3f2613";
+  ctx.beginPath();
+  ctx.ellipse(0, 0, 18, 10, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(14, -2, 6, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = "#231409";
+  ctx.lineWidth = 2;
+  for (const side of [-1, 1]) {
+    ctx.beginPath();
+    ctx.moveTo(-4, side * 3);
+    ctx.lineTo(-14, side * 10);
+    ctx.moveTo(2, side * 2);
+    ctx.lineTo(14, side * 10);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  const playerPulse = pulseStateFor("marimba", 2, t);
+  const malletDrop = playerPulse.amount > 0 ? (1 - playerPulse.amount) * 48 : 0;
+  ctx.strokeStyle = "#fff6d9";
+  ctx.lineWidth = 9;
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  ctx.moveTo(xs[2] + 32, keyY - 58 + malletDrop);
+  ctx.lineTo(xs[2] - 4, keyY - 14 + malletDrop * 0.45);
+  ctx.stroke();
+  ctx.fillStyle = "#8d4d2a";
+  ctx.beginPath();
+  ctx.arc(xs[2] - 10, keyY - 8 + malletDrop * 0.45, 12, 0, Math.PI * 2);
+  ctx.fill();
 }
 
-function drawRainLine(w, h, t) {
+function drawRainLine(w, h, t, activePhrases) {
   const xs = [w * .30, w * .50, w * .70];
+  const phrase = displayPhrase(activePhrases, t);
+  const umbrellaY = h * .68;
+  const closeStart = phrase ? phrase.actorTimes[2] + 0.18 : 0;
+  const closeEnd = phrase ? phrase.actorTimes[2] + 0.40 : 0;
   xs.forEach((x, i) => {
     const state = pulseStateFor("rain", i, t);
-    const p = state.amount;
-    const umbrellaY = h * .68;
-    const open = Math.min(1, p * 1.4);
+    const hitTime = phrase?.actorTimes?.[i];
+    let open = 0;
+    if (hitTime != null && t >= hitTime) {
+      open = Math.min(1, 0.28 + (t - hitTime) / 0.05);
+      if (t >= closeStart) {
+        const closeK = Math.max(0, Math.min(1, (t - closeStart) / Math.max(closeEnd - closeStart, 0.001)));
+        open *= 1 - closeK;
+      }
+    }
+    open = Math.max(open, state.amount * 0.8);
     const tilt = state.miss && i === 2 ? 0.22 : 0;
     ctx.save();
     ctx.translate(x, umbrellaY);
     ctx.rotate(tilt);
     ctx.strokeStyle = i === 2 ? "#eff8ff" : "#72b8ff";
     ctx.lineWidth = 8;
-    ctx.beginPath();
-    ctx.arc(0, 0, 54 + open * 18, Math.PI, Math.PI * 2);
-    ctx.stroke();
+    if (open < 0.16) {
+      ctx.beginPath();
+      ctx.moveTo(0, -48);
+      ctx.lineTo(0, 8);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(-12, -38);
+      ctx.quadraticCurveTo(0, -48, 12, -38);
+      ctx.stroke();
+    } else {
+      ctx.beginPath();
+      ctx.arc(0, 0, 30 + open * 34, Math.PI, Math.PI * 2);
+      ctx.stroke();
+      ctx.strokeStyle = "rgba(191,246,255,.95)";
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.arc(0, -6, 18 + open * 22, Math.PI * 1.08, Math.PI * 1.92);
+      ctx.stroke();
+    }
+    ctx.strokeStyle = i === 2 ? "#eff8ff" : "#72b8ff";
     ctx.beginPath();
     ctx.moveTo(0, 0);
     ctx.lineTo(0, 72);
     ctx.stroke();
     ctx.restore();
-    const dropY = h * .24 + (1 - open) * (umbrellaY - h * .26);
-    ctx.fillStyle = "#72b8ff";
-    ctx.beginPath();
-    ctx.arc(x + (state.miss && i === 2 ? 18 : 0), dropY, 12, 0, Math.PI * 2);
-    ctx.fill();
-    if (open > 0.22) {
-      ctx.strokeStyle = "#bff6ff";
+    if (hitTime != null) {
+      const fallStart = hitTime - 0.52;
+      const impactY = umbrellaY - 10;
+      const dropK = Math.max(0, Math.min(1, (t - fallStart) / Math.max(hitTime - fallStart, 0.001)));
+      const dropY = h * .14 + dropK * (impactY - h * .14);
+      const splashAge = t - hitTime;
+      ctx.fillStyle = "#72b8ff";
+      if (t < hitTime) {
+        ctx.beginPath();
+        ctx.arc(x, dropY, 10, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (splashAge < 0.18) {
+        const splash = splashAge / 0.18;
+        ctx.beginPath();
+        ctx.arc(x, impactY - splash * 8, 8 + splash * 4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = "#bff6ff";
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.moveTo(x - 10 - splash * 10, impactY - 2);
+        ctx.lineTo(x - 20 - splash * 18, impactY - 16 - splash * 10);
+        ctx.moveTo(x + 10 + splash * 10, impactY - 2);
+        ctx.lineTo(x + 20 + splash * 18, impactY - 16 - splash * 10);
+        ctx.stroke();
+      }
+    }
+    if (state.miss && i === 2) {
+      ctx.strokeStyle = "#ff806d";
       ctx.lineWidth = 5;
       ctx.beginPath();
-      ctx.arc(x, umbrellaY - 8, 24 + open * 18, Math.PI * 1.06, Math.PI * 1.94);
+      ctx.moveTo(x - 16, umbrellaY - 48);
+      ctx.lineTo(x + 16, umbrellaY - 24);
+      ctx.moveTo(x + 16, umbrellaY - 48);
+      ctx.lineTo(x - 16, umbrellaY - 24);
       ctx.stroke();
     }
   });
