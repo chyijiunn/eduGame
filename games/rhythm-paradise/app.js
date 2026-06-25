@@ -315,15 +315,28 @@ function buildSectionPhrases(type, start, end, events, patternLimit, options = {
     if (!allowedSignatures.includes(candidate.signature)) allowedSignatures.push(candidate.signature);
   }
 
+  const maxRest = Math.max(
+    type === "glass" ? 1.85 : type === "marimba" ? 1.65 : rule.maxGap * 1.85,
+    1.25
+  );
   let lastTarget = start;
   let lastSignature = "";
+  let searchIndex = 0;
   while (true) {
-      const eligible = timeSorted.filter(candidate =>
-        allowedSignatures.includes(candidate.signature) &&
-        candidate.actorTimes[0] >= lastTarget + Math.max(0.36, candidate.gaps[0] * 0.55)
-      );
+      const minStart = lastTarget + Math.max(0.26, type === "glass" ? 0.18 : candidateSafeGap(lastSignature, rule));
+      const denseWindow = lastTarget + maxRest;
+      const eligible = [];
+      for (let idx = searchIndex; idx < timeSorted.length; idx++) {
+        const candidate = timeSorted[idx];
+        if (!allowedSignatures.includes(candidate.signature)) continue;
+        if (candidate.actorTimes[0] < minStart) continue;
+        eligible.push(candidate);
+        if (candidate.actorTimes[0] > denseWindow) break;
+      }
       if (!eligible.length) break;
-      const candidate = eligible.find(item => item.signature !== lastSignature) || eligible[0];
+      const inWindow = eligible.filter(item => item.actorTimes[0] <= denseWindow);
+      const pool = inWindow.length ? inWindow : eligible;
+      const candidate = pool.find(item => item.signature !== lastSignature) || pool[0];
       const { events: chunk, actorTimes, gaps, signature } = candidate;
       const expectedGap = gaps[gaps.length - 1];
       list.push({
@@ -342,8 +355,13 @@ function buildSectionPhrases(type, start, end, events, patternLimit, options = {
       });
       lastTarget = actorTimes[rule.actors - 1];
       lastSignature = signature;
+      searchIndex = Math.max(searchIndex, timeSorted.findIndex(item => item === candidate) + 1);
   }
   return list.sort((a, b) => a.actorTimes[0] - b.actorTimes[0]);
+}
+
+function candidateSafeGap(_lastSignature, rule) {
+  return Math.max(0.28, rule.minGap * 0.42);
 }
 
 function musicalIntervals(type, options) {
@@ -748,7 +766,7 @@ function drawBackground(w, h, type, t) {
 }
 
 function drawRhythmScene(w, h, type, t) {
-  const activePhrases = phrases.filter(phrase => phrase.type === type && t >= phrase.actorTimes[0] - 0.35 && t <= phrase.actorTimes.at(-1) + 0.55);
+  const activePhrases = phrases.filter(phrase => phrase.type === type && t >= phrase.actorTimes[0] - 0.7 && t <= phrase.actorTimes.at(-1) + 0.9);
   if (type === "glass") drawGlassLine(w, h, t, activePhrases);
   if (type === "marimba") drawMarimbaLine(w, h, t, activePhrases);
   if (type === "rain") drawRainLine(w, h, t, activePhrases);
@@ -816,6 +834,7 @@ function drawMarimbaLine(w, h, t, activePhrases) {
   const xs = [w * .22, w * .50, w * .78];
   const keyY = h * .66;
   const phrase = displayPhrase(activePhrases, t);
+  const playerState = pulseStateFor("marimba", 2, t);
   xs.forEach((x, i) => {
     const isPlayer = i === 2;
     const state = pulseStateFor("marimba", i, t);
@@ -839,8 +858,9 @@ function drawMarimbaLine(w, h, t, activePhrases) {
   });
 
   let roachX = xs[0];
-  let roachY = keyY - 18 + Math.sin(t * 8) * 2;
+  let roachY = keyY - 20 + Math.sin(t * 8) * 2;
   let roachTilt = 0;
+  let roachFly = false;
   if (phrase) {
     const [a, b, c] = phrase.actorTimes;
     const preA = Math.max(a - 0.18, a - (b - a) * 0.35);
@@ -867,16 +887,23 @@ function drawMarimbaLine(w, h, t, activePhrases) {
       roachY = keyY - 18 + Math.sin((t - c) * 10) * Math.max(0, 1 - (t - c) / 0.18);
     }
   }
+  if (playerState.miss) {
+    roachFly = true;
+    const flyK = 1 - playerState.amount;
+    roachX += 30 + flyK * w * 0.26;
+    roachY -= 18 + Math.sin(flyK * Math.PI) * 36 + flyK * h * 0.18;
+    roachTilt = 0.55 + flyK * 0.9;
+  }
 
   ctx.save();
   ctx.translate(roachX, roachY);
   ctx.rotate(roachTilt);
-  ctx.fillStyle = "#3f2613";
+  ctx.fillStyle = roachFly ? "#5b3418" : "#4d2d17";
   ctx.beginPath();
-  ctx.ellipse(0, 0, 18, 10, 0, 0, Math.PI * 2);
+  ctx.ellipse(0, 0, 22, 12, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.beginPath();
-  ctx.arc(14, -2, 6, 0, Math.PI * 2);
+  ctx.arc(16, -2, 7, 0, Math.PI * 2);
   ctx.fill();
   ctx.strokeStyle = "#231409";
   ctx.lineWidth = 2;
@@ -890,18 +917,34 @@ function drawMarimbaLine(w, h, t, activePhrases) {
   }
   ctx.restore();
 
-  const playerPulse = pulseStateFor("marimba", 2, t);
-  const malletDrop = playerPulse.amount > 0 ? (1 - playerPulse.amount) * 48 : 0;
-  ctx.strokeStyle = "#fff6d9";
-  ctx.lineWidth = 9;
+  const slap = playerState.amount > 0 ? (1 - playerState.amount) * 44 : 0;
+  ctx.strokeStyle = "#ffe6d1";
+  ctx.lineWidth = 13;
   ctx.lineCap = "round";
   ctx.beginPath();
-  ctx.moveTo(xs[2] + 32, keyY - 58 + malletDrop);
-  ctx.lineTo(xs[2] - 4, keyY - 14 + malletDrop * 0.45);
+  ctx.moveTo(xs[2] + 38, keyY - 56 + slap);
+  ctx.lineTo(xs[2] - 6, keyY - 12 + slap * 0.42);
   ctx.stroke();
-  ctx.fillStyle = "#8d4d2a";
+  ctx.fillStyle = "#4b7fda";
   ctx.beginPath();
-  ctx.arc(xs[2] - 10, keyY - 8 + malletDrop * 0.45, 12, 0, Math.PI * 2);
+  ctx.roundRect(xs[2] - 4, keyY - 34 + slap * 0.3, 42, 22, 7);
+  ctx.fill();
+  ctx.fillStyle = "#e8eef7";
+  ctx.fillRect(xs[2] + 4, keyY - 30 + slap * 0.3, 12, 14);
+  if (playerState.miss) {
+    ctx.strokeStyle = "#ff806d";
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.moveTo(roachX - 10, roachY - 10);
+    ctx.lineTo(roachX + 10, roachY - 28);
+    ctx.stroke();
+  }
+}
+
+function drawBounceDroplet(x, y, k) {
+  ctx.fillStyle = "#72b8ff";
+  ctx.beginPath();
+  ctx.arc(x, y, 10, 0, Math.PI * 2);
   ctx.fill();
 }
 
@@ -965,18 +1008,18 @@ function drawRainLine(w, h, t, activePhrases) {
         ctx.beginPath();
         ctx.arc(x, dropY, 10, 0, Math.PI * 2);
         ctx.fill();
-      } else if (splashAge < 0.18) {
-        const splash = splashAge / 0.18;
-        ctx.beginPath();
-        ctx.arc(x, impactY - splash * 8, 8 + splash * 4, 0, Math.PI * 2);
-        ctx.fill();
+      } else if (splashAge < 0.34) {
+        const splash = splashAge / 0.34;
+        const bounceY = impactY - Math.sin(splash * Math.PI) * 52 - splash * 18;
+        const drift = (i - 1) * 24 + (i === 1 ? 0 : (i === 0 ? -16 : 16)) * splash;
+        drawBounceDroplet(x + drift, bounceY, splash);
         ctx.strokeStyle = "#bff6ff";
         ctx.lineWidth = 4;
         ctx.beginPath();
-        ctx.moveTo(x - 10 - splash * 10, impactY - 2);
-        ctx.lineTo(x - 20 - splash * 18, impactY - 16 - splash * 10);
-        ctx.moveTo(x + 10 + splash * 10, impactY - 2);
-        ctx.lineTo(x + 20 + splash * 18, impactY - 16 - splash * 10);
+        ctx.moveTo(x - 10 - splash * 16, impactY - 2);
+        ctx.lineTo(x - 24 - splash * 20, impactY - 18 - splash * 12);
+        ctx.moveTo(x + 10 + splash * 16, impactY - 2);
+        ctx.lineTo(x + 24 + splash * 20, impactY - 18 - splash * 12);
         ctx.stroke();
       }
     }
