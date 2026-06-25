@@ -925,37 +925,49 @@ function drawMarimbaLine(w, h, t, activePhrases) {
     }
   });
 
+  let roachVisible = false;
   let roachX = xs[0];
   let roachY = keyY - 20 + Math.sin(t * 8) * 2;
   let roachTilt = 0;
   let roachFly = false;
   if (phrase) {
     const [a, b, c] = phrase.actorTimes;
-    const preA = Math.max(a - 0.18, a - (b - a) * 0.35);
-    const hop1End = Math.min(b - 0.08, a + (b - a) * 0.72);
-    const hop2Start = Math.max(b + 0.03, c - (c - b) * 0.34);
-    if (t < preA) {
-      roachX = xs[0];
-      roachY = keyY - 18 + Math.sin(t * 9) * 1.5;
-    } else if (t < hop1End) {
-      const k = Math.max(0, Math.min(1, (t - preA) / Math.max(hop1End - preA, 0.001)));
-      roachX = xs[0] + (xs[1] - xs[0]) * k;
-      roachY = keyY - 18 - Math.sin(k * Math.PI) * 42;
-      roachTilt = (k - 0.5) * 0.45;
+    const enterStart = a - Math.min(0.42, Math.max(0.24, (b - a) * 0.72));
+    const leave1Start = Math.min(a + 0.10, a + (b - a) * 0.22);
+    const hop2Start = Math.max(leave1Start, b - (b - a) * 0.42);
+    const leave2Start = Math.min(b + 0.10, b + (c - b) * 0.24);
+    const hop3Start = Math.max(leave2Start, c - (c - b) * 0.42);
+    if (t >= enterStart - 0.04) roachVisible = true;
+    if (t < enterStart) {
+      roachVisible = false;
+    } else if (t < a) {
+      const k = Math.max(0, Math.min(1, (t - enterStart) / Math.max(a - enterStart, 0.001)));
+      roachX = xs[0] - 88 + 88 * k;
+      roachY = keyY - 20 - Math.sin(k * Math.PI) * 54;
+      roachTilt = (k - 0.5) * 0.6;
     } else if (t < hop2Start) {
+      roachX = xs[0];
+      roachY = keyY - 18 + Math.sin((t - a) * 18) * 1.6;
+    } else if (t < b) {
+      const k = Math.max(0, Math.min(1, (t - hop2Start) / Math.max(b - hop2Start, 0.001)));
+      roachX = xs[0] + (xs[1] - xs[0]) * k;
+      roachY = keyY - 18 - Math.sin(k * Math.PI) * 46;
+      roachTilt = (k - 0.5) * 0.48;
+    } else if (t < hop3Start) {
       roachX = xs[1];
-      roachY = keyY - 18 + Math.sin((t - hop1End) * 16) * 1.2;
+      roachY = keyY - 18 + Math.sin((t - b) * 18) * 1.6;
     } else if (t < c) {
-      const k = Math.max(0, Math.min(1, (t - hop2Start) / Math.max(c - hop2Start, 0.001)));
+      const k = Math.max(0, Math.min(1, (t - hop3Start) / Math.max(c - hop3Start, 0.001)));
       roachX = xs[1] + (xs[2] - xs[1]) * k;
-      roachY = keyY - 18 - Math.sin(k * Math.PI) * 50;
-      roachTilt = (k - 0.5) * 0.52;
+      roachY = keyY - 18 - Math.sin(k * Math.PI) * 52;
+      roachTilt = (k - 0.5) * 0.55;
     } else {
       roachX = xs[2];
       roachY = keyY - 18 + Math.sin((t - c) * 10) * Math.max(0, 1 - (t - c) / 0.18);
     }
   }
   if (playerState.miss) {
+    roachVisible = true;
     roachFly = true;
     const flyK = 1 - playerState.amount;
     roachX += 30 + flyK * w * 0.26;
@@ -963,55 +975,99 @@ function drawMarimbaLine(w, h, t, activePhrases) {
     roachTilt = 0.55 + flyK * 0.9;
   }
 
-  ctx.save();
-  ctx.translate(roachX, roachY);
-  ctx.rotate(roachTilt);
-  ctx.fillStyle = roachFly ? "#3f1e0b" : "#2f1408";
-  ctx.beginPath();
-  ctx.ellipse(0, 0, 22, 12, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.beginPath();
-  ctx.arc(16, -2, 7, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.strokeStyle = "#231409";
-  ctx.lineWidth = 2;
-  for (const side of [-1, 1]) {
+  if (roachVisible) {
+    ctx.save();
+    ctx.translate(roachX, roachY);
+    ctx.rotate(roachTilt);
+    ctx.fillStyle = roachFly ? "#3f1e0b" : "#2f1408";
     ctx.beginPath();
-    ctx.moveTo(-4, side * 3);
-    ctx.lineTo(-14, side * 10);
-    ctx.moveTo(2, side * 2);
-    ctx.lineTo(14, side * 10);
+    ctx.ellipse(0, 0, 22, 12, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(16, -2, 7, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "#1f0f05";
+    ctx.lineWidth = 2;
+    for (const side of [-1, 1]) {
+      ctx.beginPath();
+      ctx.moveTo(-4, side * 3);
+      ctx.lineTo(-14, side * 10);
+      ctx.moveTo(2, side * 2);
+      ctx.lineTo(14, side * 10);
+      ctx.stroke();
+    }
+    for (const side of [-1, 1]) {
+      ctx.beginPath();
+      ctx.moveTo(18, side * 1);
+      ctx.quadraticCurveTo(28, side * 2, 36, side * 9);
+      ctx.stroke();
+    }
+    ctx.beginPath();
+    ctx.moveTo(18, -4);
+    ctx.quadraticCurveTo(28, -14, 34, -22);
+    ctx.moveTo(18, 0);
+    ctx.quadraticCurveTo(30, -4, 38, -12);
     ctx.stroke();
+    ctx.restore();
   }
-  ctx.restore();
 
   const slap = playerState.amount > 0 ? (1 - playerState.amount) * 44 : 0;
-  const slipperX = xs[2] + 18;
-  const slipperY = keyY - 30 + slap * 0.35;
-  const slipperAngle = -0.98 + slap * 0.003;
+  const slipperX = xs[2] + 6;
+  const slipperY = keyY - 22 + slap * 0.38;
+  const slipperAngle = -2.24 + slap * 0.002;
   ctx.save();
   ctx.translate(slipperX, slipperY);
   ctx.rotate(slipperAngle);
-  ctx.fillStyle = "#4b7fda";
-  ctx.beginPath();
-  ctx.roundRect(-8, 4, 28, 18, 6);
-  ctx.fill();
-  ctx.fillStyle = "#f6efe1";
-  ctx.strokeStyle = "#c7a56a";
-  ctx.lineWidth = 3;
-  ctx.beginPath();
-  ctx.roundRect(-58, -2, 72, 18, 9);
-  ctx.fill();
-  ctx.stroke();
-  ctx.restore();
-  if (playerState.miss) {
-    ctx.strokeStyle = "#ff806d";
-    ctx.lineWidth = 5;
+  const crack = playerState.miss;
+  if (!crack) {
+    ctx.fillStyle = "#4b7fda";
     ctx.beginPath();
-    ctx.moveTo(roachX - 10, roachY - 10);
-    ctx.lineTo(roachX + 10, roachY - 28);
+    ctx.roundRect(-8, 4, 28, 18, 6);
+    ctx.fill();
+    ctx.fillStyle = "#f6efe1";
+    ctx.strokeStyle = "#c7a56a";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.roundRect(-58, -2, 72, 18, 9);
+    ctx.fill();
+    ctx.stroke();
+  } else {
+    ctx.fillStyle = "#4b7fda";
+    ctx.beginPath();
+    ctx.roundRect(-8, 4, 28, 18, 6);
+    ctx.fill();
+    ctx.fillStyle = "#f6efe1";
+    ctx.strokeStyle = "#c7a56a";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(-58, 0);
+    ctx.lineTo(-20, -2);
+    ctx.lineTo(-4, 8);
+    ctx.lineTo(-22, 16);
+    ctx.lineTo(-58, 16);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(-10, 0);
+    ctx.lineTo(14, -2);
+    ctx.lineTo(22, 8);
+    ctx.lineTo(8, 16);
+    ctx.lineTo(-14, 16);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.strokeStyle = "#8b5a3b";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(-8, 2);
+    ctx.lineTo(-14, 8);
+    ctx.lineTo(-4, 13);
+    ctx.lineTo(2, 7);
+    ctx.lineTo(10, 14);
     ctx.stroke();
   }
+  ctx.restore();
 }
 
 function drawBounceDroplet(x, y, k) {
