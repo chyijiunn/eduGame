@@ -101,6 +101,11 @@ const TYPE_TO_SOURCE = {
   bird: "05_bird_crystal_run",
 };
 
+const PHRASE_PATTERNS = {
+  "01_glass_canon": [0, 0, 2, 0, 0, 2, 0, 1],
+  "02_marimba_pulse": [0, 1, 2, 0, 1, 2, 1, 0],
+};
+
 const menu = document.getElementById("menu");
 const game = document.getElementById("game");
 const levelGrid = document.getElementById("levelGrid");
@@ -269,6 +274,7 @@ function buildSectionPhrases(type, start, end, events, patternLimit, options = {
   const list = [];
   const keyPoints = normalizedKeyPoints(events, start, end, options.keyPoints);
   const intervals = musicalIntervals(type, options).slice(0, Math.max(1, patternLimit));
+  const patternSource = options.sourceLevel || TYPE_TO_SOURCE[type];
   const candidates = [];
   const targetPoints = keyPoints
     .filter(point => point.time >= start + 1.0 && point.time < end - 0.45)
@@ -322,6 +328,12 @@ function buildSectionPhrases(type, start, end, events, patternLimit, options = {
   let lastTarget = start;
   let lastSignature = "";
   let searchIndex = 0;
+  let phraseIndex = 0;
+  const signatureByInterval = intervals.map(interval => {
+    const rounded = Math.round(interval * 1000);
+    return allowedSignatures.find(signature => signature.endsWith(`:${rounded}`));
+  }).filter(Boolean);
+  const desiredPattern = PHRASE_PATTERNS[patternSource] || [];
   while (true) {
       const minStart = lastTarget + Math.max(0.26, type === "glass" ? 0.18 : candidateSafeGap(lastSignature, rule));
       const denseWindow = lastTarget + maxRest;
@@ -336,7 +348,12 @@ function buildSectionPhrases(type, start, end, events, patternLimit, options = {
       if (!eligible.length) break;
       const inWindow = eligible.filter(item => item.actorTimes[0] <= denseWindow);
       const pool = inWindow.length ? inWindow : eligible;
-      const candidate = pool.find(item => item.signature !== lastSignature) || pool[0];
+      const desiredSignature = desiredPattern.length
+        ? signatureByInterval[desiredPattern[phraseIndex % desiredPattern.length] % Math.max(signatureByInterval.length, 1)]
+        : null;
+      const candidate = pool.find(item => item.signature === desiredSignature)
+        || pool.find(item => item.signature !== lastSignature)
+        || pool[0];
       const { events: chunk, actorTimes, gaps, signature } = candidate;
       const expectedGap = gaps[gaps.length - 1];
       list.push({
@@ -356,6 +373,7 @@ function buildSectionPhrases(type, start, end, events, patternLimit, options = {
       lastTarget = actorTimes[rule.actors - 1];
       lastSignature = signature;
       searchIndex = Math.max(searchIndex, timeSorted.findIndex(item => item === candidate) + 1);
+      phraseIndex++;
   }
   return list.sort((a, b) => a.actorTimes[0] - b.actorTimes[0]);
 }
@@ -536,6 +554,7 @@ function activeType() {
 
 function playSfx(type, actor, grade) {
   ensureSfx();
+  if (type === "marimba" && grade === "miss") return playMarimbaMiss(actor);
   if (type === "marimba" && grade !== "miss") return playMarimbaSfx(actor, grade);
   if (type === "rain" && grade !== "miss") return playRainSfx(actor, grade);
   if (type === "mountain" && grade !== "miss") return playMountainPercussion(actor, grade);
@@ -575,6 +594,55 @@ function playMarimbaSfx(actor, grade) {
     osc.start(now);
     osc.stop(now + 0.28 + index * 0.04);
   });
+  const click = sfxCtx.createOscillator();
+  const clickGain = sfxCtx.createGain();
+  click.type = "square";
+  click.frequency.setValueAtTime(grade === "cue" ? 980 : actor === 2 ? 840 : 720, now);
+  click.frequency.exponentialRampToValueAtTime(260, now + 0.05);
+  clickGain.gain.setValueAtTime(0.0001, now);
+  clickGain.gain.linearRampToValueAtTime(grade === "cue" ? 0.025 : actor === 2 ? 0.08 : 0.05, now + 0.003);
+  clickGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.06);
+  click.connect(clickGain);
+  clickGain.connect(sfxCtx.destination);
+  click.start(now);
+  click.stop(now + 0.08);
+}
+
+function playMarimbaMiss(actor) {
+  const now = sfxCtx.currentTime;
+  for (let n = 0; n < 3; n++) {
+    const burst = sfxCtx.createBufferSource();
+    const length = Math.floor(sfxCtx.sampleRate * 0.055);
+    const buffer = sfxCtx.createBuffer(1, length, sfxCtx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < length; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / length);
+    burst.buffer = buffer;
+    const filter = sfxCtx.createBiquadFilter();
+    filter.type = "bandpass";
+    filter.frequency.setValueAtTime(1600 - n * 260 + actor * 60, now);
+    const gain = sfxCtx.createGain();
+    const start = now + n * 0.04;
+    gain.gain.setValueAtTime(0.0001, start);
+    gain.gain.linearRampToValueAtTime(0.05, start + 0.005);
+    gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.06);
+    burst.connect(filter);
+    filter.connect(gain);
+    gain.connect(sfxCtx.destination);
+    burst.start(start);
+    burst.stop(start + 0.07);
+  }
+  const buzz = sfxCtx.createOscillator();
+  const buzzGain = sfxCtx.createGain();
+  buzz.type = "sawtooth";
+  buzz.frequency.setValueAtTime(240, now);
+  buzz.frequency.exponentialRampToValueAtTime(110, now + 0.22);
+  buzzGain.gain.setValueAtTime(0.0001, now);
+  buzzGain.gain.linearRampToValueAtTime(0.035, now + 0.01);
+  buzzGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.24);
+  buzz.connect(buzzGain);
+  buzzGain.connect(sfxCtx.destination);
+  buzz.start(now);
+  buzz.stop(now + 0.26);
 }
 
 function playRainSfx(actor, grade) {
@@ -742,20 +810,20 @@ function sceneRect(w, h) {
 
 function drawBackground(w, h, type, t) {
   const palettes = {
-    glass: ["#081018", "#113736", "#72e6b2"],
-    marimba: ["#151109", "#463118", "#ffd166"],
-    rain: ["#081018", "#102b45", "#72b8ff"],
-    mountain: ["#0b0c12", "#2a2040", "#c6a4ff"],
-    bird: ["#100c18", "#39203a", "#ff8fb3"],
+    glass: ["#081018", "#113736", "#72e6b2", "#080b10"],
+    marimba: ["#f6edd5", "#e1bd72", "#8f5c1e", "#f3dfb2"],
+    rain: ["#081018", "#102b45", "#72b8ff", "#080b10"],
+    mountain: ["#0b0c12", "#2a2040", "#c6a4ff", "#080b10"],
+    bird: ["#100c18", "#39203a", "#ff8fb3", "#080b10"],
   };
-  const [a, b, c] = palettes[type] || palettes.glass;
+  const [a, b, c, d] = palettes[type] || palettes.glass;
   const g = ctx.createLinearGradient(0, 0, w, h);
   g.addColorStop(0, a);
   g.addColorStop(.65, b);
-  g.addColorStop(1, "#080b10");
+  g.addColorStop(1, d);
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, w, h);
-  ctx.globalAlpha = .10;
+  ctx.globalAlpha = type === "marimba" ? .14 : .10;
   for (let i = 0; i < 24; i++) {
     ctx.fillStyle = c;
     ctx.beginPath();
@@ -898,7 +966,7 @@ function drawMarimbaLine(w, h, t, activePhrases) {
   ctx.save();
   ctx.translate(roachX, roachY);
   ctx.rotate(roachTilt);
-  ctx.fillStyle = roachFly ? "#5b3418" : "#4d2d17";
+  ctx.fillStyle = roachFly ? "#3f1e0b" : "#2f1408";
   ctx.beginPath();
   ctx.ellipse(0, 0, 22, 12, 0, 0, Math.PI * 2);
   ctx.fill();
@@ -918,19 +986,24 @@ function drawMarimbaLine(w, h, t, activePhrases) {
   ctx.restore();
 
   const slap = playerState.amount > 0 ? (1 - playerState.amount) * 44 : 0;
-  ctx.strokeStyle = "#ffe6d1";
-  ctx.lineWidth = 13;
-  ctx.lineCap = "round";
-  ctx.beginPath();
-  ctx.moveTo(xs[2] + 38, keyY - 56 + slap);
-  ctx.lineTo(xs[2] - 6, keyY - 12 + slap * 0.42);
-  ctx.stroke();
+  const slipperX = xs[2] + 18;
+  const slipperY = keyY - 30 + slap * 0.35;
+  const slipperAngle = -0.98 + slap * 0.003;
+  ctx.save();
+  ctx.translate(slipperX, slipperY);
+  ctx.rotate(slipperAngle);
   ctx.fillStyle = "#4b7fda";
   ctx.beginPath();
-  ctx.roundRect(xs[2] - 4, keyY - 34 + slap * 0.3, 42, 22, 7);
+  ctx.roundRect(-8, 4, 28, 18, 6);
   ctx.fill();
-  ctx.fillStyle = "#e8eef7";
-  ctx.fillRect(xs[2] + 4, keyY - 30 + slap * 0.3, 12, 14);
+  ctx.fillStyle = "#f6efe1";
+  ctx.strokeStyle = "#c7a56a";
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.roundRect(-58, -2, 72, 18, 9);
+  ctx.fill();
+  ctx.stroke();
+  ctx.restore();
   if (playerState.miss) {
     ctx.strokeStyle = "#ff806d";
     ctx.lineWidth = 5;
@@ -999,7 +1072,8 @@ function drawRainLine(w, h, t, activePhrases) {
     ctx.restore();
     if (hitTime != null) {
       const fallStart = hitTime - 0.52;
-      const impactY = umbrellaY - 10;
+      const arcRadius = open < 0.16 ? 38 : 30 + open * 34;
+      const impactY = umbrellaY - arcRadius + 2;
       const dropK = Math.max(0, Math.min(1, (t - fallStart) / Math.max(hitTime - fallStart, 0.001)));
       const dropY = h * .14 + dropK * (impactY - h * .14);
       const splashAge = t - hitTime;
