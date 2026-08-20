@@ -1,0 +1,737 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<script src="/eduGame/ga4.js"></script>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#181818" />
+<meta name="application-name" content="Marionette Designer" />
+<meta name="version" content="0.3" />
+<title>Marionette Designer</title>
+<style>
+  :root{
+    --bg:#181818;
+    --panel:#202020;
+    --fg:#f4f4f4;
+    --muted:#858585;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;min-height:100%;background:var(--bg);color:var(--fg);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Noto Sans TC",monospace}
+  body{overflow-x:hidden}
+  button,input{font:inherit}
+  button{border:0;background:#2c2c2c;color:var(--fg);height:38px;min-width:44px;border-radius:9px;cursor:pointer;touch-action:manipulation;padding:0 12px}
+  button:hover{background:#383838}
+  button.active{background:#f2f2f2;color:#151515}
+  button:focus-visible,input:focus-visible{outline:2px solid #fff;outline-offset:2px}
+
+  .stage-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(260px,360px);gap:14px;padding:12px;align-items:start}
+  .panel{position:relative;min-width:0;margin:0;padding:0}
+  #cutPanel{width:100%;max-width:360px;justify-self:start}
+
+  .design-workspace{background:var(--panel);overflow:hidden;position:relative;display:flex;flex-direction:column;min-width:0}
+  #designSvg{display:block;width:100%;height:auto;touch-action:none;user-select:none;flex:none}
+  .design-toolbar{display:flex;gap:8px;align-items:center;padding:8px 10px 10px;min-height:56px;background:var(--panel);overflow-x:auto}
+  .design-toolbar button{font-weight:700;flex:0 0 auto}
+  .design-toolbar .wide{min-width:58px}
+  .design-toolbar .reset{margin-left:auto}
+
+  .cut-panel-inner{background:var(--panel);position:relative;overflow:hidden;width:100%}
+  #cutSvg{display:block;width:100%;height:auto;touch-action:none;user-select:none}
+  .cut-info{position:absolute;right:9px;top:7px;color:#a0a0a0;font-size:10px;pointer-events:none;z-index:2;background:#202020cc;padding:2px 4px}
+
+  .dim-fo{overflow:visible}
+  .dim-row{height:22px;display:flex;align-items:center;gap:4px;color:#ececec;font-size:9px;white-space:nowrap}
+  .dim-name{width:68px;overflow:hidden;text-overflow:ellipsis;color:#d7d7d7}
+  .dim-field{display:inline-flex;align-items:center;gap:2px;color:#707070}
+  .dim-field input{width:42px;height:20px;padding:1px 3px;border:1px solid #3b3b3b;border-radius:5px;background:#181818;color:#f1f1f1;text-align:right;font-size:9px}
+  .dim-field input::-webkit-outer-spin-button,.dim-field input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+  .dim-unit{color:#555;margin-left:1px}
+
+  .modal-backdrop{position:fixed;inset:0;background:#000a;z-index:100;display:none;align-items:center;justify-content:center;padding:18px}
+  .modal-backdrop.show{display:flex}
+  .modal{width:min(860px,96vw);height:min(80vh,780px);background:#202020;border-radius:16px;box-shadow:0 20px 80px #000c;display:flex;flex-direction:column;overflow:hidden}
+  .modal-head{height:50px;display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:7px 9px;border-bottom:1px solid #2d2d2d}
+  .modal-head button{width:38px;min-width:38px;padding:0}
+  .modal-body{padding:18px 22px 28px;overflow:auto;line-height:1.65;font-family:system-ui,-apple-system,"Noto Sans TC",sans-serif;font-size:14px}
+  .modal-body h1,.modal-body h2,.modal-body h3{line-height:1.25;margin:1.2em 0 .55em}
+  .modal-body h1{font-size:24px}.modal-body h2{font-size:19px}.modal-body h3{font-size:16px}
+  .modal-body code{background:#151515;padding:2px 5px;border-radius:5px;font-family:ui-monospace,monospace}
+  .modal-body pre{background:#151515;padding:12px;border-radius:9px;overflow:auto}
+  .readme-warn{color:#aaa;background:#181818;padding:8px 10px;border-radius:8px;margin-bottom:12px;font-size:12px}
+
+  .model-modal{width:min(900px,96vw);height:min(82vh,820px);background:#202020;border-radius:16px;box-shadow:0 20px 80px #000c;display:flex;flex-direction:column;overflow:hidden}
+  .model-stage{position:relative;flex:1;min-height:0;background:#1c1c1c}
+  #model3d{width:100%;height:100%;display:block;touch-action:none}
+  .model-hint{position:absolute;left:12px;bottom:10px;color:#6d6d6d;font-size:10px;pointer-events:none}
+
+  @media(max-width:980px){
+    .stage-grid{grid-template-columns:1fr;gap:10px;padding:10px}
+    #cutPanel{max-width:520px}
+  }
+  @media(max-width:620px){
+    .design-workspace{overflow-x:auto}
+    #designSvg{min-width:760px}
+    .design-toolbar{min-width:760px}
+    #cutPanel{max-width:none}
+  }
+</style>
+</head>
+<body>
+  <main class="stage-grid">
+    <section class="panel" id="designPanel">
+      <div class="design-workspace">
+        <svg id="designSvg" viewBox="0 0 1000 520" aria-label="Front and side editable design"></svg>
+        <div class="design-toolbar">
+          <button id="gapBtn" class="active" title="3 mm gap 開 / 關">↕</button>
+          <button id="packBtn" title="自動排列切割方塊">▦</button>
+          <button id="pdfBtn" class="wide" title="下載 A4 1:1 PDF">A4↓</button>
+          <button id="modelBtn" class="wide" title="3D 預覽">3D</button>
+          <button id="helpBtn" title="說明">?</button>
+          <button id="resetBtn" class="reset" title="重置尺寸、排列與記憶">↺</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel" id="cutPanel">
+      <div class="cut-panel-inner">
+        <div class="cut-info" id="cutInfo">100 × 0 mm</div>
+        <svg id="cutSvg" viewBox="0 0 124 200" aria-label="Cut layout"></svg>
+      </div>
+    </section>
+  </main>
+
+  <div class="modal-backdrop" id="modelModal" role="dialog" aria-modal="true" aria-label="3D 預覽">
+    <div class="model-modal">
+      <div class="modal-head"><button id="closeModel" title="關閉">×</button></div>
+      <div class="model-stage"><canvas id="model3d"></canvas><div class="model-hint">← drag →</div></div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="helpModal" role="dialog" aria-modal="true" aria-label="操作說明">
+    <div class="modal">
+      <div class="modal-head"><button id="reloadReadme" title="重新讀取 README.md">↻</button><button id="closeHelp" title="關閉">×</button></div>
+      <div class="modal-body" id="readmeBody"></div>
+    </div>
+  </div>
+
+<script>
+(() => {
+  'use strict';
+
+  const VERSION = '0.3';
+  const MM_GAP = 3;
+  const NECK_EMBED = 5;
+  const SVG_NS = 'http://www.w3.org/2000/svg';
+  const XHTML_NS = 'http://www.w3.org/1999/xhtml';
+
+  // H / W defaults follow the supplied size sketch. D values follow the supplied side/thickness reference.
+  const DEFAULT_PARTS = {
+    head:      { code:'HD', name:'head',      h:45, w:32, d:32, qty:1 },
+    neck:      { code:'NK', name:'neck',      h:18, w:15, d:15, qty:1 },
+    torso:     { code:'TS', name:'torso',     h:55, w:40, d:25, qty:1 },
+    pelvis:    { code:'PV', name:'pelvis',    h:35, w:40, d:25, qty:1 },
+    upperArm:  { code:'UA', name:'upper arm', h:35, w:15, d:15, qty:2 },
+    forearm:   { code:'FA', name:'forearm',   h:30, w:13, d:13, qty:2 },
+    palm:      { code:'PM', name:'palm',      h:20, w:15, d:12, qty:2 },
+    thigh:     { code:'TH', name:'thigh',     h:50, w:20, d:20, qty:2 },
+    lowerLeg:  { code:'LL', name:'lower leg', h:50, w:18, d:18, qty:2 },
+    shoe:      { code:'SH', name:'shoe',      h:15, w:18, d:37, qty:2 }
+  };
+  const parts = JSON.parse(JSON.stringify(DEFAULT_PARTS));
+  const partOrder = ['head','neck','torso','pelvis','upperArm','forearm','palm','thigh','lowerLeg','shoe'];
+  const STORAGE_KEY = 'marionetteDesignerState.v0.3';
+  let gapEnabled = true;
+  let autoPacked = true;
+  let packManual = Object.create(null);
+  let selectedPart = null;
+
+  const $ = s => document.querySelector(s);
+  const designSvg = $('#designSvg');
+  const cutSvg = $('#cutSvg');
+  const gapBtn = $('#gapBtn');
+  const packBtn = $('#packBtn');
+  const pdfBtn = $('#pdfBtn');
+  const modelBtn = $('#modelBtn');
+  const helpBtn = $('#helpBtn');
+  const resetBtn = $('#resetBtn');
+  const cutInfo = $('#cutInfo');
+
+  function el(tag, attrs={}, text=''){
+    const n = document.createElementNS(SVG_NS, tag);
+    for(const [k,v] of Object.entries(attrs)) n.setAttribute(k,v);
+    if(text) n.textContent = text;
+    return n;
+  }
+  const clamp = (v,a,b) => Math.max(a,Math.min(b,v));
+  const round1 = v => Math.round(v*10)/10;
+  const currentGap = () => gapEnabled ? MM_GAP : 0;
+
+  function snapshotState(){
+    const dims={};
+    for(const key of partOrder) dims[key]={h:parts[key].h,w:parts[key].w,d:parts[key].d};
+    return {dims,gapEnabled,autoPacked,packManual};
+  }
+  function saveState(){
+    try{ localStorage.setItem(STORAGE_KEY,JSON.stringify(snapshotState())); }catch(_){ }
+  }
+  function loadState(){
+    try{
+      const raw=localStorage.getItem(STORAGE_KEY); if(!raw)return;
+      const st=JSON.parse(raw);
+      if(st&&st.dims){
+        for(const key of partOrder){
+          const d=st.dims[key]; if(!d)continue;
+          for(const dim of ['h','w','d']) if(Number.isFinite(Number(d[dim]))&&Number(d[dim])>0) parts[key][dim]=round1(clamp(Number(d[dim]),1,200));
+        }
+      }
+      if(typeof st.gapEnabled==='boolean')gapEnabled=st.gapEnabled;
+      if(typeof st.autoPacked==='boolean')autoPacked=st.autoPacked;
+      if(st.packManual&&typeof st.packManual==='object')packManual=st.packManual;
+    }catch(_){ }
+  }
+  function resetAll(){
+    for(const key of partOrder){for(const dim of ['h','w','d'])parts[key][dim]=DEFAULT_PARTS[key][dim];}
+    gapEnabled=true; autoPacked=true; packManual=Object.create(null); selectedPart=null;
+    camera.yaw=-.38;
+    try{localStorage.removeItem(STORAGE_KEY)}catch(_){ }
+    gapBtn.classList.add('active');
+    renderAll();
+    saveState();
+  }
+
+
+  function computeFrontLayout(withGap=gapEnabled){
+    const g = withGap ? MM_GAP : 0;
+    const p = parts;
+    const boxes=[];
+    const headY=0;
+    const neckY=headY+p.head.h-NECK_EMBED;
+    const torsoY=neckY+p.neck.h-NECK_EMBED;
+    const pelvisY=torsoY+p.torso.h+g;
+    const thighY=pelvisY+p.pelvis.h+g;
+    const lowerY=thighY+p.thigh.h+g;
+    const shoeY=lowerY+p.lowerLeg.h+g;
+    const totalH=shoeY+p.shoe.h;
+    const upperY=torsoY+8;
+    const foreY=upperY+p.upperArm.h+g;
+    const palmY=foreY+p.forearm.h+g;
+    const legCX=p.thigh.w/2+g/2;
+    const armCX=p.torso.w/2+g+p.upperArm.w/2;
+
+    boxes.push({id:'head',key:'head',x:0,y:headY,w:p.head.w,h:p.head.h});
+    boxes.push({id:'neck',key:'neck',x:0,y:neckY,w:p.neck.w,h:p.neck.h});
+    boxes.push({id:'torso',key:'torso',x:0,y:torsoY,w:p.torso.w,h:p.torso.h});
+    boxes.push({id:'pelvis',key:'pelvis',x:0,y:pelvisY,w:p.pelvis.w,h:p.pelvis.h});
+    for(const side of [-1,1]){
+      const s=side<0?'L':'R';
+      boxes.push({id:`${s}-upperArm`,key:'upperArm',x:side*armCX,y:upperY,w:p.upperArm.w,h:p.upperArm.h,side});
+      boxes.push({id:`${s}-forearm`,key:'forearm',x:side*armCX,y:foreY,w:p.forearm.w,h:p.forearm.h,side});
+      boxes.push({id:`${s}-palm`,key:'palm',x:side*armCX,y:palmY,w:p.palm.w,h:p.palm.h,side});
+      boxes.push({id:`${s}-thigh`,key:'thigh',x:side*legCX,y:thighY,w:p.thigh.w,h:p.thigh.h,side});
+      boxes.push({id:`${s}-lowerLeg`,key:'lowerLeg',x:side*legCX,y:lowerY,w:p.lowerLeg.w,h:p.lowerLeg.h,side});
+      boxes.push({id:`${s}-shoe`,key:'shoe',x:side*legCX,y:shoeY,w:p.shoe.w,h:p.shoe.h,side});
+    }
+    return {boxes,totalH,headY,neckY,torsoY,pelvisY,upperY,foreY,palmY,thighY,lowerY,shoeY};
+  }
+
+  function computeSideLayout(withGap=gapEnabled){
+    const g = withGap ? MM_GAP : 0;
+    const p=parts, boxes=[];
+    const headY=0;
+    const neckY=p.head.h-NECK_EMBED;
+    const torsoY=neckY+p.neck.h-NECK_EMBED;
+    const pelvisY=torsoY+p.torso.h+g;
+    const thighY=pelvisY+p.pelvis.h+g;
+    const lowerY=thighY+p.thigh.h+g;
+    const shoeY=lowerY+p.lowerLeg.h+g;
+    const totalH=shoeY+p.shoe.h;
+    const armX=p.torso.d/2+g+p.upperArm.d/2;
+    const upperY=torsoY+8;
+    const foreY=upperY+p.upperArm.h+g;
+    const palmY=foreY+p.forearm.h+g;
+
+    boxes.push({id:'head',key:'head',x:0,y:headY,w:p.head.d,h:p.head.h});
+    boxes.push({id:'neck',key:'neck',x:0,y:neckY,w:p.neck.d,h:p.neck.h});
+    boxes.push({id:'torso',key:'torso',x:0,y:torsoY,w:p.torso.d,h:p.torso.h});
+    boxes.push({id:'pelvis',key:'pelvis',x:0,y:pelvisY,w:p.pelvis.d,h:p.pelvis.h});
+    boxes.push({id:'B-upperArm',key:'upperArm',x:-armX*.28,y:upperY,w:p.upperArm.d,h:p.upperArm.h,ghost:true});
+    boxes.push({id:'B-forearm',key:'forearm',x:-armX*.28,y:foreY,w:p.forearm.d,h:p.forearm.h,ghost:true});
+    boxes.push({id:'B-palm',key:'palm',x:-armX*.28,y:palmY,w:p.palm.d,h:p.palm.h,ghost:true});
+    boxes.push({id:'F-upperArm',key:'upperArm',x:armX,y:upperY,w:p.upperArm.d,h:p.upperArm.h});
+    boxes.push({id:'F-forearm',key:'forearm',x:armX,y:foreY,w:p.forearm.d,h:p.forearm.h});
+    boxes.push({id:'F-palm',key:'palm',x:armX,y:palmY,w:p.palm.d,h:p.palm.h});
+    boxes.push({id:'B-thigh',key:'thigh',x:-3,y:thighY,w:p.thigh.d,h:p.thigh.h,ghost:true});
+    boxes.push({id:'B-lowerLeg',key:'lowerLeg',x:-3,y:lowerY,w:p.lowerLeg.d,h:p.lowerLeg.h,ghost:true});
+    boxes.push({id:'B-shoe',key:'shoe',x:-4,y:shoeY,w:p.shoe.d,h:p.shoe.h,ghost:true});
+    boxes.push({id:'F-thigh',key:'thigh',x:3,y:thighY,w:p.thigh.d,h:p.thigh.h});
+    boxes.push({id:'F-lowerLeg',key:'lowerLeg',x:3,y:lowerY,w:p.lowerLeg.d,h:p.lowerLeg.h});
+    boxes.push({id:'F-shoe',key:'shoe',x:5,y:shoeY,w:p.shoe.d,h:p.shoe.h});
+    return {boxes,totalH,headY,neckY,torsoY,pelvisY,upperY,foreY,palmY,thighY,lowerY,shoeY};
+  }
+
+  const dragState={active:false};
+  function svgPoint(svg,e){
+    const pt=svg.createSVGPoint(); pt.x=e.clientX; pt.y=e.clientY;
+    return pt.matrixTransform(svg.getScreenCTM().inverse());
+  }
+
+  function addResizeHandles(group, rect, box, axis, scale){
+    if(box.ghost) return;
+    const dirs=[
+      ['n',rect.x,rect.y,rect.w,10],['s',rect.x,rect.y+rect.h-10,rect.w,10],
+      ['w',rect.x,rect.y,10,rect.h],['e',rect.x+rect.w-10,rect.y,10,rect.h],
+      ['nw',rect.x-2,rect.y-2,14,14],['ne',rect.x+rect.w-12,rect.y-2,14,14],
+      ['sw',rect.x-2,rect.y+rect.h-12,14,14],['se',rect.x+rect.w-12,rect.y+rect.h-12,14,14]
+    ];
+    for(const [dir,x,y,w,h] of dirs){
+      const hit=el('rect',{x,y,width:w,height:h,fill:'transparent',style:'pointer-events:all'});
+      hit.addEventListener('pointerdown',e=>startResize(e,box.key,axis,dir,scale));
+      group.appendChild(hit);
+    }
+    if(selectedPart===box.key){
+      for(const [x,y] of [[rect.x,rect.y],[rect.x+rect.w,rect.y],[rect.x,rect.y+rect.h],[rect.x+rect.w,rect.y+rect.h]]){
+        group.appendChild(el('rect',{x:x-3,y:y-3,width:6,height:6,fill:'#fff',rx:1,'pointer-events':'none'}));
+      }
+    }
+  }
+
+  function startResize(e,key,axis,dir,scale){
+    e.preventDefault(); e.stopPropagation();
+    const pt=svgPoint(designSvg,e);
+    selectedPart=key;
+    Object.assign(dragState,{active:true,pointerId:e.pointerId,key,axis,dir,scale,startPt:pt,startH:parts[key].h,startHor:axis==='front'?parts[key].w:parts[key].d});
+    designSvg.setPointerCapture(e.pointerId);
+    renderDesign();
+  }
+  function moveResize(e){
+    if(!dragState.active||e.pointerId!==dragState.pointerId)return;
+    e.preventDefault();
+    const {key,axis,dir,scale,startPt,startH,startHor}=dragState;
+    const pt=svgPoint(designSvg,e), dx=(pt.x-startPt.x)/scale, dy=(pt.y-startPt.y)/scale;
+    let h=startH,hor=startHor;
+    if(dir.includes('e'))hor=startHor+dx;
+    if(dir.includes('w'))hor=startHor-dx;
+    if(dir.includes('s'))h=startH+dy;
+    if(dir.includes('n'))h=startH-dy;
+    parts[key].h=round1(clamp(h,5,180));
+    if(axis==='front')parts[key].w=round1(clamp(hor,5,100));
+    else parts[key].d=round1(clamp(hor,5,100));
+    if(autoPacked)packManual={};
+    renderAll();
+  }
+  function endResize(e){
+    if(!dragState.active||e.pointerId!==dragState.pointerId)return;
+    try{designSvg.releasePointerCapture(e.pointerId)}catch(_){ }
+    dragState.active=false;
+    renderAll();
+    saveState();
+  }
+  window.addEventListener('pointermove',moveResize,{passive:false});
+  window.addEventListener('pointerup',endResize);
+  window.addEventListener('pointercancel',endResize);
+
+  function drawView(layout,axis,cx,oy,scale){
+    designSvg.appendChild(el('text',{x:cx,y:26,fill:'#707070','font-size':11,'text-anchor':'middle','letter-spacing':'1.3'},axis==='front'?'FRONT':'SIDE'));
+    designSvg.appendChild(el('line',{x1:cx,y1:35,x2:cx,y2:oy+layout.totalH*scale+9,stroke:'#3a3a3a','stroke-width':1,'stroke-dasharray':'3 5'}));
+
+    const boxes=layout.boxes.slice().sort((a,b)=>(a.ghost?-1:1)-(b.ghost?-1:1));
+    for(const box of boxes){
+      const rx=cx+(box.x-box.w/2)*scale, ry=oy+box.y*scale, rw=box.w*scale, rh=box.h*scale;
+      const g=el('g',{'data-key':box.key});
+      const selected=selectedPart===box.key;
+      const rect=el('rect',{x:rx,y:ry,width:rw,height:rh,rx:2,fill:box.ghost?'#292929':selected?'#f3f3f3':'#d6d6d6',stroke:selected?'#fff':'#858585','stroke-width':selected?1.8:1,opacity:box.ghost?.22:.95});
+      g.appendChild(rect);
+      if(!box.ghost){
+        const font=Math.max(7,Math.min(10,rw*.17));
+        g.appendChild(el('text',{x:rx+rw/2,y:ry+Math.min(rh/2+3,15),fill:selected?'#181818':'#242424','font-size':font,'text-anchor':'middle','pointer-events':'none'},parts[box.key].code));
+        addResizeHandles(g,{x:rx,y:ry,w:rw,h:rh},box,axis,scale);
+      }
+      designSvg.appendChild(g);
+    }
+  }
+
+  function referenceBoxForKey(layout,key){
+    if(['head','neck','torso','pelvis'].includes(key))return layout.boxes.find(b=>b.key===key&&!b.ghost);
+    return layout.boxes.find(b=>b.id===`L-${key}`)||layout.boxes.find(b=>b.key===key&&!b.ghost);
+  }
+
+  function addEditableDimensionRow(key,y,targetX){
+    const p=parts[key];
+    designSvg.appendChild(el('line',{x1:236,y1:y,x2:targetX,y2:y,stroke:'#6d6d6d','stroke-width':1,'vector-effect':'non-scaling-stroke'}));
+    designSvg.appendChild(el('line',{x1:targetX,y1:y-4,x2:targetX,y2:y+4,stroke:'#949494','stroke-width':1,'vector-effect':'non-scaling-stroke'}));
+
+    const fo=el('foreignObject',{x:18,y:y-11,width:218,height:23,class:'dim-fo'});
+    const row=document.createElementNS(XHTML_NS,'div'); row.setAttribute('class','dim-row');
+    const name=document.createElementNS(XHTML_NS,'span'); name.setAttribute('class','dim-name'); name.textContent=p.name;
+    row.appendChild(name);
+    for(const [dim,label] of [['h','H'],['w','W'],['d','D']]){
+      const wrap=document.createElementNS(XHTML_NS,'label'); wrap.setAttribute('class','dim-field');
+      wrap.appendChild(document.createTextNode(label));
+      const inp=document.createElementNS(XHTML_NS,'input'); inp.setAttribute('type','number'); inp.setAttribute('min','1'); inp.setAttribute('max','200'); inp.setAttribute('step','1'); inp.value=p[dim]; inp.dataset.key=key; inp.dataset.dim=dim;
+      inp.addEventListener('pointerdown',e=>e.stopPropagation());
+      inp.addEventListener('change',onDimensionInput);
+      inp.addEventListener('keydown',e=>{if(e.key==='Enter')inp.blur()});
+      wrap.appendChild(inp); row.appendChild(wrap);
+    }
+    const unit=document.createElementNS(XHTML_NS,'span'); unit.setAttribute('class','dim-unit'); unit.textContent='mm'; row.appendChild(unit);
+    fo.appendChild(row); designSvg.appendChild(fo);
+  }
+
+  function onDimensionInput(e){
+    const key=e.target.dataset.key,dim=e.target.dataset.dim,v=parseFloat(e.target.value);
+    if(!Number.isFinite(v)||v<=0){e.target.value=parts[key][dim];return;}
+    parts[key][dim]=round1(clamp(v,1,200));
+    if(autoPacked)packManual={};
+    renderAll();
+    saveState();
+  }
+
+  function renderDesign(){
+    designSvg.innerHTML='';
+    const front=computeFrontLayout(),side=computeSideLayout();
+    const scale=Math.min(1.72,535/Math.max(front.totalH,side.totalH));
+    const oy=48, frontCx=490, sideCx=790;
+
+    drawView(front,'front',frontCx,oy,scale);
+    drawView(side,'side',sideCx,oy,scale);
+
+    designSvg.appendChild(el('text',{x:18,y:24,fill:'#666','font-size':9},'H / W / D · mm'));
+    for(const key of partOrder){
+      const b=referenceBoxForKey(front,key); if(!b)continue;
+      const y=oy+b.y*scale;
+      const targetX=frontCx+(b.x-b.w/2)*scale;
+      addEditableDimensionRow(key,y,targetX);
+    }
+
+    const yEnd=oy+front.totalH*scale;
+    designSvg.appendChild(el('line',{x1:958,y1:oy,x2:958,y2:yEnd,stroke:'#666','stroke-width':1}));
+    designSvg.appendChild(el('line',{x1:953,y1:oy,x2:963,y2:oy,stroke:'#888','stroke-width':1}));
+    designSvg.appendChild(el('line',{x1:953,y1:yEnd,x2:963,y2:yEnd,stroke:'#888','stroke-width':1}));
+    designSvg.appendChild(el('text',{x:970,y:(oy+yEnd)/2,fill:'#777','font-size':9,transform:`rotate(-90 970 ${(oy+yEnd)/2})`},`${round1(front.totalH)} mm`));
+
+    const vbH=Math.ceil(Math.max(430,yEnd+22));
+    designSvg.setAttribute('viewBox',`0 0 1000 ${vbH}`);
+    designSvg.style.aspectRatio=`1000 / ${vbH}`;
+  }
+
+  function physicalBlocks(){
+    const arr=[];
+    for(const key of partOrder){
+      const p=parts[key];
+      for(let i=0;i<p.qty;i++)arr.push({key,code:p.code,index:i,w:p.w,h:p.h,d:p.d,id:`${key}-${i}`});
+    }
+    return arr;
+  }
+
+  // Tight shelf packing: blocks share borders, so there is no material gap. SVG strokes can overlap by 1 px.
+  function autoPackBlocks(){
+    const blocks=physicalBlocks().sort((a,b)=>b.h-a.h||b.w-a.w);
+    const limit=100;
+    let x=0,y=0,rowH=0,maxY=0;
+    const out={};
+    for(const b of blocks){
+      if(x>0&&x+b.w>limit){y+=rowH;x=0;rowH=0;}
+      out[b.id]={x,y};
+      x+=b.w;
+      rowH=Math.max(rowH,b.h);
+      maxY=Math.max(maxY,y+b.h);
+    }
+    return {pos:out,height:maxY};
+  }
+
+  const cutDrag={active:false};
+  function renderCut(){
+    cutSvg.innerHTML='';
+    const auto=autoPackBlocks();
+    if(autoPacked||Object.keys(packManual).length===0){packManual=structuredClone(auto.pos);autoPacked=true;}
+    const blocks=physicalBlocks();
+    let minY=Infinity,maxY=-Infinity;
+    for(const b of blocks){
+      const q=packManual[b.id]||{x:0,y:0};
+      q.x=clamp(Number(q.x)||0,0,Math.max(0,100-b.w));q.y=Math.max(0,Number(q.y)||0);packManual[b.id]=q;
+      minY=Math.min(minY,q.y);maxY=Math.max(maxY,q.y+b.h);
+    }
+    if(!Number.isFinite(minY)){minY=0;maxY=0;}
+    const materialH=Math.max(0,maxY-minY);
+    const topPad=13,bottomPad=6,vbH=Math.max(28,topPad+materialH+bottomPad);
+    cutSvg.setAttribute('viewBox',`0 0 124 ${vbH}`);
+    cutSvg.style.aspectRatio=`124 / ${vbH}`;
+    cutInfo.textContent=`100 × ${round1(materialH)} mm`;
+    cutSvg.appendChild(el('rect',{x:12,y:topPad,width:100,height:Math.max(.1,materialH),fill:'#1b1b1b',stroke:'#444','stroke-width':1,'vector-effect':'non-scaling-stroke'}));
+
+    for(const b of blocks){
+      const q=packManual[b.id]||{x:0,y:0};
+      const x=12+q.x,y=topPad+(q.y-minY);
+      const g=el('g',{'data-id':b.id});
+      const r=el('rect',{x,y,width:b.w,height:b.h,fill:'#d9d9d9',stroke:'#777','stroke-width':1,'vector-effect':'non-scaling-stroke',style:'cursor:grab;touch-action:none'});
+      const fs=Math.max(2.2,Math.min(4.1,Math.min(b.w,b.h)*.20));
+      const code=el('text',{x:x+b.w/2,y:y+Math.min(5,b.h*.38),fill:'#181818','font-size':fs,'font-weight':'700','text-anchor':'middle','pointer-events':'none'},b.code);
+      const dim=el('text',{x:x+b.w/2,y:y+Math.min(10,b.h*.72),fill:'#303030','font-size':Math.max(1.8,fs*.72),'text-anchor':'middle','pointer-events':'none'},`${round1(b.h)}×${round1(b.w)}`);
+      g.append(r,code,dim);cutSvg.appendChild(g);
+      r.addEventListener('pointerdown',e=>{
+        e.preventDefault();autoPacked=false;
+        const pt=svgPoint(cutSvg,e);
+        Object.assign(cutDrag,{active:true,id:b.id,pointerId:e.pointerId,start:pt,ox:q.x,oy:q.y,minY});
+        cutSvg.setPointerCapture(e.pointerId);
+      });
+    }
+  }
+  cutSvg.addEventListener('pointermove',e=>{
+    if(!cutDrag.active||e.pointerId!==cutDrag.pointerId)return;
+    const pt=svgPoint(cutSvg,e), b=physicalBlocks().find(x=>x.id===cutDrag.id); if(!b)return;
+    const nx=clamp(cutDrag.ox+(pt.x-cutDrag.start.x),0,Math.max(0,100-b.w));
+    const ny=Math.max(0,cutDrag.oy+(pt.y-cutDrag.start.y));
+    packManual[cutDrag.id]={x:round1(nx),y:round1(ny)};renderCut();
+  });
+  cutSvg.addEventListener('pointerup',e=>{if(cutDrag.active&&e.pointerId===cutDrag.pointerId){cutDrag.active=false;try{cutSvg.releasePointerCapture(e.pointerId)}catch(_){}saveState();}});
+  cutSvg.addEventListener('pointercancel',()=>cutDrag.active=false);
+
+  // ---------- PDF: one A4 page, 1:1 actual size, always no-gap ----------
+  const PT_PER_MM=72/25.4;
+  const pdfEsc=s=>String(s).replace(/\\/g,'\\\\').replace(/\(/g,'\\(').replace(/\)/g,'\\)');
+  function pdfRect(lines,x,yTop,w,h,pageH){
+    const X=x*PT_PER_MM,W=w*PT_PER_MM,H=h*PT_PER_MM,Y=pageH-(yTop+h)*PT_PER_MM;
+    lines.push(`${X.toFixed(2)} ${Y.toFixed(2)} ${W.toFixed(2)} ${H.toFixed(2)} re S`);
+  }
+  function pdfText(lines,x,yTop,size,text,pageH,align='left'){
+    let tx=x*PT_PER_MM;
+    const est=String(text).length*size*.5;
+    if(align==='center')tx-=est/2;
+    const ty=pageH-yTop*PT_PER_MM;
+    lines.push(`BT /F1 ${size.toFixed(1)} Tf ${tx.toFixed(2)} ${ty.toFixed(2)} Td (${pdfEsc(text)}) Tj ET`);
+  }
+  function pdfPartLabel(lines,x,y,w,h,code,dimText,pageH){
+    const nameSize=Math.max(3.0,Math.min(5.0,w*.28));
+    const dimSize=Math.max(2.7,Math.min(4.6,w*.24));
+    const cy=y+h/2;
+    pdfText(lines,x+w/2,cy-1.2,nameSize,code,pageH,'center');
+    pdfText(lines,x+w/2,cy+2.8,dimSize,dimText,pageH,'center');
+  }
+  function makePdfBlob(){
+    const pageW=210*PT_PER_MM,pageH=297*PT_PER_MM;
+    const lines=['0.35 w','0 G'];
+    const f=computeFrontLayout(false),s=computeSideLayout(false);
+    const frontCx=55,sideCx=155,y0=14;
+    pdfText(lines,frontCx,8,8,'FRONT · 1:1 · NO GAP',pageH,'center');
+    pdfText(lines,sideCx,8,8,'SIDE · 1:1 · NO GAP',pageH,'center');
+
+    for(const b of f.boxes){
+      const x=frontCx+b.x-b.w/2,y=y0+b.y,p=parts[b.key];
+      pdfRect(lines,x,y,b.w,b.h,pageH);
+      pdfPartLabel(lines,x,y,b.w,b.h,p.code,`${round1(p.h)}×${round1(p.w)} mm`,pageH);
+    }
+    for(const b of s.boxes.filter(b=>!b.ghost)){
+      const x=sideCx+b.x-b.w/2,y=y0+b.y,p=parts[b.key];
+      pdfRect(lines,x,y,b.w,b.h,pageH);
+      pdfPartLabel(lines,x,y,b.w,b.h,p.code,`${round1(p.h)}×${round1(p.d)} mm`,pageH);
+    }
+
+    const stream=lines.join('\n');
+    const objs=[];
+    objs[1]='<< /Type /Catalog /Pages 2 0 R >>';
+    objs[2]='<< /Type /Pages /Kids [3 0 R] /Count 1 >>';
+    objs[3]=`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageW.toFixed(2)} ${pageH.toFixed(2)}] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>`;
+    objs[4]='<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>';
+    objs[5]=`<< /Length ${new TextEncoder().encode(stream).length} >>\nstream\n${stream}\nendstream`;
+
+    let pdf='%PDF-1.4\n%âãÏÓ\n',offsets=[0];
+    for(let i=1;i<=5;i++){offsets[i]=new TextEncoder().encode(pdf).length;pdf+=`${i} 0 obj\n${objs[i]}\nendobj\n`;}
+    const xrefOffset=new TextEncoder().encode(pdf).length;
+    pdf+='xref\n0 6\n0000000000 65535 f \n';
+    for(let i=1;i<=5;i++)pdf+=String(offsets[i]).padStart(10,'0')+' 00000 n \n';
+    pdf+=`trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`;
+    return new Blob([new TextEncoder().encode(pdf)],{type:'application/pdf'});
+  }
+  function downloadPdf(){
+    const blob=makePdfBlob(),url=URL.createObjectURL(blob),a=document.createElement('a');
+    a.href=url;a.download='marionette_front_side_1to1.pdf';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),2000);
+  }
+
+  // ---------- 3D modal: static standing pose, horizontal rotation only ----------
+  const canvas=$('#model3d'),ctx=canvas.getContext('2d');
+  const camera={yaw:-.38,pitch:.12};
+  let modelDrag=null;
+  function resizeCanvas(){
+    const r=canvas.getBoundingClientRect(),dpr=Math.min(2,window.devicePixelRatio||1);
+    const w=Math.max(1,Math.floor(r.width*dpr)),h=Math.max(1,Math.floor(r.height*dpr));
+    if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;}
+  }
+  function rotX(v,a){const c=Math.cos(a),s=Math.sin(a);return[v[0],v[1]*c-v[2]*s,v[1]*s+v[2]*c]}
+  function rotY(v,a){const c=Math.cos(a),s=Math.sin(a);return[v[0]*c+v[2]*s,v[1],-v[0]*s+v[2]*c]}
+  function add(a,b){return[a[0]+b[0],a[1]+b[1],a[2]+b[2]]}
+  function box3(id,key,c,size){return{id,key,c,size}}
+  function modelBoxes(){
+    const p=parts,g=currentGap(),boxes=[];
+    boxes.push(box3('torso','torso',[0,0,0],[p.torso.w,p.torso.h,p.torso.d]));
+    const neckBaseY=p.torso.h/2+NECK_EMBED;
+    const neckC=[0,neckBaseY+p.neck.h/2-NECK_EMBED,0];
+    boxes.push(box3('neck','neck',neckC,[p.neck.w,p.neck.h,p.neck.d]));
+    const headBottom=neckC[1]+p.neck.h/2-NECK_EMBED;
+    boxes.push(box3('head','head',[0,headBottom+p.head.h/2,0],[p.head.w,p.head.h,p.head.d]));
+    const pelvisTop=-p.torso.h/2-g;
+    const pelvisC=[0,pelvisTop-p.pelvis.h/2,0];
+    boxes.push(box3('pelvis','pelvis',pelvisC,[p.pelvis.w,p.pelvis.h,p.pelvis.d]));
+    const shoulderY=p.torso.h/2-8,armX=p.torso.w/2+g+p.upperArm.w/2;
+    for(const side of [-1,1]){
+      const x=side*armX;
+      const uy=shoulderY-p.upperArm.h/2;
+      boxes.push(box3(`${side}-ua`,'upperArm',[x,uy,0],[p.upperArm.w,p.upperArm.h,p.upperArm.d]));
+      const fy=uy-p.upperArm.h/2-g-p.forearm.h/2;
+      boxes.push(box3(`${side}-fa`,'forearm',[x,fy,0],[p.forearm.w,p.forearm.h,p.forearm.d]));
+      const py=fy-p.forearm.h/2-g-p.palm.h/2;
+      boxes.push(box3(`${side}-pm`,'palm',[x,py,0],[p.palm.w,p.palm.h,p.palm.d]));
+    }
+    const hipY=pelvisC[1]-p.pelvis.h/2,legX=p.thigh.w/2+g/2;
+    for(const side of [-1,1]){
+      const x=side*legX;
+      const ty=hipY-g-p.thigh.h/2;
+      boxes.push(box3(`${side}-th`,'thigh',[x,ty,0],[p.thigh.w,p.thigh.h,p.thigh.d]));
+      const ly=ty-p.thigh.h/2-g-p.lowerLeg.h/2;
+      boxes.push(box3(`${side}-ll`,'lowerLeg',[x,ly,0],[p.lowerLeg.w,p.lowerLeg.h,p.lowerLeg.d]));
+      const sy=ly-p.lowerLeg.h/2-g-p.shoe.h/2;
+      boxes.push(box3(`${side}-sh`,'shoe',[x,sy,(p.shoe.d-p.lowerLeg.d)/2],[p.shoe.w,p.shoe.h,p.shoe.d]));
+    }
+    return boxes;
+  }
+  const faces=[[0,1,3,2],[4,6,7,5],[0,4,5,1],[2,3,7,6],[0,2,6,4],[1,5,7,3]];
+  function boxVertices(b){
+    const [w,h,d]=b.size;
+    return [[-w,-h,-d],[w,-h,-d],[-w,h,-d],[w,h,-d],[-w,-h,d],[w,-h,d],[-w,h,d],[w,h,d]].map(v=>add([v[0]/2,v[1]/2,v[2]/2],b.c));
+  }
+  function cameraTransform(v){return rotX(rotY(v,camera.yaw),camera.pitch)}
+  function drawModel(){
+    if(!$('#modelModal').classList.contains('show'))return;
+    resizeCanvas();
+    const dpr=Math.min(2,window.devicePixelRatio||1),W=canvas.width/dpr,H=canvas.height/dpr;
+    ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,W,H);
+    const bg=ctx.createLinearGradient(0,0,0,H);bg.addColorStop(0,'#232323');bg.addColorStop(1,'#181818');ctx.fillStyle=bg;ctx.fillRect(0,0,W,H);
+
+    const boxes=modelBoxes();
+    const tverts=boxes.map(b=>({b,verts:boxVertices(b).map(cameraTransform)}));
+    const flat=tverts.flatMap(x=>x.verts);
+    const minX=Math.min(...flat.map(v=>v[0])),maxX=Math.max(...flat.map(v=>v[0]));
+    const minY=Math.min(...flat.map(v=>v[1])),maxY=Math.max(...flat.map(v=>v[1]));
+    const cx=(minX+maxX)/2,cy=(minY+maxY)/2;
+    const rangeX=Math.max(1,maxX-minX),rangeY=Math.max(1,maxY-minY);
+    const fit=Math.min((W-64)/rangeX,(H-64)/rangeY)*.94;
+    const project=v=>[W/2+(v[0]-cx)*fit,H/2-(v[1]-cy)*fit,v[2]];
+
+    const all=[];
+    for(const item of tverts){
+      const pro=item.verts.map(project);
+      // Draw all six faces. The cuboid is a closed solid; painter sorting hides rear faces naturally.
+      faces.forEach(f=>{
+        const poly=f.map(i=>pro[i]),depth=poly.reduce((s,v)=>s+v[2],0)/4;
+        const a=item.verts[f[0]],bb=item.verts[f[1]],cc=item.verts[f[2]];
+        const u=[bb[0]-a[0],bb[1]-a[1],bb[2]-a[2]],v=[cc[0]-a[0],cc[1]-a[1],cc[2]-a[2]];
+        const n=[u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0]];
+        all.push({b:item.b,poly,depth,n});
+      });
+    }
+    all.sort((a,b)=>b.depth-a.depth);
+    const light=[-.45,.65,-.6];
+    for(const f of all){
+      const n=f.n,len=Math.hypot(...n)||1,dot=clamp((n[0]*light[0]+n[1]*light[1]+n[2]*light[2])/len,-1,1);
+      const base=f.b.key==='head'?185:(f.b.key==='torso'||f.b.key==='pelvis'?155:172),shade=clamp(base+dot*38,72,228)|0;
+      ctx.beginPath();f.poly.forEach((q,i)=>i?ctx.lineTo(q[0],q[1]):ctx.moveTo(q[0],q[1]));ctx.closePath();ctx.fillStyle=`rgb(${shade},${shade},${shade})`;ctx.fill();ctx.strokeStyle='#4d4d4d';ctx.lineWidth=.7;ctx.stroke();
+    }
+    const groundY=H/2-(minY-cy)*fit+10,rg=ctx.createRadialGradient(W/2,groundY,5,W/2,groundY,Math.min(W*.22,150));rg.addColorStop(0,'#0008');rg.addColorStop(1,'#0000');ctx.fillStyle=rg;ctx.beginPath();ctx.ellipse(W/2,groundY,Math.min(W*.22,150),18,0,0,Math.PI*2);ctx.fill();
+  }
+  function modelPoint(e){const r=canvas.getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top}}
+  canvas.addEventListener('pointerdown',e=>{e.preventDefault();canvas.setPointerCapture(e.pointerId);modelDrag={pointerId:e.pointerId,last:modelPoint(e)};});
+  canvas.addEventListener('pointermove',e=>{
+    if(!modelDrag||modelDrag.pointerId!==e.pointerId)return;
+    e.preventDefault();const p=modelPoint(e),dx=p.x-modelDrag.last.x;modelDrag.last=p;camera.yaw+=dx*.012;drawModel();
+  });
+  function endModelDrag(e){if(!modelDrag||modelDrag.pointerId!==e.pointerId)return;try{canvas.releasePointerCapture(e.pointerId)}catch(_){}modelDrag=null;}
+  canvas.addEventListener('pointerup',endModelDrag);canvas.addEventListener('pointercancel',endModelDrag);
+
+  // ---------- README ----------
+  const README_FALLBACK=`# Marionette Designer 操作說明
+
+主畫面只有兩個區域：左側是可編輯的 Front / Side 設計，右側是 100 mm 寬的切割排列。
+
+## 修改尺寸
+
+左側每一列可直接修改 H / W / D：
+
+- **H**：高度
+- **W**：Front view 寬度
+- **D**：Side view 厚度
+- 資料列的細線對準該材料的上緣。
+- 修改數字或拖曳方塊後，Front、Side、切割排列與 3D 都會同步更新。
+- 左右手、左右腳共用同一組尺寸，所以會一起改變。
+
+## 底部按鈕
+
+1. **↕**：開啟／關閉 3 mm gap。Head → Neck → Torso 維持 Neck 上下各埋入 5 mm。
+2. **▦**：重新自動緊密排列 100 mm 寬切割區。
+3. **A4↓**：直接下載 A4 1:1 PDF。輸出固定為 no gap；每個零件的尺寸直接標在零件內。
+4. **3D**：開啟 3D 浮動視窗。所有零件會自動縮放到完整可見；每個材料都是封閉六面體。只能左右拖曳做水平旋轉。
+5. **?**：讀取同資料夾的 README.md。
+6. **↺**：重置所有尺寸、gap、切割排列與瀏覽器記憶。
+
+## 切割排列
+
+- 寬度固定 **100 mm**。
+- 自動排列沒有材料間隙，1 px 邊線可以重疊。
+- 每塊材料內顯示代號和 **高度 × 寬度**。
+- 右上角顯示 **100 × 實際材料高度 mm**；高度是所有材料最上緣到最下緣的距離。
+- 可以拖曳材料自訂排列。
+
+## 自動記憶
+
+瀏覽器會把尺寸、gap 狀態與手動排列位置存在本機 localStorage。重新整理或重新開啟頁面後會恢復上次狀態。按 **↺** 會清除舊記憶並重新寫入原始預設值。
+
+## README.md
+
+按 **?** 時會重新讀取同資料夾 README.md。若直接以 \`file://\` 開啟，部分瀏覽器會阻擋外部檔案讀取，此時會顯示 HTML 內建的備援說明。`;
+  function mdToHtml(md){
+    const esc=s=>s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    let src=esc(md).replace(/```([\s\S]*?)```/g,(_,c)=>`<pre><code>${c.trim()}</code></pre>`).replace(/`([^`]+)`/g,'<code>$1</code>').replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>');
+    const lines=src.split(/\r?\n/);let html='',inUl=false,inOl=false;
+    const closeLists=()=>{if(inUl){html+='</ul>';inUl=false}if(inOl){html+='</ol>';inOl=false}};
+    for(const line of lines){
+      if(/^###\s+/.test(line)){closeLists();html+=`<h3>${line.replace(/^###\s+/,'')}</h3>`}
+      else if(/^##\s+/.test(line)){closeLists();html+=`<h2>${line.replace(/^##\s+/,'')}</h2>`}
+      else if(/^#\s+/.test(line)){closeLists();html+=`<h1>${line.replace(/^#\s+/,'')}</h1>`}
+      else if(/^[-*]\s+/.test(line)){if(!inUl){closeLists();html+='<ul>';inUl=true}html+=`<li>${line.replace(/^[-*]\s+/,'')}</li>`}
+      else if(/^\d+\.\s+/.test(line)){if(!inOl){closeLists();html+='<ol>';inOl=true}html+=`<li>${line.replace(/^\d+\.\s+/,'')}</li>`}
+      else if(!line.trim()){closeLists();html+='<div style="height:.35em"></div>'}
+      else{closeLists();html+=`<p>${line}</p>`}
+    }
+    closeLists();return html;
+  }
+  async function loadReadme(){
+    const body=$('#readmeBody');body.innerHTML='<div style="color:#777">loading…</div>';
+    try{
+      const res=await fetch(`./readme.md?v=${Date.now()}`,{cache:'no-store'});if(!res.ok)throw new Error(res.status);
+      body.innerHTML=mdToHtml(await res.text());
+    }catch(_){
+      body.innerHTML='<div class="readme-warn">README.md 無法直接讀取，目前顯示內建說明。使用網站或本機 HTTP server 開啟時，可直接讀取同資料夾 README.md。</div>'+mdToHtml(README_FALLBACK);
+    }
+  }
+
+  // ---------- UI ----------
+  gapBtn.addEventListener('click',()=>{gapEnabled=!gapEnabled;gapBtn.classList.toggle('active',gapEnabled);renderAll();saveState();});
+  packBtn.addEventListener('click',()=>{autoPacked=true;packManual={};renderCut();saveState();});
+  pdfBtn.addEventListener('click',downloadPdf);
+  modelBtn.addEventListener('click',()=>{$('#modelModal').classList.add('show');requestAnimationFrame(drawModel);});
+  $('#closeModel').addEventListener('click',()=>$('#modelModal').classList.remove('show'));
+  $('#modelModal').addEventListener('pointerdown',e=>{if(e.target===$('#modelModal'))$('#modelModal').classList.remove('show')});
+  helpBtn.addEventListener('click',async()=>{$('#helpModal').classList.add('show');await loadReadme();});
+  $('#closeHelp').addEventListener('click',()=>$('#helpModal').classList.remove('show'));
+  $('#reloadReadme').addEventListener('click',loadReadme);
+  $('#helpModal').addEventListener('pointerdown',e=>{if(e.target===$('#helpModal'))$('#helpModal').classList.remove('show')});
+  resetBtn.addEventListener('click',resetAll);
+  window.addEventListener('keydown',e=>{if(e.key==='Escape'){$('#modelModal').classList.remove('show');$('#helpModal').classList.remove('show')}});
+  window.addEventListener('resize',()=>{if($('#modelModal').classList.contains('show'))drawModel();});
+
+  function renderAll(){renderDesign();renderCut();if($('#modelModal').classList.contains('show'))drawModel();}
+  loadState();
+  gapBtn.classList.toggle('active',gapEnabled);
+  renderAll();
+})();
+</script>
+</body>
+</html>
