@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="theme-color" content="#11151d">
-<title>Pinball v0.11</title>
+<title>Pinball v0.111</title>
 <style>
 :root{
   --bg:#0b0e14; --panel:#121823; --line:#dfe7f0; --muted:#8f9bae;
@@ -67,7 +67,7 @@ canvas{width:100%;height:100%;display:block}
 <body>
 <div id="app">
   <div class="topbar">
-    <div class="brand"><b>PINBALL</b><span>v0.11 · 本機自動儲存</span></div>
+    <div class="brand"><b>PINBALL</b><span>v0.111 · 本機自動儲存</span></div>
     <div class="actions">
       <button class="btn" id="soundBtn" type="button">音效：開</button>
       <button class="btn" id="resetBtn" type="button">重新開始</button>
@@ -102,7 +102,7 @@ const soundBadge=document.getElementById('soundBadge');
 
 const W=720,H=1080;
 const DPR=Math.min(window.devicePixelRatio||1,2);
-const STORE='pinball_v0_11_save';
+const STORE='pinball_v0_111_save';
 
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const len=(x,y)=>Math.hypot(x,y);
@@ -153,7 +153,8 @@ const S={
     {x:360,y:390,r:30,rot:.25,av:0}
   ],
   lastSave:0,
-  gameOver:false
+  gameOver:false,
+  serveGrace:true
 };
 
 function load(){
@@ -174,6 +175,7 @@ load();
 function resetGame(){
   S.score=0;S.balls=3;S.gameOver=false;
   Object.assign(S.ball,{x:600,y:900,vx:0,vy:-10,spin:0});
+  S.serveGrace=true;
   S.stars.forEach(s=>{s.av=0});
   save(); updateHUD();
 }
@@ -394,7 +396,13 @@ function physics(dt){
   if(sp>maxV){b.vx*=maxV/sp;b.vy*=maxV/sp}
   b.x+=b.vx*dt;b.y+=b.vy*dt;
 
-  walls.forEach(w=>collideSegment(w[0],w[1],w[2],w[3],5,.82));
+  // 右下發射通道：新球向上發射時，暫時忽略右下內側斜導板（walls[6]），
+  // 待彈珠越過發射區後恢復正常碰撞，避免開球立刻被擋回。
+  if(S.serveGrace && b.y < 760) S.serveGrace=false;
+  walls.forEach((w,i)=>{
+    if(S.serveGrace && i===6) return;
+    collideSegment(w[0],w[1],w[2],w[3],5,.82);
+  });
   bumpers.forEach(x=>collideCircle(x.x,x.y,x.r,5.4,x.score));
   arrows.forEach(arrowCollision);
 
@@ -414,6 +422,7 @@ function physics(dt){
       S.balls=0;S.gameOver=true;save();updateHUD();
     }else{
       Object.assign(b,{x:600,y:900,vx:0,vy:-10});
+      S.serveGrace=true;
       updateHUD();save();
     }
   }
