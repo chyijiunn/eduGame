@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="theme-color" content="#181818" />
 <meta name="application-name" content="Marionette Designer" />
-<meta name="version" content="0.4" />
+<meta name="version" content="0.31" />
 <title>Marionette Designer</title>
 <style>
   :root{
@@ -61,12 +61,6 @@
 
   .model-modal{width:min(900px,96vw);height:min(82vh,820px);background:#202020;border-radius:16px;box-shadow:0 20px 80px #000c;display:flex;flex-direction:column;overflow:hidden}
   .model-stage{position:relative;flex:1;min-height:0;background:#1c1c1c}
-  .model-tools{display:flex;gap:6px;align-items:center;padding:7px 9px;border-bottom:1px solid #2d2d2d;background:#202020;overflow-x:auto}
-  .model-tools button{height:36px;min-width:42px;padding:0 10px;font-weight:700;flex:0 0 auto}
-  .model-tools button:disabled{opacity:.28;cursor:not-allowed}
-  .model-tools .controller-icon{font-size:22px;line-height:1}
-  .model-status{margin-left:auto;color:#777;font-size:10px;white-space:nowrap}
-  .controller-edit-tip{position:absolute;right:12px;top:10px;color:#888;font-size:10px;pointer-events:none}
   #model3d{width:100%;height:100%;display:block;touch-action:none}
   .model-hint{position:absolute;left:12px;bottom:10px;color:#6d6d6d;font-size:10px;pointer-events:none}
 
@@ -116,16 +110,7 @@
   <div class="modal-backdrop" id="modelModal" role="dialog" aria-modal="true" aria-label="3D 預覽">
     <div class="model-modal">
       <div class="modal-head"><button id="closeModel" title="關閉">×</button></div>
-      <div class="model-tools">
-        <button id="ctrlToggle" class="controller-icon" title="顯示／隱藏控制器">士</button>
-        <button id="ctrlEdit" title="編輯控制器尺寸">✥</button>
-        <button id="stringMode" title="手動拉線模式">⌁</button>
-        <button id="autoString" title="自動接九條線">AUTO</button>
-        <button id="demoMode" title="演示模式：拖拉線控制戲偶">▶</button>
-        <button id="walkDemo" title="演示走路" disabled>🚶</button>
-        <span class="model-status" id="modelStatus">3D</span>
-      </div>
-      <div class="model-stage"><canvas id="model3d"></canvas><div class="model-hint">← drag →</div><div class="controller-edit-tip" id="ctrlTip"></div></div>
+      <div class="model-stage"><canvas id="model3d"></canvas><div class="model-hint">← drag →</div></div>
     </div>
   </div>
 
@@ -575,101 +560,104 @@
     a.href=url;a.download='marionette_front_side_1to1.pdf';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),2000);
   }
 
-  // ---------- 3D + controller / strings / demonstration ----------
+  // ---------- 3D modal: static standing pose, horizontal rotation only ----------
   const canvas=$('#model3d'),ctx=canvas.getContext('2d');
-  const camera={yaw:-.30,pitch:.08};
-  let modelDrag=null, animId=0, lastT=0;
-  const sim={controller:false,edit:false,stringMode:false,demo:false,walking:false,strings:{},selected:null,
-    ctrl:{handleH:220,handleD:25,headLen:90,legLen:150,shoulderLen:200,shoulderAngle:100},
-    pose:{bodyX:0,bodyY:0,lean:0,lArm:0,rArm:0,lLeg:0,rLeg:0,lKnee:0,rKnee:0},targets:{}};
-  function resizeCanvas(){const r=canvas.getBoundingClientRect(),dpr=Math.min(2,window.devicePixelRatio||1);const w=Math.max(1,Math.floor(r.width*dpr)),h=Math.max(1,Math.floor(r.height*dpr));if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;}}
-  function rotX(v,a){const c=Math.cos(a),ss=Math.sin(a);return[v[0],v[1]*c-v[2]*ss,v[1]*ss+v[2]*c]}
-  function rotY(v,a){const c=Math.cos(a),ss=Math.sin(a);return[v[0]*c+v[2]*ss,v[1],-v[0]*ss+v[2]*c]}
+  const camera={yaw:-.38,pitch:.12};
+  let modelDrag=null;
+  function resizeCanvas(){
+    const r=canvas.getBoundingClientRect(),dpr=Math.min(2,window.devicePixelRatio||1);
+    const w=Math.max(1,Math.floor(r.width*dpr)),h=Math.max(1,Math.floor(r.height*dpr));
+    if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;}
+  }
+  function rotX(v,a){const c=Math.cos(a),s=Math.sin(a);return[v[0],v[1]*c-v[2]*s,v[1]*s+v[2]*c]}
+  function rotY(v,a){const c=Math.cos(a),s=Math.sin(a);return[v[0]*c+v[2]*s,v[1],-v[0]*s+v[2]*c]}
   function add(a,b){return[a[0]+b[0],a[1]+b[1],a[2]+b[2]]}
   function box3(id,key,c,size){return{id,key,c,size}}
   function modelBoxes(){
-    const p=parts,g=currentGap(),q=sim.pose,boxes=[];
-    const bx=q.bodyX,by=q.bodyY;
-    boxes.push(box3('torso','torso',[bx,by,0],[p.torso.w,p.torso.h,p.torso.d]));
-    const neckBaseY=by+p.torso.h/2+NECK_EMBED,neckC=[bx,neckBaseY+p.neck.h/2-NECK_EMBED,0];
+    const p=parts,g=currentGap(),boxes=[];
+    boxes.push(box3('torso','torso',[0,0,0],[p.torso.w,p.torso.h,p.torso.d]));
+    const neckBaseY=p.torso.h/2+NECK_EMBED;
+    const neckC=[0,neckBaseY+p.neck.h/2-NECK_EMBED,0];
     boxes.push(box3('neck','neck',neckC,[p.neck.w,p.neck.h,p.neck.d]));
     const headBottom=neckC[1]+p.neck.h/2-NECK_EMBED;
-    boxes.push(box3('head','head',[bx,headBottom+p.head.h/2,0],[p.head.w,p.head.h,p.head.d]));
-    const pelvisTop=by-p.torso.h/2-g,pelvisC=[bx,pelvisTop-p.pelvis.h/2,0];
+    boxes.push(box3('head','head',[0,headBottom+p.head.h/2,0],[p.head.w,p.head.h,p.head.d]));
+    const pelvisTop=-p.torso.h/2-g;
+    const pelvisC=[0,pelvisTop-p.pelvis.h/2,0];
     boxes.push(box3('pelvis','pelvis',pelvisC,[p.pelvis.w,p.pelvis.h,p.pelvis.d]));
-    const shoulderY=by+p.torso.h/2-8,armX=p.torso.w/2+g+p.upperArm.w/2;
+    const shoulderY=p.torso.h/2-8,armX=p.torso.w/2+g+p.upperArm.w/2;
     for(const side of [-1,1]){
-      const a=side<0?q.lArm:q.rArm,x=bx+side*armX+Math.sin(a)*12,uy=shoulderY-p.upperArm.h/2+Math.cos(a)*3;
+      const x=side*armX;
+      const uy=shoulderY-p.upperArm.h/2;
       boxes.push(box3(`${side}-ua`,'upperArm',[x,uy,0],[p.upperArm.w,p.upperArm.h,p.upperArm.d]));
-      const fy=uy-p.upperArm.h/2-g-p.forearm.h/2+Math.sin(a)*8;
-      boxes.push(box3(`${side}-fa`,'forearm',[x+Math.sin(a)*8,fy,0],[p.forearm.w,p.forearm.h,p.forearm.d]));
-      const py=fy-p.forearm.h/2-g-p.palm.h/2+Math.sin(a)*6;
-      boxes.push(box3(`${side}-pm`,'palm',[x+Math.sin(a)*14,py,0],[p.palm.w,p.palm.h,p.palm.d]));
+      const fy=uy-p.upperArm.h/2-g-p.forearm.h/2;
+      boxes.push(box3(`${side}-fa`,'forearm',[x,fy,0],[p.forearm.w,p.forearm.h,p.forearm.d]));
+      const py=fy-p.forearm.h/2-g-p.palm.h/2;
+      boxes.push(box3(`${side}-pm`,'palm',[x,py,0],[p.palm.w,p.palm.h,p.palm.d]));
     }
     const hipY=pelvisC[1]-p.pelvis.h/2,legX=p.thigh.w/2+g/2;
     for(const side of [-1,1]){
-      const a=side<0?q.lLeg:q.rLeg,k=side<0?q.lKnee:q.rKnee,x=bx+side*legX+Math.sin(a)*10;
-      const ty=hipY-g-p.thigh.h/2+Math.cos(a)*2;
+      const x=side*legX;
+      const ty=hipY-g-p.thigh.h/2;
       boxes.push(box3(`${side}-th`,'thigh',[x,ty,0],[p.thigh.w,p.thigh.h,p.thigh.d]));
-      const ly=ty-p.thigh.h/2-g-p.lowerLeg.h/2+Math.sin(k)*9;
-      boxes.push(box3(`${side}-ll`,'lowerLeg',[x+Math.sin(k)*8,ly,0],[p.lowerLeg.w,p.lowerLeg.h,p.lowerLeg.d]));
+      const ly=ty-p.thigh.h/2-g-p.lowerLeg.h/2;
+      boxes.push(box3(`${side}-ll`,'lowerLeg',[x,ly,0],[p.lowerLeg.w,p.lowerLeg.h,p.lowerLeg.d]));
       const sy=ly-p.lowerLeg.h/2-g-p.shoe.h/2;
-      boxes.push(box3(`${side}-sh`,'shoe',[x+Math.sin(k)*11,sy,(p.shoe.d-p.lowerLeg.d)/2],[p.shoe.w,p.shoe.h,p.shoe.d]));
+      boxes.push(box3(`${side}-sh`,'shoe',[x,sy,(p.shoe.d-p.lowerLeg.d)/2],[p.shoe.w,p.shoe.h,p.shoe.d]));
     }
     return boxes;
   }
   const faces=[[0,1,3,2],[4,6,7,5],[0,4,5,1],[2,3,7,6],[0,2,6,4],[1,5,7,3]];
-  function boxVertices(b){const [w,h,d]=b.size;return[[-w,-h,-d],[w,-h,-d],[-w,h,-d],[w,h,-d],[-w,-h,d],[w,-h,d],[-w,h,d],[w,h,d]].map(v=>add([v[0]/2,v[1]/2,v[2]/2],b.c));}
+  function boxVertices(b){
+    const [w,h,d]=b.size;
+    return [[-w,-h,-d],[w,-h,-d],[-w,h,-d],[w,h,-d],[-w,-h,d],[w,-h,d],[-w,h,d],[w,h,d]].map(v=>add([v[0]/2,v[1]/2,v[2]/2],b.c));
+  }
   function cameraTransform(v){return rotX(rotY(v,camera.yaw),camera.pitch)}
-  function puppetAnchors(boxes){
-    const by=id=>boxes.find(b=>b.id===id), top=b=>[b.c[0],b.c[1]+b.size[1]/2,b.c[2]], front=b=>[b.c[0],b.c[1],b.c[2]-b.size[2]/2];
-    const h=by('head'),t=by('torso'),lp=by('-1-pm'),rp=by('1-pm'),lt=by('-1-th'),rt=by('1-th');
-    return {headL:[h.c[0]-h.size[0]*.32,h.c[1]+h.size[1]*.22,h.c[2]],headR:[h.c[0]+h.size[0]*.32,h.c[1]+h.size[1]*.22,h.c[2]],
-      shoulderL:[t.c[0]-t.size[0]*.32,t.c[1]+t.size[1]*.42,t.c[2]+t.size[2]*.42],shoulderR:[t.c[0]+t.size[0]*.32,t.c[1]+t.size[1]*.42,t.c[2]+t.size[2]*.42],
-      waist:[t.c[0],t.c[1]-t.size[1]*.48,t.c[2]],handL:front(lp),handR:front(rp),kneeL:[lt.c[0],lt.c[1],lt.c[2]-lt.size[2]/2],kneeR:[rt.c[0],rt.c[1],rt.c[2]-rt.size[2]/2]};
-  }
-  function controllerGeom(boxes){
-    const A=puppetAnchors(boxes), headW=parts.head.w, shoulderW=parts.torso.w, kneeGap=Math.abs(A.kneeR[0]-A.kneeL[0]),handGap=Math.abs(A.handR[0]-A.handL[0]);
-    sim.ctrl.headLen=Math.max(headW+30,60);
-    if(!sim.edit) sim.ctrl.legLen=clamp(Math.max(sim.ctrl.headLen+60,kneeGap+70,120),120,220);
-    const top=Math.max(...Object.values(A).map(v=>v[1]))+115, x=sim.pose.bodyX;
-    const handleBottom=top-20,handleTop=handleBottom+sim.ctrl.handleH;
-    return {x,top,handleBottom,handleTop,headY:handleBottom+55,legY:handleBottom+150,shoulderY:handleBottom+92,A,shoulderW,kneeGap,handGap};
-  }
-  function ctrlAnchors(G){const c=G.x,L=sim.ctrl.legLen/2,H=sim.ctrl.headLen/2,S=sim.ctrl.shoulderLen/2;return {headL:[c-H,G.headY,0],headR:[c+H,G.headY,0],shoulderL:[c-S*.52,G.shoulderY,12],shoulderR:[c+S*.52,G.shoulderY,-12],waist:[c,G.shoulderY-8,0],handL:[c-S,G.shoulderY,0],handR:[c+S,G.shoulderY,0],kneeL:[c-L,G.legY,0],kneeR:[c+L,G.legY,0]};}
-  function drawLine3(a,b,project,style='#eee',width=1){const A=project(cameraTransform(a)),B=project(cameraTransform(b));ctx.beginPath();ctx.moveTo(A[0],A[1]);ctx.lineTo(B[0],B[1]);ctx.strokeStyle=style;ctx.lineWidth=width;ctx.stroke();}
-  let screenCtrl={},screenPuppet={};
   function drawModel(){
-    if(!$('#modelModal').classList.contains('show'))return;resizeCanvas();const dpr=Math.min(2,window.devicePixelRatio||1),W=canvas.width/dpr,H=canvas.height/dpr;ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,W,H);ctx.fillStyle='#1b1b1b';ctx.fillRect(0,0,W,H);
-    const boxes=modelBoxes(),G=controllerGeom(boxes),CA=ctrlAnchors(G),PA=G.A;
-    const extra=sim.controller?[[G.x,G.handleTop,0],[G.x-sim.ctrl.legLen/2,G.legY,0],[G.x+sim.ctrl.legLen/2,G.legY,0],[G.x-sim.ctrl.shoulderLen/2,G.shoulderY,0],[G.x+sim.ctrl.shoulderLen/2,G.shoulderY,0]]:[];
-    const tverts=boxes.map(b=>({b,verts:boxVertices(b).map(cameraTransform)})),flat=tverts.flatMap(x=>x.verts).concat(extra.map(cameraTransform));
-    const minX=Math.min(...flat.map(v=>v[0])),maxX=Math.max(...flat.map(v=>v[0])),minY=Math.min(...flat.map(v=>v[1])),maxY=Math.max(...flat.map(v=>v[1]));const cx=(minX+maxX)/2,cy=(minY+maxY)/2,rangeX=Math.max(1,maxX-minX),rangeY=Math.max(1,maxY-minY);const fit=Math.min((W-54)/rangeX,(H-54)/rangeY)*.92;const project=v=>[W/2+(v[0]-cx)*fit,H/2-(v[1]-cy)*fit,v[2]];
-    const all=[];for(const item of tverts){const pro=item.verts.map(project);faces.forEach(f=>{const poly=f.map(i=>pro[i]),depth=poly.reduce((s,v)=>s+v[2],0)/4;const a=item.verts[f[0]],bb=item.verts[f[1]],cc=item.verts[f[2]],u=[bb[0]-a[0],bb[1]-a[1],bb[2]-a[2]],v=[cc[0]-a[0],cc[1]-a[1],cc[2]-a[2]],n=[u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0]];all.push({b:item.b,poly,depth,n});});}all.sort((a,b)=>b.depth-a.depth);const light=[-.45,.65,-.6];for(const f of all){const n=f.n,len=Math.hypot(...n)||1,dot=clamp((n[0]*light[0]+n[1]*light[1]+n[2]*light[2])/len,-1,1),base=f.b.key==='head'?185:(f.b.key==='torso'||f.b.key==='pelvis'?155:172),shade=clamp(base+dot*38,72,228)|0;ctx.beginPath();f.poly.forEach((q,i)=>i?ctx.lineTo(q[0],q[1]):ctx.moveTo(q[0],q[1]));ctx.closePath();ctx.fillStyle=`rgb(${shade},${shade},${shade})`;ctx.fill();ctx.strokeStyle='#4d4d4d';ctx.lineWidth=.7;ctx.stroke();}
-    if(sim.controller){
-      const wood='#c8c8c8';drawLine3([G.x,G.handleBottom,0],[G.x,G.handleTop,0],project,wood,Math.max(5,sim.ctrl.handleD*fit*.18));drawLine3([G.x-sim.ctrl.headLen/2,G.headY,0],[G.x+sim.ctrl.headLen/2,G.headY,0],project,wood,5);drawLine3([G.x-sim.ctrl.legLen/2,G.legY,0],[G.x+sim.ctrl.legLen/2,G.legY,0],project,wood,8);
-      const ang=(sim.ctrl.shoulderAngle-90)*Math.PI/180,dy=Math.sin(ang)*22;drawLine3([G.x-sim.ctrl.shoulderLen/2,G.shoulderY-dy,0],[G.x+sim.ctrl.shoulderLen/2,G.shoulderY+dy,0],project,wood,5);
-      screenCtrl={};screenPuppet={};Object.keys(CA).forEach(k=>{screenCtrl[k]=project(cameraTransform(CA[k]));screenPuppet[k]=project(cameraTransform(PA[k]));if(sim.strings[k])drawLine3(CA[k],PA[k],project,'#e8e8e8',1);});
-      if(sim.stringMode||sim.edit){Object.entries(screenCtrl).forEach(([k,p])=>{ctx.beginPath();ctx.arc(p[0],p[1],4,0,Math.PI*2);ctx.fillStyle=sim.selected===k?'#fff':'#aaa';ctx.fill();});}
-      if(sim.stringMode&&sim.selected){Object.entries(screenPuppet).forEach(([k,p])=>{ctx.beginPath();ctx.arc(p[0],p[1],k===sim.selected?5:3,0,Math.PI*2);ctx.fillStyle=k===sim.selected?'#fff':'#777';ctx.fill();});}
-      if(sim.edit){[['legL',[G.x-sim.ctrl.legLen/2,G.legY,0]],['legR',[G.x+sim.ctrl.legLen/2,G.legY,0]],['headL',[G.x-sim.ctrl.headLen/2,G.headY,0]],['headR',[G.x+sim.ctrl.headLen/2,G.headY,0]]].forEach(([k,v])=>{const p=project(cameraTransform(v));screenCtrl[k]=p;ctx.strokeStyle='#fff';ctx.strokeRect(p[0]-5,p[1]-5,10,10);});}
+    if(!$('#modelModal').classList.contains('show'))return;
+    resizeCanvas();
+    const dpr=Math.min(2,window.devicePixelRatio||1),W=canvas.width/dpr,H=canvas.height/dpr;
+    ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,W,H);
+    const bg=ctx.createLinearGradient(0,0,0,H);bg.addColorStop(0,'#232323');bg.addColorStop(1,'#181818');ctx.fillStyle=bg;ctx.fillRect(0,0,W,H);
+
+    const boxes=modelBoxes();
+    const tverts=boxes.map(b=>({b,verts:boxVertices(b).map(cameraTransform)}));
+    const flat=tverts.flatMap(x=>x.verts);
+    const minX=Math.min(...flat.map(v=>v[0])),maxX=Math.max(...flat.map(v=>v[0]));
+    const minY=Math.min(...flat.map(v=>v[1])),maxY=Math.max(...flat.map(v=>v[1]));
+    const cx=(minX+maxX)/2,cy=(minY+maxY)/2;
+    const rangeX=Math.max(1,maxX-minX),rangeY=Math.max(1,maxY-minY);
+    const fit=Math.min((W-64)/rangeX,(H-64)/rangeY)*.94;
+    const project=v=>[W/2+(v[0]-cx)*fit,H/2-(v[1]-cy)*fit,v[2]];
+
+    const all=[];
+    for(const item of tverts){
+      const pro=item.verts.map(project);
+      // Draw all six faces. The cuboid is a closed solid; painter sorting hides rear faces naturally.
+      faces.forEach(f=>{
+        const poly=f.map(i=>pro[i]),depth=poly.reduce((s,v)=>s+v[2],0)/4;
+        const a=item.verts[f[0]],bb=item.verts[f[1]],cc=item.verts[f[2]];
+        const u=[bb[0]-a[0],bb[1]-a[1],bb[2]-a[2]],v=[cc[0]-a[0],cc[1]-a[1],cc[2]-a[2]];
+        const n=[u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0]];
+        all.push({b:item.b,poly,depth,n});
+      });
     }
-    $('#modelStatus').textContent=sim.walking?'WALK':sim.demo?'DEMO':sim.stringMode?'STRING':sim.edit?'EDIT':sim.controller?'CTRL':'3D';$('#ctrlTip').textContent=sim.edit?'拖曳控制器端點，左右會對稱改變':'';
+    all.sort((a,b)=>b.depth-a.depth);
+    const light=[-.45,.65,-.6];
+    for(const f of all){
+      const n=f.n,len=Math.hypot(...n)||1,dot=clamp((n[0]*light[0]+n[1]*light[1]+n[2]*light[2])/len,-1,1);
+      const base=f.b.key==='head'?185:(f.b.key==='torso'||f.b.key==='pelvis'?155:172),shade=clamp(base+dot*38,72,228)|0;
+      ctx.beginPath();f.poly.forEach((q,i)=>i?ctx.lineTo(q[0],q[1]):ctx.moveTo(q[0],q[1]));ctx.closePath();ctx.fillStyle=`rgb(${shade},${shade},${shade})`;ctx.fill();ctx.strokeStyle='#4d4d4d';ctx.lineWidth=.7;ctx.stroke();
+    }
+    const groundY=H/2-(minY-cy)*fit+10,rg=ctx.createRadialGradient(W/2,groundY,5,W/2,groundY,Math.min(W*.22,150));rg.addColorStop(0,'#0008');rg.addColorStop(1,'#0000');ctx.fillStyle=rg;ctx.beginPath();ctx.ellipse(W/2,groundY,Math.min(W*.22,150),18,0,0,Math.PI*2);ctx.fill();
   }
-  function nearest(map,p,max=16){let best=null,bd=max;for(const [k,q] of Object.entries(map)){const d=Math.hypot(p.x-q[0],p.y-q[1]);if(d<bd){bd=d;best=k}}return best;}
   function modelPoint(e){const r=canvas.getBoundingClientRect();return{x:e.clientX-r.left,y:e.clientY-r.top}}
-  canvas.addEventListener('pointerdown',e=>{e.preventDefault();canvas.setPointerCapture(e.pointerId);const p=modelPoint(e);let hit=null;if(sim.edit)hit=nearest(screenCtrl,p,18);else if(sim.stringMode||sim.demo)hit=nearest(screenCtrl,p,18);modelDrag={pointerId:e.pointerId,last:p,hit};if(sim.stringMode&&hit&&!hit.startsWith('leg')&&!hit.startsWith('head'))sim.selected=hit;else if(sim.stringMode&&hit)sim.selected=hit;drawModel();});
-  canvas.addEventListener('pointermove',e=>{if(!modelDrag||modelDrag.pointerId!==e.pointerId)return;e.preventDefault();const p=modelPoint(e),dx=p.x-modelDrag.last.x,dy=p.y-modelDrag.last.y;modelDrag.last=p;if(sim.edit&&modelDrag.hit){if(modelDrag.hit.startsWith('leg'))sim.ctrl.legLen=clamp(sim.ctrl.legLen+Math.abs(dx)*2*Math.sign(dx*(modelDrag.hit==='legR'?1:-1)),120,220);else if(modelDrag.hit.startsWith('head'))sim.ctrl.headLen=clamp(sim.ctrl.headLen+Math.abs(dx)*2*Math.sign(dx*(modelDrag.hit==='headR'?1:-1)),parts.head.w+30,190);}else if(sim.demo&&modelDrag.hit){const k=modelDrag.hit;if(k==='kneeL')sim.pose.lLeg=clamp(sim.pose.lLeg-dy*.012,-.7,.7);if(k==='kneeR')sim.pose.rLeg=clamp(sim.pose.rLeg-dy*.012,-.7,.7);if(k==='handL')sim.pose.lArm=clamp(sim.pose.lArm-dy*.012,-.8,.8);if(k==='handR')sim.pose.rArm=clamp(sim.pose.rArm-dy*.012,-.8,.8);if(k==='headL'||k==='headR'||k==='shoulderL'||k==='shoulderR'){sim.pose.bodyY=clamp(sim.pose.bodyY-dy*.22,-25,35);sim.pose.bodyX+=dx*.12;}}else{camera.yaw+=dx*.012;}drawModel();});
-  function endModelDrag(e){if(!modelDrag||modelDrag.pointerId!==e.pointerId)return;const p=modelPoint(e);if(sim.stringMode&&sim.selected){const target=nearest(screenPuppet,p,20);if(target===sim.selected)sim.strings[target]=true;sim.selected=null;}try{canvas.releasePointerCapture(e.pointerId)}catch(_){}modelDrag=null;drawModel();}
+  canvas.addEventListener('pointerdown',e=>{e.preventDefault();canvas.setPointerCapture(e.pointerId);modelDrag={pointerId:e.pointerId,last:modelPoint(e)};});
+  canvas.addEventListener('pointermove',e=>{
+    if(!modelDrag||modelDrag.pointerId!==e.pointerId)return;
+    e.preventDefault();const p=modelPoint(e),dx=p.x-modelDrag.last.x;modelDrag.last=p;camera.yaw+=dx*.012;drawModel();
+  });
+  function endModelDrag(e){if(!modelDrag||modelDrag.pointerId!==e.pointerId)return;try{canvas.releasePointerCapture(e.pointerId)}catch(_){}modelDrag=null;}
   canvas.addEventListener('pointerup',endModelDrag);canvas.addEventListener('pointercancel',endModelDrag);
-  function animate(t){if(!$('#modelModal').classList.contains('show')){animId=0;return;}const dt=Math.min(.04,(t-lastT||16)/1000);lastT=t;if(sim.walking){const a=t*.0045;sim.pose.lLeg=Math.sin(a)*.42;sim.pose.rLeg=-Math.sin(a)*.42;sim.pose.lKnee=Math.max(0,-Math.sin(a))*.55;sim.pose.rKnee=Math.max(0,Math.sin(a))*.55;sim.pose.lArm=-Math.sin(a)*.22;sim.pose.rArm=Math.sin(a)*.22;}else if(sim.demo&&!modelDrag){const damp=Math.pow(.90,dt*60);sim.pose.lArm*=damp;sim.pose.rArm*=damp;sim.pose.lLeg*=damp;sim.pose.rLeg*=damp;sim.pose.lKnee*=damp;sim.pose.rKnee*=damp;sim.pose.bodyX*=Math.pow(.94,dt*60);sim.pose.bodyY*=Math.pow(.94,dt*60);}drawModel();animId=requestAnimationFrame(animate);}
-  function ensureAnim(){if(!animId){lastT=performance.now();animId=requestAnimationFrame(animate);}}
-  $('#ctrlToggle').addEventListener('click',()=>{sim.controller=!sim.controller;if(!sim.controller){sim.edit=sim.stringMode=sim.demo=sim.walking=false;sim.strings={};}$('#ctrlToggle').classList.toggle('active',sim.controller);$('#walkDemo').disabled=!sim.demo;drawModel();});
-  $('#ctrlEdit').addEventListener('click',()=>{sim.controller=true;sim.edit=!sim.edit;sim.stringMode=false;$('#ctrlToggle').classList.add('active');$('#ctrlEdit').classList.toggle('active',sim.edit);$('#stringMode').classList.remove('active');drawModel();});
-  $('#stringMode').addEventListener('click',()=>{sim.controller=true;sim.stringMode=!sim.stringMode;sim.edit=false;$('#ctrlToggle').classList.add('active');$('#stringMode').classList.toggle('active',sim.stringMode);$('#ctrlEdit').classList.remove('active');drawModel();});
-  $('#autoString').addEventListener('click',()=>{sim.controller=true;Object.keys(ctrlAnchors(controllerGeom(modelBoxes()))).forEach(k=>sim.strings[k]=true);$('#ctrlToggle').classList.add('active');drawModel();});
-  $('#demoMode').addEventListener('click',()=>{sim.controller=true;sim.demo=!sim.demo;if(sim.demo&&Object.keys(sim.strings).length<9)Object.keys(ctrlAnchors(controllerGeom(modelBoxes()))).forEach(k=>sim.strings[k]=true);if(!sim.demo)sim.walking=false;$('#demoMode').classList.toggle('active',sim.demo);$('#walkDemo').disabled=!sim.demo;$('#walkDemo').classList.toggle('active',sim.walking);ensureAnim();drawModel();});
-  $('#walkDemo').addEventListener('click',()=>{if(!sim.demo)return;sim.walking=!sim.walking;$('#walkDemo').classList.toggle('active',sim.walking);ensureAnim();});
 
   // ---------- README ----------
   const README_FALLBACK=`# Marionette Designer 操作說明
@@ -692,19 +680,9 @@
 1. **↕**：開啟／關閉 3 mm gap。Head → Neck → Torso 維持 Neck 上下各埋入 5 mm。
 2. **▦**：重新自動緊密排列 100 mm 寬切割區。
 3. **A4↓**：直接下載 A4 1:1 PDF。輸出固定為 no gap；每個零件的尺寸直接標在零件內。
-4. **3D**：開啟 3D 浮動視窗。可加入「士」形控制器、編輯控制器、手動接九條線、AUTO 自動接線、演示拉線與走路。一般狀態左右拖曳可水平旋轉。
+4. **3D**：開啟 3D 浮動視窗。所有零件會自動縮放到完整可見；每個材料都是封閉六面體。只能左右拖曳做水平旋轉。
 5. **?**：讀取同資料夾的 README.md。
 6. **↺**：重置所有尺寸、gap、切割排列與瀏覽器記憶。
-
-## 3D 控制器與九條線
-
-- **士**：顯示控制器。握柄 220 mm、直徑 25 mm。
-- **✥**：控制器編輯。拖曳頭部與腿部橫桿端點，左右對稱改變。
-- **⌁**：手動接線。控制器與偶身顯示九個白點：頭×2、肩×2、腰×1、手×2、腿×2。先點控制器白點，再拖到偶身同名白點。
-- **AUTO**：自動完成九條線。
-- **▶**：演示模式。拖曳控制點時，肢體受線長限制與重力回復影響。
-- **🚶**：只有演示模式可用，控制左右腿交替形成步行。
-- 頭部木榫預設 = 頭最寬 + 30 mm；腿部橫板限制 120–220 mm，且至少比頭部木榫長 60 mm；肩膀木榫 200 mm、安裝角 100°。
 
 ## 切割排列
 
@@ -751,7 +729,7 @@
   gapBtn.addEventListener('click',()=>{gapEnabled=!gapEnabled;gapBtn.classList.toggle('active',gapEnabled);renderAll();saveState();});
   packBtn.addEventListener('click',()=>{autoPacked=true;packManual={};renderCut();saveState();});
   pdfBtn.addEventListener('click',downloadPdf);
-  modelBtn.addEventListener('click',()=>{$('#modelModal').classList.add('show');requestAnimationFrame(()=>{drawModel();ensureAnim();});});
+  modelBtn.addEventListener('click',()=>{$('#modelModal').classList.add('show');requestAnimationFrame(drawModel);});
   $('#closeModel').addEventListener('click',()=>$('#modelModal').classList.remove('show'));
   $('#modelModal').addEventListener('pointerdown',e=>{if(e.target===$('#modelModal'))$('#modelModal').classList.remove('show')});
   helpBtn.addEventListener('click',async()=>{$('#helpModal').classList.add('show');await loadReadme();});
