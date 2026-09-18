@@ -40,12 +40,12 @@
   .cut-info{position:absolute;right:9px;top:7px;color:#a0a0a0;font-size:10px;pointer-events:none;z-index:2;background:#202020cc;padding:2px 4px}
 
   .dim-fo{overflow:visible}
-  .dim-row{height:20px;display:flex;align-items:center;gap:2px;color:#ececec;font-size:9px;white-space:nowrap}
-  .dim-name{width:48px;overflow:hidden;text-overflow:ellipsis;color:#d7d7d7}
-  .dim-field{display:inline-flex;align-items:center;gap:1px;color:#707070}
+  .dim-row{min-height:26px;display:flex;align-items:center;gap:4px;color:#ececec;font-size:9px;white-space:normal}
+  .dim-name{width:60px;display:block;line-height:1.05;white-space:normal;word-break:break-word;color:#d7d7d7}
+  .dim-field{display:inline-flex;align-items:center;gap:0;color:#707070}
   .dim-field input{width:28px;height:18px;padding:1px 2px;border:1px solid #3b3b3b;border-radius:5px;background:#181818;color:#f1f1f1;text-align:right;font-size:9px}
   .dim-field input::-webkit-outer-spin-button,.dim-field input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
-  .dim-unit{color:#555;margin-left:1px}
+  .dim-unit{display:none}
 
   .modal-backdrop{position:fixed;inset:0;background:#000a;z-index:100;display:none;align-items:center;justify-content:center;padding:18px}
   .modal-backdrop.show{display:flex}
@@ -85,7 +85,7 @@
     .dim-row{gap:2px;font-size:8px}
     .dim-name{width:54px}
     .dim-field{gap:1px}
-    .dim-field input{width:30px;height:18px;font-size:8px;padding:1px 2px}
+    .dim-field input{width:28px;height:18px;font-size:8px;padding:1px 2px}
   }
 </style>
 </head>
@@ -379,25 +379,26 @@
 
   function addEditableDimensionRow(key,y,targetX,mobile=false,rowY=null){
     const p=parts[key];
-    const rowX=mobile?6:10, rowW=mobile?160:154, lineX=rowX+rowW;
-    designSvg.appendChild(el('line',{x1:lineX,y1:y,x2:targetX,y2:y,stroke:'#6d6d6d','stroke-width':1,'vector-effect':'non-scaling-stroke'}));
+    const rowX=mobile?6:10, rowW=mobile?154:152, lineX=rowX+rowW;
+    const drawY=(rowY==null?y:rowY);
+    // Keep the row text and the association line on the same horizontal level,
+    // then drop a short vertical tick to the actual part reference line.
+    designSvg.appendChild(el('line',{x1:lineX,y1:drawY,x2:targetX,y2:drawY,stroke:'#6d6d6d','stroke-width':1,'vector-effect':'non-scaling-stroke'}));
+    designSvg.appendChild(el('line',{x1:targetX,y1:Math.min(drawY,y),x2:targetX,y2:Math.max(drawY,y),stroke:'#7c7c7c','stroke-width':1,'vector-effect':'non-scaling-stroke'}));
     designSvg.appendChild(el('line',{x1:targetX,y1:y-4,x2:targetX,y2:y+4,stroke:'#949494','stroke-width':1,'vector-effect':'non-scaling-stroke'}));
 
-    const drawY=(rowY==null?y:rowY);
-    const fo=el('foreignObject',{x:rowX,y:drawY-10,width:rowW,height:21,class:'dim-fo'});
+    const fo=el('foreignObject',{x:rowX,y:drawY-13,width:rowW,height:28,class:'dim-fo'});
     const row=document.createElementNS(XHTML_NS,'div'); row.setAttribute('class','dim-row');
     const name=document.createElementNS(XHTML_NS,'span'); name.setAttribute('class','dim-name'); name.textContent=p.name;
     row.appendChild(name);
-    for(const [dim,label] of [['h','H'],['w','W'],['d','D']]){
+    for(const dim of ['h','w','d']){
       const wrap=document.createElementNS(XHTML_NS,'label'); wrap.setAttribute('class','dim-field');
-      wrap.appendChild(document.createTextNode(label));
-      const inp=document.createElementNS(XHTML_NS,'input'); inp.setAttribute('type','number'); inp.setAttribute('min','1'); inp.setAttribute('max','200'); inp.setAttribute('step','1'); inp.value=p[dim]; inp.dataset.key=key; inp.dataset.dim=dim;
+      const inp=document.createElementNS(XHTML_NS,'input'); inp.setAttribute('type','number'); inp.setAttribute('min','1'); inp.setAttribute('max','200'); inp.setAttribute('step','1'); inp.value=p[dim]; inp.dataset.key=key; inp.dataset.dim=dim; inp.setAttribute('aria-label',`${p.name} ${dim.toUpperCase()}`);
       inp.addEventListener('pointerdown',e=>e.stopPropagation());
       inp.addEventListener('change',onDimensionInput);
       inp.addEventListener('keydown',e=>{if(e.key==='Enter')inp.blur()});
       wrap.appendChild(inp); row.appendChild(wrap);
     }
-    const unit=document.createElementNS(XHTML_NS,'span'); unit.setAttribute('class','dim-unit'); unit.textContent='mm'; row.appendChild(unit);
     fo.appendChild(row); designSvg.appendChild(fo);
   }
 
@@ -427,7 +428,7 @@
 
     designSvg.appendChild(el('text',{x:mobile?6:10,y:mobile?18:22,fill:'#666','font-size':9},'H / W / D · mm'));
     let lastRowY=-1e9;
-    const minRowGap=mobile?20:18;
+    const minRowGap=mobile?28:26;
     for(const key of partOrder){
       const b=referenceBoxForKey(front,key); if(!b)continue;
       const y=oy+b.y*scale;
