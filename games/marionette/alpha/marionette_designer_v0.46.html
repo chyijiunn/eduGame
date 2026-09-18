@@ -40,10 +40,10 @@
   .cut-info{position:absolute;right:9px;top:7px;color:#a0a0a0;font-size:10px;pointer-events:none;z-index:2;background:#202020cc;padding:2px 4px}
 
   .dim-fo{overflow:visible}
-  .dim-row{height:22px;display:flex;align-items:center;gap:2px;color:#ececec;font-size:9px;white-space:nowrap}
-  .dim-name{width:54px;overflow:hidden;text-overflow:ellipsis;color:#d7d7d7}
+  .dim-row{height:20px;display:flex;align-items:center;gap:2px;color:#ececec;font-size:9px;white-space:nowrap}
+  .dim-name{width:48px;overflow:hidden;text-overflow:ellipsis;color:#d7d7d7}
   .dim-field{display:inline-flex;align-items:center;gap:1px;color:#707070}
-  .dim-field input{width:34px;height:20px;padding:1px 2px;border:1px solid #3b3b3b;border-radius:5px;background:#181818;color:#f1f1f1;text-align:right;font-size:9px}
+  .dim-field input{width:28px;height:18px;padding:1px 2px;border:1px solid #3b3b3b;border-radius:5px;background:#181818;color:#f1f1f1;text-align:right;font-size:9px}
   .dim-field input::-webkit-outer-spin-button,.dim-field input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
   .dim-unit{color:#555;margin-left:1px}
 
@@ -85,7 +85,7 @@
     .dim-row{gap:2px;font-size:8px}
     .dim-name{width:54px}
     .dim-field{gap:1px}
-    .dim-field input{width:36px;height:19px;font-size:8px;padding:1px 2px}
+    .dim-field input{width:30px;height:18px;font-size:8px;padding:1px 2px}
   }
 </style>
 </head>
@@ -377,13 +377,14 @@
     return layout.boxes.find(b=>b.id===`L-${key}`)||layout.boxes.find(b=>b.key===key&&!b.ghost);
   }
 
-  function addEditableDimensionRow(key,y,targetX,mobile=false){
+  function addEditableDimensionRow(key,y,targetX,mobile=false,rowY=null){
     const p=parts[key];
-    const rowX=mobile?7:12, rowW=mobile?178:184, lineX=rowX+rowW;
+    const rowX=mobile?6:10, rowW=mobile?160:154, lineX=rowX+rowW;
     designSvg.appendChild(el('line',{x1:lineX,y1:y,x2:targetX,y2:y,stroke:'#6d6d6d','stroke-width':1,'vector-effect':'non-scaling-stroke'}));
     designSvg.appendChild(el('line',{x1:targetX,y1:y-4,x2:targetX,y2:y+4,stroke:'#949494','stroke-width':1,'vector-effect':'non-scaling-stroke'}));
 
-    const fo=el('foreignObject',{x:rowX,y:y-11,width:rowW,height:23,class:'dim-fo'});
+    const drawY=(rowY==null?y:rowY);
+    const fo=el('foreignObject',{x:rowX,y:drawY-10,width:rowW,height:21,class:'dim-fo'});
     const row=document.createElementNS(XHTML_NS,'div'); row.setAttribute('class','dim-row');
     const name=document.createElementNS(XHTML_NS,'span'); name.setAttribute('class','dim-name'); name.textContent=p.name;
     row.appendChild(name);
@@ -413,27 +414,31 @@
     designSvg.innerHTML='';
     const front=computeFrontLayout(),side=computeSideLayout();
     const mobile=window.innerWidth<=620;
-    // 0.46: compact the initial stage horizontally. The data block, FRONT and
-    // SIDE views now sit much closer together instead of spending most of the
-    // desktop canvas on empty gutters.
-    const vbW=mobile?690:700;
+    // 0.46a: remove spare gutters further. Inputs are sized for 2-digit values,
+    // and the row widgets are vertically de-conflicted so close body parts like
+    // torso / upper arm do not overlap each other.
+    const vbW=mobile?605:575;
     const scale=Math.min(mobile?1.42:1.50,(mobile?410:475)/Math.max(front.totalH,side.totalH));
     const oy=mobile?36:44;
-    const frontCx=mobile?305:310, sideCx=mobile?495:490;
+    const frontCx=mobile?246:254, sideCx=mobile?405:406;
 
     drawView(front,'front',frontCx,oy,scale);
     drawView(side,'side',sideCx,oy,scale);
 
-    designSvg.appendChild(el('text',{x:mobile?7:12,y:mobile?18:22,fill:'#666','font-size':9},'H / W / D · mm'));
+    designSvg.appendChild(el('text',{x:mobile?6:10,y:mobile?18:22,fill:'#666','font-size':9},'H / W / D · mm'));
+    let lastRowY=-1e9;
+    const minRowGap=mobile?20:18;
     for(const key of partOrder){
       const b=referenceBoxForKey(front,key); if(!b)continue;
       const y=oy+b.y*scale;
       const targetX=frontCx+(b.x-b.w/2)*scale;
-      addEditableDimensionRow(key,y,targetX,mobile);
+      const rowY=Math.max(y,lastRowY+minRowGap);
+      lastRowY=rowY;
+      addEditableDimensionRow(key,y,targetX,mobile,rowY);
     }
 
     const yEnd=oy+front.totalH*scale;
-    const dimX=mobile?650:650;
+    const dimX=mobile?557:545;
     designSvg.appendChild(el('line',{x1:dimX,y1:oy,x2:dimX,y2:yEnd,stroke:'#666','stroke-width':1}));
     designSvg.appendChild(el('line',{x1:dimX-5,y1:oy,x2:dimX+5,y2:oy,stroke:'#888','stroke-width':1}));
     designSvg.appendChild(el('line',{x1:dimX-5,y1:yEnd,x2:dimX+5,y2:yEnd,stroke:'#888','stroke-width':1}));
