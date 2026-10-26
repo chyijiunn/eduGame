@@ -83,7 +83,7 @@
   <div class="grid2"><div><label for="diamInput">直徑 mm</label><input id="diamInput" type="number" min="20" max="500" step="1"></div><div><label for="heightInput">高度 mm</label><input id="heightInput" type="number" min="20" max="500" step="1"></div></div>
   <div class="grid2"><div><label for="paperInput">相紙角度 °</label><input id="paperInput" type="number" min="90" max="270" step="1"></div><div><label for="headingInput">朝向 °</label><input id="headingInput" type="number" min="0" max="359.9" step="0.1"></div></div>
   <div class="grid2"><div><label for="tiltInput">相機仰角 °</label><input id="tiltInput" type="number" min="-60" max="60" step="0.1"></div><div><label for="paperTone">相紙色調</label><select id="paperTone"><option value="mixed">冷暖混合</option><option value="cyan">青藍</option><option value="amber">暖棕</option></select></div></div>
-  <label class="toggle"><input type="checkbox" id="landscapeToggle">示意地景（非真實地貌）</label>
+  <label class="toggle"><input type="checkbox" id="landscapeToggle">示意地景</label>
   <label for="imageDirection">影像方向</label><select id="imageDirection" style="width:100%"><option value="corrected">校正方向</option><option value="raw">原始倒像</option></select>
   <label class="toggle" style="margin-top:8px"><input type="checkbox" id="cloudToggle">模擬雲層（非真實天氣）</label><button id="regenCloud" class="small" style="margin-top:6px">重新隨機生成雲層</button>
   <p class="hint">相紙沿圓筒對側內壁貼附；依光線交點裁切。改變相機參數會重新投影原曝光紀錄。</p>
@@ -149,7 +149,7 @@ const $=id=>document.getElementById(id), TAU=Math.PI*2, RAD=Math.PI/180, DAY=864
 const clamp=(x,a,b)=>Math.min(b,Math.max(a,x)),mod=(x,m)=>((x%m)+m)%m,deg=x=>x/RAD,rad=x=>x*RAD,fmt=(n,d=1)=>Number(n).toFixed(d);
 const timezoneFromCoords=(lat,lon)=>clamp(Math.round(lon/15),-12,14); // Offline standard meridian approximation; political/DST borders require a timezone polygon database.
 const defaults=()=>({lat:23.5,lon:120.5,tz:8,speed:1,mode:'photo',projection:'cylinder',diam:80,height:120,paper:180,heading:180,tilt:25,headingAuto:true,direction:'corrected',cloud:false,landscape:true,paperTone:'mixed',showRefs:false,showGrid:false,yaw:210,pitch:28,zoom:3.7});
-let S=defaults(),sim=clamp(Date.now(),YEARMIN,YEARMAX),events=[],playing=false,exposureRevision=0,photoRevision=-1,photoStamp=0,skyStamp=0,orbitStamp=0,saveTimer=0,cloudSeed=Math.random()*1e9|0,photoDirty=true,selectedTerm=null,termCache={},sampleCache={key:'',days:[],hours:0},frameLast=performance.now(),lastUI=0,lastSave=0,noticeTimer=0;
+let S=defaults(),sim=clamp(Date.now(),YEARMIN,YEARMAX),events=[],playing=false,exposureRevision=0,photoRevision=-1,photoStamp=0,skyStamp=0,orbitStamp=0,saveTimer=0,cloudSeed=Math.random()*1e9|0,landscapeSeed=Math.random()*1e9|0,photoDirty=true,selectedTerm=null,termCache={},sampleCache={key:'',days:[],hours:0},frameLast=performance.now(),lastUI=0,lastSave=0,noticeTimer=0,landscapeWorld=null;
 const panels={time:$('panel-time'),controls:$('panel-controls'),photo:$('panel-photo'),orbit:$('panel-orbit')};let zCounter=15;
 const localParts=(ms,tz=S.tz)=>{const d=new Date(ms+tz*3600000);return {year:d.getUTCFullYear(),month:d.getUTCMonth()+1,day:d.getUTCDate(),hour:d.getUTCHours(),minute:d.getUTCMinutes(),second:d.getUTCSeconds()}};
 const localMidnight=(ms,tz=S.tz)=>Math.floor((ms+tz*3600000)/DAY)*DAY-tz*3600000;
@@ -418,7 +418,7 @@ function emulsionLayers(w,h){
   let prev=null,prevMinute=null;
   for(let m=d.from;m<=d.to+.000001;m+=step){
    const minute=Math.min(m,d.to),p=sunPos(start+minute*60000);
-   const xy=p.alt>=-.833?photoXY(p,w,h):null;
+   const xy=p.alt>=0?photoXY(p,w,h):null;
    if(xy&&prev&&Math.hypot(xy[0]-prev[0],xy[1]-prev[1])<Math.max(w,h)*.17){
     const cloud=.5*(cloudMask(dayIndex,minute)+cloudMask(dayIndex,prevMinute));
     const glare=clamp(.78+.24*Math.sin(minute*.02+dayIndex*1.7),.55,1.08);
@@ -488,26 +488,127 @@ function drawPhotographic(ctx,w,h){
  drawPaperDefects(ctx,w,h,elapsedFactor);
  if(!sample.days.length){ctx.fillStyle='#e8e6d0c5';ctx.font=`${Math.max(11,w/32)}px system-ui`;ctx.textAlign='center';ctx.fillText('播放後開始累積曝光',w/2,h*.47)}
 }
+function photographicHorizonY(x,w,h){
+ // Horizon = world elevation 0, projected with the SAME optical geometry as sunlight.
+ // Do not pin the foreground to a fixed percentage of canvas height: a tilted
+ // cylindrical camera has a strongly curved horizon, especially near the edges.
+ const nx=S.direction==='raw'?(w-x):x;
+ let y;
+ if(S.projection==='cylinder'){
+  const delta=(.5-nx/w)*rad(S.paper);
+  const R=S.diam/2;
+  // Camera local ray from the side pinhole to a patch of cylindrical paper.
+  // At altitude 0, local hit height = (R - R*cos(phi))*tan(tilt).
+  // phi=pi+delta, hence R-hitX=R*(1+cos(delta)).
+  y=h*(.5+R*(1+Math.cos(delta))*Math.tan(rad(S.tilt))/S.height);
+ }else{
+  const scale=.48*Math.min(w,h)/(Math.PI/2);
+  const u=(nx-w/2)/scale;
+  const center=h/2;
+  // Intersect apparent elevation=0 with the equidistant fisheye vertical scan.
+  const sinTilt=Math.sin(rad(S.tilt)),cosTilt=Math.cos(rad(S.tilt));
+  const rayZ=(py)=>{
+   const v=(center-py)/scale,r=Math.hypot(u,v);
+   if(r>Math.PI/2)return NaN;
+   const sinc=r>1e-9?Math.sin(r)/r:1;
+   return Math.cos(r)*sinTilt+v*sinc*cosTilt;
+  };
+  const lo=Math.max(0,center-scale*Math.sqrt(Math.max(0,(Math.PI/2)**2-u*u)));
+  const hi=Math.min(h,center+scale*Math.sqrt(Math.max(0,(Math.PI/2)**2-u*u)));
+  let prev=rayZ(lo),prevY=lo,found=null;
+  for(let i=1;i<=16;i++){
+   const yy=lo+(hi-lo)*i/16,zz=rayZ(yy);
+   if(Number.isFinite(zz)&&Number.isFinite(prev)&&prev*zz<=0){
+    let a=prevY,b=yy,za=prev;
+    for(let j=0;j<12;j++){const mid=(a+b)/2,zm=rayZ(mid);if((za>0)===(zm>0)){a=mid;za=zm}else b=mid}
+    found=(a+b)/2;break;
+   }
+   prev=zz;prevY=yy;
+  }
+  // At the extreme sides the horizon can lie entirely outside the visible lens circle.
+  y=found===null?(sinTilt>=0?hi:lo):found;
+ }
+ return S.direction==='raw'?h-y:y;
+}
+function initLandscapeWorld(){
+ const seed=landscapeSeed|0;
+ if(landscapeWorld&&landscapeWorld.seed===seed)return landscapeWorld;
+ const objects=[],kinds=['conifer','deciduous','tower','building','house'];
+ const count=56;
+ for(let i=0;i<count;i++){
+  const az=360*hash2(i,17,seed);
+  const layer=hash2(i,33,seed)>.56?2:(hash2(i,34,seed)>.4?1:0);
+  const kind=kinds[Math.floor(hash2(i,51,seed)*kinds.length)];
+  const scale=layer===2?(1.05+hash2(i,71,seed)*.8):layer===1?(.7+hash2(i,72,seed)*.42):(.48+hash2(i,73,seed)*.25);
+  const jitterAlt=(hash2(i,83,seed)-.5)*1.1;
+  objects.push({az,layer,kind,scale,jitterAlt,variant:hash2(i,97,seed),widthMul:.7+hash2(i,111,seed)*.9});
+ }
+ landscapeWorld={seed,objects};
+ return landscapeWorld;
+}
+function worldHorizonLift(az,layer,h){
+ const seed=landscapeSeed|0, a=az/360;
+ const n1=noise2(a*(2.6+layer*.45)+.4,layer*1.4,seed+31*layer);
+ const n2=noise2(a*(7.8+layer*1.2)+1.2,layer*5.6,seed+181*layer);
+ const n3=noise2(a*(21+layer*2.4)+2.3,layer*10.3,seed+347*layer);
+ return (.03+.018*layer+.024*n1+.018*n2+.008*n3)*h;
+}
+function horizonPointForAz(az,w,h,extraAlt=0){
+ const alt=Math.max(-2.5,Math.min(7,extraAlt));
+ const pos={v:[Math.sin(rad(az))*Math.cos(rad(alt)),Math.cos(rad(az))*Math.cos(rad(alt)),Math.sin(rad(alt))]};
+ return photoXY(pos,w,h);
+}
 function drawSyntheticLandscape(ctx,w,h){
- // Stable, deliberately generic faraway ridgeline, not a geolocated horizon.
- const ridge=(x,k)=>{
-  const a=x/w;
-  const base=k===0?.81:.87;
-  return h*(base-.037*noise2(a*5+.6,k*2.1,392)-.023*noise2(a*17+.8,k*8.3,722)-.011*noise2(a*48,k*13,872));
- };
+ const world=initLandscapeWorld();
+ const inverted=S.direction==='raw',dir=inverted?-1:1,bottom=inverted?0:h;
  ctx.save();
- for(let k=0;k<2;k++){
-  ctx.beginPath();ctx.moveTo(0,h);
-  for(let x=0;x<=w;x+=Math.max(2,w/240))ctx.lineTo(x,ridge(x,k));
-  ctx.lineTo(w,h);ctx.closePath();ctx.fillStyle=k===0?'rgba(38,51,54,.82)':'rgba(30,38,43,.94)';ctx.fill();
+ const skyGlow=ctx.createLinearGradient(0,inverted?h:0,0,inverted?0:h);
+ skyGlow.addColorStop(0,'rgba(255,212,164,.02)');
+ skyGlow.addColorStop(.45,'rgba(202,188,170,.04)');
+ skyGlow.addColorStop(1,'rgba(12,18,24,.16)');
+ ctx.fillStyle=skyGlow;ctx.fillRect(0,0,w,h);
+ const drawBand=(layer,fill)=>{
+  const pts=[];
+  for(let az=0;az<=360;az+=1.5){
+   const p=horizonPointForAz(az,w,h,0);
+   if(p)pts.push([p[0],p[1]-dir*worldHorizonLift(az,layer,h)]);
+  }
+  pts.sort((a,b)=>a[0]-b[0]);
+  const joined=[];
+  for(const p of pts){if(!joined.length||Math.abs(p[0]-joined[joined.length-1][0])>1.2)joined.push(p)}
+  if(joined.length<2)return;
+  ctx.beginPath();ctx.moveTo(joined[0][0],bottom);for(const p of joined)ctx.lineTo(p[0],p[1]);ctx.lineTo(joined[joined.length-1][0],bottom);ctx.closePath();ctx.fillStyle=fill;ctx.fill();
  }
- const rng=(n)=>hash2(n,892,422);
- // Sparse distant treetops; keeps the panorama uncluttered at phone preview size.
- ctx.fillStyle='rgba(27,39,42,.85)';
- for(let j=0;j<Math.max(18,Math.floor(w/18));j++){
-  const x=w*rng(j),y=ridge(x,1),r=w*(.0015+.004*rng(j+500));
-  ctx.beginPath();ctx.moveTo(x-r,y+2);ctx.lineTo(x,y-r*(1.5+rng(j+800)));ctx.lineTo(x+r,y+2);ctx.closePath();ctx.fill();
+ drawBand(0,'rgba(70,84,87,.20)');
+ drawBand(1,'rgba(49,58,62,.33)');
+ drawBand(2,'rgba(24,31,36,.60)');
+ function silhouetteAlpha(pass){return pass===0?.24:pass===1?.18:.12}
+ function drawGhosted(drawFn,color){for(let pass=0;pass<3;pass++){ctx.save();ctx.globalAlpha=silhouetteAlpha(pass);ctx.translate(pass*.9,(inverted?-1:1)*pass*.55);ctx.shadowColor='rgba(255,212,168,.10)';ctx.shadowBlur=pass===0?10:pass===1?5:2;ctx.fillStyle=color;drawFn();ctx.restore();}}
+ function drawConifer(x,y,s){drawGhosted(()=>{ctx.beginPath();ctx.rect(x-s*.07,y,x+s*.07-x,bottom-y);ctx.fill();for(let i=0;i<3;i++){const yy=y-dir*s*(.18+.2*i);ctx.beginPath();ctx.moveTo(x-s*(.38-.07*i),yy+dir*s*.18);ctx.lineTo(x,yy-dir*s*.18);ctx.lineTo(x+s*(.38-.07*i),yy+dir*s*.18);ctx.closePath();ctx.fill()}},'rgba(16,23,26,.88)')}
+ function drawDeciduous(x,y,s){drawGhosted(()=>{ctx.beginPath();ctx.rect(x-s*.055,y,x+s*.055-x,bottom-y);ctx.fill();for(let i=0;i<4;i++){ctx.beginPath();ctx.arc(x+s*([-.16,.17,-.05,.08][i]),y-dir*s*([.2,.22,.34,.1][i]),s*([.22,.18,.2,.17][i]),0,TAU);ctx.fill()}},'rgba(18,24,28,.86)')}
+ function drawHouse(x,y,s){drawGhosted(()=>{ctx.beginPath();ctx.rect(x-s*.44,y-dir*s*.38,s*.88,dir*s*.38);ctx.fill();ctx.beginPath();ctx.moveTo(x-s*.52,y-dir*s*.38);ctx.lineTo(x,y-dir*s*.62);ctx.lineTo(x+s*.52,y-dir*s*.38);ctx.closePath();ctx.fill()},'rgba(19,24,30,.88)')}
+ function drawTower(x,y,s){drawGhosted(()=>{ctx.beginPath();ctx.rect(x-s*.18,y-dir*s*.92,s*.36,dir*s*.92);ctx.fill();ctx.beginPath();ctx.moveTo(x-s*.28,y-dir*s*.92);ctx.lineTo(x,y-dir*s*1.18);ctx.lineTo(x+s*.28,y-dir*s*.92);ctx.closePath();ctx.fill();ctx.beginPath();ctx.arc(x,y-dir*s*1.25,s*.055,0,TAU);ctx.fill()},'rgba(21,26,33,.9)')}
+ function drawBuilding(x,y,s){drawGhosted(()=>{const bh=(.75+.25*hash2(x|0,17,landscapeSeed|0));ctx.beginPath();ctx.rect(x-s*.36,y-dir*s*bh,s*.72,dir*s*bh);ctx.fill();if(s>16){const floors=Math.max(3,Math.round(s/7));ctx.fillStyle='rgba(238,214,184,.05)';for(let r=0;r<floors;r++)for(let c=-1;c<=1;c++)ctx.fillRect(x+c*s*.14-s*.035,y-dir*s*.12-r*dir*s*.12,s*.07,dir*s*.04)}},'rgba(17,22,29,.92)')}
+ const drawMap={conifer:drawConifer,deciduous:drawDeciduous,tower:drawTower,building:drawBuilding,house:drawHouse};
+ const visible=[];
+ for(const obj of world.objects){
+  const p=horizonPointForAz(obj.az,w,h,obj.jitterAlt);
+  if(!p)continue;
+  const x=p[0],y=p[1]-dir*(worldHorizonLift(obj.az,obj.layer,h)+obj.jitterAlt*h*.01);
+  const base=(obj.kind==='tower'?h*.17:obj.kind==='building'?h*.16:obj.kind==='house'?h*.12:h*.14);
+  const size=base*obj.scale;
+  visible.push({...obj,x,y,size});
  }
+ visible.sort((a,b)=>a.layer-b.layer||a.size-b.size);
+ for(const obj of visible)drawMap[obj.kind](obj.x,obj.y,obj.size);
+ const haze=ctx.createLinearGradient(0,inverted?0:h,0,inverted?h:0);
+ haze.addColorStop(0,'rgba(255,226,193,.10)');
+ haze.addColorStop(.18,'rgba(180,161,145,.08)');
+ haze.addColorStop(.55,'rgba(20,28,34,.0)');
+ ctx.fillStyle=haze;
+ const mids=[horizonPointForAz(mod(S.heading-20,360),w,h),horizonPointForAz(S.heading,w,h),horizonPointForAz(mod(S.heading+20,360),w,h)].filter(Boolean);
+ const avgH=mids.length?mids.reduce((a,p)=>a+p[1],0)/mids.length:h*.74;
+ if(inverted)ctx.fillRect(0,0,w,Math.max(0,avgH+h*.12)); else ctx.fillRect(0,Math.min(h,avgH-h*.02),w,h);
  ctx.restore();
 }
 function drawPaperDefects(ctx,w,h,age){
@@ -684,7 +785,7 @@ $('resetView').addEventListener('click',()=>{S.yaw=210;S.pitch=28;S.zoom=3.7;ren
 function showModal(title,html,actions=[]){$('modalTitle').textContent=title;$('modalBody').innerHTML=html;$('modalActions').replaceChildren();for(const a of actions){const b=document.createElement('button');b.textContent=a.text;if(a.primary)b.classList.add('primary');b.addEventListener('click',()=>{closeModal();a.fn?.()});$('modalActions').appendChild(b)}$('modalBackdrop').classList.add('show')}
 function closeModal(){$('modalBackdrop').classList.remove('show')}$('modalClose').addEventListener('click',closeModal);$('modalBackdrop').addEventListener('pointerdown',e=>{if(e.target===$('modalBackdrop'))closeModal()});document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal()});
 $('resetExposure').addEventListener('click',()=>{events=[];changeExposure();renderSky();renderPhoto();updateTimeUI();notify('已清除累積曝光')});
-$('resetAll').addEventListener('click',()=>{pause();$('cameraSettings').classList.add('hidden');$('photoSettingsBtn').setAttribute('aria-expanded','false');S=defaults();sim=clamp(Date.now(),YEARMIN,YEARMAX);events=[];changeExposure();for(const [key,p] of Object.entries(panels)){p.style.left='';p.style.top='';p.style.width='';p.style.height='';p.classList.toggle('visible',key==='photo')}initPanelCoords();syncQuickTools();updateControls();updateTimeUI(true);renderSky();renderPhoto();save();notify('已恢復全部初始設定')});
+$('resetAll').addEventListener('click',()=>{pause();$('cameraSettings').classList.add('hidden');$('photoSettingsBtn').setAttribute('aria-expanded','false');S=defaults();sim=clamp(Date.now(),YEARMIN,YEARMAX);events=[];landscapeSeed=Math.random()*1e9|0;changeExposure();for(const [key,p] of Object.entries(panels)){p.style.left='';p.style.top='';p.style.width='';p.style.height='';p.classList.toggle('visible',key==='photo')}initPanelCoords();syncQuickTools();updateControls();updateTimeUI(true);renderSky();renderPhoto();save();notify('已恢復全部初始設定')});
 function initPanelCoords(){for(const key of Object.keys(panels))applyDefaultPanel(key)}
 function download(name,blob){const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),5000)}
 function exportPNG(){const c=document.createElement('canvas');c.width=1500;c.height=990;drawPhoto(c.getContext('2d'),c.width,c.height,true);c.toBlob(blob=>{if(blob)download('solargraphy_'+localDateStr(sim)+'.png',blob)},'image/png')}
