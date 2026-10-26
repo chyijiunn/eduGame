@@ -533,25 +533,74 @@ function photographicHorizonY(x,w,h){
 function initLandscapeWorld(){
  const seed=landscapeSeed|0;
  if(landscapeWorld&&landscapeWorld.seed===seed)return landscapeWorld;
- const objects=[],kinds=['conifer','deciduous','tower','building','house'];
- const count=56;
- for(let i=0;i<count;i++){
-  const az=360*hash2(i,17,seed);
-  const layer=hash2(i,33,seed)>.56?2:(hash2(i,34,seed)>.4?1:0);
-  const kind=kinds[Math.floor(hash2(i,51,seed)*kinds.length)];
-  const scale=layer===2?(1.05+hash2(i,71,seed)*.8):layer===1?(.7+hash2(i,72,seed)*.42):(.48+hash2(i,73,seed)*.25);
-  const jitterAlt=(hash2(i,83,seed)-.5)*1.1;
-  objects.push({az,layer,kind,scale,jitterAlt,variant:hash2(i,97,seed),widthMul:.7+hash2(i,111,seed)*.9});
+ const objects=[];
+ const zones=[
+  {az:15,span:80,weights:{conifer:.58,deciduous:.28,house:.08,building:.04,tower:.02}},
+  {az:78,span:62,weights:{conifer:.42,deciduous:.34,house:.12,building:.08,tower:.04}},
+  {az:142,span:68,weights:{deciduous:.30,house:.28,building:.24,tower:.10,conifer:.08}},
+  {az:214,span:72,weights:{conifer:.18,deciduous:.20,house:.26,building:.24,tower:.12}},
+  {az:282,span:76,weights:{conifer:.52,deciduous:.24,house:.14,building:.06,tower:.04}},
+  {az:336,span:54,weights:{conifer:.62,deciduous:.20,house:.10,building:.05,tower:.03}},
+ ];
+ const count=72;
+ function blendWeight(az,kind){
+  let sum=0;
+  for(const z of zones){
+   let d=Math.abs(((az-z.az+540)%360)-180);
+   if(d>z.span) continue;
+   const t=1-d/z.span;
+   sum+=Math.pow(t,1.6)*(z.weights[kind]||0);
+  }
+  // periodic base so seam near 0/360 stays coherent
+  const a=az/360*TAU;
+  const base={
+   conifer:.23+.12*(Math.cos(a*2-.6)+1)/2,
+   deciduous:.15+.1*(Math.sin(a*3+.8)+1)/2,
+   house:.09+.06*(Math.cos(a*1.4+2.4)+1)/2,
+   building:.06+.05*(Math.sin(a*2.1-1.2)+1)/2,
+   tower:.025+.03*(Math.cos(a*4.2+.7)+1)/2,
+  };
+  return sum+base[kind];
  }
- landscapeWorld={seed,objects};
+ function chooseKind(az,r){
+  const kinds=['conifer','deciduous','house','building','tower'];
+  const weights=kinds.map(k=>blendWeight(az,k));
+  const total=weights.reduce((a,b)=>a+b,0);
+  let t=r*total;
+  for(let i=0;i<kinds.length;i++){ if((t-=weights[i])<=0) return kinds[i]; }
+  return kinds[kinds.length-1];
+ }
+ for(let i=0;i<count;i++){
+  // stratified azimuths reduce sparse gaps and improve wrap-around continuity
+  const az=((i+.5)/count)*360 + (hash2(i,17,seed)-.5)*6.5;
+  const layerRoll=hash2(i,33,seed);
+  const layer=layerRoll>.57?2:(layerRoll>.33?1:0);
+  const kind=chooseKind((az+360)%360,hash2(i,51,seed));
+  const scale=layer===2?(1.00+hash2(i,71,seed)*.85):layer===1?(.72+hash2(i,72,seed)*.45):(.46+hash2(i,73,seed)*.24);
+  const jitterAlt=(hash2(i,83,seed)-.5)*1.0;
+  const widthMul=.75+hash2(i,111,seed)*1.1;
+  objects.push({az:(az+360)%360,layer,kind,scale,jitterAlt,variant:hash2(i,97,seed),widthMul});
+  // occasional companion objects create village groves / clustered skylines
+  if(hash2(i,131,seed)>.72){
+   const delta=(hash2(i,151,seed)-.5)*(layer===2?7.5:12);
+   const kind2=hash2(i,171,seed)>.58?kind:chooseKind((az+delta+360)%360,hash2(i,172,seed));
+   objects.push({az:(az+delta+360)%360,layer:Math.max(0,layer-1*(hash2(i,181,seed)>.55)),kind:kind2,scale:scale*(.62+.18*hash2(i,191,seed)),jitterAlt:jitterAlt+(hash2(i,201,seed)-.5)*.6,variant:hash2(i,211,seed),widthMul:.7+hash2(i,221,seed)*.8});
+  }
+ }
+ landscapeWorld={seed,objects,zones};
  return landscapeWorld;
 }
 function worldHorizonLift(az,layer,h){
- const seed=landscapeSeed|0, a=az/360;
- const n1=noise2(a*(2.6+layer*.45)+.4,layer*1.4,seed+31*layer);
- const n2=noise2(a*(7.8+layer*1.2)+1.2,layer*5.6,seed+181*layer);
- const n3=noise2(a*(21+layer*2.4)+2.3,layer*10.3,seed+347*layer);
- return (.03+.018*layer+.024*n1+.018*n2+.008*n3)*h;
+ const seed=landscapeSeed|0;
+ const a=az/360*TAU;
+ // periodic functions avoid any visible seam at 0/360
+ const p1=(Math.cos(a*1.0-.4)+1)/2;
+ const p2=(Math.sin(a*2.0+1.1)+1)/2;
+ const p3=(Math.cos(a*5.0-2.2)+1)/2;
+ const n1=noise2(Math.cos(a)*2.4+4.1,Math.sin(a)*2.4+3.7,seed+31*layer);
+ const n2=noise2(Math.cos(a)*6.1+8.2,Math.sin(a)*6.1+7.3,seed+181*layer);
+ const ridge=.018*p1+.012*p2+.008*p3+.017*n1+.010*n2;
+ return (.028+.016*layer+ridge)*h;
 }
 function horizonPointForAz(az,w,h,extraAlt=0){
  const alt=Math.max(-2.5,Math.min(7,extraAlt));
@@ -582,13 +631,70 @@ function drawSyntheticLandscape(ctx,w,h){
  drawBand(0,'rgba(70,84,87,.20)');
  drawBand(1,'rgba(49,58,62,.33)');
  drawBand(2,'rgba(24,31,36,.60)');
- function silhouetteAlpha(pass){return pass===0?.24:pass===1?.18:.12}
- function drawGhosted(drawFn,color){for(let pass=0;pass<3;pass++){ctx.save();ctx.globalAlpha=silhouetteAlpha(pass);ctx.translate(pass*.9,(inverted?-1:1)*pass*.55);ctx.shadowColor='rgba(255,212,168,.10)';ctx.shadowBlur=pass===0?10:pass===1?5:2;ctx.fillStyle=color;drawFn();ctx.restore();}}
- function drawConifer(x,y,s){drawGhosted(()=>{ctx.beginPath();ctx.rect(x-s*.07,y,x+s*.07-x,bottom-y);ctx.fill();for(let i=0;i<3;i++){const yy=y-dir*s*(.18+.2*i);ctx.beginPath();ctx.moveTo(x-s*(.38-.07*i),yy+dir*s*.18);ctx.lineTo(x,yy-dir*s*.18);ctx.lineTo(x+s*(.38-.07*i),yy+dir*s*.18);ctx.closePath();ctx.fill()}},'rgba(16,23,26,.88)')}
- function drawDeciduous(x,y,s){drawGhosted(()=>{ctx.beginPath();ctx.rect(x-s*.055,y,x+s*.055-x,bottom-y);ctx.fill();for(let i=0;i<4;i++){ctx.beginPath();ctx.arc(x+s*([-.16,.17,-.05,.08][i]),y-dir*s*([.2,.22,.34,.1][i]),s*([.22,.18,.2,.17][i]),0,TAU);ctx.fill()}},'rgba(18,24,28,.86)')}
- function drawHouse(x,y,s){drawGhosted(()=>{ctx.beginPath();ctx.rect(x-s*.44,y-dir*s*.38,s*.88,dir*s*.38);ctx.fill();ctx.beginPath();ctx.moveTo(x-s*.52,y-dir*s*.38);ctx.lineTo(x,y-dir*s*.62);ctx.lineTo(x+s*.52,y-dir*s*.38);ctx.closePath();ctx.fill()},'rgba(19,24,30,.88)')}
- function drawTower(x,y,s){drawGhosted(()=>{ctx.beginPath();ctx.rect(x-s*.18,y-dir*s*.92,s*.36,dir*s*.92);ctx.fill();ctx.beginPath();ctx.moveTo(x-s*.28,y-dir*s*.92);ctx.lineTo(x,y-dir*s*1.18);ctx.lineTo(x+s*.28,y-dir*s*.92);ctx.closePath();ctx.fill();ctx.beginPath();ctx.arc(x,y-dir*s*1.25,s*.055,0,TAU);ctx.fill()},'rgba(21,26,33,.9)')}
- function drawBuilding(x,y,s){drawGhosted(()=>{const bh=(.75+.25*hash2(x|0,17,landscapeSeed|0));ctx.beginPath();ctx.rect(x-s*.36,y-dir*s*bh,s*.72,dir*s*bh);ctx.fill();if(s>16){const floors=Math.max(3,Math.round(s/7));ctx.fillStyle='rgba(238,214,184,.05)';for(let r=0;r<floors;r++)for(let c=-1;c<=1;c++)ctx.fillRect(x+c*s*.14-s*.035,y-dir*s*.12-r*dir*s*.12,s*.07,dir*s*.04)}},'rgba(17,22,29,.92)')}
+ // Soft emulsion bloom with a more legible center silhouette; far objects are translucent.
+ function drawGhosted(drawFn,color,depth=1){
+  ctx.save();ctx.fillStyle=color;ctx.globalAlpha=depth===0?.28:depth===1?.57:.83;
+  ctx.shadowColor='rgba(216,197,164,.29)';ctx.shadowBlur=Math.max(.8,w/850)* (depth===0?5:2.2);
+  drawFn();ctx.restore();
+  ctx.save();ctx.globalAlpha=depth===0?.07:.12;ctx.fillStyle='rgba(226,205,178,.45)';
+  ctx.translate(Math.max(.5,w/1100),dir*Math.max(.5,h/620));drawFn();ctx.restore();
+ }
+ function drawConifer(x,y,s,d=1){
+  drawGhosted(()=>{
+   ctx.fillRect(x-s*.045,y-dir*s*.66,s*.09,dir*s*.78);
+   for(let i=0;i<9;i++){
+    const t=i/9,yy=y-dir*s*(.08+.78*t),width=s*(.38*(1-t)+.045);
+    ctx.beginPath();ctx.moveTo(x,yy-dir*s*.16);ctx.lineTo(x-width*(.76+.2*Math.sin(i*7)),yy+dir*s*.075);ctx.lineTo(x-width*.25,yy+dir*s*.025);
+    ctx.lineTo(x+width*.25,yy+dir*s*.025);ctx.lineTo(x+width*(.83+.1*Math.cos(i*5)),yy+dir*s*.075);ctx.closePath();ctx.fill();
+   }
+  },'rgba(15,25,29,.95)',d);
+ }
+ function drawDeciduous(x,y,s,d=1){
+  const n=(landscapeSeed|0)+(x|0)*3;
+  drawGhosted(()=>{
+   ctx.fillRect(x-s*.035,y-dir*s*.42,s*.07,dir*s*.50);
+   for(let k=0;k<5;k++){
+    const a=(-.8+k*.4),bx=x+a*s*.36,by=y-dir*s*(.38+(k%3)*.1);
+    ctx.beginPath();ctx.moveTo(x,y-dir*s*.16);ctx.lineTo(bx,by);ctx.lineWidth=Math.max(.65,s*.045);ctx.strokeStyle=ctx.fillStyle;ctx.stroke();
+   }
+   for(let k=0;k<13;k++){
+    const angle=TAU*k/13,rx=Math.cos(angle)*s*(.17+.04*hash2(k,2,n)),ry=Math.sin(angle)*s*.21;
+    ctx.beginPath();ctx.ellipse(x+rx,y-dir*s*.61+ry,s*(.11+.035*hash2(k,4,n)),s*(.09+.035*hash2(k,5,n)),0,0,TAU);ctx.fill();
+   }
+  },'rgba(23,29,32,.92)',d);
+ }
+ function drawHouse(x,y,s,d=1){
+  drawGhosted(()=>{
+   const ww=s*.96,hh=s*.38;
+   ctx.fillRect(x-ww/2,y-dir*hh,ww,dir*hh);
+   ctx.beginPath();ctx.moveTo(x-ww*.57,y-dir*hh);ctx.lineTo(x-ww*.1,y-dir*s*.61);ctx.lineTo(x+ww*.34,y-dir*s*.60);ctx.lineTo(x+ww*.58,y-dir*hh);ctx.closePath();ctx.fill();
+   ctx.fillRect(x+ww*.23,y-dir*s*.72,ww*.12,dir*s*.24);
+  },'rgba(27,29,32,.94)',d);
+  ctx.save();ctx.globalAlpha=.11;ctx.fillStyle='#bd9f8c';for(let j=0;j<3;j++)ctx.fillRect(x-s*.32+j*s*.26,y-dir*s*.28,s*.095,dir*s*.12);ctx.restore();
+ }
+ function drawTower(x,y,s,d=1){
+  drawGhosted(()=>{
+   ctx.fillRect(x-s*.18,y-dir*s*.89,s*.36,dir*s*.89);
+   ctx.fillRect(x-s*.245,y-dir*s*.89,s*.49,dir*s*.11);
+   ctx.beginPath();ctx.moveTo(x-s*.27,y-dir*s*.96);ctx.lineTo(x,y-dir*s*1.28);ctx.lineTo(x+s*.27,y-dir*s*.96);ctx.closePath();ctx.fill();
+   ctx.fillRect(x-s*.035,y-dir*s*1.38,s*.07,dir*s*.11);
+   ctx.beginPath();ctx.arc(x,y-dir*s*1.4,s*.055,0,TAU);ctx.fill();
+  },'rgba(23,27,31,.96)',d);
+  ctx.save();ctx.fillStyle='rgba(214,188,161,.19)';ctx.beginPath();ctx.arc(x,y-dir*s*.72,s*.092,0,TAU);ctx.fill();ctx.fillStyle='rgba(24,32,38,.55)';ctx.beginPath();ctx.arc(x,y-dir*s*.72,s*.065,0,TAU);ctx.fill();ctx.restore();
+ }
+ function drawBuilding(x,y,s,d=1){
+  const n=(landscapeSeed|0)+(x|0)*5,bh=.69+.34*hash2(x|0,17,n);
+  drawGhosted(()=>{
+   ctx.fillRect(x-s*.36,y-dir*s*bh,s*.72,dir*s*bh);
+   ctx.fillRect(x-s*.40,y-dir*s*(bh+.035),s*.80,dir*s*.045);
+   if(hash2(x|0,22,n)>.52)ctx.fillRect(x-s*.06,y-dir*s*(bh+.15),s*.12,dir*s*.15);
+  },'rgba(22,26,31,.95)',d);
+  ctx.save();ctx.fillStyle='rgba(220,196,160,.095)';
+  for(let j=0;j<4;j++)for(let k=0;k<3;k++)if(hash2(j,k,n)>.28){
+   ctx.fillRect(x-s*.265+k*s*.21,y-dir*s*(.15+j*(bh-.18)/4),s*.075,dir*s*.07);
+  }
+  ctx.restore();
+ }
  const drawMap={conifer:drawConifer,deciduous:drawDeciduous,tower:drawTower,building:drawBuilding,house:drawHouse};
  const visible=[];
  for(const obj of world.objects){
@@ -600,7 +706,7 @@ function drawSyntheticLandscape(ctx,w,h){
   visible.push({...obj,x,y,size});
  }
  visible.sort((a,b)=>a.layer-b.layer||a.size-b.size);
- for(const obj of visible)drawMap[obj.kind](obj.x,obj.y,obj.size);
+ for(const obj of visible)drawMap[obj.kind](obj.x,obj.y,obj.size,obj.layer);
  const haze=ctx.createLinearGradient(0,inverted?0:h,0,inverted?h:0);
  haze.addColorStop(0,'rgba(255,226,193,.10)');
  haze.addColorStop(.18,'rgba(180,161,145,.08)');
