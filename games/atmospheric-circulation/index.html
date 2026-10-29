@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
-<head><script src="/eduGame/ga4.js"></script>
+<head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-<title>大氣環流觀察器</title>
+<title>風場模擬</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="anonymous">
 <style>
 :root{ --bg:#070c16; --panel:#0e1726; --ink:#e6eefb; --muted:#8aa0c5; }
@@ -41,6 +41,15 @@ input[type="range"]{width:100%}
 canvas, .wind-overlay, .particles-overlay, #overlay { pointer-events: none !important; }
 </style>
 
+
+<style>
+/* Free, keyless standard OSM raster tiles rendered in a dark theme.
+   This is a client-side color transform, not an OSM dark style. */
+#map .leaflet-tile-pane {
+  filter: invert(0.92) hue-rotate(185deg) brightness(0.60) contrast(0.88) saturate(0.70);
+}
+#map .leaflet-container { background: #0a1222; }
+</style>
 </head>
 <body>
 <div id="app">
@@ -49,7 +58,7 @@ canvas, .wind-overlay, .particles-overlay, #overlay { pointer-events: none !impo
     <div id="toast" class="toast" style="display:none"></div>
   </div>
   <aside id="ui">
-    <h1> 大氣環流觀察器<span class="badge">v0.418</span></h1>
+    <h1>東亞＋西太平洋風場 <span class="badge">v0.418_touch · 無金鑰底圖</span></h1>
     <div class="card">
       <h3>時間</h3>
       <div class="row timebox">
@@ -67,25 +76,25 @@ canvas, .wind-overlay, .particles-overlay, #overlay { pointer-events: none !impo
       <div class="small">每幀＝一天；時間倍率影響播放速度（0.1×–10×），不改變單幀步長。</div>
     </div>
 
-    <div class="small">使用滑鼠可拖曳「新增 L/H」，將隨機放在太平洋（依月份偏好區域），並套用該月份的氣候參數。</div>
+    <div class="small">「新增 L/H」會隨機放在**太平洋**（依月份偏好區域），並套用該月份的氣候參數。</div>
     <div class="row">
       <button id="addLow">新增低壓（L）</button>
       <button id="addHigh">新增高壓（H）</button>
       <button id="reset">清空自訂 L/H</button>
-      <button id="toggleMap">關閉地圖</button>
+      <button id="toggleMap">關閉底圖</button>
     </div>
 
     <div class="card">
       <h3>顯示與效能</h3>
       <div class="row kv"><span>粒子數（上限 10,000）</span><span id="pcnt" class="mono"></span></div>
       <input id="particles" type="range" min="200" max="10000" step="100" value="2000">
-      <div class="row kv"><span>尾跡消失率</span><span id="trailLen" class="mono">0.08</span></div>
+      <div class="row kv"><span>尾跡長度</span><span id="trailLen" class="mono">0.08</span></div>
       <input id="trail" type="range" min="0.02" max="0.2" step="0.01" value="0.08">
-      <div class="row kv"><span>可視速度</span><span id="vSpd" class="mono">1×</span></div>
+      <div class="row kv"><span>可視速度（倍速）</span><span id="vSpd" class="mono">1×</span></div>
       <input id="visSpeed" type="range" min="1" max="10" step="1" value="1">
       <div class="small">顏色對照（0–50 m/s）：</div>
       <div id="legendWrap" class="legend"></div>
-      <div class="row"><label><input type="checkbox" id="showGrid"> 顯示緯經</label></div>
+      <div class="row"><label><input type="checkbox" id="showGrid"> 顯示緯經格網</label></div>
     </div>
 
     <div id="systems"></div>
@@ -107,8 +116,8 @@ canvas, .wind-overlay, .particles-overlay, #overlay { pointer-events: none !impo
 <script>
 // Map
 const map = L.map('map', { center:[23.5,121], zoom:4.2, zoomControl:true, attributionControl:true, worldCopyJump:true });
-const tiles = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', {
-  maxZoom: 11, minZoom: 3, attribution: '&copy; OpenStreetMap contributors &copy; CARTO'
+const tiles = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  maxZoom: 11, minZoom: 3, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>', subdomains: ''
 }).addTo(map);
 let mapVisible = true;
 
@@ -832,25 +841,25 @@ map.whenReady(()=>{
 });
 </script>
 
-<!-- v0.418_touch drag patch begin -->
+<!-- v0.418_touch keyless basemap + drag patch begin -->
 <script>
 (function(){ 
-  const map = (typeof map !== 'undefined') ? map : window.map;
-  if(!map) return;
-  const mapEl = map.getContainer();
+  const activeMap = map;
+  if(!activeMap) return;
+  const mapEl = activeMap.getContainer();
   const DPR = Math.max(1, Math.min(2, window.devicePixelRatio||1));
   const TOL = 12 * DPR; // tolerance around radius line
 
   function kmToPxAtLat(km, lat){
     const dLat = km/111.32;
-    const p1 = map.latLngToContainerPoint([lat, 0]);
-    const p2 = map.latLngToContainerPoint([lat + dLat, 0]);
+    const p1 = activeMap.latLngToContainerPoint([lat, 0]);
+    const p2 = activeMap.latLngToContainerPoint([lat + dLat, 0]);
     return Math.abs((p2.y - p1.y) * DPR);
   }
   function wrap180(lon){ return ((lon+180)%360+360)%360 - 180; }
   function ll2pxCopies(lon,lat){
     const shifts=[-360,0,360]; const out=[];
-    for(const s of shifts){ const p=map.latLngToContainerPoint([lat, lon+s]); out.push([p.x*DPR, p.y*DPR, lon+s]); }
+    for(const s of shifts){ const p=activeMap.latLngToContainerPoint([lat, lon+s]); out.push([p.x*DPR, p.y*DPR, lon+s]); }
     return out;
   }
   function getSystems(){ 
@@ -871,12 +880,12 @@ map.whenReady(()=>{
   function clientToLatLng(ev){
     const r=mapEl.getBoundingClientRect();
     const x=ev.clientX - r.left, y=ev.clientY - r.top;
-    return map.containerPointToLatLng([x,y]);
+    return activeMap.containerPointToLatLng([x,y]);
   }
 
   // Hit test: pointer inside the drawn radius disk (with tolerance) -> draggable
   function hitTestRadius(ll, systems){
-    const pt = map.latLngToContainerPoint(ll);
+    const pt = activeMap.latLngToContainerPoint(ll);
     const px = pt.x*DPR, py = pt.y*DPR;
     let best=null, bestGap=1e9;
 
@@ -903,9 +912,9 @@ map.whenReady(()=>{
     const hit = hitTestRadius(ll, sys);
     if(hit){
       dragging = hit;
-      try{ map.dragging.disable(); map.boxZoom.disable(); map.touchZoom.disable(); map.doubleClickZoom.disable(); }catch(_){}
+      try{ activeMap.dragging.disable(); activeMap.boxZoom.disable(); activeMap.touchZoom.disable(); activeMap.doubleClickZoom.disable(); }catch(_){}
       document.body.classList.add('is-dragging');
-      e.preventDefault();
+      if(e.preventDefault) e.preventDefault();
     }
   }
   function onPointerMove(e){
@@ -915,14 +924,14 @@ map.whenReady(()=>{
     else if(dragging.center) dragging.center.lon = wrap180(ll.lng);
     if('lat' in dragging) dragging.lat = Math.max(-90, Math.min(90, ll.lat));
     else if(dragging.center) dragging.center.lat = Math.max(-90, Math.min(90, ll.lat));
-    e.preventDefault();
+    if(e.preventDefault) e.preventDefault();
   }
   function onPointerUp(e){
     if(!dragging) return;
     dragging = null;
-    try{ map.dragging.enable(); map.boxZoom.enable(); map.touchZoom.enable(); map.doubleClickZoom.enable(); }catch(_){}
+    try{ activeMap.dragging.enable(); activeMap.boxZoom.enable(); activeMap.touchZoom.enable(); activeMap.doubleClickZoom.enable(); }catch(_){}
     document.body.classList.remove('is-dragging');
-    e.preventDefault();
+    if(e.preventDefault) e.preventDefault();
   }
 
   // Bind events
