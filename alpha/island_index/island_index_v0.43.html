@@ -90,7 +90,7 @@
 
 <button id="editor-toggle" type="button" aria-expanded="false" aria-controls="layout-editor">編輯配置</button>
 <aside id="layout-editor" aria-label="群島配置編輯器">
- <h3>配置編輯器 · v0.403</h3>
+ <h3>配置編輯器 · v0.43</h3>
  <div class="edit-help">編輯時拖曳畫面可移動選取物件；觀景請先關閉編輯模式。</div>
  <label for="edit-island">選取島嶼</label><select id="edit-island"></select>
  <label for="edit-game">編輯目標</label><select id="edit-game"></select>
@@ -230,7 +230,7 @@ function buildDistantWorld(){
    body.scale.set(2.4*scale,2.1*scale,2*scale);body.position.y=1.05*scale;home.add(body);
    const roof=new THREE.Mesh(roofBody,roofMat[Math.floor(rand()*roofMat.length)]);
    roof.scale.set(2.4*scale,1.2*scale,2.4*scale);roof.position.y=2.8*scale;roof.rotation.y=Math.PI/4;home.add(roof);
-   if(rand()<.38){const window=new THREE.Mesh(new THREE.PlaneGeometry(.42*scale,.5*scale),cityLightsMaterial);window.position.set(0,1.4*scale,1.006*scale);home.add(window);distantNightLights.push(window)}
+   if(rand()<.38){const window=new THREE.Mesh(new THREE.PlaneGeometry(.42*scale,.5*scale),cityLightsMaterial.clone());window.userData.nightThreshold=.08+rand()*.82;window.position.set(0,1.4*scale,1.006*scale);home.add(window);distantNightLights.push(window)}
    part.add(home);
   }
   const landmarkCount=segment.type==='forest'?1:segment.type==='town'?3:2;
@@ -281,22 +281,136 @@ for(let i=0;i<680;i++){
 const starGeometry=new THREE.BufferGeometry();starGeometry.setAttribute('position',new THREE.Float32BufferAttribute(starVertices,3));
 const starMaterial=new THREE.PointsMaterial({color:0xe4efff,size:1.5,sizeAttenuation:false,transparent:true,opacity:0,depthWrite:false,fog:false});
 const starField=new THREE.Points(starGeometry,starMaterial);starField.visible=false;starField.frustumCulled=false;scene.add(starField);
-// Few understated island lamps provide usable silhouette lighting even for the darkest preset.
-const nightLampGroup=new THREE.Group();scene.add(nightLampGroup);
-const nightLampGlow=new THREE.MeshBasicMaterial({color:0xffd5a0,transparent:true,opacity:0,depthWrite:false});
-const nightLampGeometry=new THREE.SphereGeometry(.19,7,5);
-const islandLampItems=[];
-function setupIslandNightLamps(){
- nightLampGroup.clear();islandLampItems.length=0;
- for(const island of Object.values(islands)){
-  const group=new THREE.Group();island.group.add(group);
-  // Local shoreline lamps follow their island when the editor moves it.
-  for(let j=0;j<4;j++){
-   const angle=j*Math.PI*.5+.43,rad=island.radius*.69;
-   const bulb=new THREE.Mesh(nightLampGeometry,nightLampGlow);
-   bulb.position.set(Math.cos(angle)*rad,2.65,Math.sin(angle)*rad);group.add(bulb);
+// v0.43: staged island lighting. Bulbs, windows, deck/harbor lamps and pools are
+// all parented to their island or landmark; they follow editor island moves.
+// Lights are *not* created as dozens of expensive shadow-casting PointLights.
+const islandLightFixtures=[];
+const lightBulbGeo=new THREE.SphereGeometry(.14,7,5);
+const lightHaloGeo=new THREE.SphereGeometry(.35,8,6);
+const lightPoolGeo=new THREE.CircleGeometry(1.35,16);
+const lightPoleGeo=new THREE.CylinderGeometry(.045,.065,2.0,6);
+const lightWindowGeo=new THREE.BoxGeometry(.34,.38,.055);
+const lightWarm=0xffd79b,lightCool=0xc9e2ff;
+let currentNightStrength=0;
+function lampMaterial(color,opacity=0){return new THREE.MeshBasicMaterial({color,transparent:true,opacity,depthWrite:false,fog:false,side:THREE.DoubleSide})}
+function createFixture(parent,position,{kind='lamp',rank=0,blue=false,pool=false}={}){
+ const base=new THREE.Group();base.position.set(...position);parent.add(base);
+ const color=blue?lightCool:lightWarm;
+ const lensMat=lampMaterial(color),haloMat=lampMaterial(color);
+ let lens;
+ if(kind==='window'){
+  lens=new THREE.Mesh(lightWindowGeo,lensMat);base.add(lens);
+ }else{
+  if(kind==='street'){
+   const post=new THREE.Mesh(lightPoleGeo,material(0x666d68));post.position.y=-1;base.add(post);
+   put(base,geoBox(.45,.085,.33),0x535e60,0,.11,0);
+  }else if(kind==='tree'){
+   const hook=new THREE.Mesh(new THREE.CylinderGeometry(.024,.024,.65,5),material(0x8b7659));hook.position.y=.31;base.add(hook);
   }
-  islandLampItems.push(group);
+  lens=new THREE.Mesh(lightBulbGeo,lensMat);base.add(lens);
+ }
+ const halo=new THREE.Mesh(lightHaloGeo,haloMat);halo.scale.setScalar(kind==='window'?.75:1.15);base.add(halo);
+ let groundMat=null;
+ if(pool){
+  groundMat=lampMaterial(color);
+  const disk=new THREE.Mesh(lightPoolGeo,groundMat);disk.rotation.x=-Math.PI/2;
+  disk.position.y=kind==='street'?-1.88:-1.35;disk.scale.setScalar(kind==='street'?1.45:.95);base.add(disk);
+ }
+ const fixture={lens,halo,lensMat,haloMat,groundMat,rank};islandLightFixtures.push(fixture);
+ return base;
+}
+function removeLightingItems(owner){
+ if(!owner?.userData?.fixtureItems)return;
+ const previous=owner.userData.fixtureItems;
+ for(const item of previous){const ix=islandLightFixtures.indexOf(item);if(ix>=0)islandLightFixtures.splice(ix,1)}
+ owner.userData.fixtureItems=null;
+}
+function captureFixtures(group,begin){group.userData.fixtureItems=islandLightFixtures.slice(begin)}
+function rebuildIslandLighting(island){
+ if(island.nightFixtures){removeLightingItems(island.nightFixtures);island.group.remove(island.nightFixtures)}
+ const parent=new THREE.Group();parent.name='night-lighting-'+island.id;island.group.add(parent);island.nightFixtures=parent;
+ const first=islandLightFixtures.length;
+ const r=island.radius,rand=rng(hash(island.id+'-night-043'));
+ const buildingIsland=['physics','film','technology','strategy','language','art','chemistry'].includes(island.id);
+ // Clusters of shoreline light poles, with island-specific cooler accents.
+ const count=Math.max(6,Math.min(15,Math.round(r*.55)));
+ for(let i=0;i<count;i++){
+  const a=2*Math.PI*(i+.38)/count;
+  const distance=r*(.54+.12*rand());
+  const x=Math.cos(a)*distance,z=Math.sin(a)*distance;
+  const rank=(i*7+3)%10;
+  if(i%3===0||!buildingIsland){
+   createFixture(parent,[x,2.94,z],{kind:'street',rank,pool:i%2===0,blue:island.id==='technology'||island.id==='physics'});
+  }else{
+   // Small hanging bulbs near the tree canopy, not a new tall building.
+   createFixture(parent,[x,2.85+(i%3)*.35,z],{kind:'tree',rank,pool:false});
+  }
+ }
+ // Harbor/waterline bollards are visible even on islands with no houses.
+ for(let i=0;i<3;i++){
+  const a=.12+i*.18;
+  createFixture(parent,[Math.cos(a)*r*.77,1.15,Math.sin(a)*r*.77],{rank:(i*3+1)%10,blue:true});
+ }
+ captureFixtures(parent,first);
+ updateIslandLightLevel(currentNightStrength);
+}
+function addLandmarkWindows(id){
+ const obj=landmarkTargets.get(id);if(!obj||obj.userData.nightWindowsAdded)return;
+ const first=islandLightFixtures.length;
+ if(id==='physics'){
+  // Institute: 3 stories, front and side window banks (positions in local building coordinates).
+  for(let level=0;level<3;level++)for(let col=-1;col<=1;col++){
+   const y=.68+level*1.35;
+   createFixture(obj,[col*1.08,y,1.52],{kind:'window',rank:(level*3+col+10)%10,blue:level===2});
+   createFixture(obj,[2.0,y,col*.82],{kind:'window',rank:(level*4+col+11)%10,blue:true}).rotation.y=Math.PI/2;
+  }
+ }else if(id==='film'){
+  for(let col=-1;col<=1;col++)createFixture(obj,[col*.67,3.16,1.21],{kind:'window',rank:col+5});
+ }else if(id==='strategy'){
+  for(let col=-1;col<=1;col++)createFixture(obj,[col*.64,1.9,1.26],{kind:'window',rank:col+5});
+ }else if(id==='technology'){
+  // Drone has no windows: a few landing/inspection spotlights.
+  for(let i=0;i<4;i++)createFixture(obj,[i%2?2:-2,.6,i<2?1.7:-1.7],{kind:'lamp',rank:i*2,blue:true});
+ }else if(id==='art'){
+  // Ballet spotlight footlights, rather than fictitious windows.
+  for(let i=0;i<5;i++)createFixture(obj,[(i-2)*.65,.62,1.5],{rank:(i*2+1)%10});
+ }else if(id==='chemistry'){
+  for(let i=0;i<4;i++)createFixture(obj,[i%2?1.7:-1.7,1.35,i<2?1.4:-1.4],{rank:i*3});
+ }else if(id==='earth'){
+  for(let i=0;i<5;i++){
+   const a=i*Math.PI*2/5;
+   createFixture(obj,[Math.cos(a)*2.75,.6,Math.sin(a)*2.75],{rank:(i*3)%10});
+  }
+ }else if(id==='language'){
+  // Warm reading light on the open book.
+  for(let i=0;i<3;i++)createFixture(obj,[(i-1)*.9,.83,1.07],{rank:i*3});
+ }else if(id==='biology'){
+  // Forest deer receives understated hanging fairy lights.
+  for(let i=0;i<6;i++){
+   const a=i*Math.PI/3;
+   createFixture(obj,[Math.cos(a)*2.7,3.5+(i%2)*.4,Math.sin(a)*2.3],{kind:'tree',rank:(i*2)%10});
+  }
+ }
+ obj.userData.nightWindowsAdded=true;
+ captureFixtures(obj,first);
+}
+function setupIslandNightLamps(){
+ for(const island of Object.values(islands))rebuildIslandLighting(island);
+ for(const id of Object.keys(islands))addLandmarkWindows(id);
+ updateIslandLightLevel(currentNightStrength);
+}
+function updateIslandLightLevel(night){
+ currentNightStrength=night;
+ // 17:00 only first lights; purple dusk adds a few; blue night adds most;
+ // only 21:00–05:00 has all lamps fully illuminated.
+ for(const fixture of islandLightFixtures){
+  const threshold=.07+fixture.rank*.091;
+  const amount=THREE.MathUtils.smoothstep(night,threshold,Math.min(1,threshold+.16));
+  fixture.lensMat.opacity=amount*.93;
+  fixture.haloMat.opacity=amount*.19;
+  if(fixture.groundMat)fixture.groundMat.opacity=amount*.11;
+  fixture.lens.visible=amount>.012;
+  fixture.halo.visible=amount>.02;
  }
 }
 // v0.421: one local-clock read at startup. Each elapsed 60 minutes advances one virtual day.
@@ -382,8 +496,8 @@ function applyVirtualLight(minutes){
  const stars=THREE.MathUtils.lerp(a.stars,b.stars,f);
  starField.visible=stars>.003;starMaterial.opacity=stars;
  const night=THREE.MathUtils.lerp(a.night,b.night,f);
- nightLampGlow.opacity=night;
- for(const mesh of distantNightLights){mesh.material.opacity=night*.95;mesh.visible=night>.04}
+ updateIslandLightLevel(night);
+ for(const mesh of distantNightLights){const v=THREE.MathUtils.smoothstep(night,mesh.userData.nightThreshold||.08,Math.min(1,(mesh.userData.nightThreshold||.08)+.16));mesh.material.opacity=v*.9;mesh.visible=v>.015}
 }
 function tickVirtualLight(now){
  // The virtual clock advances only while the archipelago is actually visible.
@@ -1412,6 +1526,7 @@ function rebuildIslandNature(island,radius,poses){
   instance.count=used;instance.instanceMatrix.needsUpdate=true;natureRoot.add(instance);
  }
  island.radius=radius;
+ if(island.nightFixtures)rebuildIslandLighting(island);
 }
 function islandOutOfBounds(island){
  const limit=Math.max(.1,island.radius-.8)*.76;
