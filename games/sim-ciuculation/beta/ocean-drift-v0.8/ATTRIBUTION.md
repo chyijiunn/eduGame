@@ -1,0 +1,5 @@
+# 資料來源與使用聲明
+
+1. **GSHHG** (Global Self-consistent, Hierarchical, High-resolution Geography Database), Paul Wessel & Walter H. F. Smith, shoreline data via the Basemap distribution. GSHHG release under **GNU Lesser General Public License (LGPL)**. Original project: https://www.soest.hawaii.edu/wessel/gshhg/ ; NOAA background: https://www.ngdc.noaa.gov/mgg/shorelines/shorelines.html . The bundled coastlines/mask have been simplified/resampled. This credit and license notice must be preserved if redistributing the derived geography.
+2. **OSCAR v2.0**, Earth & Space Research / NASA JPL PO.DAAC, data available separately. Dataset: https://doi.org/10.5067/OSCAR-25F20 . The bundled default current vectors **are not OSCAR data**. If importing real OSCAR, cite ESR; Dohan, Kathleen. 2022. Ocean Surface Current Analyses Real-time (OSCAR) Surface Currents - Final 0.25 Degree (Version 2.0). Ver 2.0. PO.DAAC, CA, USA. Accessed on your date of retrieval.
+3. This is an original Ocean Drift Lab web simulation, not a copy of Nullschool. Nullschool is a visual design reference: https://earth.nullschool.net/ .
