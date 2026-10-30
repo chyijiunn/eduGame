@@ -1,121 +1,74 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
-<head><script src="/eduGame/ga4.js"></script>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>紅血球循環 3D 模擬（ESM 離線版）</title>
-<style>
-  html,body{margin:0;height:100%;background:#0b0f14;overflow:hidden;touch-action:none}
-  #app{position:fixed;inset:0}
-  .hud{position:fixed;left:10px;top:10px;display:grid;gap:8px;z-index:10;font-family:sans-serif}
-  .panel{background:rgba(12,16,22,.82);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:10px 12px;color:#eee}
-  .modes{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
-  button{border:1px solid rgba(255,255,255,.15);background:rgba(24,28,35,.9);color:#fff;padding:8px 10px;border-radius:8px;cursor:pointer}
-  button.active{background:rgba(140,18,28,.9)}
-  .footer{position:fixed;right:10px;bottom:10px;font-size:12px;color:#ccc;background:rgba(12,16,22,.65);padding:6px 10px;border-radius:10px}
-</style>
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Ocean Drift Lab v0.9｜洋流與小鴨漂流實驗室</title>
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
-<div id="app"></div>
-<div class="hud">
-  <div class="panel">
-    <div style="font-weight:600;margin-bottom:6px;">血流模式</div>
-    <div class="modes">
-      <button id="mode-sleep">睡眠</button>
-      <button id="mode-rest" class="active">平時</button>
-      <button id="mode-ex">運動</button>
+<div id="app">
+  <main id="viewport" aria-label="全球洋流地圖；點海面投放小鴨，拖曳旋轉或平移，滾輪縮放">
+    <canvas id="base"></canvas>
+    <canvas id="flow"></canvas>
+    <canvas id="objects"></canvas>
+    <div class="hud">
+      <div class="brand"><span class="brand-dot"></span>OCEAN DRIFT LAB <span class="version">v0.9</span></div>
+      <div id="dataType" class="source demo">正在載入地理資料…</div>
+      <div id="readout" class="readout">全球 · 正射地球儀</div>
     </div>
-  </div>
+    <div id="hint" class="hint">點擊海洋投放小鴨 · 拖曳旋轉地球 · 縮小看全球</div>
+    <div id="toast" role="status" aria-live="polite"></div>
+    <div id="loading" class="loading">載入海岸線、海陸遮罩與 12 個月份的流場…</div>
+    <div class="map-actions">
+      <button id="zoomIn" title="放大">＋</button><button id="zoomOut" title="縮小">−</button>
+      <button id="eastAsia" title="回到台灣視角">◎</button>
+      <button id="worldView" title="全球完整地球">◉</button>
+    </div>
+  </main>
+  <aside class="panel" id="panel">
+    <div class="panel-header"><div><small>INTERACTIVE OCEAN SCIENCE</small><h1>洋流與小鴨漂流</h1></div><button id="hidePanel" class="iconbtn" aria-label="收起控制面板">‹</button></div>
+    <p class="subtext">流線粒子與小鴨使用相同的洋流 U/V 速度場。點擊海洋便可放鴨，小鴨立即自動漂流。</p>
+    <section class="section">
+      <div class="section-title">地圖觀看方式</div>
+      <div class="seg"><button id="globeMode" class="active">地球儀</button><button id="flatMode">全球平面圖</button></div>
+      <p class="detail">預設從台灣觀看東亞，向外縮放可見完整地球。全球洋流與小鴨持續運算，不隨鏡頭切換而停止。</p>
+    </section>
+    <section class="section">
+      <div class="section-title">模擬模式</div>
+      <div class="seg"><button id="seasonMode" class="active">季節平均</button><button id="dateMode">連續日期</button></div>
+      <div class="setting"><label for="month">月份 <strong id="monthText">7 月</strong></label><input type="range" id="month" min="1" max="12" step="1" value="7"></div>
+      <div class="setting" id="dateRow" hidden><label for="simStart">模擬起始日期</label><input id="simStart" type="date" value="2025-07-01"></div>
+      <div class="statline"><span>模擬時間</span><b id="dateText">7 月平均流場</b></div>
+      <div class="statline"><span>經過天數</span><b id="daysText">0.0 天</b></div>
+    </section>
+    <section class="section">
+      <div class="section-title">洋流粒子</div>
+      <div class="setting"><label for="count">粒子數 <strong id="countText">12,000</strong></label><input type="range" id="count" min="1000" max="50000" step="1000" value="12000"></div>
+      <div class="setting"><label for="speed">模擬速度 <strong id="speedText">4 天 / 秒</strong></label><input type="range" id="speed" min="0.25" max="16" step="0.25" value="4"></div>
+      <div class="setting"><label for="trails">粒子尾跡 <strong id="trailsText">中</strong></label><input type="range" id="trails" min="0" max="100" step="1" value="50"></div>
+      <div class="setting togglerow"><label for="showFlow">顯示洋流粒子</label><input type="checkbox" id="showFlow" checked></div>
+      <div class="buttons"><button id="play" class="mainbtn">暫停模擬</button><button id="refreshFlow">重置粒子</button></div>
+    </section>
+    <section class="section">
+      <div class="section-title">小鴨漂流</div>
+      <div class="setting togglerow"><label for="placing">點擊海面放鴨</label><input type="checkbox" id="placing" checked></div>
+      <div class="buttons"><button id="dropTaiwan" class="mainbtn">台灣東側放鴨</button><button id="dropMany">投放 10 隻</button></div>
+      <div class="statline"><span>已投放</span><b id="duckCount">0 隻</b></div>
+      <div class="statline"><span>漂流中／停泊</span><b id="duckState">0 / 0</b></div>
+      <div class="buttons"><button id="resumeDucks">全部漂流</button><button id="pauseDucks">全部暫停</button></div>
+      <div class="buttons"><button id="clearTracks">清除軌跡</button><button id="removeDucks" class="danger">移除所有小鴨</button></div>
+      <button id="exportTracks" class="wide">匯出小鴨軌跡 CSV</button>
+    </section>
+    <section class="section">
+      <div class="section-title">資料與診斷</div>
+      <p id="sourceDetail" class="detail">讀取資料中…</p>
+      <p id="tests" class="diagnostic">自動測試：待執行</p>
+      <details><summary>資料精度與限制</summary><p class="detail">NASA OSCAR 為上層海洋速度場；本套件尚未附入受 Earthdata 下載驗證保護的 NASA 原始 NetCDF；目前若未匯入，程式使用已明確標示的合成示範流場。海岸採 GSHHG 向量資料。湖泊與河流不使用 OSCAR 海洋洋流，因此本階段暫不允許在內陸水體放鴨。漂流尚未加入風漂和波浪造成的 Stokes drift。</p></details>
+    </section>
+    <div class="footer">底圖與粒子均無地名標註 · 不需 Cesium Token · 可部署 GitHub Pages</div>
+  </aside>
 </div>
-<div class="footer">拖曳旋轉｜滾輪/雙指縮放｜右鍵平移</div>
-
-<script type="module">
-import * as THREE from './three.module.js';
-import { OrbitControls } from './OrbitControls.js';
-
-const app=document.getElementById('app');
-const scene=new THREE.Scene(); scene.background=new THREE.Color(0x0b0f14);
-const renderer=new THREE.WebGLRenderer({antialias:true}); renderer.setSize(innerWidth,innerHeight);
-app.appendChild(renderer.domElement);
-
-const camera=new THREE.PerspectiveCamera(55,innerWidth/innerHeight,0.1,2000);
-camera.position.set(0,22,64);
-const controls=new OrbitControls(camera,renderer.domElement);
-controls.enableDamping=true; controls.dampingFactor=0.06;
-
-const hemi=new THREE.HemisphereLight(0xffffff,0x101018,0.8);
-scene.add(hemi);
-const dir=new THREE.DirectionalLight(0xffffff,1);
-dir.position.set(40,60,20); scene.add(dir);
-
-const HEART=new THREE.Vector3(0,0,0),LUNG=new THREE.Vector3(38,6,0),BODY=new THREE.Vector3(-38,-4,0);
-const shellMat=new THREE.MeshPhysicalMaterial({color:0xffec80,transparent:true,opacity:0.4,transmission:0.75,roughness:0.6,metalness:0});
-const shells=[];
-function addChamber(c,s,r=0){const g=new THREE.SphereGeometry(1,14,12),m=new THREE.Mesh(g,shellMat);
-m.position.copy(c);m.scale.set(s.x,s.y,s.z);m.rotation.y=r;scene.add(m);shells.push(m);}
-addChamber(new THREE.Vector3(-3,2,2),new THREE.Vector3(3.6,3.8,3.0),0.1);
-addChamber(new THREE.Vector3(-1,-2,1),new THREE.Vector3(4.2,4.6,3.2),-0.1);
-addChamber(new THREE.Vector3(3,2,-2),new THREE.Vector3(3.4,3.6,2.9),-0.08);
-addChamber(new THREE.Vector3(3,-2,0),new THREE.Vector3(4.6,5.0,3.4),0.12);
-
-function tube(points,r){const c=new THREE.CatmullRomCurve3(points,false,'centripetal',0.6);
-const g=new THREE.TubeGeometry(c,64,r,16,false);const m=new THREE.MeshPhysicalMaterial({color:0xffec80,transparent:true,opacity:0.22});
-const mesh=new THREE.Mesh(g,m);scene.add(mesh);}
-tube([new THREE.Vector3(3,-2,0),new THREE.Vector3(-6,1,1),new THREE.Vector3(-14,8,2)],1.1);
-tube([new THREE.Vector3(-1,-2,1),new THREE.Vector3(8,0,-1),new THREE.Vector3(20,2,-2)],1.0);
-tube([new THREE.Vector3(30,6,-1),new THREE.Vector3(18,6,0),new THREE.Vector3(6,4,1)],0.9);
-tube([new THREE.Vector3(-24,6,2),new THREE.Vector3(-12,4,2),new THREE.Vector3(-3,2,2)],1.0);
-
-const heart=new THREE.Mesh(new THREE.SphereGeometry(3.2,18,18),new THREE.MeshStandardMaterial({color:0xa2121f,emissive:0x2a0000}));
-heart.position.copy(HEART);scene.add(heart);
-
-const path=new THREE.CatmullRomCurve3([
-  new THREE.Vector3(-3,2,2),new THREE.Vector3(-1,-2,1),new THREE.Vector3(20,2,-2),LUNG.clone(),
-  new THREE.Vector3(6,4,1),new THREE.Vector3(3,2,-2),new THREE.Vector3(3,-2,0),
-  new THREE.Vector3(-14,8,2),BODY.clone(),new THREE.Vector3(-3,2,2)
-],true,'centripetal',0.65);
-
-const MAX=2600;
-const geo=new THREE.SphereGeometry(0.36,10,10);
-const mat=new THREE.MeshStandardMaterial({vertexColors:true});
-const mesh=new THREE.InstancedMesh(geo,mat,MAX);
-mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-mesh.instanceColor=new THREE.InstancedBufferAttribute(new Float32Array(MAX*3),3);
-scene.add(mesh);
-const red=new THREE.Color('#e03a3a'),blue=new THREE.Color('#2e6ae6');
-const tmpMat=new THREE.Matrix4(),tmpPos=new THREE.Vector3(),tmpA=new THREE.Vector3();
-const parts=[];for(let i=0;i<MAX;i++){parts.push({t:Math.random(),v:0.05+Math.random()*0.05,oxy:false});}
-
-const MODE={SLEEP:{hr:52,speed:0.6},REST:{hr:70,speed:1.0},EX:{hr:140,speed:1.9}};
-let target=MODE.REST,display={hr:70,speed:1.0};
-function setMode(m){target=m;document.querySelectorAll('button').forEach(b=>b.classList.remove('active'));
-if(m===MODE.SLEEP)modeSleep.classList.add('active');
-if(m===MODE.REST)modeRest.classList.add('active');
-if(m===MODE.EX)modeEx.classList.add('active');}
-modeSleep.onclick=()=>setMode(MODE.SLEEP);
-modeRest.onclick=()=>setMode(MODE.REST);
-modeEx.onclick=()=>setMode(MODE.EX);
-
-function place(i,t){path.getPointAt(t%1,tmpPos);tmpMat.setPosition(tmpPos);mesh.setMatrixAt(i,tmpMat);}
-function setColor(i,c){mesh.setColorAt(i,c);}
-for(let i=0;i<MAX;i++){place(i,parts[i].t);setColor(i,blue);}
-mesh.instanceMatrix.needsUpdate=true;mesh.instanceColor.needsUpdate=true;
-
-const uL=0.25,uB=0.75;
-function isOxy(t){return t>=uL && t<uB;}
-let last=performance.now();
-function animate(now){requestAnimationFrame(animate);
-const dt=(now-last)/1000;last=now;
-display.hr+= (target.hr-display.hr)*dt*2;
-display.speed+= (target.speed-display.speed)*dt*2;
-const pulse=(now*0.001)*(display.hr/60)*Math.PI*2;
-heart.scale.setScalar(1+Math.max(0,Math.sin(pulse))*0.06);
-let r=0;for(let i=0;i<MAX;i++){const p=parts[i];p.t+=p.v*display.speed*dt*0.05;if(p.t>1)p.t-=1;
-p.oxy=isOxy(p.t);r+=p.oxy?1:0;place(i,p.t);setColor(i,p.oxy?red:blue);}
-mesh.instanceMatrix.needsUpdate=true;mesh.instanceColor.needsUpdate=true;
-controls.update();renderer.render(scene,camera);}
-animate();
-addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);});
-</script>
+<button id="showPanel" aria-label="顯示控制面板" hidden>☰</button>
+<script src="main.js"></script>
 </body>
 </html>
