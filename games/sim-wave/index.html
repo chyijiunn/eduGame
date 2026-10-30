@@ -1,7 +1,7 @@
 <!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Ocean — FFT</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><style>html,body{margin:0;height:100%;background:#000;overflow:hidden;}#c{position:fixed;inset:0;width:100%;height:100%;display:block;cursor:crosshair;}#hud{position:fixed;left:12px;top:10px;font:12px/1.45 ui-monospace,Consolas,monospace;color:#e8e2d6;text-shadow:0 1px 2px #000a;pointer-events:none;user-select:none;}#hud .help{opacity:.7;}#panel{position:fixed;right:12px;top:10px;width:300px;padding:10px 12px;border-radius:8px;background:#0b0f14c8;backdrop-filter:blur(6px);color:#e5e1d8;font:12px/1.3 system-ui,sans-serif;}#panel.hidden{display:none;}#panel label{display:grid;grid-template-columns:1fr 110px 40px;gap:6px;align-items:center;margin:3px 0;}#panel input{width:110px;accent-color:#e2a04e;}#panel output{text-align:right;font-variant-numeric:tabular-nums;opacity:.8;}#err{position:fixed;inset:0;display:none;padding:40px;color:#f88;font:16px system-ui;white-space:pre-wrap;background:#000;}</style><!--
-FFT Ocean v0.36 — 自訂啟動設定。
+FFT Ocean v0.37 — 自訂啟動設定。
 原作者：Maksymilian Dendura (Noniv/web-ocean)，MIT License 見檔案結尾。
 此版本全部內嵌；WebGPU 引擎不向遠端下載。
 -->
@@ -33,228 +33,74 @@ FFT Ocean v0.36 — 自訂啟動設定。
 })();
 </script>
 <style id="fft-extension-style">
-/* FFT Ocean v0.36 — 只修改控制層；上游 WebGPU FFT shader 不更動。
-   選單自右緣滑入，透明度較前版高；點擊三點立即反向收回。
-   選單以 transform/opacity 做 GPU 合成動畫，不用 display:none，以免無法過渡。
-*/
-html,body { overscroll-behavior:none; }
-#c { touch-action:none; -webkit-user-select:none; user-select:none; }
-#hud { display:none!important; z-index:9500; }
-html.fft-menu-open.fft-debug #hud { display:block!important; }
-html.fft-touch #hud .help { display:none; }
-#fft-actions {
-  position:fixed; z-index:12000;
-  right:max(10px,env(safe-area-inset-right));
-  bottom:max(10px,env(safe-area-inset-bottom));
-  display:flex; flex-direction:column; align-items:center; gap:8px;
-  pointer-events:none;
-}
-#fft-height-buttons {display:none; flex-direction:column; gap:8px;}
-html.fft-touch #fft-height-buttons {display:flex;}
-#fft-actions button {
-  pointer-events:auto; -webkit-tap-highlight-color:transparent; touch-action:none;
-  appearance:none; -webkit-appearance:none; border:0;outline:0;
-  background:none!important; box-shadow:none!important;
-  width:42px;height:42px;padding:0;display:grid;place-items:center;
-  color:#fff; font:300 29px/1 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
-  text-shadow:0 2px 6px rgba(0,0,0,.9);
-  opacity:.24;transition:opacity .14s ease;
-}
-#fft-actions button:hover,#fft-actions button:active,#fft-actions button:focus-visible {opacity:.9;}
-#fft-menu-button {font-size:33px!important;letter-spacing:1px;padding-bottom:9px!important;}
-html.fft-menu-open #fft-menu-button {opacity:.86;}
-#fft-controls {
-  position:fixed;z-index:11900;
-  right:max(10px,env(safe-area-inset-right));
-  bottom:calc(max(10px,env(safe-area-inset-bottom)) + 51px);
-  width:min(164px,calc(100vw - 20px));box-sizing:border-box;
-  max-height:min(72dvh,560px);overflow-x:hidden;overflow-y:auto;
-  border-radius:13px;border:1px solid rgba(235,244,250,.12);
-  background:rgba(8,22,33,.54);
-  -webkit-backdrop-filter:blur(13px);backdrop-filter:blur(13px);
-  color:rgba(247,249,253,.95);
-  box-shadow:0 5px 24px rgba(0,0,0,.12);
-  padding:10px 8px;
-  font:12px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
-  transform:translate3d(0,65px,0) scale(.95);
-  opacity:0;visibility:hidden;pointer-events:none;
-  transition:transform .18s cubic-bezier(.3,0,.8,1),opacity .16s ease,visibility 0s linear .18s;
-  will-change:transform,opacity;
-}
-html.fft-menu-open #fft-controls {
-  transform:translate3d(0,0,0) scale(1);opacity:1;visibility:visible;pointer-events:auto;
-  transition:transform .27s cubic-bezier(.17,.78,.23,1),opacity .22s ease,visibility 0s;
-}
-#fft-controls .fft-inner {display:grid;gap:6px;}
-#fft-controls .fft-row {display:flex;align-items:center;gap:3px;min-width:0;}
-#fft-controls .fft-row > label:first-child {flex-shrink:0;}
-#fft-controls select,#fft-controls button {
-  color:inherit;background:rgba(255,255,255,.085);
-  border:1px solid rgba(225,242,250,.15);border-radius:7px;
-  font:inherit;padding:4px 2px;min-height:29px;box-sizing:border-box;
-}
-#fft-controls button {cursor:pointer;}
-#fft-controls select {max-width:100%;}
-#fft-controls input[type=range] {accent-color:#9ccfe7; flex:1;min-width:55px;}
-#fft-controls input[type=checkbox] {accent-color:#9ccfe7;}
-#fft-controls .fft-fine {font-size:11px;color:#b4c2cb;}
-#fft-controls .fft-diagnostic {font-size:11px;color:#b4c2cb;}
-#fft-controls .fft-status {font-size:11px;color:#bcd6e3;}
-#fft-controls .fft-debug-label {display:inline-flex;align-items:center;gap:6px;}
-#fft-controls .fft-heading {font-weight:600;font-size:12px;letter-spacing:.01em;}
-#fft-controls .fft-quality-row {flex-wrap:nowrap;gap:3px;}
-#fft-controls #fft-quality {flex:1 1 auto;min-width:0;width:68px;font-size:11px;}
-#fft-controls .fft-icon-button {
-  display:grid;place-items:center;flex:0 0 26px;
-  width:26px;height:29px;min-height:29px;padding:0;
-  background:rgba(255,255,255,.045);border-color:rgba(225,242,250,.11);
-  opacity:.67;transition:opacity .14s ease,background-color .14s ease;
-}
-#fft-controls .fft-icon-button:hover,#fft-controls .fft-icon-button:focus-visible,
-#fft-controls .fft-icon-button[aria-pressed="true"],
-#fft-controls .fft-icon-button[aria-expanded="true"] {opacity:1;background:rgba(255,255,255,.13);}
-#fft-controls .fft-icon-button svg {width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;}
-#fft-controls .fft-audio-row {flex-wrap:nowrap;}
-#fft-controls #fft-audio-sea {flex:1 1 auto;width:0;min-width:0;font-size:11px;}
-#fft-controls #fft-fullscreen-request {background:transparent;border:0;}
-#fft-controls :focus-visible,#fft-actions :focus-visible {outline:2px solid #bfe7ff;outline-offset:2px;}
-/* 原作者既有參數與 output 保留：上游滑桿本身監聽 input，拖動當幀生效。 */
-#fft-controls #panel {
- position:static;inset:auto;width:100%;max-height:min(40dvh,320px);
- overflow:auto;padding:6px;margin:0;box-sizing:border-box;border-radius:8px;
- border:1px solid rgba(220,239,250,.1);background:rgba(4,15,23,.20);
- color:inherit;backdrop-filter:none;font:11px/1.3 system-ui,sans-serif;
-}
-#fft-controls #panel.hidden {display:none;}
-#fft-controls #panel label {grid-template-columns:minmax(0,1fr) minmax(58px,80px) 36px;gap:4px;}
-#fft-controls #panel label span {min-width:0;overflow-wrap:anywhere;}
-#fft-controls #panel input {width:100%;}
-#fft-controls #panel output {white-space:nowrap;}
-/* 所有 WebGPU 錯誤及狀態保留於選單內，不在海面顯示。 */
-#err {display:none!important;}
-html.fft-menu-open #fft-controls #err[style*="display: block"] {
- display:block!important;position:static;inset:auto;padding:7px;max-height:130px;
- overflow:auto;background:rgba(75,18,26,.23);color:#ffd5d5;
- font:11px/1.4 monospace;white-space:pre-wrap;border-radius:7px;
-}
-#fft-first-touch-hint {
- display:none;position:fixed;z-index:11000;pointer-events:none;
- bottom:calc(max(10px,env(safe-area-inset-bottom)) + 12px);
- left:50%;transform:translateX(-50%);
- color:rgba(245,249,251,.67);text-shadow:0 1px 7px rgba(0,0,0,.9);
- font:11px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
- white-space:nowrap;max-width:calc(100vw - 120px);text-overflow:ellipsis;overflow:hidden;
-}
-html.fft-touch #fft-first-touch-hint:not([hidden]) {display:block;}
-#fft-first-touch-hint[hidden] {display:none!important;}
-#fft-fullscreen-request[hidden] {display:none!important;}
-#fft-audio-status {font-size:11px;opacity:.80;}
-#fft-controls a {color:#b6e6ff;}
-@media(max-width:520px){
- #fft-controls{padding:9px 7px;width:min(164px,calc(100vw - 20px));}
- #fft-actions button{width:39px;height:39px;}
- #fft-actions{gap:6px;}#fft-height-buttons{gap:6px;}
-}
-@media(max-height:420px){
- #fft-controls{max-height:88dvh;}
- #fft-actions button{height:35px;}
-}
-@media(prefers-reduced-motion:reduce){
- #fft-controls,html.fft-menu-open #fft-controls{transition-duration:.01ms;}
-}
-
-/* v0.36: 海況與日照在左側第二層抽屜，不擠壓主選單。 */
-#fft-ocean-drawer {
- position:fixed;z-index:11890;box-sizing:border-box;
- right:calc(max(10px,env(safe-area-inset-right)) + 170px);
- bottom:calc(max(10px,env(safe-area-inset-bottom)) + 51px);
- width:min(265px,calc(100vw - 192px));max-height:min(75dvh,590px);
- overflow:auto;padding:9px;border-radius:12px;
- border:1px solid rgba(235,244,250,.12);
- background:rgba(8,22,33,.58);color:rgba(247,249,253,.96);
- -webkit-backdrop-filter:blur(13px);backdrop-filter:blur(13px);
- box-shadow:0 5px 24px rgba(0,0,0,.12);
- transform:translate3d(24px,0,0);opacity:0;visibility:hidden;pointer-events:none;
- transition:transform .16s ease,opacity .16s ease,visibility 0s linear .16s;
- font:11px/1.35 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
-}
-html.fft-menu-open.fft-ocean-open #fft-ocean-drawer {
- transform:translate3d(0,0,0);opacity:1;visibility:visible;pointer-events:auto;
- transition:transform .22s ease,opacity .2s ease,visibility 0s;
-}
-#fft-ocean-drawer #panel {position:static;inset:auto;display:block!important;width:100%;max-height:none;overflow:visible;padding:4px;margin:0;box-sizing:border-box;background:transparent;border:0;color:inherit;font:11px/1.35 system-ui,sans-serif;}
-#fft-ocean-drawer #panel label {grid-template-columns:minmax(0,1fr) minmax(45px,80px) 36px;gap:3px;}
-#fft-ocean-drawer #panel input {width:100%;min-width:0;}
-#fft-ocean-drawer #panel output {white-space:nowrap;}
-#fft-ocean-drawer #panel label span {overflow-wrap:anywhere;}
-#fft-controls .fft-compact-row {display:flex;align-items:center;gap:3px;justify-content:space-between;}
-#fft-controls .fft-compact-row .fft-debug-label {white-space:nowrap;font-size:10px;gap:2px;}
-#fft-controls .fft-compact-row .fft-icon-button {flex:0 0 21px;width:21px;}
-#fft-controls .fft-compact-row #fft-audio-sea {flex:1 1 36px;width:36px;min-width:30px;font-size:10px;padding:2px 0;}
-#fft-controls .fft-compact-row .fft-debug-label input {width:12px;height:12px;margin:0;}
-#fft-controls .fft-diagnostic {font-size:10px;}
-#fft-controls #fft-state {display:none;}
-#fft-controls .fft-meta {display:flex;align-items:center;justify-content:space-between;gap:3px;font-size:10px;}
-#fft-controls .fft-meta a {font-size:10px;white-space:nowrap;}
-@media(max-width:400px){#fft-ocean-drawer{right:calc(max(10px,env(safe-area-inset-right)) + 166px);width:calc(100vw - 182px);padding:5px;}}
-@media(prefers-reduced-motion:reduce){#fft-ocean-drawer{transition-duration:.01ms!important;}}
+/* FFT Ocean v0.37: 圖示工具列與左側玻璃面板；原始 WebGPU FFT 引擎不修改。
+   #panel 是原作者完整設定 DOM，搬移到左側抽屜，不重建、不過濾任何 label/input。 */
+html,body{overscroll-behavior:none}#c{touch-action:none;-webkit-user-select:none;user-select:none}
+#hud{display:none!important;z-index:9500}html.fft-debug #hud{display:block!important}html.fft-touch #hud .help{display:none}
+#fft-actions{position:fixed;z-index:12000;right:max(12px,env(safe-area-inset-right));bottom:max(12px,env(safe-area-inset-bottom));display:flex;flex-direction:column;align-items:center;gap:7px;pointer-events:none}
+#fft-actions button{pointer-events:auto;-webkit-tap-highlight-color:transparent;touch-action:none;appearance:none;-webkit-appearance:none;border:1px solid rgba(255,255,255,.08);outline:0;width:44px;height:44px;border-radius:50%;padding:0;display:grid;place-items:center;color:rgba(255,255,255,.75);background:rgba(8,21,33,.12);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);box-shadow:0 2px 12px rgba(0,0,0,.09);transition:color .16s,background .16s,transform .16s,opacity .16s;cursor:pointer}
+#fft-actions button:hover,#fft-actions button:focus-visible,#fft-actions button:active{color:#fff;background:rgba(15,37,54,.4)}
+#fft-actions button svg{width:23px;height:23px;fill:none;stroke:currentColor;stroke-width:1.65;stroke-linecap:round;stroke-linejoin:round}
+#fft-actions #fft-menu-button{font:28px/1 sans-serif;letter-spacing:0;padding-bottom:7px}
+#fft-height-buttons{display:none;flex-direction:column;gap:7px}html.fft-touch #fft-height-buttons{display:flex}
+#fft-extra-actions{display:flex;flex-direction:column;gap:7px;align-items:center;pointer-events:none;visibility:hidden}
+#fft-extra-actions button{opacity:0;transform:translate3d(0,22px,0) scale(.82);pointer-events:none;transition:opacity .15s ease,transform .22s cubic-bezier(.18,.75,.25,1),background .16s,color .16s}
+html.fft-menu-open #fft-extra-actions{visibility:visible;pointer-events:auto}
+html.fft-menu-open #fft-extra-actions button{opacity:1;transform:translate3d(0,0,0) scale(1);pointer-events:auto;transition-delay:calc(var(--order) * 24ms)}
+#fft-extra-actions button[data-active="true"]{color:#e3f7ff;background:rgba(75,132,160,.29)}
+#fft-quality-gauge{position:relative}#fft-quality-gauge svg{width:29px;height:29px}#fft-quality-gauge .gauge-needle{transform-origin:12px 12px;transform:rotate(var(--needle,-75deg));transition:transform .2s ease}
+#fft-feedback{position:fixed;z-index:12100;right:calc(max(12px,env(safe-area-inset-right)) + 54px);bottom:calc(max(12px,env(safe-area-inset-bottom)) + 175px);color:#eff8ff;background:rgba(6,19,30,.52);backdrop-filter:blur(10px);border-radius:10px;padding:6px 10px;font:12px system-ui;opacity:0;pointer-events:none;transform:translateX(7px);transition:opacity .16s,transform .16s}
+#fft-feedback.visible{opacity:1;transform:translateX(0)}
+#fft-ocean-drawer{position:fixed;z-index:11900;left:0;top:50%;width:min(360px,calc(100vw - 76px));max-height:min(82dvh,720px);box-sizing:border-box;overflow:auto;overscroll-behavior:contain;padding:18px 15px 20px;border-radius:0 19px 19px 0;border:1px solid rgba(235,247,255,.19);border-left:0;background:rgba(8,23,36,.64);color:rgba(248,252,255,.96);-webkit-backdrop-filter:blur(23px) saturate(135%);backdrop-filter:blur(23px) saturate(135%);box-shadow:8px 0 38px rgba(0,0,0,.17);transform:translate3d(-105%,-50%,0);opacity:0;visibility:hidden;pointer-events:none;transition:transform .25s cubic-bezier(.22,.76,.24,1),opacity .2s,visibility 0s linear .25s;font:12px/1.4 system-ui,sans-serif}
+html.fft-ocean-open #fft-ocean-drawer{transform:translate3d(0,-50%,0);opacity:1;visibility:visible;pointer-events:auto;transition:transform .3s cubic-bezier(.22,.76,.24,1),opacity .2s,visibility 0s}
+#fft-ocean-drawer .fft-drawer-title{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;font-weight:600;letter-spacing:.04em;color:rgba(255,255,255,.88)}
+#fft-ocean-drawer .fft-close{appearance:none;border:0;background:transparent;color:#e9f5ff;font-size:23px;cursor:pointer;line-height:1;padding:3px 6px}
+/* 完整保留原作者所有設定行、原本 min/max/step 與事件；僅重排 CSS。 */
+#fft-ocean-drawer #panel{position:static;inset:auto;display:block!important;width:100%;max-height:none;overflow:visible;padding:0;margin:0;box-sizing:border-box;border:0;border-radius:0;background:transparent;backdrop-filter:none;color:inherit;font:12px/1.45 system-ui,sans-serif}
+#fft-ocean-drawer #panel label{display:grid;grid-template-columns:minmax(0,1fr) minmax(88px,115px) 43px;gap:7px;align-items:center;margin:6px 0}
+#fft-ocean-drawer #panel label span{min-width:0;overflow-wrap:anywhere}#fft-ocean-drawer #panel input{width:100%;min-width:0;accent-color:#94c9e5}#fft-ocean-drawer #panel output{white-space:nowrap;text-align:right;font-variant-numeric:tabular-nums}
+#fft-ocean-drawer .fft-debug-line{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:14px;padding-top:11px;border-top:1px solid rgba(255,255,255,.15);font-size:11px;color:#d1e4ef}
+#fft-ocean-drawer .fft-debug-line label{display:inline-flex;align-items:center;gap:5px;cursor:pointer}
+#fft-ocean-drawer a{color:#d4f2ff;text-decoration:none}#fft-ocean-drawer a:hover{text-decoration:underline}
+#fft-ocean-drawer .fft-diagnostic{font-size:11px;color:#c4d9e5;margin-top:7px}
+#fft-error-slot #err{display:none!important}html.fft-ocean-open #fft-error-slot #err[style*="display: block"]{display:block!important;position:static;inset:auto;padding:7px;max-height:150px;overflow:auto;background:rgba(75,18,26,.28);color:#ffd5d5;font:11px/1.4 monospace;white-space:pre-wrap;border-radius:7px}
+#fft-first-touch-hint{display:none;position:fixed;z-index:11000;pointer-events:none;bottom:calc(max(10px,env(safe-area-inset-bottom)) + 10px);left:50%;transform:translateX(-50%);color:rgba(245,249,251,.65);text-shadow:0 1px 7px #000;font:11px system-ui;white-space:nowrap}html.fft-touch #fft-first-touch-hint:not([hidden]){display:block}#fft-first-touch-hint[hidden],#fft-fullscreen-request[hidden]{display:none!important}
+#fft-controls{display:none!important}
+@media(max-height:520px){#fft-actions{gap:4px}#fft-extra-actions{gap:4px}#fft-actions button{width:35px;height:35px}#fft-actions button svg{width:19px;height:19px}#fft-ocean-drawer{max-height:94dvh}}
+@media(max-width:450px){#fft-ocean-drawer{width:min(335px,calc(100vw - 64px));padding:13px 10px}#fft-ocean-drawer #panel label{grid-template-columns:minmax(0,1fr) minmax(72px,95px) 37px;gap:4px;font-size:11px}}
+@media(prefers-reduced-motion:reduce){#fft-extra-actions button,#fft-ocean-drawer,#fft-feedback{transition-duration:.01ms!important}}
 </style>
 
 </head><body><canvas id="c"></canvas><div id="hud"><div id="fps">starting…</div><div class="help">click: mouse look · WASD move · Space/E up · Q/C down · Shift fast · wheel speed · H panel</div></div><div id="panel" class="hidden"></div><div id="err"></div>
-<!-- FFT Ocean v0.36 自訂控制：視角以單指拖曳海面，移動操縱桿已移除。 -->
+<!-- FFT Ocean v0.37 自訂控制：視角以單指拖曳海面，移動操縱桿已移除。 -->
 <div id="fft-actions" aria-label="海浪操作">
-  <div id="fft-height-buttons" aria-label="高度控制">
-    <button id="fft-ascend" type="button" aria-label="上升" title="上升">↑</button>
-    <button id="fft-descend" type="button" aria-label="下降" title="下降">↓</button>
+  <!-- 六個同尺寸功能鍵，開啟時由下往上滑出。排列：齒輪、畫質、音效、靜音、全螢幕、原作。 -->
+  <div id="fft-extra-actions" aria-hidden="true">
+    <button id="fft-show-ocean" type="button" style="--order:5" aria-label="完整海況設定" title="完整海況設定" aria-expanded="false" aria-controls="fft-ocean-drawer"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06-2 2-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1.01 1.52V21h-2.9v-.09A1.65 1.65 0 0 0 10.99 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06-2-2 .06-.06a1.65 1.65 0 0 0 .33-1.82A1.65 1.65 0 0 0 5.98 14.9H5v-2.9h.98A1.65 1.65 0 0 0 7.5 10.99a1.65 1.65 0 0 0-.33-1.82l-.06-.06 2-2 .06.06a1.65 1.65 0 0 0 1.82.33A1.65 1.65 0 0 0 12 5.98V5h2.9v.98a1.65 1.65 0 0 0 1.01 1.52 1.65 1.65 0 0 0 1.82-.33l.06-.06 2 2-.06.06a1.65 1.65 0 0 0-.33 1.82A1.65 1.65 0 0 0 20.92 12H22v2.9h-1.08A1.65 1.65 0 0 0 19.4 15Z" transform="translate(-1 -1)"/></svg></button>
+    <button id="fft-quality-gauge" type="button" style="--order:4" aria-label="切換畫質" title="切換畫質"><svg viewBox="0 0 24 24"><path d="M4 18a9 9 0 1 1 16 0"/><path d="M5 16l2-1m-1-5 2 1m4-7v3m6 3-2 1m3 5-2-1" opacity=".65"/><g class="gauge-needle"><path d="M12 12 12 5" stroke-width="2.1"/></g><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/></svg></button>
+    <button id="fft-sound-cycle" type="button" style="--order:3" aria-label="切換海浪聲模式" title="音效海況"><svg viewBox="0 0 24 24"><path d="M4 8a4 4 0 0 1 8 0c0 3-4 3-4 7m-3 3h6"/><path d="M16 9c2 1 2 4 0 5m3-8c4 3 4 8 0 11"/></svg></button>
+    <button id="fft-audio-toggle" type="button" style="--order:2" aria-label="靜音" title="靜音" aria-pressed="false"><svg viewBox="0 0 24 24"><path d="M11 5 6 9H3v6h3l5 4V5Z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg></button>
+    <button id="fft-fullscreen-request" type="button" style="--order:1" aria-label="進入全螢幕" title="進入全螢幕"><svg viewBox="0 0 24 24"><path d="M8 3H3v5M16 3h5v5M3 16v5h5M21 16v5h-5"/></svg></button>
+    <button id="fft-source-link" type="button" style="--order:0" aria-label="原作者 GitHub" title="原作者 GitHub"><svg viewBox="0 0 24 24"><path d="M13 5h6v6M19 5l-9 9"/><path d="M19 13v6H5V5h6"/></svg></button>
   </div>
-  <button id="fft-menu-button" type="button" aria-label="開啟設定" aria-expanded="false" aria-controls="fft-controls" title="設定">⋯</button>
+  <div id="fft-height-buttons" aria-label="高度控制"><button id="fft-ascend" type="button" aria-label="上升" title="上升"><svg viewBox="0 0 24 24"><path d="m5 15 7-7 7 7"/></svg></button><button id="fft-descend" type="button" aria-label="下降" title="下降"><svg viewBox="0 0 24 24"><path d="m5 9 7 7 7-7"/></svg></button></div>
+  <button id="fft-menu-button" type="button" aria-label="展開工具列" aria-expanded="false" aria-controls="fft-extra-actions" title="更多操作">⋯</button>
 </div>
-<!-- 首次手指接觸頁面時啟動音效；提示不攔截手勢。 -->
+<div id="fft-feedback" role="status" aria-live="polite"></div>
 <div id="fft-first-touch-hint" aria-live="polite">輕觸海面啟用海浪聲</div>
-<!-- WebGPU / FPS 資料只有展開這個滑出選單才能檢視。 -->
-<section id="fft-controls" role="region" aria-label="海浪設定" aria-hidden="true">
- <div class="fft-inner">
-  <div class="fft-row fft-quality-row">
-    <label for="fft-quality">畫質</label>
-    <select id="fft-quality" aria-label="畫質">
-      <option value="0.75">省電 · 0.75×</option>
-      <option value="1">手機流暢 · 1×</option>
-      <option value="1.5">平衡 · 1.5×</option>
-      <option value="native">原生畫質</option>
-    </select>
-    <!-- 齒輪：原作者原生海況與日照參數，滑動立即更動原引擎數值。 -->
-    <button id="fft-show-ocean" class="fft-icon-button" type="button"
-      aria-label="海況與日照" title="海況與日照" aria-controls="fft-original-panel-slot" aria-expanded="false">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Z"/><path d="m19.4 15 .12.14 1.16.9-1.95 3.38-1.38-.52-.17-.06a8.7 8.7 0 0 1-1.7.98l-.25 1.44H9.3l-.25-1.44a8.7 8.7 0 0 1-1.7-.98l-1.54.58-1.95-3.38 1.29-1a8.8 8.8 0 0 1 0-1.97l-1.29-1 1.95-3.38 1.54.58a8.7 8.7 0 0 1 1.7-.98L9.3 6h5.9l.25 1.44a8.7 8.7 0 0 1 1.7.98l1.54-.58 1.95 3.38-1.29 1a8.8 8.8 0 0 1 0 1.97Z" transform="translate(0 -2)"/></svg>
-    </button>
-  </div>
-  <div class="fft-row fft-audio-row fft-compact-row">
-    <select id="fft-audio-sea" aria-label="音效海況">
-      <option value="follow">跟隨海況</option>
-      <option value="0.55">平靜</option>
-      <option value="1">一般</option>
-      <option value="1.55">洶湧</option>
-    </select>
-    <!-- 喇叭按鈕直接切換靜音／開啟，固定音量 100%。 -->
-    <button type="button" id="fft-audio-toggle" class="fft-icon-button"
-      aria-label="靜音" title="靜音" aria-pressed="false">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4V5Z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg>
-    </button>
-    <button type="button" id="fft-fullscreen-request" class="fft-icon-button"
-      aria-label="進入全螢幕" title="進入全螢幕">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H3v5M16 3h5v5M3 16v5h5M21 16v5h-5"/></svg>
-    </button>
-    <label class="fft-debug-label"><input id="fft-debug-toggle" type="checkbox">FPS/GPU</label>
-  </div>
-  <div class="fft-meta"><span class="fft-diagnostic" id="fft-render-status">WebGPU 初始化中</span><a href="https://github.com/Noniv/web-ocean" target="_blank" rel="noopener noreferrer">原作者 / MIT</a></div>
-  <div class="fft-diagnostic" id="fft-state" hidden></div>
-  <div id="fft-audio-status" class="fft-fine" role="status" aria-live="polite"></div>
-  <div id="fft-error-slot"></div>
- </div>
+<!-- 保留原本控制節點 ID 供擴充程式連動；畫質與音效由工具列按鈕切換。 -->
+<section id="fft-controls" aria-hidden="true">
+  <select id="fft-quality" aria-label="畫質"><option value="0.75">0.75×</option><option value="1">1×</option><option value="1.5">1.5×</option><option value="native">原生</option></select>
+  <select id="fft-audio-sea" aria-label="音效海況"><option value="follow">跟隨海況</option><option value="0.55">平靜</option><option value="1">一般</option><option value="1.55">洶湧</option></select>
+  <div id="fft-state"></div><div id="fft-audio-status" role="status" aria-live="polite"></div>
 </section>
-<!-- v0.36: 第二級設定抽屜，保留原作者滑桿 DOM 與即時 input 事件。 -->
-<aside id="fft-ocean-drawer" aria-label="海況與日照設定" aria-hidden="true">
+<!-- 左側中央滑出；完整保留原作者 #panel 的全部原生滑桿。 -->
+<aside id="fft-ocean-drawer" aria-label="完整海況設定" aria-hidden="true">
+  <div class="fft-drawer-title"><span>海況與環境設定</span><button id="fft-close-ocean" class="fft-close" type="button" aria-label="關閉設定">×</button></div>
   <div id="fft-original-panel-slot"></div>
+  <div class="fft-debug-line"><label><input id="fft-debug-toggle" type="checkbox">FPS/GPU</label><a href="https://github.com/Noniv/web-ocean" target="_blank" rel="noopener noreferrer">原作者 · MIT</a></div>
+  <div id="fft-render-status" class="fft-diagnostic">WebGPU 初始化中</div>
+  <div id="fft-error-slot"></div>
 </aside>
 <!--
 ==============================================================
@@ -301,7 +147,7 @@ function na(e){const r=Math.cos(f.yaw),t=Math.sin(f.yaw),a=Math.cos(f.pitch),i=M
 </script>
 <!-- ================== 原作者引擎結束 ================== -->
 <!--
-FFT Ocean v0.36 — 介面、Safari 相容手勢、音效與畫質擴充。
+FFT Ocean v0.37 — 介面、Safari 相容手勢、音效與畫質擴充。
 此 JS 不依賴任何外部程式；原作者 FFT 核心位於上方 module script。
 Safari/Chrome 的音訊自動播放與原生全螢幕均受使用者手勢限制：
   * 音效預設為開，會嘗試自動啟動；若被封鎖，在首次觸控時繼續播放。
@@ -331,47 +177,85 @@ Safari/Chrome 的音訊自動播放與原生全螢幕均受使用者手勢限制
   $('fft-original-panel-slot').appendChild(originalPanel);
   $('fft-error-slot').appendChild(originalError);
 
-  function showMenu(on) {
-    document.documentElement.classList.toggle('fft-menu-open', on);
-    menu.setAttribute('aria-hidden', String(!on));
-    if (!on) { document.documentElement.classList.remove('fft-ocean-open'); oceanDrawer.setAttribute('aria-hidden','true'); }
-    menuButton.setAttribute('aria-expanded', String(on));
-    menuButton.setAttribute('aria-label', on ? '關閉設定' : '開啟設定');
-  }
-  menuButton.addEventListener('click', () => {
-    showMenu(!document.documentElement.classList.contains('fft-menu-open'));
-  });
-  document.addEventListener('pointerdown', e => {
-    if (!document.documentElement.classList.contains('fft-menu-open')) return;
-    if (!menu.contains(e.target) && !menuButton.contains(e.target) && !oceanDrawer.contains(e.target)) showMenu(false);
-  }, {passive:true});
-  document.addEventListener('keydown', e => {
-    if (e.key === 'Escape') showMenu(false);
-  });
-
-  // 原作者 FPS/GPU HUD：統計照常運算，但僅在選單開啟且使用者勾選時顯示。
-  const debugToggle = $('fft-debug-toggle');
-  debugToggle.addEventListener('change', () => {
-    document.documentElement.classList.toggle('fft-debug', debugToggle.checked);
-  });
-
-  quality.value = cfg.quality;
-  quality.addEventListener('change', () => {
-    cfg.quality = quality.value;
-    cfg.effectiveDpr = cfg.quality === 'native' ? null : Number(cfg.quality);
-    try {localStorage.setItem(cfg.settingsKey, cfg.quality);}catch (_){}
-    window.dispatchEvent(new Event('resize'));
-  });
-
+  const extraActions = $('fft-extra-actions');
   const oceanButton = $('fft-show-ocean');
-  oceanButton.addEventListener('click', () => {
-    const visible = !document.documentElement.classList.contains('fft-ocean-open');
-    document.documentElement.classList.toggle('fft-ocean-open',visible);
-    oceanDrawer.setAttribute('aria-hidden',String(!visible));
-    oceanButton.setAttribute('aria-expanded', String(visible));
-    oceanButton.setAttribute('aria-pressed', String(visible));
-    // 參數本身由上游的 input 事件即時更新 GPU；沒有「套用」步驟。
+  const gaugeButton = $('fft-quality-gauge');
+  const soundButton = $('fft-sound-cycle');
+  const feedback = $('fft-feedback');
+  let feedbackTimer;
+  function announce(message) {
+    feedback.textContent = message;
+    feedback.classList.add('visible');
+    clearTimeout(feedbackTimer);
+    feedbackTimer=setTimeout(()=>feedback.classList.remove('visible'),1000);
+  }
+  function showOcean(on) {
+    document.documentElement.classList.toggle('fft-ocean-open',on);
+    oceanDrawer.setAttribute('aria-hidden',String(!on));
+    oceanButton.setAttribute('aria-expanded',String(on));
+    oceanButton.dataset.active=String(on);
+  }
+  function showMenu(on) {
+    document.documentElement.classList.toggle('fft-menu-open',on);
+    extraActions.setAttribute('aria-hidden',String(!on));
+    menuButton.setAttribute('aria-expanded',String(on));
+    menuButton.setAttribute('aria-label',on?'收起工具列':'展開工具列');
+    if (!on) showOcean(false);
+  }
+  menuButton.addEventListener('click',()=>showMenu(!document.documentElement.classList.contains('fft-menu-open')));
+  oceanButton.addEventListener('click',()=>showOcean(!document.documentElement.classList.contains('fft-ocean-open')));
+  $('fft-close-ocean').addEventListener('click',()=>showOcean(false));
+  $('fft-source-link').addEventListener('click',()=>window.open('https://github.com/Noniv/web-ocean','_blank','noopener,noreferrer'));
+  document.addEventListener('pointerdown',e=>{
+    if(document.documentElement.classList.contains('fft-ocean-open') && !oceanDrawer.contains(e.target) && !oceanButton.contains(e.target)) showOcean(false);
+    if(document.documentElement.classList.contains('fft-menu-open') && !extraActions.contains(e.target) && !menuButton.contains(e.target) && !oceanDrawer.contains(e.target) && !$('fft-height-buttons').contains(e.target)) showMenu(false);
+  },{passive:true});
+  document.addEventListener('keydown',e=>{if(e.key==='Escape')showMenu(false)});
+
+  const debugToggle = $('fft-debug-toggle');
+  debugToggle.addEventListener('change',()=>document.documentElement.classList.toggle('fft-debug',debugToggle.checked));
+
+  // 四刻度畫質表：每按一次切到下一段，立刻更新原作者畫布 DPR。
+  const qualities=['0.75','1','1.5','native'];
+  const qualityNames=['0.75×','1×','1.5×','原生'];
+  const needleAngles=['-135deg','-75deg','-15deg','45deg'];
+  function updateGauge() {
+    const i=Math.max(0,qualities.indexOf(quality.value));
+    gaugeButton.style.setProperty('--needle',needleAngles[i]);
+    gaugeButton.title='畫質 '+qualityNames[i];
+    gaugeButton.setAttribute('aria-label','畫質 '+qualityNames[i]+'，點擊切換');
+  }
+  quality.value=cfg.quality;
+  quality.addEventListener('change',()=>{
+    cfg.quality=quality.value;
+    cfg.effectiveDpr=cfg.quality==='native'?null:Number(cfg.quality);
+    try{localStorage.setItem(cfg.settingsKey,cfg.quality)}catch(_){}
+    window.dispatchEvent(new Event('resize'));
+    updateGauge();
   });
+  gaugeButton.addEventListener('click',()=>{
+    quality.value=qualities[(qualities.indexOf(quality.value)+1)%qualities.length];
+    quality.dispatchEvent(new Event('change',{bubbles:true}));
+    announce('畫質 '+qualityNames[qualities.indexOf(quality.value)]);
+  });
+  updateGauge();
+
+  // 音效模式四態：按鈕圖示直接反映目前狀態，音效引擎仍使用既有 sea 下拉值。
+  const seaModes=['follow','0.55','1','1.55'];
+  const seaNames=['跟隨海況','平靜','一般','強浪'];
+  const seaIcons=[
+    '<svg viewBox="0 0 24 24"><path d="M4 11a8 8 0 0 1 14-5l2 2M20 13a8 8 0 0 1-14 5l-2-2"/><path d="M20 3v5h-5M4 21v-5h5"/></svg>',
+    '<svg viewBox="0 0 24 24"><path d="M2 14c3-3 5-3 8 0s5 3 8 0 4-2 4-2"/></svg>',
+    '<svg viewBox="0 0 24 24"><path d="M2 10c3-3 5-3 8 0s5 3 8 0 4-2 4-2M2 17c3-3 5-3 8 0s5 3 8 0 4-2 4-2"/></svg>',
+    '<svg viewBox="0 0 24 24"><path d="M2 8c3-5 5-5 8 0s5 5 8 0 4-3 4-3M2 15c3-5 5-5 8 0s5 5 8 0 4-3 4-3M2 21c3-2 5-2 8 0"/></svg>'
+  ];
+  function updateSoundIcon(){const i=Math.max(0,seaModes.indexOf(sea.value));soundButton.innerHTML=seaIcons[i];soundButton.title='音效 '+seaNames[i];soundButton.setAttribute('aria-label','音效 '+seaNames[i]+'，點擊切換')}
+  soundButton.addEventListener('click',()=>{
+    sea.value=seaModes[(seaModes.indexOf(sea.value)+1)%seaModes.length];
+    sea.dispatchEvent(new Event('change',{bubbles:true}));
+    updateSoundIcon();announce('音效 '+seaNames[seaModes.indexOf(sea.value)]);
+  });
+  updateSoundIcon();
 
   // v0.33：不再建立前後左右搖桿。只保留按住箭頭以升降原本的相機高度。
   const axes = window.__FFT_TOUCH_NAV;
