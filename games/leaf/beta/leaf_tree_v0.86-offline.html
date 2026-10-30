@@ -1,0 +1,812 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>leaf_tree_v0.86-offline</title>
+<style>
+:root{
+  --bg:#0b1020; --panel:#0c1324; --ink:#eaf2ff; --muted:#9fb0c9; --line:#23324a;
+  --brand:#22c55e; --panel2:#0e1729;
+}
+html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);font-family:ui-sans-serif,system-ui,"Noto Sans TC",Segoe UI,Roboto}
+.app{display:grid;grid-template-columns:1fr 400px;height:100%}
+#stage{position:relative;overflow:hidden}
+#cv{position:absolute;inset:0;width:100%;height:100%;display:block}
+aside{background:linear-gradient(180deg,#0c1324,#0a0f1b 60%);border-left:1px solid #1f2937;padding:14px 16px 180px;overflow:auto}
+.tabs{display:flex;gap:8px;flex-wrap:wrap;margin:2px 0 10px}
+.tab{padding:8px 10px;border-radius:10px;border:1px solid #263142;background:#0e1729;color:#e2e8f0;cursor:pointer}
+.tab.active{background:linear-gradient(180deg,#112c1d,#0b1e13);border-color:#1d3b29;color:#ccffdd}
+h2{font-size:16px;margin:6px 0 8px;color:#cfe4d6}
+.kpi{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:8px 0}
+.card{border:1px solid #1f2937;border-radius:12px;padding:8px;text-align:center}
+.card b{display:block}
+.hint{font-size:12px;color:#93a1b5;margin-top:6px;line-height:1.45}
+.row{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;margin:8px 0}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+button,select{padding:8px 10px;border-radius:10px;background:var(--panel2);border:1px solid #263142;color:#e2e8f0;cursor:pointer}
+button.primary{background:linear-gradient(180deg,#112c1d,#0b1e13);border-color:#1d3b29}
+input[type=range]{width:100%}
+.sect{display:none}.sect.show{display:block}
+.io{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+input[type=file]{width:100%}
+.toast{position:absolute;left:8px;top:8px;background:rgba(0,0,0,.45);padding:6px 10px;border-radius:8px;font-size:12px;pointer-events:none}
+.sep{height:1px;background:#1e293b;margin:10px 0}
+</style>
+</head>
+<body>
+<div class="app">
+  <div id="stage">
+    <canvas id="cv"></canvas>
+    <div id="toast" class="toast">初始化中…</div>
+  </div>
+  <aside>
+    <div class="tabs">
+      <button class="tab active" data-tab="leaf">場景一：葉片</button>
+      <button class="tab" data-tab="tree">場景二：樹形</button>
+      <button class="tab" data-tab="fall">場景三：落葉</button>
+    </div>
+
+    <section id="sect-leaf" class="sect show">
+      <h2>場景一：葉片設計</h2>
+      <div class="kpi">
+        <div class="card"><b id="kpiArea">—</b><div class="hint">估算葉面積 cm²</div></div>
+        <div class="card"><b id="kpiVerts">—</b><div class="hint">頂點數</div></div>
+        <div class="card"><b id="kpiFaces">—</b><div class="hint">面數</div></div>
+      </div>
+      <div class="toolbar">
+        <button id="btnFitLeaf" class="primary">一鍵可視</button>
+        <button id="btnResetLeaf">重置視角</button>
+        <button id="btnRebuildLeaf">重建葉片</button>
+        <button id="btnToTree">→ 送到樹場景</button>
+      </div>
+      <div class="row"><label>葉形</label><span id="leafShapeLabel">橢圓</span></div>
+      <select id="leafShape">
+        <option value="elliptic" selected>橢圓</option>
+        <option value="ovate">卵形</option>
+        <option value="lanceolate">披針形</option>
+        <option value="cordate">心形</option>
+      </select>
+      <div class="row"><label>葉長 (cm)</label><span id="valLen">12.0</span></div>
+      <input id="leafLen" type="range" min="4" max="40" step="0.1" value="12"/>
+      <div class="row"><label>寬度比例</label><span id="valWid">0.40</span></div>
+      <input id="leafWid" type="range" min="0.12" max="0.8" step="0.01" value="0.40"/>
+      <div class="row"><label>葉尖收斂</label><span id="valTip">0.20</span></div>
+      <input id="leafTip" type="range" min="0" max="1" step="0.01" value="0.20"/>
+      <div class="row"><label>橫向捲曲</label><span id="valCurl">0.00</span></div>
+      <input id="leafCurl" type="range" min="0" max="0.8" step="0.01" value="0"/>
+      <div class="row"><label>縱向扭轉</label><span id="valTwist">0.00</span></div>
+      <input id="leafTwist" type="range" min="0" max="1.2" step="0.01" value="0"/>
+      <div class="io">
+        <button id="leafExport">匯出葉片 CSV</button>
+        <label style="border:1px solid #263142;border-radius:10px;padding:8px 10px;background:#0e1729;display:flex;align-items:center;gap:8px">
+          <span>匯入葉片 CSV</span><input id="leafImport" type="file" accept=".csv,text/csv"/>
+        </label>
+      </div>
+      <div class="hint">葉片是三個場景共用的基本單位。這版保留自動置中與離線顯示。</div>
+    </section>
+
+    <section id="sect-tree" class="sect">
+      <h2>場景二：樹形生成（重寫分枝規則）</h2>
+      <div class="row"><label>樹種預設</label><span id="valPreset"></span></div>
+      <select id="treePreset">
+        <option value="maple" selected>楓</option>
+        <option value="oak">橡</option>
+        <option value="pine">松</option>
+        <option value="willow">柳</option>
+        <option value="banyan">榕</option>
+      </select>
+      <div class="row"><label>樹高 (m)</label><span id="valTreeH">5.0 m</span></div>
+      <input id="treeH" type="range" min="2" max="20" step="0.1" value="5.0"/>
+      <div class="row"><label>樹冠半徑 (m)</label><span id="valCrownR">3.0 m</span></div>
+      <input id="crownR" type="range" min="1" max="10" step="0.1" value="3.0"/>
+      <div class="row"><label>分枝層數</label><span id="valLevels">12</span></div>
+      <input id="levels" type="range" min="5" max="20" step="1" value="12"/>
+      <div class="row"><label>主枝張角 (°)</label><span id="valSpread">55°</span></div>
+      <input id="spread" type="range" min="20" max="100" step="1" value="55"/>
+      <div class="row"><label>枝條彎曲度</label><span id="valCurve">0.40</span></div>
+      <input id="curve" type="range" min="0" max="1" step="0.01" value="0.40"/>
+      <div class="row"><label>葉片數量（上限 30000）</label><span id="valLeafCount">4000</span></div>
+      <input id="leafCount" type="range" min="100" max="30000" step="100" value="4000"/>
+      <div class="toolbar">
+        <button id="btnBuildTree" class="primary">生成/更新</button>
+        <button id="btnFitTree">視角置中</button>
+        <button id="btnToFall">→ 送到落葉場景</button>
+      </div>
+      <div class="io">
+        <button id="treeExport">匯出樹形 CSV</button>
+        <label style="border:1px solid #263142;border-radius:10px;padding:8px 10px;background:#0e1729;display:flex;align-items:center;gap:8px">
+          <span>匯入樹形 CSV</span><input id="treeImport" type="file" accept=".csv,text/csv"/>
+        </label>
+      </div>
+      <div class="hint">這版不再用「放射狀幾根長直枝 + 外圈補葉」的方式，而是以主幹→主枝→次枝→細枝階序建立樹形，葉片只著生在細枝與新梢上。</div>
+    </section>
+
+    <section id="sect-fall" class="sect">
+      <h2>場景三：落葉</h2>
+      <div class="row"><label>落葉倍率</label><span id="valFallRate">1×</span></div>
+      <input id="fallRate" type="range" min="0.1" max="20" step="0.1" value="1.0"/>
+      <div class="row"><label>再長回速度</label><span id="valRegrow">0×</span></div>
+      <input id="regrow" type="range" min="0" max="20" step="0.5" value="0"/>
+      <div class="row"><label>風強度</label><span id="valWind">3.0</span></div>
+      <input id="windAmp" type="range" min="0" max="8" step="0.1" value="3.0"/>
+      <div class="row"><label>亂流</label><span id="valTurb">1.2</span></div>
+      <input id="turb" type="range" min="0" max="3" step="0.05" value="1.2"/>
+      <div class="row"><label>同時飄落上限</label><span id="valMaxActive">1200</span></div>
+      <input id="maxActive" type="range" min="100" max="4000" step="100" value="1200"/>
+      <div class="toolbar">
+        <button id="btnStartFall" class="primary">開始落葉</button>
+        <button id="btnStopFall">停止</button>
+        <button id="btnResetFall">重置</button>
+        <button id="btnFitFall">視角置中</button>
+      </div>
+      <div class="hint">沿用較自然的落葉邏輯：先轉色，再脫離，路徑帶有個別風向偏差、翻轉、飄移與不同接地時間。</div>
+    </section>
+  </aside>
+</div>
+
+<script>
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+const ui = id => document.getElementById(id);
+function setText(id, txt){ ui(id).textContent = txt; }
+const toast = ui('toast');
+function info(txt){ toast.textContent = txt; }
+
+let W=0,H=0,DPR=Math.min(devicePixelRatio||1,2);
+let yaw=0.45, pitch=0.18, dist=3.2, target=[0,0,0];
+let dragging=false, lx=0, ly=0;
+cv.addEventListener('wheel', e=>{ e.preventDefault(); dist=Math.max(0.2, Math.min(100, dist*(1 + Math.sign(e.deltaY)*0.10))); }, {passive:false});
+cv.addEventListener('mousedown', e=>{ dragging=true; lx=e.clientX; ly=e.clientY; });
+addEventListener('mouseup', ()=> dragging=false);
+addEventListener('mousemove', e=>{
+  if(!dragging) return;
+  const dx=e.clientX-lx, dy=e.clientY-ly; lx=e.clientX; ly=e.clientY;
+  yaw += dx*0.005; pitch += dy*0.004;
+  pitch = Math.max(-1.2, Math.min(1.2, pitch));
+});
+
+function resize(){
+  const r = ui('stage').getBoundingClientRect();
+  W = Math.max(320, r.width|0); H = Math.max(320, r.height|0);
+  cv.width=(W*DPR)|0; cv.height=(H*DPR)|0;
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  needFit=true;
+}
+addEventListener('resize', resize);
+
+function lookAt(){
+  const cx = target[0] + dist*Math.cos(pitch)*Math.cos(yaw);
+  const cy = target[1] + dist*Math.sin(pitch);
+  const cz = target[2] + dist*Math.cos(pitch)*Math.sin(yaw);
+  return {eye:[cx,cy,cz]};
+}
+function project(pt){
+  const eye=lookAt().eye;
+  const vx=pt[0]-eye[0], vy=pt[1]-eye[1], vz=pt[2]-eye[2];
+  const sy=Math.sin(-yaw), cy=Math.cos(-yaw);
+  const sp=Math.sin(-pitch), cp=Math.cos(-pitch);
+  let x=vx*cy - vz*sy;
+  let z=vx*sy + vz*cy;
+  let y=vy*cp - z*sp; z=vy*sp + z*cp;
+  const f=1.65; const s=f/(z+f+0.0001);
+  return {x:W*0.5 + x*s*W*0.6, y:H*0.64 - y*s*H*0.6, z, s};
+}
+function clearStage(){
+  const g=ctx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,'#0c1a34'); g.addColorStop(0.55,'#0b162b'); g.addColorStop(1,'#0a1323');
+  ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+  ctx.fillStyle='#0d182c'; ctx.fillRect(0,H*0.70,W,H*0.30);
+  ctx.strokeStyle='#223149'; ctx.lineWidth=1;
+  for(let x=-6;x<=6;x+=0.5){ const a=project([x,0,-6]), b=project([x,0,6]); ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke(); }
+  for(let z=-6;z<=6;z+=0.5){ const a=project([-6,0,z]), b=project([6,0,z]); ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke(); }
+}
+
+function bbox(verts){
+  let min=[Infinity,Infinity,Infinity], max=[-Infinity,-Infinity,-Infinity];
+  for(const v of verts){
+    if(v[0]<min[0]) min[0]=v[0]; if(v[1]<min[1]) min[1]=v[1]; if(v[2]<min[2]) min[2]=v[2];
+    if(v[0]>max[0]) max[0]=v[0]; if(v[1]>max[1]) max[1]=v[1]; if(v[2]>max[2]) max[2]=v[2];
+  }
+  return {min,max,size:[max[0]-min[0],max[1]-min[1],max[2]-min[2]],center:[(min[0]+max[0])/2,(min[1]+max[1])/2,(min[2]+max[2])/2]};
+}
+function unionBBox(a,b){
+  if(!a) return b;
+  return {
+    min:[Math.min(a.min[0],b.min[0]),Math.min(a.min[1],b.min[1]),Math.min(a.min[2],b.min[2])],
+    max:[Math.max(a.max[0],b.max[0]),Math.max(a.max[1],b.max[1]),Math.max(a.max[2],b.max[2])]
+  };
+}
+function finalizeBBox(b){
+  b.size=[b.max[0]-b.min[0], b.max[1]-b.min[1], b.max[2]-b.min[2]];
+  b.center=[(b.min[0]+b.max[0])/2,(b.min[1]+b.max[1])/2,(b.min[2]+b.max[2])/2];
+  return b;
+}
+function autoFitBox(b, pad=1.0, verticalBias=0.56){
+  if(!b) return;
+  b=finalizeBBox(b);
+  target=[b.center[0], b.min[1] + b.size[1]*verticalBias, b.center[2]];
+  const major=Math.max(b.size[0], b.size[1], b.size[2], 0.001);
+  const f=1.65;
+  const targetFill=0.72/pad;
+  const s=Math.min(0.95, Math.max(0.08, targetFill/(0.6*major)));
+  let newDist=Math.max(0.4, (f/s)-f);
+  dist=Math.min(Math.max(newDist, 0.6), 50);
+  yaw=0.55; pitch=0.20;
+}
+
+function rand(a=1,b=0){ return b + Math.random()*(a-b); }
+function lerp(a,b,t){ return a + (b-a)*t; }
+function mix3(a,b,t){ return [lerp(a[0],b[0],t), lerp(a[1],b[1],t), lerp(a[2],b[2],t)]; }
+function add3(a,b){ return [a[0]+b[0], a[1]+b[1], a[2]+b[2]]; }
+function sub3(a,b){ return [a[0]-b[0], a[1]-b[1], a[2]-b[2]]; }
+function mul3(a,s){ return [a[0]*s, a[1]*s, a[2]*s]; }
+function len3(a){ return Math.hypot(a[0],a[1],a[2]); }
+function norm3(a){ const l=len3(a)||1; return [a[0]/l,a[1]/l,a[2]/l]; }
+function cross3(a,b){ return [a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0]]; }
+function rotateAroundAxis(v,axis,ang){
+  const u=norm3(axis), c=Math.cos(ang), s=Math.sin(ang), d=v[0]*u[0]+v[1]*u[1]+v[2]*u[2];
+  return [
+    v[0]*c + (u[1]*v[2]-u[2]*v[1])*s + u[0]*d*(1-c),
+    v[1]*c + (u[2]*v[0]-u[0]*v[2])*s + u[1]*d*(1-c),
+    v[2]*c + (u[0]*v[1]-u[1]*v[0])*s + u[2]*d*(1-c),
+  ];
+}
+function hsl2rgb(h,s,l){
+  const a = s*Math.min(l,1-l);
+  function f(n){ const k=(n+ h*12)%12; return l - a*Math.max(-1, Math.min(Math.min(k-3, 9-k),1)); }
+  return [f(0),f(8),f(4)];
+}
+
+// ---------- Scene 1: Leaf ----------
+function leafParams(){
+  const p={
+    shape:ui('leafShape').value,
+    len:parseFloat(ui('leafLen').value),
+    wid:parseFloat(ui('leafWid').value),
+    tip:parseFloat(ui('leafTip').value),
+    curl:parseFloat(ui('leafCurl').value),
+    twist:parseFloat(ui('leafTwist').value)
+  };
+  const names={elliptic:'橢圓', ovate:'卵形', lanceolate:'披針形', cordate:'心形'};
+  setText('leafShapeLabel', names[p.shape]);
+  setText('valLen', p.len.toFixed(1));
+  setText('valWid', p.wid.toFixed(2));
+  setText('valTip', p.tip.toFixed(2));
+  setText('valCurl', p.curl.toFixed(2));
+  setText('valTwist', p.twist.toFixed(2));
+  return p;
+}
+let leafMesh=null;
+function leafHalfWidth(shape,u,Wmax,tip){
+  const t=1-u;
+  if(shape==='lanceolate'){
+    return Wmax * Math.pow(Math.sin(Math.PI*u), 0.75) * (0.65 + 0.35*(1-tip*0.45*t));
+  }else if(shape==='ovate'){
+    return Wmax * Math.sin(Math.PI*Math.pow(u,0.75))* (0.8 + 0.2*u) * (0.80 + 0.20*(1-tip*0.35*t));
+  }else if(shape==='cordate'){
+    let s=Math.sin(Math.PI*u);
+    let notch = (u<0.18)? (1 - (0.18-u)/0.18*0.35) : 1;
+    return Wmax * Math.pow(Math.max(0,s),0.85)*notch*(0.95 + 0.05*(1-tip*0.20*t));
+  }
+  return Wmax * Math.sin(Math.PI*u) * (0.88 + 0.12*(1-tip*0.45*t));
+}
+function buildLeafMesh(){
+  const p=leafParams(), L=p.len/100, Wmax=(p.len*p.wid)/100;
+  const segU=38, segV=30;
+  const verts=[], faces=[], col=[];
+  for(let iu=0; iu<=segU; iu++){
+    const u=iu/segU;
+    const halfW = Math.max(0.0001, leafHalfWidth(p.shape,u,Wmax,p.tip));
+    for(let iv=0; iv<=segV; iv++){
+      const v=iv/segV*2-1;
+      let x=(u-0.08)*L;
+      let y=v*halfW;
+      let z=0;
+      z += (1-Math.abs(v))*0.007*p.curl;
+      const tw = p.twist*u*1.2;
+      let yy = y*Math.cos(tw) - z*Math.sin(tw);
+      let zz = y*Math.sin(tw) + z*Math.cos(tw);
+      y=yy; z=zz;
+      verts.push([x,y,z]);
+      col.push(hsl2rgb(0.33-0.08*u,0.72,0.50+0.14*(1-u)));
+    }
+  }
+  for(let iu=0; iu<segU; iu++){
+    for(let iv=0; iv<segV; iv++){
+      const a=(segV+1)*iu+iv, b=a+(segV+1), c=b+1, d=a+1;
+      faces.push([a,b,d],[b,c,d]);
+    }
+  }
+  return {verts,faces,col};
+}
+function drawMesh(mesh){
+  const order=mesh.faces.map((f,i)=>({i,z:(mesh.verts[f[0]][2]+mesh.verts[f[1]][2]+mesh.verts[f[2]][2])/3})).sort((a,b)=>b.z-a.z);
+  for(const it of order){
+    const f=mesh.faces[it.i], p0=project(mesh.verts[f[0]]), p1=project(mesh.verts[f[1]]), p2=project(mesh.verts[f[2]]);
+    const c=mesh.col[f[0]];
+    ctx.fillStyle=`rgb(${(c[0]*255)|0},${(c[1]*255)|0},${(c[2]*255)|0})`;
+    ctx.beginPath(); ctx.moveTo(p0.x,p0.y); ctx.lineTo(p1.x,p1.y); ctx.lineTo(p2.x,p2.y); ctx.closePath(); ctx.fill();
+  }
+}
+function leafAreaEstimate(mesh){
+  const b=bbox(mesh.verts);
+  return b.size[0]*b.size[1]*0.82*10000;
+}
+function rebuildLeaf(){
+  leafMesh = buildLeafMesh();
+  autoFitBox(bbox(leafMesh.verts), 1.00, 0.50);
+  setText('kpiVerts', leafMesh.verts.length);
+  setText('kpiFaces', leafMesh.faces.length);
+  setText('kpiArea', leafAreaEstimate(leafMesh).toFixed(1));
+}
+
+// CSV leaf
+ui('leafExport').onclick=()=>{
+  const p=leafParams(); const keys=['shape','len','wid','tip','curl','twist'];
+  const row=[p.shape,p.len,p.wid,p.tip,p.curl,p.twist].join(',');
+  const blob=new Blob([keys.join(',')+'\n'+row],{type:'text/csv'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='leaf_params.csv'; a.click(); URL.revokeObjectURL(a.href);
+};
+ui('leafImport').addEventListener('change', e=>{
+  const f=e.target.files?.[0]; if(!f) return; const r=new FileReader();
+  r.onload=()=>{ try{
+    const lines=String(r.result).trim().split(/\r?\n/); const vals=lines[1].split(',');
+    ui('leafShape').value=vals[0]; ui('leafLen').value=vals[1]; ui('leafWid').value=vals[2];
+    ui('leafTip').value=vals[3]; ui('leafCurl').value=vals[4]; ui('leafTwist').value=vals[5];
+    leafParams(); rebuildLeaf(); info('已匯入葉片 CSV');
+  }catch(err){ alert('葉片 CSV 匯入錯誤'); } };
+  r.readAsText(f);
+});
+
+['leafShape','leafLen','leafWid','leafTip','leafCurl','leafTwist'].forEach(id=> ui(id).addEventListener('input', ()=>{ leafParams(); rebuildLeaf(); needFit=true; }));
+ui('btnFitLeaf').onclick=()=>{ if(leafMesh) autoFitBox(bbox(leafMesh.verts),1.0,0.50); };
+ui('btnResetLeaf').onclick=()=>{ yaw=0.45; pitch=0.18; dist=3.2; if(leafMesh) autoFitBox(bbox(leafMesh.verts),1.0,0.50); };
+ui('btnRebuildLeaf').onclick=()=>{ rebuildLeaf(); needFit=true; };
+ui('btnToTree').onclick=()=>{ switchTab('tree'); buildTree(true); };
+
+// ---------- Scene 2: Tree ----------
+const TREE_PRESETS = {
+  maple:  {name:'楓',    H:5.0, R:3.0, levels:12, spread:58, curve:0.42, trunkSeg:9,  primary:7,  sec:2.6, twig:2.7, droop:0.02, rise:0.18, density:1.00},
+  oak:    {name:'橡',    H:6.0, R:3.7, levels:13, spread:68, curve:0.48, trunkSeg:10, primary:8,  sec:3.0, twig:2.8, droop:0.05, rise:0.14, density:0.92},
+  pine:   {name:'松',    H:8.0, R:2.6, levels:14, spread:38, curve:0.20, trunkSeg:11, primary:9,  sec:1.7, twig:2.0, droop:0.00, rise:0.26, density:1.12},
+  willow: {name:'柳',    H:5.0, R:3.4, levels:12, spread:50, curve:0.44, trunkSeg:9,  primary:8,  sec:2.4, twig:3.0, droop:0.18, rise:0.10, density:1.10},
+  banyan: {name:'榕',    H:7.0, R:4.6, levels:15, spread:62, curve:0.36, trunkSeg:10, primary:10, sec:2.9, twig:3.2, droop:0.03, rise:0.12, density:1.20},
+};
+let treeData=null;
+
+function syncTreeLabels(){
+  setText('valPreset', TREE_PRESETS[ui('treePreset').value].name);
+  setText('valTreeH', parseFloat(ui('treeH').value).toFixed(1)+' m');
+  setText('valCrownR', parseFloat(ui('crownR').value).toFixed(1)+' m');
+  setText('valLevels', ui('levels').value);
+  setText('valSpread', ui('spread').value+'°');
+  setText('valCurve', parseFloat(ui('curve').value).toFixed(2));
+  setText('valLeafCount', ui('leafCount').value);
+}
+function applyTreePreset(key){
+  const p=TREE_PRESETS[key];
+  ui('treeH').value=p.H; ui('crownR').value=p.R; ui('levels').value=p.levels;
+  ui('spread').value=p.spread; ui('curve').value=p.curve;
+  if(parseInt(ui('leafCount').value)<100) ui('leafCount').value=4000;
+  syncTreeLabels();
+}
+ui('treePreset').addEventListener('change', ()=>{ applyTreePreset(ui('treePreset').value); buildTree(true); });
+['treeH','crownR','levels','spread','curve','leafCount'].forEach(id=> ui(id).addEventListener('input', ()=>{ syncTreeLabels(); buildTree(false); }));
+
+function bezier3(a,b,c,d,t){
+  const u=1-t;
+  return [
+    u*u*u*a[0] + 3*u*u*t*b[0] + 3*u*t*t*c[0] + t*t*t*d[0],
+    u*u*u*a[1] + 3*u*u*t*b[1] + 3*u*t*t*c[1] + t*t*t*d[1],
+    u*u*u*a[2] + 3*u*u*t*b[2] + 3*u*t*t*c[2] + t*t*t*d[2],
+  ];
+}
+function makeCurveSegments(p0,p1,p2,p3, steps){
+  const pts=[];
+  for(let i=0;i<=steps;i++) pts.push(bezier3(p0,p1,p2,p3, i/steps));
+  return pts;
+}
+function tangentOnCurve(p0,p1,p2,p3,t){
+  const u=1-t;
+  const d = [
+    3*u*u*(p1[0]-p0[0]) + 6*u*t*(p2[0]-p1[0]) + 3*t*t*(p3[0]-p2[0]),
+    3*u*u*(p1[1]-p0[1]) + 6*u*t*(p2[1]-p1[1]) + 3*t*t*(p3[1]-p2[1]),
+    3*u*u*(p1[2]-p0[2]) + 6*u*t*(p2[2]-p1[2]) + 3*t*t*(p3[2]-p2[2]),
+  ];
+  return norm3(d);
+}
+
+function generateBranchCurve(start, dir, length, curveAmt, upwardBias, droop, twistBias, steps){
+  const d=norm3(dir);
+  const side = norm3(cross3(d, [0,1,0]));
+  const up = norm3(cross3(side, d));
+  const p0 = start.slice();
+  const p3 = add3(start, mul3(d, length));
+  const c1 = add3(start, add3(mul3(d, length*0.28), mul3(up, length*(curveAmt*(upwardBias-0.15)))));
+  const c2 = add3(start, add3(mul3(d, length*0.72), add3(mul3(up, length*(curveAmt*(upwardBias-0.15)-droop)), mul3(side, length*twistBias))));
+  return {pts:makeCurveSegments(p0,c1,c2,p3, steps), ctrl:[p0,c1,c2,p3]};
+}
+
+function crownMaskScore(species, pos, H, R){
+  const y = Math.max(0, Math.min(1, pos[1]/Math.max(0.001,H)));
+  const r = Math.hypot(pos[0], pos[2]) / Math.max(0.001,R);
+  if(species==='pine'){
+    const targetR = Math.max(0.08, 0.85*(1-y) + 0.08);
+    return 1 - Math.abs(r-targetR);
+  }else if(species==='willow'){
+    const targetR = 0.25 + 0.75*Math.sin(Math.min(1, y*1.08)*Math.PI*0.86);
+    return 1 - Math.abs(r-targetR);
+  }else if(species==='banyan'){
+    const targetR = 0.25 + 0.85*Math.sin(Math.min(1, y*0.92)*Math.PI*0.96);
+    return 1 - Math.abs(r-targetR);
+  }
+  const targetR = 0.18 + 0.85*Math.sin(Math.min(1, y*1.04)*Math.PI*0.92);
+  return 1 - Math.abs(r-targetR);
+}
+
+function buildTree(fit=false){
+  if(!leafMesh) rebuildLeaf();
+  const species = ui('treePreset').value;
+  const preset = TREE_PRESETS[species];
+  const H = parseFloat(ui('treeH').value);
+  const R = parseFloat(ui('crownR').value);
+  const levels = parseInt(ui('levels').value);
+  const spread = parseFloat(ui('spread').value)*Math.PI/180;
+  const curve = parseFloat(ui('curve').value);
+  const leafCount = Math.min(30000, parseInt(ui('leafCount').value));
+  const trunkSeg = preset.trunkSeg;
+  const trunkPts = [];
+  let x=0,z=0;
+  for(let i=0;i<=trunkSeg;i++){
+    const t=i/trunkSeg;
+    x += (Math.random()-0.5)*0.03;
+    z += (Math.random()-0.5)*0.03;
+    trunkPts.push([x, H*t, z]);
+  }
+  const branches=[];    // {pts, order, radius}
+  const twigs=[];       // tiny branch points for leaf attachment
+  const leafAnchors=[]; // actual attachment points
+
+  // trunk segments
+  for(let i=0;i<trunkPts.length-1;i++){
+    branches.push({pts:[trunkPts[i], trunkPts[i+1]], order:0, radius:lerp(H*0.06,H*0.025,i/(trunkPts.length-1))});
+  }
+
+  const primaryCount = preset.primary + Math.max(0, Math.round((levels-10)*0.25));
+  const primaryInfos = [];
+  for(let i=0;i<primaryCount;i++){
+    const t = (species==='pine') ? lerp(0.20, 0.88, i/(primaryCount-1||1)) : rand(0.85,0.20);
+    const idx = Math.min(trunkSeg-1, Math.max(0, Math.round(t*trunkSeg)));
+    const base = trunkPts[idx];
+    const upFrac = base[1]/H;
+    const az = (i/primaryCount)*Math.PI*2 + rand(0.42,-0.42);
+    let baseAngle = spread * lerp(0.70,1.05, upFrac);
+    if(species==='pine') baseAngle = lerp(0.95,0.35, upFrac);
+    if(species==='willow') baseAngle = lerp(0.55,0.95, upFrac);
+    let dir = [Math.cos(az)*Math.sin(baseAngle), Math.cos(baseAngle)+preset.rise, Math.sin(az)*Math.sin(baseAngle)];
+    if(species==='willow' && upFrac>0.45) dir[1]-=0.20;
+    dir = norm3(dir);
+    const length = R * lerp(0.85,1.10, 1-upFrac) * (species==='pine' ? lerp(1.2,0.5,upFrac) : 1);
+    const crv = generateBranchCurve(base, dir, length, curve, preset.rise, preset.droop, rand(0.12,-0.12), 7);
+    primaryInfos.push({curve:crv.ctrl, order:1, radius:H*0.020*lerp(1.2,0.55,upFrac)});
+    for(let j=0;j<crv.pts.length-1;j++) branches.push({pts:[crv.pts[j], crv.pts[j+1]], order:1, radius:H*0.020*lerp(1.2,0.55,upFrac)*(1-j/(crv.pts.length))});
+  }
+
+  // recursive secondary and tertiary branches along parent curves
+  function spawnChildren(parentCtrl, order, radiusBase){
+    const [p0,p1,p2,p3]=parentCtrl;
+    const maxOrder = (species==='pine') ? 3 : 4;
+    if(order>=maxOrder) return;
+    const childFactor = order===1 ? preset.sec : preset.twig;
+    const childCount = Math.max(1, Math.round(childFactor + rand(0.7,-0.7)));
+    for(let c=0;c<childCount;c++){
+      const t = order===1 ? rand(0.92,0.22) : rand(0.96,0.28);
+      const pos = bezier3(p0,p1,p2,p3,t);
+      const tan = tangentOnCurve(p0,p1,p2,p3,t);
+      let side = cross3(tan,[0,1,0]); if(len3(side)<0.0001) side=[1,0,0]; side=norm3(side);
+      let up = norm3(cross3(side,tan));
+      const sideAng = rand(Math.PI,-Math.PI);
+      let axis = mix3(side, up, 0.5+0.5*Math.sin(sideAng));
+      axis=norm3(axis);
+      let ang = (order===1 ? spread*0.55 : spread*0.45) * rand(1.12,0.72);
+      if(species==='pine') ang *= 0.55;
+      if(species==='willow' && order>=2) ang *= 0.45;
+      let dir = rotateAroundAxis(tan, axis, ang);
+      dir[1] += preset.rise - preset.droop - (species==='willow' && order>=2 ? 0.35 : 0);
+      dir = norm3(dir);
+      const crownScore = crownMaskScore(species, pos, H, R);
+      const baseLen = (order===1 ? R*0.55 : R*0.28) * lerp(1.15,0.65,t) * (0.65 + 0.45*Math.max(0,crownScore));
+      const len = Math.max(0.15, baseLen * rand(1.08,0.78));
+      const crv = generateBranchCurve(pos, dir, len, curve*(order===1?0.9:0.65), preset.rise*0.8, preset.droop+(species==='willow'?0.08:0), rand(0.10,-0.10), order===1?6:5);
+      const thisRadius = radiusBase * (order===1?0.58:0.45);
+      for(let j=0;j<crv.pts.length-1;j++) branches.push({pts:[crv.pts[j], crv.pts[j+1]], order:order, radius:thisRadius*(1-j/crv.pts.length)});
+      if(order>=2){
+        // leaf anchors along twig segments + endpoint clusters
+        for(let k=1;k<crv.pts.length;k++){
+          const q=crv.pts[k];
+          twigs.push({pos:q, dir:norm3(sub3(crv.pts[k], crv.pts[k-1]))});
+          const nAttach = (species==='pine') ? 3 : (species==='willow'? 4 : 5);
+          for(let n=0;n<nAttach;n++){
+            const off = mul3(norm3([rand(1,-1), rand(1,-1), rand(1,-1)]), rand(0.08,0.00));
+            leafAnchors.push({pos:add3(q,off), dir:norm3(add3(twigs[twigs.length-1].dir,[rand(0.8,-0.8),rand(0.4,-0.2),rand(0.8,-0.8)]))});
+          }
+        }
+      }
+      if(order<maxOrder) spawnChildren(crv.ctrl, order+1, thisRadius);
+    }
+  }
+  for(const p of primaryInfos) spawnChildren(p.curve, 2, p.radius);
+
+  // fill remaining leaf anchors by sampling existing twigs/endpoints only (no free-floating leaves)
+  if(leafAnchors.length===0 && twigs.length===0){
+    twigs.push({pos:[0,H*0.8,0], dir:[1,0,0]});
+  }
+  while(leafAnchors.length < leafCount){
+    const t = twigs[(Math.random()*twigs.length)|0] || {pos:[0,H*0.8,0],dir:[1,0,0]};
+    const side = norm3(cross3(t.dir,[0,1,0]));
+    const up = norm3(cross3(side,t.dir));
+    const off = add3(mul3(side,rand(0.16,-0.16)), add3(mul3(up,rand(0.12,-0.12)), mul3(t.dir,rand(0.12,-0.03))));
+    let pos = add3(t.pos, off);
+    const score = crownMaskScore(species, pos, H, R);
+    if(score < -0.15 && Math.random() < 0.7) continue;
+    leafAnchors.push({pos, dir:norm3(add3(t.dir,[rand(0.8,-0.8),rand(0.5,-0.3),rand(0.8,-0.8)]))});
+  }
+  if(leafAnchors.length > leafCount) leafAnchors.length = leafCount;
+
+  // create leaf instances
+  const leafInstances = leafAnchors.map((a, i)=>{
+    const dir=norm3(a.dir);
+    const c = hsl2rgb(0.28 + 0.06*Math.random(), 0.72, 0.44 + 0.08*Math.random());
+    return {pos:a.pos, dir, scale:rand(1.15,0.70), yaw:rand(Math.PI,-Math.PI), roll:rand(0.55,-0.55), color:c};
+  });
+
+  // bbox
+  let b = null;
+  for(const br of branches) b = unionBBox(b, bbox(br.pts));
+  for(const lf of leafInstances){
+    const p=lf.pos; b = unionBBox(b, {min:[p[0]-0.10,p[1]-0.10,p[2]-0.10], max:[p[0]+0.10,p[1]+0.10,p[2]+0.10]});
+  }
+  treeData = {species, H, R, branches, leaves:leafInstances, bbox:finalizeBBox(b)};
+  if(fit) autoFitBox(treeData.bbox, 1.0, 0.50);
+  info(`樹已生成：${TREE_PRESETS[species].name}｜枝段 ${branches.length}｜葉片 ${leafInstances.length}`);
+}
+function drawBranchSegment(a,b,r,order){
+  const pa=project(a), pb=project(b);
+  ctx.lineCap='round';
+  ctx.lineWidth=Math.max(1, r*120/(dist+1));
+  ctx.strokeStyle = order===0 ? '#6d513b' : order===1 ? '#775741' : order===2 ? '#6f563f' : '#67513c';
+  ctx.beginPath(); ctx.moveTo(pa.x,pa.y); ctx.lineTo(pb.x,pb.y); ctx.stroke();
+}
+function rotateLeafVertex(v, inst){
+  let p=[v[0]*inst.scale, v[1]*inst.scale, v[2]*inst.scale];
+  // roll around x-ish local axis
+  let cy=Math.cos(inst.yaw), sy=Math.sin(inst.yaw);
+  let x=p[0]*cy - p[2]*sy, z=p[0]*sy + p[2]*cy; p=[x,p[1],z];
+  let cr=Math.cos(inst.roll), sr=Math.sin(inst.roll);
+  let y=p[1]*cr - p[2]*sr; z=p[1]*sr + p[2]*cr; p=[p[0],y,z];
+  return add3(inst.pos, p);
+}
+function drawLeafInstance(inst){
+  const f = leafMesh.faces[(leafMesh.faces.length*0.56)|0];
+  const tri=[rotateLeafVertex(leafMesh.verts[f[0]],inst), rotateLeafVertex(leafMesh.verts[f[1]],inst), rotateLeafVertex(leafMesh.verts[f[2]],inst)];
+  const p0=project(tri[0]), p1=project(tri[1]), p2=project(tri[2]);
+  const c=inst.color;
+  ctx.fillStyle=`rgb(${(c[0]*255)|0},${(c[1]*255)|0},${(c[2]*255)|0})`;
+  ctx.beginPath(); ctx.moveTo(p0.x,p0.y); ctx.lineTo(p1.x,p1.y); ctx.lineTo(p2.x,p2.y); ctx.closePath(); ctx.fill();
+}
+function drawTree(){
+  if(!treeData) return;
+  // draw branches from far to near
+  const branchOrder = treeData.branches.map((br,i)=>({i,z:(br.pts[0][2]+br.pts[1][2])/2})).sort((a,b)=>b.z-a.z);
+  for(const it of branchOrder){
+    const br=treeData.branches[it.i];
+    drawBranchSegment(br.pts[0], br.pts[1], br.radius, br.order);
+  }
+  // draw leaves sorted by z
+  const leafOrder = treeData.leaves.map((lf,i)=>({i,z:lf.pos[2]})).sort((a,b)=>b.z-a.z);
+  for(const it of leafOrder) drawLeafInstance(treeData.leaves[it.i]);
+}
+
+// CSV tree
+ui('treeExport').onclick=()=>{
+  const keys=['preset','H','R','levels','spread','curve','leafCount'];
+  const row=[ui('treePreset').value,ui('treeH').value,ui('crownR').value,ui('levels').value,ui('spread').value,ui('curve').value,ui('leafCount').value].join(',');
+  const blob=new Blob([keys.join(',')+'\n'+row],{type:'text/csv'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='treeStructure.csv'; a.click(); URL.revokeObjectURL(a.href);
+};
+ui('treeImport').addEventListener('change', e=>{
+  const f=e.target.files?.[0]; if(!f) return; const r=new FileReader();
+  r.onload=()=>{ try{
+    const lines=String(r.result).trim().split(/\r?\n/); const vals=lines[1].split(',');
+    ui('treePreset').value=vals[0]; ui('treeH').value=vals[1]; ui('crownR').value=vals[2];
+    ui('levels').value=vals[3]; ui('spread').value=vals[4]; ui('curve').value=vals[5]; ui('leafCount').value=vals[6];
+    syncTreeLabels(); buildTree(true); info('已匯入樹形 CSV');
+  }catch(err){ alert('樹形 CSV 匯入錯誤'); } };
+  r.readAsText(f);
+});
+ui('btnBuildTree').onclick=()=> buildTree(true);
+ui('btnFitTree').onclick=()=>{ if(treeData) autoFitBox(treeData.bbox, 1.0, 0.50); };
+ui('btnToFall').onclick=()=>{ switchTab('fall'); prepareFall(); };
+
+// ---------- Scene 3: Fall ----------
+const fallUI = { rate:ui('fallRate'), regrow:ui('regrow'), wind:ui('windAmp'), turb:ui('turb'), maxActive:ui('maxActive') };
+function syncFallLabels(){
+  setText('valFallRate', parseFloat(fallUI.rate.value).toFixed(1)+'×');
+  setText('valRegrow', parseFloat(fallUI.regrow.value).toFixed(1)+'×');
+  setText('valWind', parseFloat(fallUI.wind.value).toFixed(1));
+  setText('valTurb', parseFloat(fallUI.turb.value).toFixed(2));
+  setText('valMaxActive', fallUI.maxActive.value);
+}
+['rate','regrow','wind','turb','maxActive'].forEach(k=> fallUI[k].addEventListener('input', syncFallLabels));
+syncFallLabels();
+
+let fallState=null, runningFall=false, windTime=0;
+function prepareFall(){
+  if(!treeData) buildTree(true);
+  fallState = treeData.leaves.map(lf=>({
+    src:lf.pos.slice(),
+    pos:lf.pos.slice(),
+    baseColor:lf.color.slice(),
+    color:lf.color.slice(),
+    scale:lf.scale,
+    yaw:lf.yaw,
+    roll:lf.roll,
+    phase:0,
+    state:0, // 0 attached, 1 falling, 2 grounded
+    vel:[0,0,0],
+    spin:[rand(0.05,-0.05), rand(0.05,-0.05), rand(0.05,-0.05)],
+    bias:[rand(1,-1), rand(1,-1), rand(1,-1)],
+  }));
+  runningFall=false;
+  windTime=0;
+  if(treeData) autoFitBox(treeData.bbox, 1.0, 0.50);
+}
+function resetFall(){
+  if(!fallState) prepareFall();
+  for(const s of fallState){
+    s.pos=s.src.slice(); s.color=s.baseColor.slice(); s.phase=0; s.state=0; s.vel=[0,0,0];
+  }
+  runningFall=false;
+  windTime=0;
+}
+function nrand(x,y,z){ const s=Math.sin(x*127.1+y*311.7+z*74.7)*43758.5453; return s-Math.floor(s); }
+function smoothNoise3(x,y,z){
+  const xi=Math.floor(x), yi=Math.floor(y), zi=Math.floor(z), xf=x-xi, yf=y-yi, zf=z-zi;
+  const fade=t=>t*t*(3-2*t);
+  const n000=nrand(xi,yi,zi), n100=nrand(xi+1,yi,zi), n010=nrand(xi,yi+1,zi), n110=nrand(xi+1,yi+1,zi);
+  const n001=nrand(xi,yi,zi+1), n101=nrand(xi+1,yi,zi+1), n011=nrand(xi,yi+1,zi+1), n111=nrand(xi+1,yi+1,zi+1);
+  const u=fade(xf), v=fade(yf), w=fade(zf);
+  const x00=lerp(n000,n100,u), x10=lerp(n010,n110,u), x01=lerp(n001,n101,u), x11=lerp(n011,n111,u);
+  const y0=lerp(x00,x10,v), y1=lerp(x01,x11,v);
+  return lerp(y0,y1,w);
+}
+function windAt(x,y,z){
+  const A=parseFloat(fallUI.wind.value), T=parseFloat(fallUI.turb.value);
+  const baseDir=Math.sin(windTime*0.09)*0.45;
+  const base=[Math.cos(baseDir)*A, 0, Math.sin(baseDir)*A];
+  const n1=smoothNoise3(x*0.25+windTime*0.8,z*0.25-windTime*0.6,0);
+  const n2=smoothNoise3(-x*0.2+windTime*0.5,y*0.25+windTime*0.6,1);
+  return [base[0]+T*(n1-0.5), 0.25*T*(n2-0.5), base[2]+T*(n2-0.5)];
+}
+function stepFall(){
+  if(!fallState) return;
+  const rate=parseFloat(fallUI.rate.value), reg=parseFloat(fallUI.regrow.value), maxActive=parseInt(fallUI.maxActive.value);
+  windTime+=0.012;
+  let active=0;
+  for(const s of fallState) if(s.state===1) active++;
+
+  // color transition while attached
+  for(let n=0;n<300;n++){
+    const i=(Math.random()*fallState.length)|0; const s=fallState[i];
+    if(s.state!==0) continue;
+    const hgt=Math.max(0, Math.min(1, s.pos[1]/Math.max(0.1, treeData.H)));
+    s.phase=Math.min(2, s.phase + (0.0008*(1+0.6*hgt)+0.0005*parseFloat(fallUI.turb.value))*rate);
+    s.color = s.phase<1 ? hsl2rgb(0.16 + 0.10*s.phase, 0.70, 0.55 - 0.05*s.phase)
+                        : hsl2rgb(0.07 - 0.03*(s.phase-1), 0.78, 0.50 - 0.06*(s.phase-1));
+    if(s.phase>1.02 && active<maxActive){
+      s.state=1; active++;
+      const w=windAt(s.pos[0],s.pos[1],s.pos[2]);
+      s.vel=[(Math.random()-0.5)*0.04 + 0.003*w[0], -0.018, (Math.random()-0.5)*0.04 + 0.003*w[2]];
+    }
+  }
+
+  // falling update
+  const L=parseFloat(ui('leafLen').value)/100, Wp=(parseFloat(ui('leafLen').value)*parseFloat(ui('leafWid').value)/100);
+  const area=L*Wp, curl=parseFloat(ui('leafCurl').value), twist=parseFloat(ui('leafTwist').value);
+  const Cd=0.6 + 0.5*curl + 0.25*twist;
+  for(const s of fallState){
+    if(s.state!==1) continue;
+    const w=windAt(s.pos[0],s.pos[1],s.pos[2]);
+    const v2=s.vel[0]*s.vel[0]+s.vel[1]*s.vel[1]+s.vel[2]*s.vel[2];
+    s.vel[1] += -0.0020*rate;
+    s.vel[0] += -Cd*area*v2*s.vel[0] + w[0]*0.0018*rate + 0.0012*s.bias[0];
+    s.vel[1] += -Cd*area*v2*s.vel[1] + w[1]*0.0010*rate;
+    s.vel[2] += -Cd*area*v2*s.vel[2] + w[2]*0.0018*rate + 0.0012*s.bias[2];
+    s.vel[0] += Math.sin(windTime*3.1 + s.bias[0]*4)*0.0025*(1+Wp);
+    s.vel[2] += Math.cos(windTime*2.7 + s.bias[2]*5)*0.0025*(1+Wp);
+    s.pos[0]+=s.vel[0]; s.pos[1]+=s.vel[1]; s.pos[2]+=s.vel[2];
+    s.yaw += s.spin[1]*0.25 + w[0]*0.001;
+    s.roll += s.spin[0]*0.25 + w[2]*0.001;
+    if(s.pos[1]<=0){ s.pos[1]=0; s.state=2; s.vel=[0,0,0]; }
+  }
+
+  // regrow
+  if(reg>0){
+    let quota=300;
+    for(const s of fallState){
+      if(quota<=0) break;
+      if(s.state===2){
+        s.pos[1]+=0.035*reg;
+        if(s.pos[1] > rand(treeData.H, 0.15*treeData.H)){
+          s.state=0; s.phase=0; s.pos=s.src.slice(); s.color=s.baseColor.slice();
+          quota--;
+        }
+      }
+    }
+  }
+}
+function drawFallingLeaves(){
+  if(!fallState || !leafMesh) return;
+  for(const s of fallState){
+    const inst = {pos:s.pos, scale:s.scale, yaw:s.yaw, roll:s.roll, color:s.color};
+    const f = leafMesh.faces[(leafMesh.faces.length*0.56)|0];
+    const tri=[rotateLeafVertex(leafMesh.verts[f[0]],inst), rotateLeafVertex(leafMesh.verts[f[1]],inst), rotateLeafVertex(leafMesh.verts[f[2]],inst)];
+    const p0=project(tri[0]), p1=project(tri[1]), p2=project(tri[2]);
+    const c=s.color;
+    ctx.fillStyle=`rgb(${(c[0]*255)|0},${(c[1]*255)|0},${(c[2]*255)|0})`;
+    ctx.beginPath(); ctx.moveTo(p0.x,p0.y); ctx.lineTo(p1.x,p1.y); ctx.lineTo(p2.x,p2.y); ctx.closePath(); ctx.fill();
+  }
+}
+
+ui('btnStartFall').onclick=()=>{ if(!fallState) prepareFall(); runningFall=true; info('開始落葉'); };
+ui('btnStopFall').onclick=()=>{ runningFall=false; info('已暫停落葉'); };
+ui('btnResetFall').onclick=()=>{ resetFall(); info('已重置落葉'); };
+ui('btnFitFall').onclick=()=>{ if(treeData) autoFitBox(treeData.bbox,1.0,0.50); };
+
+// ---------- Tabs ----------
+function switchTab(name){
+  document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('active', b.dataset.tab===name));
+  document.querySelectorAll('.sect').forEach(s=>s.classList.remove('show'));
+  ui('sect-'+name).classList.add('show');
+  needFit=true;
+}
+document.querySelectorAll('.tab').forEach(b=> b.addEventListener('click', ()=> switchTab(b.dataset.tab)));
+
+let needFit=true;
+function activeTab(){ return document.querySelector('.tab.active')?.dataset.tab || 'leaf'; }
+
+function render(){
+  clearStage();
+  const tab=activeTab();
+  if(tab==='leaf'){ if(leafMesh) drawMesh(leafMesh); }
+  else if(tab==='tree'){ if(treeData) drawTree(); }
+  else if(tab==='fall'){
+    if(treeData) drawTree();
+    if(runningFall) stepFall();
+    if(fallState) drawFallingLeaves();
+  }
+  if(needFit){
+    if(tab==='leaf' && leafMesh) autoFitBox(bbox(leafMesh.verts),1.0,0.50);
+    else if((tab==='tree' || tab==='fall') && treeData) autoFitBox(treeData.bbox,1.0,0.50);
+    needFit=false;
+  }
+  requestAnimationFrame(render);
+}
+
+function init(){
+  resize();
+  leafParams();
+  rebuildLeaf();
+  applyTreePreset('maple');
+  syncTreeLabels();
+  buildTree(true);
+  prepareFall();
+  syncFallLabels();
+  info('v0.86：已重寫樹枝階序與葉片著生規則');
+  render();
+}
+init();
+</script>
+</body>
+</html>
