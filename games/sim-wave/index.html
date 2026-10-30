@@ -1,7 +1,7 @@
 <!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Ocean — FFT</title>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><style>html,body{margin:0;height:100%;background:#000;overflow:hidden;}#c{position:fixed;inset:0;width:100%;height:100%;display:block;cursor:crosshair;}#hud{position:fixed;left:12px;top:10px;font:12px/1.45 ui-monospace,Consolas,monospace;color:#e8e2d6;text-shadow:0 1px 2px #000a;pointer-events:none;user-select:none;}#hud .help{opacity:.7;}#panel{position:fixed;right:12px;top:10px;width:300px;padding:10px 12px;border-radius:8px;background:#0b0f14c8;backdrop-filter:blur(6px);color:#e5e1d8;font:12px/1.3 system-ui,sans-serif;}#panel.hidden{display:none;}#panel label{display:grid;grid-template-columns:1fr 110px 40px;gap:6px;align-items:center;margin:3px 0;}#panel input{width:110px;accent-color:#e2a04e;}#panel output{text-align:right;font-variant-numeric:tabular-nums;opacity:.8;}#err{position:fixed;inset:0;display:none;padding:40px;color:#f88;font:16px system-ui;white-space:pre-wrap;background:#000;}</style><!--
-FFT Ocean v0.34 — 自訂啟動設定。
+FFT Ocean v0.35 — 自訂啟動設定。
 原作者：Maksymilian Dendura (Noniv/web-ocean)，MIT License 見檔案結尾。
 此版本全部內嵌；WebGPU 引擎不向遠端下載。
 -->
@@ -33,118 +33,139 @@ FFT Ocean v0.34 — 自訂啟動設定。
 })();
 </script>
 <style id="fft-extension-style">
-/* FFT Ocean v0.34：介面改為透明浮動按鈕 + 半透明三點設定面板。 */
+/* FFT Ocean v0.35 — 只修改控制層；上游 WebGPU FFT shader 不更動。
+   選單自右緣滑入，透明度較前版高；點擊三點立即反向收回。
+   選單以 transform/opacity 做 GPU 合成動畫，不用 display:none，以免無法過渡。
+*/
 html,body { overscroll-behavior:none; }
 #c { touch-action:none; -webkit-user-select:none; user-select:none; }
-/* 原始 HUD / WebGPU 診斷預設隱藏：僅在設定開啟且勾選時顯示。 */
 #hud { display:none!important; z-index:9500; }
 html.fft-menu-open.fft-debug #hud { display:block!important; }
 html.fft-touch #hud .help { display:none; }
-/* 垂直箭頭與設定按鈕均無底色、高透明度。 */
 #fft-actions {
   position:fixed; z-index:12000;
-  right:max(12px,env(safe-area-inset-right));
-  bottom:max(14px,env(safe-area-inset-bottom));
-  display:flex; flex-direction:column; align-items:center; gap:10px;
+  right:max(10px,env(safe-area-inset-right));
+  bottom:max(10px,env(safe-area-inset-bottom));
+  display:flex; flex-direction:column; align-items:center; gap:8px;
   pointer-events:none;
 }
-#fft-height-buttons { display:none; flex-direction:column; gap:10px; }
-html.fft-touch #fft-height-buttons { display:flex; }
+#fft-height-buttons {display:none; flex-direction:column; gap:8px;}
+html.fft-touch #fft-height-buttons {display:flex;}
 #fft-actions button {
   pointer-events:auto; -webkit-tap-highlight-color:transparent; touch-action:none;
-  appearance:none; -webkit-appearance:none; border:none; outline:none;
-  background:transparent!important; box-shadow:none!important;
-  color:#fff; text-shadow:0 2px 5px rgba(0,0,0,.85);
-  width:42px; height:42px; padding:0; display:grid; place-items:center;
-  font:300 30px/1 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
-  opacity:.30; transition:opacity .15s ease;
+  appearance:none; -webkit-appearance:none; border:0;outline:0;
+  background:none!important; box-shadow:none!important;
+  width:42px;height:42px;padding:0;display:grid;place-items:center;
+  color:#fff; font:300 29px/1 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  text-shadow:0 2px 6px rgba(0,0,0,.9);
+  opacity:.24;transition:opacity .14s ease;
 }
-#fft-actions button:hover,#fft-actions button:focus-visible,
-#fft-actions button:active {opacity:.82;}
-#fft-menu-button { font-size:34px!important; letter-spacing:2px; padding-bottom:12px!important; }
-html.fft-menu-open #fft-menu-button { opacity:.83; }
+#fft-actions button:hover,#fft-actions button:active,#fft-actions button:focus-visible {opacity:.9;}
+#fft-menu-button {font-size:33px!important;letter-spacing:1px;padding-bottom:9px!important;}
+html.fft-menu-open #fft-menu-button {opacity:.86;}
 #fft-controls {
-  display:none; position:fixed; z-index:11900;
-  right:calc(max(12px,env(safe-area-inset-right)) + 55px);
-  bottom:max(14px,env(safe-area-inset-bottom));
-  box-sizing:border-box; width:min(340px,calc(100vw - 100px));
-  max-height:min(83dvh,650px); overflow-y:auto;
-  border:1px solid rgba(200,227,243,.16); border-radius:15px;
-  background:rgba(10,22,32,.77); -webkit-backdrop-filter:blur(14px); backdrop-filter:blur(14px);
-  color:rgba(239,245,250,.94); box-shadow:0 8px 28px rgba(0,0,0,.17);
+  position:fixed;z-index:11900;
+  right:calc(max(10px,env(safe-area-inset-right)) + 50px);
+  bottom:max(10px,env(safe-area-inset-bottom));
+  width:min(278px,calc(100vw - 77px));box-sizing:border-box;
+  max-height:min(86dvh,690px);overflow-x:hidden;overflow-y:auto;
+  border-radius:13px;border:1px solid rgba(235,244,250,.12);
+  background:rgba(8,22,33,.54);
+  -webkit-backdrop-filter:blur(13px);backdrop-filter:blur(13px);
+  color:rgba(247,249,253,.95);
+  box-shadow:0 5px 24px rgba(0,0,0,.12);
+  padding:12px 11px;
   font:12px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
-  padding:13px 13px 14px;
+  transform:translate3d(calc(100% + 100px),0,0);
+  opacity:0;visibility:hidden;pointer-events:none;
+  transition:transform .18s cubic-bezier(.3,0,.8,1),opacity .16s ease,visibility 0s linear .18s;
+  will-change:transform,opacity;
 }
-html.fft-menu-open #fft-controls { display:block; }
-#fft-controls .fft-inner {display:grid;gap:10px;}
-#fft-controls .fft-row {display:flex;align-items:center;gap:7px;flex-wrap:wrap;}
-#fft-controls .fft-row > label:first-child {min-width:36px;}
+html.fft-menu-open #fft-controls {
+  transform:translate3d(0,0,0);opacity:1;visibility:visible;pointer-events:auto;
+  transition:transform .27s cubic-bezier(.17,.78,.23,1),opacity .22s ease,visibility 0s;
+}
+#fft-controls .fft-inner {display:grid;gap:9px;}
+#fft-controls .fft-row {display:flex;align-items:center;gap:7px;min-width:0;}
+#fft-controls .fft-row > label:first-child {flex-shrink:0;}
 #fft-controls select,#fft-controls button {
-  color:inherit; background:rgba(255,255,255,.09); border:1px solid rgba(225,242,250,.16);
-  border-radius:7px; font:inherit; padding:5px 7px; min-height:34px;
+  color:inherit;background:rgba(255,255,255,.085);
+  border:1px solid rgba(225,242,250,.15);border-radius:7px;
+  font:inherit;padding:5px 6px;min-height:32px;box-sizing:border-box;
 }
 #fft-controls button {cursor:pointer;}
-#fft-controls select { max-width:100%; }
-#fft-controls input[type=range] {accent-color:#9ccfe7;flex:1;min-width:50px;}
+#fft-controls select {max-width:100%;}
+#fft-controls input[type=range] {accent-color:#9ccfe7; flex:1;min-width:55px;}
 #fft-controls input[type=checkbox] {accent-color:#9ccfe7;}
-#fft-controls .fft-fine {font-size:11px;color:#afc0ce;}
-/* v0.34：手機首次觸控提示；沒有背景，不會攔截手指旋轉操作。 */
-#fft-first-touch-hint {
-  display:none; position:fixed; z-index:11000; pointer-events:none;
-  bottom:calc(max(14px,env(safe-area-inset-bottom)) + 14px);
-  left:50%; transform:translateX(-50%);
-  color:rgba(245,249,251,.74); text-shadow:0 1px 7px rgba(0,0,0,.9);
-  font:12px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
-  white-space:nowrap; max-width:calc(100vw - 120px); text-overflow:ellipsis;
-  overflow:hidden;
+#fft-controls .fft-fine {font-size:11px;color:#b4c2cb;}
+#fft-controls .fft-diagnostic {font-size:11px;color:#b4c2cb;}
+#fft-controls .fft-status {font-size:11px;color:#bcd6e3;}
+#fft-controls .fft-debug-label {display:inline-flex;align-items:center;gap:6px;}
+#fft-controls .fft-heading {font-weight:600;font-size:12px;letter-spacing:.01em;}
+#fft-controls .fft-quality-row {flex-wrap:nowrap;gap:6px;}
+#fft-controls #fft-quality {flex:1 1 auto;min-width:0;width:142px;}
+#fft-controls .fft-icon-button {
+  display:grid;place-items:center;flex:0 0 34px;
+  width:34px;height:32px;min-height:32px;padding:0;
+  background:rgba(255,255,255,.045);border-color:rgba(225,242,250,.11);
+  opacity:.67;transition:opacity .14s ease,background-color .14s ease;
 }
-html.fft-touch #fft-first-touch-hint:not([hidden]) {display:block;}
-#fft-first-touch-hint[hidden] {display:none!important;}
-#fft-audio-status {font-size:11px;opacity:.82;}
-#fft-fullscreen-request[hidden] {display:none!important;}
-#fft-controls .fft-diagnostic {font-size:11px;color:#b5c5ce;}
-#fft-controls .fft-status {color:#c2dbe8;}
-#fft-controls a {color:#b6e6ff;}
-#fft-quality {flex:1;min-width:120px;}
-#fft-volume-val {width:33px;text-align:right;}
-#fft-controls .fft-heading {font-size:13px;font-weight:600;opacity:.85;letter-spacing:.03em;}
-#fft-controls .fft-debug-label {display:inline-flex;gap:6px;align-items:center;}
-#fft-controls #fft-audio-toggle {min-width:74px;}
-#fft-controls :focus-visible,#fft-actions :focus-visible {outline:2px solid #c2eaff;outline-offset:2px;}
-/* 原作者的海況面板直接收入三點設定，避免另開一個不透明浮窗。 */
+#fft-controls .fft-icon-button:hover,#fft-controls .fft-icon-button:focus-visible,
+#fft-controls .fft-icon-button[aria-pressed="true"],
+#fft-controls .fft-icon-button[aria-expanded="true"] {opacity:1;background:rgba(255,255,255,.13);}
+#fft-controls .fft-icon-button svg {width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;}
+#fft-controls .fft-audio-row {flex-wrap:nowrap;}
+#fft-controls #fft-audio-sea {flex:1 1 auto;width:0;min-width:0;}
+#fft-controls #fft-fullscreen-request {background:transparent;border:0;}
+#fft-controls :focus-visible,#fft-actions :focus-visible {outline:2px solid #bfe7ff;outline-offset:2px;}
+/* 原作者既有參數與 output 保留：上游滑桿本身監聽 input，拖動當幀生效。 */
 #fft-controls #panel {
-  position:static; inset:auto; width:100%;max-height:min(40dvh,310px);
-  overflow:auto; padding:8px; margin:0; box-sizing:border-box;
-  border-radius:9px; border:1px solid rgba(220,239,250,.10);
-  color:inherit; background:rgba(4,15,23,.30); backdrop-filter:none;
-  font:11px/1.3 system-ui,sans-serif;
+ position:static;inset:auto;width:100%;max-height:min(40dvh,320px);
+ overflow:auto;padding:6px;margin:0;box-sizing:border-box;border-radius:8px;
+ border:1px solid rgba(220,239,250,.1);background:rgba(4,15,23,.20);
+ color:inherit;backdrop-filter:none;font:11px/1.3 system-ui,sans-serif;
 }
 #fft-controls #panel.hidden {display:none;}
-#fft-controls #panel label {grid-template-columns:minmax(0,1fr) minmax(64px,100px) 38px;gap:5px;}
+#fft-controls #panel label {grid-template-columns:minmax(0,1fr) minmax(58px,80px) 36px;gap:4px;}
 #fft-controls #panel label span {min-width:0;overflow-wrap:anywhere;}
 #fft-controls #panel input {width:100%;}
 #fft-controls #panel output {white-space:nowrap;}
-/* WebGPU 初始化與錯誤訊息不遮住海面，點開選單才能看到。 */
+/* 所有 WebGPU 錯誤及狀態保留於選單內，不在海面顯示。 */
 #err {display:none!important;}
 html.fft-menu-open #fft-controls #err[style*="display: block"] {
-  display:block!important; position:static; inset:auto; background:rgba(70,17,26,.35);
-  padding:8px; max-height:140px; overflow:auto; color:#ffd5d5; font:11px/1.4 monospace;
-  white-space:pre-wrap; border-radius:8px;
+ display:block!important;position:static;inset:auto;padding:7px;max-height:130px;
+ overflow:auto;background:rgba(75,18,26,.23);color:#ffd5d5;
+ font:11px/1.4 monospace;white-space:pre-wrap;border-radius:7px;
 }
-@media (max-width:520px) {
-  #fft-controls {font-size:12px; width:min(315px,calc(100vw - 94px));padding:10px;}
-  #fft-actions {gap:8px;}
-  #fft-actions button {width:40px;height:40px;}
+#fft-first-touch-hint {
+ display:none;position:fixed;z-index:11000;pointer-events:none;
+ bottom:calc(max(10px,env(safe-area-inset-bottom)) + 12px);
+ left:50%;transform:translateX(-50%);
+ color:rgba(245,249,251,.67);text-shadow:0 1px 7px rgba(0,0,0,.9);
+ font:11px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+ white-space:nowrap;max-width:calc(100vw - 120px);text-overflow:ellipsis;overflow:hidden;
 }
-@media (max-height:420px) {
-  #fft-controls {max-height:85dvh;}
-  #fft-height-buttons {gap:4px;}
-  #fft-actions button {height:36px;}
+html.fft-touch #fft-first-touch-hint:not([hidden]) {display:block;}
+#fft-first-touch-hint[hidden] {display:none!important;}
+#fft-fullscreen-request[hidden] {display:none!important;}
+#fft-audio-status {font-size:11px;opacity:.80;}
+#fft-controls a {color:#b6e6ff;}
+@media(max-width:520px){
+ #fft-controls{padding:10px;width:min(263px,calc(100vw - 76px));}
+ #fft-actions button{width:39px;height:39px;}
+ #fft-actions{gap:6px;}#fft-height-buttons{gap:6px;}
+}
+@media(max-height:420px){
+ #fft-controls{max-height:88dvh;}
+ #fft-actions button{height:35px;}
+}
+@media(prefers-reduced-motion:reduce){
+ #fft-controls,html.fft-menu-open #fft-controls{transition-duration:.01ms;}
 }
 </style>
 
 </head><body><canvas id="c"></canvas><div id="hud"><div id="fps">starting…</div><div class="help">click: mouse look · WASD move · Space/E up · Q/C down · Shift fast · wheel speed · H panel</div></div><div id="panel" class="hidden"></div><div id="err"></div>
-<!-- FFT Ocean v0.34 自訂控制：視角以單指拖曳海面，移動操縱桿已移除。 -->
+<!-- FFT Ocean v0.35 自訂控制：視角以單指拖曳海面，移動操縱桿已移除。 -->
 <div id="fft-actions" aria-label="海浪操作">
   <div id="fft-height-buttons" aria-label="高度控制">
     <button id="fft-ascend" type="button" aria-label="上升" title="上升">↑</button>
@@ -154,14 +175,10 @@ html.fft-menu-open #fft-controls #err[style*="display: block"] {
 </div>
 <!-- 首次手指接觸頁面時啟動音效；提示不攔截手勢。 -->
 <div id="fft-first-touch-hint" aria-live="polite">輕觸海面啟用海浪聲</div>
-<!-- WebGPU 相關資訊僅在點開設定選單後顯示。 -->
+<!-- WebGPU / FPS 資料只有展開這個滑出選單才能檢視。 -->
 <section id="fft-controls" role="region" aria-label="海浪設定" aria-hidden="true">
  <div class="fft-inner">
-  <div class="fft-row">
-    <span class="fft-heading">海浪設定</span>
-    <span class="fft-status fft-diagnostic" id="fft-render-status">初始化中</span>
-  </div>
-  <div class="fft-row">
+  <div class="fft-row fft-quality-row">
     <label for="fft-quality">畫質</label>
     <select id="fft-quality" aria-label="畫質">
       <option value="0.75">省電 · 0.75×</option>
@@ -169,35 +186,36 @@ html.fft-menu-open #fft-controls #err[style*="display: block"] {
       <option value="1.5">平衡 · 1.5×</option>
       <option value="native">原生畫質</option>
     </select>
-  </div>
-  <div class="fft-row">
-    <button id="fft-show-ocean" type="button" aria-expanded="false">海況與日照參數 ▾</button>
+    <!-- 齒輪：原作者原生海況與日照參數，滑動立即更動原引擎數值。 -->
+    <button id="fft-show-ocean" class="fft-icon-button" type="button"
+      aria-label="海況與日照" title="海況與日照" aria-controls="fft-original-panel-slot" aria-expanded="false">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Z"/><path d="m19.4 15 .12.14 1.16.9-1.95 3.38-1.38-.52-.17-.06a8.7 8.7 0 0 1-1.7.98l-.25 1.44H9.3l-.25-1.44a8.7 8.7 0 0 1-1.7-.98l-1.54.58-1.95-3.38 1.29-1a8.8 8.8 0 0 1 0-1.97l-1.29-1 1.95-3.38 1.54.58a8.7 8.7 0 0 1 1.7-.98L9.3 6h5.9l.25 1.44a8.7 8.7 0 0 1 1.7.98l1.54-.58 1.95 3.38-1.29 1a8.8 8.8 0 0 1 0 1.97Z" transform="translate(0 -2)"/></svg>
+    </button>
   </div>
   <div id="fft-original-panel-slot"></div>
-  <div class="fft-row">
-    <button type="button" id="fft-audio-toggle">音效：開啟</button>
-    <button type="button" id="fft-audio-mute">靜音</button>
+  <div class="fft-row fft-audio-row">
     <select id="fft-audio-sea" aria-label="音效海況">
       <option value="follow">跟隨海況</option>
       <option value="0.55">平靜</option>
       <option value="1">一般</option>
       <option value="1.55">洶湧</option>
     </select>
+    <!-- 喇叭按鈕直接切換靜音／開啟，固定音量 100%。 -->
+    <button type="button" id="fft-audio-toggle" class="fft-icon-button"
+      aria-label="靜音" title="靜音" aria-pressed="false">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4V5Z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg>
+    </button>
   </div>
-  <div class="fft-row"><span id="fft-audio-status" role="status" aria-live="polite">音效待啟動（首次觸碰海面）</span></div>
   <div class="fft-row">
-    <label for="fft-audio-volume">音量</label>
-    <input id="fft-audio-volume" type="range" min="0" max="100" value="50">
-    <output id="fft-volume-val" for="fft-audio-volume">50%</output>
+    <button type="button" id="fft-fullscreen-request" class="fft-icon-button"
+      aria-label="進入全螢幕" title="進入全螢幕">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3H3v5M16 3h5v5M3 16v5h5M21 16v5h-5"/></svg>
+    </button>
+    <label class="fft-debug-label"><input id="fft-debug-toggle" type="checkbox">FPS/GPU</label>
   </div>
-  <!-- 不設離開全螢幕按鈕：僅在設定內提供進入/重試，退出交由系統。 -->
-  <div class="fft-row">
-    <button type="button" id="fft-fullscreen-request">進入全螢幕</button>
-    <span id="fft-fullscreen-status" class="fft-fine"></span>
-  </div>
-  <div class="fft-row"><label class="fft-debug-label"><input id="fft-debug-toggle" type="checkbox">顯示 FPS / GPU 資訊</label></div>
+  <div class="fft-diagnostic" id="fft-render-status">WebGPU 初始化中</div>
   <div class="fft-diagnostic" id="fft-state">正在初始化 WebGPU…</div>
-  <div class="fft-fine">手機／平板：拖曳海面旋轉視角，按住 ↑ ↓ 升降。音效預設開啟，但 Safari 須在首次觸控後播放；一般 iPhone Safari 不能強制隱藏網址列，若需無網址列顯示可將網頁加入主畫面。</div>
+  <div id="fft-audio-status" class="fft-fine" role="status" aria-live="polite"></div>
   <div class="fft-fine"><a href="https://github.com/Noniv/web-ocean" target="_blank" rel="noopener noreferrer">原作者與 MIT 授權</a></div>
   <div id="fft-error-slot"></div>
  </div>
@@ -247,7 +265,7 @@ function na(e){const r=Math.cos(f.yaw),t=Math.sin(f.yaw),a=Math.cos(f.pitch),i=M
 </script>
 <!-- ================== 原作者引擎結束 ================== -->
 <!--
-FFT Ocean v0.34 — 介面、Safari 相容手勢、音效與畫質擴充。
+FFT Ocean v0.35 — 介面、Safari 相容手勢、音效與畫質擴充。
 此 JS 不依賴任何外部程式；原作者 FFT 核心位於上方 module script。
 Safari/Chrome 的音訊自動播放與原生全螢幕均受使用者手勢限制：
   * 音效預設為開，會嘗試自動啟動；若被封鎖，在首次觸控時繼續播放。
@@ -265,16 +283,12 @@ Safari/Chrome 的音訊自動播放與原生全螢幕均受使用者手勢限制
   const menu = $('fft-controls');
   const menuButton = $('fft-menu-button');
   const audioToggle = $('fft-audio-toggle');
-  const audioMute = $('fft-audio-mute');
-  const volume = $('fft-audio-volume');
-  const volumeText = $('fft-volume-val');
   const sea = $('fft-audio-sea');
   const originalPanel = $('panel');
   const originalError = $('err');
   const audioStatus = $('fft-audio-status');
   const touchHint = $('fft-first-touch-hint');
   const fullscreenButton = $('fft-fullscreen-request');
-  const fullscreenStatus = $('fft-fullscreen-status');
 
   // 原作者的 #panel 仍使用相同 id；只移動 DOM 位置，不重建滑桿或干預 FFT。
   $('fft-original-panel-slot').appendChild(originalPanel);
@@ -316,7 +330,8 @@ Safari/Chrome 的音訊自動播放與原生全螢幕均受使用者手勢限制
     originalPanel.classList.toggle('hidden');
     const visible = !originalPanel.classList.contains('hidden');
     oceanButton.setAttribute('aria-expanded', String(visible));
-    oceanButton.textContent = visible ? '海況與日照參數 ▴' : '海況與日照參數 ▾';
+    oceanButton.setAttribute('aria-pressed', String(visible));
+    // 參數本身由上游的 input 事件即時更新 GPU；沒有「套用」步驟。
   });
 
   // v0.33：不再建立前後左右搖桿。只保留按住箭頭以升降原本的相機高度。
@@ -341,7 +356,7 @@ Safari/Chrome 的音訊自動播放與原生全螢幕均受使用者手勢限制
   window.addEventListener('blur', releaseHeights);
   document.addEventListener('visibilitychange', () => {if (document.hidden) releaseHeights();});
 
-  // v0.34 全螢幕：瀏覽器不允許在網頁載入後自行呼叫 Fullscreen。
+  // v0.35 全螢幕：瀏覽器不允許在網頁載入後自行呼叫 Fullscreen。
   // 必須在 trusted 手勢的同一個 JavaScript 任務內同步呼叫 requestFullscreen。
   // 先解鎖 Web Audio，再呼叫全螢幕；切勿 await，否則 Safari 可能失去手勢授權。
   // iPhone Safari 一般網頁沒有標準元素 Fullscreen API；採用既有的全視窗畫布。
@@ -349,18 +364,11 @@ Safari/Chrome 的音訊自動播放與原生全螢幕均受使用者手勢限制
   function isFullscreen() {
     return !!(document.fullscreenElement || document.webkitFullscreenElement);
   }
-  function updateFullscreenUI(message) {
-    if (isFullscreen()) {
-      fullscreenStatus.textContent = '已進入原生全螢幕';
-      fullscreenButton.hidden = true;
-      return;
-    }
+  function updateFullscreenUI() {
+    // 圖示按鈕不顯示提示文；不支援原生 Fullscreen 時直接隱藏。
     const available = typeof (document.documentElement.requestFullscreen ||
       document.documentElement.webkitRequestFullscreen) === 'function';
-    fullscreenButton.hidden = !available;
-    fullscreenStatus.textContent = message || (available
-      ? '支援的瀏覽器可於觸碰後進入'
-      : '此瀏覽器無法強制進入原生全螢幕');
+    fullscreenButton.hidden = !available || isFullscreen();
   }
   function tryNativeFullscreen() {
     if (isFullscreen()) { updateFullscreenUI(); return; }
@@ -375,13 +383,13 @@ Safari/Chrome 的音訊自動播放與原生全螢幕均受使用者手勢限制
         p.then(() => updateFullscreenUI()).catch(err => {
           // 失敗後仍能在設定選單裡主動重試，不能誤稱已成功全螢幕。
           fullscreenAttempted = false;
-          updateFullscreenUI('未獲准全螢幕，可在此重試');
+          updateFullscreenUI();
           console.info('Fullscreen unavailable:', err);
         });
       } else updateFullscreenUI();
     } catch (err) {
       fullscreenAttempted = false;
-      updateFullscreenUI('此瀏覽器拒絕全螢幕請求');
+      updateFullscreenUI();
       console.info('Fullscreen unavailable:', err);
     }
   }
@@ -425,12 +433,16 @@ Safari/Chrome 的音訊自動播放與原生全螢幕均受使用者手勢限制
   const poll=setInterval(readOceanControls,1500);
   window.addEventListener('pagehide',()=>clearInterval(poll),{once:true});
 
-  // v0.34 程序化立體海浪聲：Web Audio 直接合成，不需下載聲音檔。
+  // v0.35 程序化立體海浪聲：Web Audio 直接合成，不需下載聲音檔。
   // active=true 是「使用者偏好開啟」，不代表 Safari 已允許真正出聲。
   // 將 AudioContext 的建立及 resume 留在首次手勢裡，避免載入時先創建
   // 一個永久 suspended 的 AudioContext，再被原生 Fullscreen 消耗手勢授權。
+  // v0.35：只保留一個喇叭圖示。音量恆為 100%，不再額外提供範圍滑桿。
+  // active=true 是使用者偏好；Web Audio 仍遵守 Safari 首次手勢解鎖規則。
   let audioCtx=null, master=null, layers=[], active=true, muted=false;
   let audioTimer=null, audioStartTime=0, startupError='';
+  const SOUND_ICON_ON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4V5Z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg>';
+  const SOUND_ICON_OFF = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4V5Z"/><path d="m16 9 5 6m0-6-5 6"/></svg>';
   function createBrownNoise(seconds) {
     const buffer=audioCtx.createBuffer(2,Math.ceil(audioCtx.sampleRate*seconds),audioCtx.sampleRate);
     for(let c=0;c<2;c++) {
@@ -467,19 +479,19 @@ Safari/Chrome 的音訊自動播放與原生全螢幕均受使用者手勢限制
   }
   function syncAudioUI() {
     const running=!!audioCtx && audioCtx.state==='running';
-    volumeText.textContent=volume.value+'%';
-    audioToggle.textContent=active?'音效：開啟':'音效：關閉';
-    audioMute.textContent=muted?'取消靜音':'靜音';
+    audioToggle.innerHTML=muted?SOUND_ICON_OFF:SOUND_ICON_ON;
+    audioToggle.setAttribute('aria-label',muted?'開啟海浪聲':'靜音');
+    audioToggle.title=muted?'開啟海浪聲':'靜音';
+    audioToggle.setAttribute('aria-pressed',String(muted));
     if (audioCtx && master) {
-      const level=active&&!muted?Math.pow(Number(volume.value)/100,1.6)*.75:0;
-      master.gain.setTargetAtTime(level,audioCtx.currentTime,.08);
+      // 固定 100% 音量，並保留前版校準的 master gain .75 防止輸出過載。
+      const level=(active && !muted) ? .75 : 0;
+      master.gain.setTargetAtTime(level,audioCtx.currentTime,.06);
     }
     if (startupError) audioStatus.textContent='音效異常：'+startupError;
-    else if (!active) audioStatus.textContent='音效已關閉';
-    else if (muted || Number(volume.value)===0) audioStatus.textContent='音效已靜音';
-    else if (running) audioStatus.textContent='海浪聲播放中';
-    else audioStatus.textContent='音效待啟動：請輕觸海面';
-    // 無底色提示只在尚未取得音訊播放權限時顯示。
+    else if (muted) audioStatus.textContent='';
+    else if (running) audioStatus.textContent='';
+    else audioStatus.textContent='音效待啟動：輕觸海面';
     touchHint.hidden=!cfg.mobile || !active || muted || running || !!startupError;
   }
   function makeAudioOnce() {
@@ -503,20 +515,14 @@ Safari/Chrome 的音訊自動播放與原生全螢幕均受使用者手勢限制
     audioTimer=setInterval(updateSoundEnvelope,180);
   }
   function startDefaultAudio() {
-    if (!active) return;
+    if (!active || muted) return;
     try {
-      // iOS Safari 的 resume() 必須同步發生在 touchstart/pointerdown/keydown 回呼內。
       makeAudioOnce();
       const p=audioCtx.resume();
-      // 立即更新 gain：即使 Safari 在稍後才完成 resume，也會套用正確音量。
       syncAudioUI();
       if (p && typeof p.then==='function') {
         p.then(()=>{startupError='';updateSoundEnvelope();syncAudioUI();})
-         .catch(err=>{
-           // Safari 權限拒絕時保留 pending，下一次手勢仍可重試。
-           console.info('Audio waiting for user gesture:',err);
-           syncAudioUI();
-         });
+         .catch(err=>{console.info('Audio waiting for user gesture:',err);syncAudioUI();});
       }
     } catch (err) {
       startupError=err && err.message || String(err);
@@ -524,18 +530,13 @@ Safari/Chrome 的音訊自動播放與原生全螢幕均受使用者手勢限制
       console.error('FFT Ocean audio:',err);
     }
   }
-  function toggleAudio(){
-    active=!active;
-    if(active) startDefaultAudio();
-    else {
-      syncAudioUI();
-      if(audioCtx && audioCtx.state==='running')audioCtx.suspend().catch(()=>{});
-    }
-  }
-  audioToggle.addEventListener('click',toggleAudio);
-  audioMute.addEventListener('click',()=>{muted=!muted;syncAudioUI();});
-  volume.addEventListener('input',syncAudioUI);
-  sea.addEventListener('change',updateSoundEnvelope);
+  // 首次按下喇叭可以直接解除靜音並嘗試 resume()；後續即時改變 gain。
+  audioToggle.addEventListener('click',()=>{
+    muted=!muted;
+    if (!muted) startDefaultAudio();
+    syncAudioUI();
+  });
+  sea.addEventListener('change',()=>{updateSoundEnvelope();syncAudioUI();});
 
   // 統一手勢入口。重要：先 resume Web Audio，緊接著要求原生全螢幕。
   // 不使用 await/setTimeout；這兩種操作都需要瀏覽器提供暫時的使用者授權。
