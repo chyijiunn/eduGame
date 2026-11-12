@@ -4,7 +4,7 @@
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <!-- 已沿用原有網站的 GA4 共用載入程式；file:// 本機開啟時追蹤程式不可用，不影響互動功能 -->
 <script src="/eduGame/ga4.js" defer></script>
-<title>災後安全巡檢</title>
+<title>災後安全巡檢 · 3D 場地 v1.6</title>
 <style>
 :root{color-scheme:dark;--bg:#080d16;--panel:rgba(13,23,37,.89);--line:#2a4054;--fg:#eaf4ff;--muted:#8aa3b7;--teal:#40d8cc;--orange:#f9b468;--blue:#70aefe;--red:#ff6476;--green:#74e4a4}
 *{box-sizing:border-box}html,body{margin:0;height:100%;width:100%;overflow:hidden;background:var(--bg);font-family:-apple-system,BlinkMacSystemFont,"PingFang TC","Noto Sans TC","Microsoft JhengHei",sans-serif;color:var(--fg)}button{font:inherit}button:focus-visible,input:focus-visible{outline:2px solid #9deee7;outline-offset:2px}
@@ -71,7 +71,7 @@
 </head>
 <body>
 <canvas id="scene" aria-label="WebGL 立體場地：拖拉車輛、旋轉視角與縮放"></canvas>
-<header class="topbar"><div class="brand"><h1>2026科技創意實作競賽：災後安全巡檢</h1></div><div class="score" id="scoreBtn" role="button" tabindex="0" aria-label="展開計分明細"><div><div class="label">目前得分</div><div><strong id="totalScore">0</strong><span class="slash">/ 100</span></div></div><span class="chev">明細 ▾</span></div></header>
+<header class="topbar"><div class="brand"><h1>災後安全巡檢</h1></div><div class="score" id="scoreBtn" role="button" tabindex="0" aria-label="展開計分明細"><div><div class="label">目前得分</div><div><strong id="totalScore">0</strong><span class="slash">/ 100</span></div></div><span class="chev">明細 ▾</span></div></header>
 <aside class="status"><div class="pill">警示 <b id="lampLabel">正常待命</b></div><div class="pill">救援 <b id="rescueLabel">0 / 4</b></div><div class="pill">階段 <b id="phaseLabel">準備中</b></div></aside>
 
 <div id="touchDrive" role="group" aria-label="車輛方向搖桿：上前進、下後退、左右轉向"><div class="joy-ring"><span class="joy-dir up">▲</span><span class="joy-dir down">▼</span><span class="joy-dir left">◀</span><span class="joy-dir right">▶</span><div class="joy-nub" id="joyNub"></div></div></div>
@@ -82,7 +82,7 @@
 <script>
 'use strict';
 /* 115 學年度生活科技救援競賽：原生 WebGL 深度測試 + 離線幾何 / 互動物理。
-   尺寸以 cm 為單位；場地詳細障礙位置仍為公告圖示意。v1.5: 計時置頂、手機右下雙列按鈕、開始清石自動結束疏散。 */
+   尺寸以 cm 為單位；場地詳細障礙位置仍為公告圖示意。v1.6: 路障的木條／桌邊接觸改用切線滑動解算，並提供車輛斜向貼邊滑移。 */
 (()=>{
 const $=id=>document.getElementById(id), canvas=$('scene');
 const gl=canvas.getContext('webgl',{alpha:false,antialias:true,depth:true,stencil:false,premultipliedAlpha:false, preserveDrawingBuffer:true});
@@ -159,35 +159,96 @@ for(let b of FIXED){if(diskAgainstRect(o,b))return false}for(let d of [...roads,
 function obbDisk(c,o,minX=-8,maxX=8,halfWidth=5.35){let dx=o.x-c.x,dy=o.y-c.y,q=Math.cos(c.angle),s=Math.sin(c.angle),lx=dx*q+dy*s,ly=-dx*s+dy*q,x=clamp(lx,minX,maxX),y=clamp(ly,-halfWidth,halfWidth),ex=lx-x,ey=ly-y,d=Math.hypot(ex,ey);if(d>=o.r)return null;
 if(d<.0001){let px=Math.min(lx-minX,maxX-lx),py=halfWidth-Math.abs(ly);if(px<py){ex=Math.sign(lx)||1;ey=0;d=0;return {nx:ex*q-ey*s,ny:ex*s+ey*q,overlap:o.r+px+.01}}else{ex=0;ey=Math.sign(ly)||1;return {nx:-ey*s,ny:ey*q,overlap:o.r+py+.01}}}
 let nx=(ex*q-ey*s)/d,ny=(ex*s+ey*q)/d;return {nx,ny,overlap:o.r-d}}
-function tryMoveCar(nx,ny,angle){
- let next={x:nx,y:ny,angle};if(!carLegal(next))return false;
- // 位置式剛體接觸解算：車身與多個路障 / 落石連鎖接觸，不再一碰到第二物件就瞬間凍結。
- const objects=[...roads,...(rock.state==='rest'&&scoopLoad!==rock?[rock]:[])], temp=new Map(objects.map(o=>[o,{...o}]));
- const dx=nx-car.x,dy=ny-car.y,l=Math.hypot(dx,dy),vx=l>1e-5?dx/l:Math.cos(angle),vy=l>1e-5?dy/l:Math.sin(angle),touched=new Set();
- for(let iter=0;iter<17;iter++){
+// 對路障與落石的靜態接觸約束採用投影解算。
+// 舊版只要推動量稍微穿入木條或桌邊，就拒絕整個車輛位移，造成卡死。
+// 新版保留合法切向位移，僅移除垂直撞入障礙的分量。
+function constrainLoose(o,p){
+ const r=o.r, table=o===rock?{x:CA,x2:CR,y:-45,y2:45}:{x:0,x2:150,y:-45,y2:45},eps=.025;
+ const clampTable=()=>{p.x=clamp(p.x,table.x+r+eps,table.x2-r-eps);p.y=clamp(p.y,table.y+r+eps,table.y2-r-eps)};
+ clampTable();
+ for(let k=0;k<7;k++){
   let changed=false;
-  for(let o of objects){let q=temp.get(o),h=obbDisk(next,q);if(scoopHeight<.5){let front=obbDisk(next,q,7.5,19.6,6.4);if(front&&(!h||front.overlap>h.overlap))h=front}if(h&&h.overlap>.001){q.x+=h.nx*(h.overlap+.03);q.y+=h.ny*(h.overlap+.03);touched.add(o);changed=true}}
-  for(let i=0;i<objects.length;i++)for(let j=i+1;j<objects.length;j++){
-   let a=temp.get(objects[i]),b=temp.get(objects[j]),vx2=b.x-a.x,vy2=b.y-a.y,d=Math.hypot(vx2,vy2),over=a.r+b.r+.04-d;
-   if(over>.001){let nx2=d>.0001?vx2/d:vx,ny2=d>.0001?vy2/d:vy;
-    // 朝車輛推進方向的前方物件承受推力；接觸鏈可一路推至桌邊。
-    if(nx2*vx+ny2*vy>=0){b.x+=nx2*over;b.y+=ny2*over;touched.add(objects[j])}
-    else {a.x-=nx2*over;a.y-=ny2*over;touched.add(objects[i])}changed=true}
+  for(const b of FIXED){
+   const xx=clamp(p.x,b.x,b.x2), yy=clamp(p.y,b.y,b.y2), dx=p.x-xx,dy=p.y-yy,d=Math.hypot(dx,dy);
+   if(d>=r-eps*.2)continue;
+   if(d>1e-7){const m=(r+eps-d)/d;p.x+=dx*m;p.y+=dy*m}
+   else{
+    // 圓心在矩形內部時，退出最近的一側，不穿越障礙物。
+    const exits=[{d:p.x-b.x,x:b.x-r-eps},{d:b.x2-p.x,x:b.x2+r+eps},
+                 {d:p.y-b.y,y:b.y-r-eps},{d:b.y2-p.y,y:b.y2+r+eps}];
+    exits.sort((a,b)=>a.d-b.d);
+    if(exits[0].x!==undefined)p.x=exits[0].x;else p.y=exits[0].y;
+   }
+   clampTable();changed=true;
   }
   if(!changed)break;
  }
- for(let o of objects){let q=temp.get(o);if(!touched.has(o))continue;
-  const supported=[V(q.x+q.r,q.y),V(q.x-q.r,q.y),V(q.x,q.y+q.r),V(q.x,q.y-q.r)].every(p=>floorSupported(p.x,p.y));
-  if(!supported||FIXED.some(b=>diskAgainstRect(q,b)))return false;
+ return p.x>=table.x+r-1e-3&&p.x<=table.x2-r+1e-3&&p.y>=table.y+r-1e-3&&p.y<=table.y2-r+1e-3
+   &&!FIXED.some(b=>diskAgainstRect(p,b));
+}
+function attemptCarMove(nx,ny,angle){
+ const next={x:nx,y:ny,angle};if(!carLegal(next))return false;
+ const objects=[...roads,...(rock.state==='rest'&&scoopLoad!==rock?[rock]:[])];
+ const temp=new Map(objects.map(o=>[o,{...o}]));
+ const dx=nx-car.x,dy=ny-car.y,l=Math.hypot(dx,dy),vx=l>1e-6?dx/l:Math.cos(angle),vy=l>1e-6?dy/l:Math.sin(angle);
+ const touched=new Set();let legal=true;
+ for(let iter=0;iter<23;iter++){
+  let overlapRemain=false;
+  // 先解開車身／鏟斗與路障的接觸，再將路障限制在桌緣、木條的可行空間。
+  for(const o of objects){
+   const q=temp.get(o);let h=obbDisk(next,q);
+   if(scoopHeight<.5){let front=obbDisk(next,q,7.5,19.6,6.4);if(front&&(!h||front.overlap>h.overlap))h=front}
+   if(h&&h.overlap>.005){
+    q.x+=h.nx*(h.overlap+.012);q.y+=h.ny*(h.overlap+.012);
+    legal=constrainLoose(o,q)&&legal;touched.add(o);overlapRemain=true;
+   }
+  }
+  // 相鄰的路障可形成接觸鏈；每一顆都要投影回桌面合法範圍。
+  for(let i=0;i<objects.length;i++)for(let j=i+1;j<objects.length;j++){
+   let o1=objects[i],o2=objects[j],a=temp.get(o1),b=temp.get(o2),ax=b.x-a.x,ay=b.y-a.y,d=Math.hypot(ax,ay),over=a.r+b.r+.008-d;
+   if(over>.006){
+    const ux=d>1e-6?ax/d:vx,uy=d>1e-6?ay/d:vy;
+    if(ux*vx+uy*vy>=0){b.x+=ux*over;b.y+=uy*over;legal=constrainLoose(o2,b)&&legal;touched.add(o2)}
+    else{a.x-=ux*over;a.y-=uy*over;legal=constrainLoose(o1,a)&&legal;touched.add(o1)}
+    overlapRemain=true;
+   }
+  }
+  if(!overlapRemain)break;
+ }
+ if(!legal)return false;
+ // 固定物件不能被穿透：若貼邊推擠後仍和車體重疊，改由外層嘗試切線位移。
+ for(const o of objects){let q=temp.get(o),h=obbDisk(next,q);
+  if(scoopHeight<.5){let front=obbDisk(next,q,7.5,19.6,6.4);if(front&&(!h||front.overlap>h.overlap))h=front}
+  if(h&&h.overlap>.055)return false;
  }
  for(let i=0;i<objects.length;i++)for(let j=i+1;j<objects.length;j++){
-  if(distance(temp.get(objects[i]),temp.get(objects[j]))<objects[i].r+objects[j].r-.035)return false
+  if(distance(temp.get(objects[i]),temp.get(objects[j]))<objects[i].r+objects[j].r-.055)return false;
  }
- for(let o of objects)if(touched.has(o)){let q=temp.get(o),ddx=q.x-o.x,ddy=q.y-o.y;
-  o.x=q.x;o.y=q.y;o.vx=clamp((o.vx||0)+ddx*10,-44,44);o.vy=clamp((o.vy||0)+ddy*10,-44,44);
-  if(o===rock&&!rescueClosed)closeRescue(false)
+ for(const o of objects)if(touched.has(o)){
+  const q=temp.get(o),mx=q.x-o.x,my=q.y-o.y;
+  o.x=q.x;o.y=q.y;
+  o.vx=clamp((o.vx||0)+mx*10,-44,44);o.vy=clamp((o.vy||0)+my*10,-44,44);
+  if(o===rock&&!rescueClosed)closeRescue(false);
  }
  car.x=nx;car.y=ny;car.angle=angle;return true;
+}
+function tryMoveCar(nx,ny,angle){
+ const dx=nx-car.x,dy=ny-car.y,ca=car.angle;
+ // 先保留完整位移；被木條或桌緣擋住時，試著沿 X/Y 切線滑動。
+ // 候選位置對車身與路障都進行真正碰撞檢查，絕不穿越場地外緣。
+ const trial=[[dx,dy,angle]];
+ if(Math.abs(dx)>1e-5&&Math.abs(dy)>1e-5){
+  // 優先保留較大的切向分量，減少斜向碰撞造成的抖動。
+  if(Math.abs(dx)>=Math.abs(dy))trial.push([dx,0,angle],[0,dy,angle]);
+  else trial.push([0,dy,angle],[dx,0,angle]);
+ }
+ for(const k of [.55,.25]){trial.push([dx*k,dy*k,angle]);if(Math.abs(dx)>1e-5&&Math.abs(dy)>1e-5)trial.push([dx*k,0,angle],[0,dy*k,angle])}
+ // 若僅是旋轉角度撞上路障，仍允許保持車頭朝向沿邊緣滑出。
+ if(Math.abs(angle-ca)>1e-5){trial.push([dx,dy,ca]);if(Math.abs(dx)>1e-5&&Math.abs(dy)>1e-5)trial.push([dx,0,ca],[0,dy,ca])}
+ for(const [ax,ay,a] of trial){
+  if(attemptCarMove(car.x+ax,car.y+ay,a))return true;
+ }
+ return false;
 }
 function zoneOf(x){return x>1?'A':x<-56?'C':'B'}
 function chooseRoute(){routeKind=alarmEver?'short':'long';routeNodes=routeKind==='short'?SHORT_PATH:LONG_PATH;detourPart=0;detourValidated=false;}
@@ -209,7 +270,7 @@ function checkRoute(){
  if(near&&distance(car,{x:near[0],y:near[1]})<radius){detourPart++;if(detourPart>=routeNodes.length){detourValidated=true;toast(routeKind==='short'?'完成綠色捷徑':'完成紅色安全迂迴路線')}}
 }
 function moveCarTo(tx,ty,rotate=true){if(!active())return false;let dx=tx-car.x,dy=ty-car.y,len=Math.hypot(dx,dy);if(len<.05)return false;let targetAngle=rotate?Math.atan2(dy,dx):car.angle;
-let steps=Math.min(400,Math.max(1,Math.ceil(len/1.05))),done=false;for(let i=0;i<steps;i++){let bx=car.x,by=car.y;let nx=car.x+dx/steps,ny=car.y+dy/steps;let a=rotate?targetAngle:car.angle;if(tryMoveCar(nx,ny,a)){done=true;crossCheck(bx,nx);checkObjectives();tryScoop()}else break}return done}
+let steps=Math.min(400,Math.max(1,Math.ceil(len/1.05))),done=false;for(let i=0;i<steps;i++){let bx=car.x,by=car.y;let nx=car.x+dx/steps,ny=car.y+dy/steps;let a=rotate?targetAngle:car.angle;if(tryMoveCar(nx,ny,a)){done=true;crossCheck(bx,car.x);checkObjectives();tryScoop()}else break}return done}
 function turnCar(da){if(!active())return;if(tryMoveCar(car.x,car.y,car.angle+da))checkObjectives()}
 // 差速車：單按左／右可原地轉；前進或後退搭配方向時為連續弧線。
 // 車頭朝 +X 時，倒車＋右轉會先向 -X/-Y（車右後方）退，而非先原地右轉。
@@ -228,7 +289,7 @@ function driveCar(forwardInput,steer,dt){
   const speed=40/Math.max(1,Math.hypot(vx,vy));
   const nextX=x+vx*speed*step,nextY=y+vy*speed*step;
   if(!tryMoveCar(nextX,nextY,oldAngle+dAngle))break;
-  crossCheck(x,nextX);checkObjectives();tryScoop();
+  crossCheck(x,car.x);checkObjectives();tryScoop();
  }
 }
 function carTip(){return carPoint(17.1,0,2.9+scoopHeight*6.5)}
@@ -345,7 +406,21 @@ function simulation(dt,wallDt=dt){if(!active())return;
  // All loose objects share the same floor-friction model.
  for(const o of [...roads,...(rock.state==='rest'?[rock]:[])]){
   o.vx*=Math.exp(-9*dt);o.vy*=Math.exp(-9*dt);if(Math.abs(o.vx)+Math.abs(o.vy)<.38){o.vx=o.vy=0}
-  if(o.vx||o.vy){let next={...o,x:o.x+o.vx*dt,y:o.y+o.vy*dt};if(objectLegal(next,o)){o.x=next.x;o.y=next.y}else{o.vx=o.vy=0}}
+  if(o.vx||o.vy){
+   const px=o.x,py=o.y,next={...o,x:px+o.vx*dt,y:py+o.vy*dt};
+   const ok=constrainLoose(o,next)&&objectLegal(next,o);
+   if(ok){o.x=next.x;o.y=next.y;
+     // 撞擊木條或桌邊：削去碰撞法線上的速度，保留沿邊滑行的速度。
+     if(Math.abs(next.x-(px+o.vx*dt))>.007)o.vx=0;
+     if(Math.abs(next.y-(py+o.vy*dt))>.007)o.vy=0;
+   }else{
+     const sx={...o,x:px+o.vx*dt,y:py},sy={...o,x:px,y:py+o.vy*dt};
+     const canX=constrainLoose(o,sx)&&objectLegal(sx,o),canY=constrainLoose(o,sy)&&objectLegal(sy,o);
+     if(canX&&Math.abs(sx.x-px)>1e-4){o.x=sx.x;o.vy=0}
+     else if(canY&&Math.abs(sy.y-py)>1e-4){o.y=sy.y;o.vx=0}
+     else o.vx=o.vy=0;
+   }
+  }
  }
  // 虛擬搖桿與 WASD 共用同一驅動解算：上＝前、下＝後、右＝右轉；斜推形成弧形行進。
  // 不使用行動裝置的畫面座標直接設定車輛位置，避免視角變動時拖曳錯位。
