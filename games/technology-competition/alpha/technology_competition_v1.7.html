@@ -82,7 +82,7 @@
 <script>
 'use strict';
 /* 115 學年度生活科技救援競賽：原生 WebGL 深度測試 + 離線幾何 / 互動物理。
-   尺寸以 cm 為單位；場地詳細障礙位置仍為公告圖示意。v1.6: 路障的木條／桌邊接觸改用切線滑動解算，並提供車輛斜向貼邊滑移。 */
+   尺寸以 cm 為單位；場地詳細障礙位置仍為公告圖示意。v1.7: A 區兩條木條同步縮短，C 區燈塔縮窄且取消突出底盤；渲染及物理邊界共用尺寸。 */
 (()=>{
 const $=id=>document.getElementById(id), canvas=$('scene');
 const gl=canvas.getContext('webgl',{alpha:false,antialias:true,depth:true,stencil:false,premultipliedAlpha:false, preserveDrawingBuffer:true});
@@ -95,6 +95,11 @@ const loc={p:gl.getAttribLocation(program,'p'),c:gl.getAttribLocation(program,'c
 let buffer=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,buffer);gl.enableVertexAttribArray(loc.p);gl.enableVertexAttribArray(loc.c);gl.vertexAttribPointer(loc.p,3,gl.FLOAT,false,24,0);gl.vertexAttribPointer(loc.c,3,gl.FLOAT,false,24,12);gl.enable(gl.DEPTH_TEST);gl.depthFunc(gl.LEQUAL);gl.disable(gl.CULL_FACE);gl.clearColor(.029,.055,.085,1);
 const PI=Math.PI,TAU=2*PI,MAX_TIME=180,GAP=55,CA=-205,CR=-55;
 const P={start:{x:4,x2:34,y:-40,y2:-12},safe:{x:6,x2:26,y:16,y2:36},road:{x:138,x2:150,y:-45,y2:45},rock:{x:CA+2,x2:CA+23,y:-43,y2:-25},bay:{x:CA+57,x2:CA+93,y:-3,y2:18},warning:{x:CA+5,x2:CA+44,y:12,y2:42}};
+// 單一幾何來源：繪圖與物理碰撞使用相同的木條、燈塔尺寸（cm）。
+const A_BARS={x:60,x2:105,yBands:[[-19,-15],[14,18]]}; // 兩條均由 60 cm 縮為 45 cm，並為入口留出轉向空間。
+const LAMP={x:CA+27,y:29,width:6.5,depth:7.5,height:24}; // 將燈塔向落石滑道側收攏。
+const lampBody={x:LAMP.x-LAMP.width/2-.85,x2:LAMP.x+LAMP.width/2+.85,
+                y:LAMP.y-LAMP.depth/2-.35,y2:LAMP.y+LAMP.depth/2+3.3};
 const V=(x,y,z=0)=>({x,y,z}),add=(a,b)=>V(a.x+b.x,a.y+b.y,a.z+b.z),sub=(a,b)=>V(a.x-b.x,a.y-b.y,a.z-b.z),mul=(a,n)=>V(a.x*n,a.y*n,a.z*n),dot=(a,b)=>a.x*b.x+a.y*b.y+a.z*b.z,cross=(a,b)=>V(a.y*b.z-a.z*b.y,a.z*b.x-a.x*b.z,a.x*b.y-a.y*b.x),normal=a=>{let t=Math.hypot(a.x,a.y,a.z)||1;return mul(a,1/t)},clamp=(v,a,b)=>Math.max(a,Math.min(v,b)),distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y),within=(p,r,z=0)=>p.x-r>=z.x&&p.x+r<=z.x2&&p.y-r>=z.y&&p.y+r<=z.y2;
 // Camera: 全部 3D 模型由 GPU 的深度緩衝進行遮擋，不再按面片中心距離排序。
 let W=1,H=1,dpr=1,focal=800;let cam={yaw:-1.06,elev:.73,dist:405,target:V(-25,0,3)},eye,right,up,forward;
@@ -128,12 +133,13 @@ function linePath(points,col,z=.84,dash=false){
  }
 }
 let car,roads,targets,rock,scoopHeight=0,scoopLoad=null,pickupBlock=null,modeChoice="official",started=false,everStarted=false,finished=false,elapsed=0,finishTime=null,firstPass=false,returnBridge=false,returnCrossed=false,rescueClosed=false,rockCleared=false,resetPressed=false,resetRestored=false,alarmEver=false,alarmFault=false,failMode=false,redBlink=false,bridgeOrigin=null,zone='A',detourPart=0,detourValidated=false,routeNodes=[],routeKind="short",stagePhase='standby',gateT=0,freezeTime=0,held=new Set(),lastTime=0,uiTime=0,toastTimer=0;
-const FIXED=[{x:48,x2:108,y:-19,y2:-15},{x:48,x2:108,y:14,y2:18},{x:31,x2:37,y:21,y2:43},
-{x:P.bay.x-2,x2:P.bay.x2+2,y:P.bay.y-2,y2:P.bay.y+.2},
-{x:P.bay.x-2,x2:P.bay.x2+2,y:P.bay.y2-.4,y2:P.bay.y2+2.3},
-{x:P.bay.x-2,x2:P.bay.x+.4,y:P.bay.y-2,y2:P.bay.y2+2},
-{x:P.bay.x2-.4,x2:P.bay.x2+2.2,y:P.bay.y-2,y2:P.bay.y2+2},
-{x:CA+9,x2:CA+23,y:33,y2:43},{x:CA+25,x2:CA+41,y:20,y2:38}];
+const FIXED=[...A_BARS.yBands.map(([y,y2])=>({x:A_BARS.x,x2:A_BARS.x2,y,y2})),
+ {x:31,x2:37,y:21,y2:43},
+ {x:P.bay.x-2,x2:P.bay.x2+2,y:P.bay.y-2,y2:P.bay.y+.2},
+ {x:P.bay.x-2,x2:P.bay.x2+2,y:P.bay.y2-.4,y2:P.bay.y2+2.3},
+ {x:P.bay.x-2,x2:P.bay.x+.4,y:P.bay.y-2,y2:P.bay.y2+2},
+ {x:P.bay.x2-.4,x2:P.bay.x2+2.2,y:P.bay.y-2,y2:P.bay.y2+2},
+ {x:CA+9,x2:CA+23,y:33,y2:43},lampBody];
 // 曝露在場地上的紅／綠路線是正交路徑：只能 90° 轉彎，不使用曲線。
 // 綠：警示正常、救援區前方的捷徑；紅：警示失效、繞到等待救援區外側的迂迴路徑。
 const SHORT_PATH=[[CR-9,-9],[CA+110,-9],[CA+110,-14],[CA+76,-14]];
@@ -440,22 +446,30 @@ function cylinder(cx,cy,z,rad,height,col,axis='z'){
  let ends=axis==='z'?[V(cx,cy,z),V(cx,cy,z+height)]:axis==='x'?[V(cx-height/2,cy,z),V(cx+height/2,cy,z)]:[V(cx,cy-height/2,z),V(cx,cy+height/2,z)];beam(ends[0],ends[1],rad,col,10)
 }
 function electronicAssembly(){
- // Structural prop only: visibly identifiable 3V AA pack, perfboard, SRD relay, 9013 transistors,
- // 47uF/1000uF caps, 1N4007 diode, resistors, wires & both KW9 micro-switches.
- const x=CA+34,y=38.8;
- cuboid(x,y,1.1,10.5,7.5,1.8,'#265c51');
- for(let i=0;i<6;i++)for(let j=0;j<4;j++)ball(x-4.5+i*1.7,y-2.8+j*1.7,2.12,.21,'#e4c279',4,6);
- cuboid(x-2.1,y+1,3.7,3.6,2.8,3.2,'#2667a3'); // 3V relay
- for(const xx of [x+1.2,x+3.4]){cylinder(xx,y+1.8,2.2,.6,2.4,'#202a36');cylinder(xx,y+1.8,4.4,.52,.4,'#d2d9df')}
- for(let xx of [x-3.7,x-2.2]){cuboid(xx,y-2,2.9,1.1,.9,1.7,'#202834')}
- beam(V(x-4,y-.45,2.45),V(x-.5,y-.45,2.45),.24,'#d9b48a');
- for(const xx of [x-3.4,x-2.8,x-2.2])cuboid(xx,y-.45,2.51,.18,.52,.4,'#b2714c');
- cylinder(x+2,y-2.8,2.55,.34,2.1,'#252c38','x');cylinder(x+2,y-2.8,2.55,.13,2.3,'#e9c386','x');
- cuboid(CA+41.5,40.0,1.05,7.4,3.1,2.1,'#151f28'); // two AA 3V battery holder
- cylinder(CA+41.5,39.1,2.45,.65,6.0,'#b2c2c6','x');cylinder(CA+41.5,40.7,2.45,.65,6.0,'#aebdc6','x');
- const sw=V(CA+17,15,3.9),re=V(x-2.0,y,3.0),tower=V(CA+34,19.8,17.0),rs=V(CA+34,8.6,4.3);
- beam(sw,re,.17,'#df6d68',5);beam(re,tower,.14,'#ed6765',5);beam(re,rs,.12,'#64d8b6',5);
- beam(V(x+4.5,y+1,3),V(CA+34,19.8,11),.12,'#ddcc73',5);
+ // 取消燈號下方橫向伸出的托盤：電路與 AA 電池改為立裝在燈塔後側，不占救援通道。
+ // 零件是造型示意，不代表已驗證的 3V 警示電路接線設計。
+ const x=LAMP.x,y=LAMP.y+LAMP.depth/2+.65;
+ // 垂直 5×7 cm 電路板（無水平承盤），尺寸向內收在燈塔附近。
+ cuboid(x,y,10.4,7.8,.65,12.4,'#265c51');
+ for(let i=0;i<4;i++)for(let j=0;j<5;j++){
+  const xx=x-2.85+i*1.9,zz=5.0+j*2.2;
+  ball(xx,y+.39,zz,.14,'#e4c279',4,6);
+ }
+ cuboid(x-2.05,y+.8,12.2,2.3,1.25,2.8,'#2667a3'); // SRD-03VDC-SL-C 繼電器
+ for(const xx of [x+.4,x+1.8]){
+  cylinder(xx,y+.95,8.4,.51,2.3,'#202a36');
+  cylinder(xx,y+.95,10.5,.43,.35,'#cbd9de');
+ }
+ for(let xx of [x-2.1,x-1.05])cuboid(xx,y+.6,6.9,.55,.9,1.1,'#202834'); // 9013
+ for(let xx of [x-.2,x+.7,x+1.6]){
+  cuboid(xx,y+.55,13.3,.2,.65,.65,'#b2714c');
+ }
+ // 3V 兩節 AA 電池盒改成窄型、直立貼背形式，與電路板一起收進塔後方。
+ cuboid(x+2.25,y+1.0,6.7,2.1,1.15,8.0,'#151f28');
+ cylinder(x+1.73,y+1.64,3.9,.38,5.2,'#aebdc6');
+ cylinder(x+2.75,y+1.64,3.9,.38,5.2,'#b2c2c6');
+ const sw=V(CA+17,15,3.9),re=V(x-1.4,y+.9,12),tower=V(x,LAMP.y-4.4,17.0),rs=V(CA+34,8.6,4.3);
+ beam(sw,re,.15,'#df6d68',5);beam(re,tower,.12,'#ed6765',5);beam(re,rs,.11,'#64d8b6',5);
 }
 function worldGeometry(time){verts.length=0;translucent.length=0;
 // 外部暗色網格（置於兩桌下方，不影響碰撞）
@@ -467,7 +481,9 @@ for(let x of [0,150,CA,CR])beam(V(x,-45,.45),V(x,45,.45),.29,'#6d95aa',5);for(le
 cuboid(-27.5,0,-2,59,31,3.7,'#6e4b30');cuboid(-27.5,0,.57,59,29.5,1.15,'#b7864e');for(let x=-55;x<=0;x+=6)beam(V(x,-14.2,1.2),V(x,14.2,1.2),.12,'#d9ad71');for(let y of [-15.3,15.3])beam(V(-57,y,1.25),V(2,y,1.25),.85,'#b9874f');
 plaque(P.start,'#5d5030');rectEdge(P.start,'#deb467');plaque(P.safe,'#244f49');rectEdge(P.safe,'#79d2b7');plaque(P.road,'#5c4c2c');rectEdge(P.road,'#ecc378');plaque(P.rock,'#5e4d2f');rectEdge(P.rock,'#efd087');plaque(P.warning,'#593f37');rectEdge(P.warning,'#e1a072');
 // 道路固定障礙、窄道及低門檻；固定物與車體作 OBB 碰撞
-cuboid(78,-17,1.5,60,4,3,'#c38a4f');cuboid(78,16,1.5,60,4,3,'#c38a4f');cuboid(34,32,7.7,6,22,15.4,'#988554');cuboid(34,32,15.5,7,23,1.4,'#deb071');
+// 兩條固定木條同長 45cm；物理 FIXED 直接引用 A_BARS，不會出現可見物與碰撞體不一致。
+for(const [y0,y1] of A_BARS.yBands)cuboid((A_BARS.x+A_BARS.x2)/2,(y0+y1)/2,1.5,A_BARS.x2-A_BARS.x,y1-y0,3,'#c38a4f');
+cuboid(34,32,7.7,6,22,15.4,'#988554');cuboid(34,32,15.5,7,23,1.4,'#deb071');
 // 救援區 35 × 20 cm：前方低牆 5cm，其他三邊高牆 23cm。
 let b=P.bay;const LEFT=b.x-1.1,RIGHT=b.x2+1.1;
 // 朝向通道的前邊為完整連續的 5cm 矮牆（不能留洞）；後邊與左右三邊為約 23cm 高牆。
@@ -489,11 +505,14 @@ cuboid(rx,18.35,3.0,15.4,.9,5.6,'#cba372');
 // The trigger micro-switch has COM/NO/NC contacts and a spring-metal lever.
 cuboid(rx+3.5,16.8,2.0,4.6,2.3,3.4,'#252d38');beam(V(rx+3.5,16.2,3.9),V(rx,14.9,5.0),.27,'#d9e0e5',6);
 electronicAssembly();
-// Specified green lamp tower and front-slope LEDs (LEDs are intentionally enlarged for visibility)
-cuboid(CA+34,29,12.7,11,12,25.4,'#285f4f');cuboid(CA+34,21.5,12.2,11,2.4,24.4,'#318b68');cuboid(CA+34,29,26.0,13.5,14,2,'#439875');
+// 燈塔縮窄，無突出底座；LED 位置隨燈塔同步調整。
+cuboid(LAMP.x,LAMP.y,LAMP.height/2,LAMP.width,LAMP.depth,LAMP.height,'#285f4f');
+cuboid(LAMP.x,LAMP.y-LAMP.depth/2-.35,LAMP.height/2,LAMP.width,1.3,LAMP.height-.8,'#318b68');
+cuboid(LAMP.x,LAMP.y,LAMP.height+.55,LAMP.width+1.1,LAMP.depth+1.1,1.1,'#439875');
 let ls=shadeLamp(time);
-ball(CA+34,19.6,19.1,2.5,ls.green?'#6cff9c':'#1c493c',8,12);ball(CA+34,19.6,11.4,2.5,ls.red?'#ff4f67':'#5b2736',8,12);
-if(ls.green)ball(CA+34,19.4,19.1,1.5,'#d2ffe1',7,10);if(ls.red)ball(CA+34,19.4,11.4,1.5,'#ffd2da',7,10);
+const ledY=LAMP.y-LAMP.depth/2-1.2;
+ball(LAMP.x,ledY,18.5,1.75,ls.green?'#6cff9c':'#1c493c',8,12);ball(LAMP.x,ledY,11.2,1.75,ls.red?'#ff4f67':'#5b2736',8,12);
+if(ls.green)ball(LAMP.x,ledY-.24,18.5,1.15,'#d2ffe1',7,10);if(ls.red)ball(LAMP.x,ledY-.24,11.2,1.15,'#ffd2da',7,10);
 // Reset microswitch must be physically pressed by the car scoop, not remotely triggered.
 cuboid(CA+34,10.5,2,7,5,3.7,'#394b55');cuboid(CA+34,7.2,3.25,4.8,2.7,2.4,resetPressed?'#45d4a1':'#ebbd63');
 // 4 個會受車輛接觸推動的圓錐路障

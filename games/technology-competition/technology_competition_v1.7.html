@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<!-- 已沿用原有網站的 GA4 共用載入程式；file:// 本機開啟時追蹤程式不可用，不影響互動功能 -->
+<script src="/eduGame/ga4.js" defer></script>
+<title>災後安全巡檢</title>
+<style>
+:root{color-scheme:dark;--bg:#080d16;--panel:rgba(13,23,37,.89);--line:#2a4054;--fg:#eaf4ff;--muted:#8aa3b7;--teal:#40d8cc;--orange:#f9b468;--blue:#70aefe;--red:#ff6476;--green:#74e4a4}
+*{box-sizing:border-box}html,body{margin:0;height:100%;width:100%;overflow:hidden;background:var(--bg);font-family:-apple-system,BlinkMacSystemFont,"PingFang TC","Noto Sans TC","Microsoft JhengHei",sans-serif;color:var(--fg)}button{font:inherit}button:focus-visible,input:focus-visible{outline:2px solid #9deee7;outline-offset:2px}
+#scene{position:absolute;inset:0;display:block;width:100%;height:100%;touch-action:none;cursor:grab}#scene.grabbing{cursor:grabbing}#scene.car-pointer{cursor:move}
+.topbar{position:fixed;top:0;left:0;right:0;display:flex;gap:15px;align-items:flex-start;justify-content:space-between;padding:18px 20px;pointer-events:none;z-index:2}
+.score{pointer-events:auto;background:var(--panel);border:1px solid #2c465a;box-shadow:0 14px 35px rgba(0,0,0,.25);backdrop-filter:blur(19px);-webkit-backdrop-filter:blur(19px);border-radius:17px}
+.brand{padding:5px 2px;max-width:min(530px,59vw);background:transparent;border:0;box-shadow:none;backdrop-filter:none;pointer-events:none}.brand h1{font-size:21px;font-weight:790;margin:0;letter-spacing:.7px;text-shadow:0 2px 12px #0009}
+.score{padding:12px 17px;display:flex;align-items:center;gap:16px;cursor:pointer;user-select:none}.score:active{transform:scale(.99)}.score .label{font-size:11px;color:var(--muted)}.score strong{font-size:31px;line-height:1;font-weight:800;font-variant-numeric:tabular-nums;color:var(--teal)}.score .slash{font-size:14px;color:#78919f;margin-left:3px}.score .chev{font-size:11px;color:#98c8d4}
+.status{position:fixed;right:20px;top:102px;display:grid;gap:7px;z-index:2;pointer-events:none}.status .pill{border-radius:10px;padding:7px 10px;background:rgba(10,20,32,.86);border:1px solid #293a4e;font-size:11px;color:#aac2d1;white-space:nowrap;text-align:right;backdrop-filter:blur(8px)}.pill b{color:white}.pill.alert b{color:var(--red)}
+.bottom{position:fixed;bottom:max(14px,env(safe-area-inset-bottom));right:18px;left:auto;display:flex;justify-content:flex-end;pointer-events:none;z-index:2}.controls{pointer-events:auto;background:rgba(11,21,35,.91);border:1px solid #293e52;border-radius:17px;backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);box-shadow:0 15px 40px #0005}
+.guide{width:min(380px,42vw);padding:15px 17px}.guide .head{font-size:11px;letter-spacing:1.2px;font-weight:850;color:var(--teal);margin-bottom:7px}.guide p{color:#c4d4e0;margin:0 0 9px;font-size:12px;line-height:1.6;min-height:38px}.keys{display:flex;flex-wrap:wrap;gap:5px}.key{border-radius:5px;padding:3px 6px;background:#25394a;border:1px solid #385366;font-size:10px;color:#c3d7e3}.controls{display:flex;flex-wrap:wrap;gap:7px;padding:10px;justify-content:flex-end;max-width:min(960px,78vw)}.btn{border:1px solid #314a61;border-radius:11px;padding:10px 12px;font-size:12px;font-weight:720;letter-spacing:.1px;color:#d8e8f2;background:#192e42;cursor:pointer;transition:background .15s,transform .15s;white-space:nowrap}.btn:hover{background:#26415a}.btn:active{transform:scale(.97)}.btn.primary{background:#127b7d;color:white;border-color:#30b9b8}.btn.primary:hover{background:#179799}.btn.warn{background:#62431f;border-color:#ad722e;color:#ffe1b3}.btn:disabled{opacity:.43;cursor:default}.btn.compact{font-size:15px;padding:8px 10px}.btn.mode{border-color:#397083;color:#9cf0e5;background:#173640}.btn.mode.testing{background:#493d22;border-color:#a48439;color:#ffdf92}.time{font-variant-numeric:tabular-nums;font-weight:900;font-size:13px;color:#e3eef6;padding:10px 8px;min-width:65px;text-align:center}
+.panel{position:fixed;top:102px;right:20px;width:min(350px,calc(100vw - 28px));max-height:calc(100vh - 228px);overflow:auto;z-index:6;background:#101f2e;border:1px solid #345365;box-shadow:0 16px 46px #0009;border-radius:16px;padding:14px 16px;display:none}.panel.visible{display:block}.panel h2{margin:2px 0 13px;font-size:16px}.scorecard{background:#172b3d;border:1px solid #2a4559;border-radius:11px;padding:11px;margin-top:9px}.scorecard .row,.scorecard .detail{display:flex;justify-content:space-between;gap:12px;align-items:baseline}.scorecard .row{font-weight:800;color:#d5edf9;font-size:13px}.scorecard .detail{margin-top:7px;font-size:11px;color:#a8bac8}.scorecard .detail span:last-child{color:#e8eef2;font-variant-numeric:tabular-nums}.scorecard .row strong{color:var(--teal)}.footnote{font-size:11px;color:#819cac;line-height:1.65;padding:9px 1px}.panel .close{float:right;color:#cfe5e8;font-size:18px;border:0;background:transparent;cursor:pointer}
+.toast{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(.96);padding:12px 19px;border-radius:10px;background:#0f2735e8;border:1px solid #318e91;box-shadow:0 12px 30px #0009;z-index:5;font-size:14px;font-weight:700;color:#d4fcf6;pointer-events:none;opacity:0;transition:opacity .24s,transform .24s;text-align:center;max-width:min(400px,90vw)}.toast.show{opacity:1;transform:translate(-50%,-50%) scale(1)}
+.meter{position:fixed;top:50%;left:15px;transform:translateY(-50%);pointer-events:none;display:flex;flex-direction:column;gap:9px;align-items:center;z-index:2}.meter .dot{width:7px;height:7px;border-radius:50%;background:#334859;border:1px solid #507080}.meter .dot.done{background:var(--teal);box-shadow:0 0 11px #40d8cc9f}.meter .bar{height:36px;width:1px;background:#344d5e}
+@media(max-width:800px){.topbar{padding:9px;gap:7px}.brand{padding:5px 2px;max-width:59vw}.brand h1{font-size:17px}.score{padding:10px;gap:7px;border-radius:12px}.score strong{font-size:24px}.score .label{font-size:9px}.score .chev{display:none}.status{right:9px;top:80px}.status .pill{font-size:10px;padding:6px 8px}.bottom{left:7px;right:7px;bottom:7px;flex-direction:column;align-items:stretch;gap:6px}.guide{width:100%;padding:9px 12px;border-radius:12px}.guide .head{font-size:10px;margin:0 0 2px}.guide p{font-size:11px;min-height:0;margin:0 0 5px;line-height:1.35}.keys{display:none}.controls{max-width:none;padding:6px;justify-content:center;border-radius:12px;gap:5px}.btn{padding:8px 7px;font-size:10px;border-radius:8px}.btn.compact{padding:6px 8px}.time{padding:7px 4px;min-width:52px;font-size:11px}.panel{top:80px;right:8px;max-height:calc(100vh - 190px)}.meter{display:none}}
+.faultmode{display:flex;align-items:center;gap:7px;margin-top:12px;padding:9px 7px;border-radius:8px;background:#203448;color:#c4dce5}.faultmode input{accent-color:#39cdbb} .controls{max-width:min(1120px,calc(100vw - 36px))}@media(max-width:800px){.controls{max-width:calc(100vw - 14px);flex-wrap:nowrap;overflow-x:auto;justify-content:flex-start}.btn{font-size:10px;padding:7px 6px;flex-shrink:0}.bottom{left:7px;right:7px}.time{flex-shrink:0}}
+
+/* 觸控裝置專用虛擬搖桿：有指標且能產生觸控才顯示，避免遮擋桌機視野。 */
+#touchDrive{display:none;position:fixed;left:max(13px,env(safe-area-inset-left));bottom:calc(14px + env(safe-area-inset-bottom));width:148px;height:148px;z-index:5;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;pointer-events:auto}
+.touch-device #touchDrive{display:block}
+.joy-ring{position:absolute;inset:8px;border:1.5px solid #427488b8;border-radius:50%;background:radial-gradient(circle at 45% 40%,rgba(37,72,92,.68),rgba(9,25,38,.78) 70%);box-shadow:0 7px 28px #0007,inset 0 0 0 12px rgba(37,63,79,.12);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+.joy-ring:before,.joy-ring:after{content:'';position:absolute;pointer-events:none;background:#83c7d0;opacity:.32}
+.joy-ring:before{height:1px;left:24px;right:24px;top:50%}
+.joy-ring:after{width:1px;top:24px;bottom:24px;left:50%}
+.joy-nub{position:absolute;left:50%;top:50%;width:57px;height:57px;border-radius:50%;border:2px solid #71d4d2;background:linear-gradient(150deg,#286676,#153949);box-shadow:0 5px 18px #000b,inset 0 2px 6px #8be8e83d;transform:translate(calc(-50% + var(--joy-x,0px)),calc(-50% + var(--joy-y,0px)));pointer-events:none;transition:background .13s}
+.joy-nub:after{content:'';position:absolute;inset:23px;border-radius:50%;background:#bdf3f0;box-shadow:0 0 10px #6bdbdca8}
+.joy-dir{position:absolute;color:#abcfdb91;font-size:13px;font-weight:800;line-height:1;pointer-events:none}.joy-dir.up{top:14px;left:50%;transform:translateX(-50%)}.joy-dir.down{bottom:14px;left:50%;transform:translateX(-50%)}.joy-dir.left{left:13px;top:50%;transform:translateY(-50%)}.joy-dir.right{right:13px;top:50%;transform:translateY(-50%)}
+#touchDrive.engaged .joy-ring{border-color:#5ddccf;box-shadow:0 7px 28px #0007,inset 0 0 0 1px #5ddccf33}
+#touchDrive.engaged .joy-nub{background:linear-gradient(150deg,#328c90,#155365)}
+#touchDrive.inactive{opacity:.55}
+@media(max-width:800px){.touch-device .bottom{left:173px;right:8px;bottom:calc(15px + env(safe-area-inset-bottom));width:auto;align-items:stretch}.touch-device .controls{max-width:100%;min-width:0}.touch-device .panel{max-height:calc(100vh - 240px)}}
+@media(max-width:600px) and (orientation:portrait){.touch-device .bottom{left:8px;right:8px;bottom:calc(172px + env(safe-area-inset-bottom))}.touch-device .controls{max-width:100%}}
+@media(max-height:430px) and (orientation:landscape){#touchDrive{width:128px;height:128px;bottom:calc(8px + env(safe-area-inset-bottom))}.touch-device .bottom{left:155px;bottom:calc(8px + env(safe-area-inset-bottom))}.joy-nub{width:51px;height:51px}}
+
+/* v1.5: timer is a large, centered HUD element, not part of the buttons. */
+#clock.time{position:fixed;z-index:4;top:14px;left:50%;transform:translateX(-50%);padding:0;min-width:110px;text-align:center;pointer-events:none;white-space:nowrap;color:#eefaff;font-size:clamp(33px,3.6vw,49px);font-weight:860;line-height:1.08;letter-spacing:1.5px;font-variant-numeric:tabular-nums;text-shadow:0 3px 16px #000d,0 0 22px #68bdcb34}
+.bottom{left:auto;right:max(13px,env(safe-area-inset-right));bottom:calc(14px + env(safe-area-inset-bottom));width:auto;max-width:calc(100vw - 26px);align-items:flex-end}
+.bottom .controls{display:flex;flex-wrap:nowrap;width:max-content;max-width:calc(100vw - 26px);overflow:visible;justify-content:flex-end;gap:6px;padding:8px}
+.bottom .btn{flex:0 0 auto}
+@media(max-width:800px){.bottom{left:auto;right:max(8px,env(safe-area-inset-right));bottom:calc(10px + env(safe-area-inset-bottom));width:auto;align-items:flex-end}.bottom .controls{max-width:calc(100vw - 16px);gap:5px;padding:6px;overflow:visible}.bottom .btn{font-size:12px;padding:10px 9px}}
+/* Preserve a separate joystick at bottom-left; controls stay anchored bottom-right. */
+.touch-device .bottom{left:auto;right:max(8px,env(safe-area-inset-right));bottom:calc(14px + env(safe-area-inset-bottom));width:auto;align-items:flex-end}
+.touch-device .bottom .controls{width:max-content;max-width:calc(100vw - 177px);min-width:0}
+@media(max-width:650px){
+  .touch-device .bottom{left:173px;right:max(8px,env(safe-area-inset-right));bottom:calc(14px + env(safe-area-inset-bottom));width:auto;align-items:stretch}
+  .touch-device .bottom .controls{display:grid;width:100%;max-width:100%;min-width:0;grid-template-columns:repeat(6,minmax(0,1fr));grid-template-rows:repeat(2,39px);gap:4px;padding:5px;overflow:visible;justify-items:stretch;align-items:stretch;border-radius:12px}
+  .touch-device .bottom .btn{min-width:0;min-height:0;white-space:nowrap;font-size:clamp(10px,2.8vw,12px);padding:5px 1px;border-radius:8px;text-align:center}
+  .touch-device .bottom #modeBtn{grid-area:1/1/2/5}
+  .touch-device .bottom #playBtn{grid-area:1/5/2/7}
+  .touch-device .bottom #lowerBtn{grid-area:2/1/3/3}
+  .touch-device .bottom #raiseBtn{grid-area:2/3/3/5}
+  .touch-device .bottom #resetBtn{grid-area:2/5/3/7;font-size:18px}
+}
+@media(max-width:360px){#touchDrive{left:max(9px,env(safe-area-inset-left));width:124px;height:124px;bottom:calc(10px + env(safe-area-inset-bottom))}.touch-device .bottom{left:144px;bottom:calc(10px + env(safe-area-inset-bottom))}.joy-nub{width:48px;height:48px}}
+@media(max-width:650px) and (orientation:portrait){
+ #clock.time{top:48px;font-size:clamp(32px,8vw,38px)}
+ .status{top:104px}
+}
+@media(max-height:430px) and (orientation:landscape){
+ .touch-device .bottom{left:155px;bottom:calc(8px + env(safe-area-inset-bottom))}
+ #clock.time{top:8px;font-size:32px}
+}
+</style>
+</head>
+<body>
+<canvas id="scene" aria-label="WebGL 立體場地：拖拉車輛、旋轉視角與縮放"></canvas>
+<header class="topbar"><div class="brand"><h1>2026科技創意實作競賽：災後安全巡檢</h1></div><div class="score" id="scoreBtn" role="button" tabindex="0" aria-label="展開計分明細"><div><div class="label">目前得分</div><div><strong id="totalScore">0</strong><span class="slash">/ 100</span></div></div><span class="chev">明細 ▾</span></div></header>
+<aside class="status"><div class="pill">警示 <b id="lampLabel">正常待命</b></div><div class="pill">救援 <b id="rescueLabel">0 / 4</b></div><div class="pill">階段 <b id="phaseLabel">準備中</b></div></aside>
+
+<div id="touchDrive" role="group" aria-label="車輛方向搖桿：上前進、下後退、左右轉向"><div class="joy-ring"><span class="joy-dir up">▲</span><span class="joy-dir down">▼</span><span class="joy-dir left">◀</span><span class="joy-dir right">▶</span><div class="joy-nub" id="joyNub"></div></div></div>
+<div class="time" id="clock" role="timer" aria-label="競賽計時器">03:00</div>
+<div class="bottom"><div class="controls" aria-label="場地操作"><button id="modeBtn" class="btn mode" title="計時：三分鐘倒數；不計時：自由練習。切換會重置場地" aria-pressed="false">計時</button><button id="playBtn" class="btn primary" title="開始競賽並釋放落石">開始</button><button id="lowerBtn" class="btn" title="下降鏟斗：卸貨或接近物品">鏟斗↓</button><button id="raiseBtn" class="btn" title="升起鏟斗：承載物品">鏟斗↑</button><button id="resetBtn" class="btn compact" title="重置場地" aria-label="重置場地">↻</button></div></div>
+<div class="panel" id="scorePanel"><button class="close" id="closePanel" aria-label="關閉">×</button><h2>即時計分明細</h2><div id="scoreDetails"></div><div class="footnote">依 115 學年度全國生活科技組公告版計分；本頁用於流程練習，不代替裁判判定；電子零件僅外觀示意、非實際接線圖。違規扣分未納入自動偵測。<label class="faultmode"><input type="checkbox" id="faultToggle"> 測試警示失效／安全迂迴路線（開始前設定）</label></div></div>
+<div class="toast" id="toast"></div>
+<script>
+'use strict';
+/* 115 學年度生活科技救援競賽：原生 WebGL 深度測試 + 離線幾何 / 互動物理。
+   尺寸以 cm 為單位；場地詳細障礙位置仍為公告圖示意。v1.7: A 區兩條木條同步縮短，C 區燈塔縮窄且取消突出底盤；渲染及物理邊界共用尺寸。 */
+(()=>{
+const $=id=>document.getElementById(id), canvas=$('scene');
+const gl=canvas.getContext('webgl',{alpha:false,antialias:true,depth:true,stencil:false,premultipliedAlpha:false, preserveDrawingBuffer:true});
+if(!gl){const d=document.createElement('div');d.style.cssText='position:fixed;inset:26% 15%;padding:32px;border:1px solid #466078;border-radius:16px;background:#142539;z-index:20;text-align:center';d.textContent='此瀏覽器無法啟用 WebGL，請檢查 Safari「硬體加速」或改用更新的瀏覽器。';document.body.append(d);return}
+const VS=`attribute vec3 p;attribute vec3 c;uniform vec3 eye;uniform vec3 right;uniform vec3 up;uniform vec3 forward;uniform vec2 viewport;uniform float focal;varying vec3 vColor;void main(){vec3 d=p-eye;float z=dot(d,forward);float zn=0.2;float zf=1800.0;float zz=(zf+zn)/(zf-zn)*z-(2.0*zf*zn)/(zf-zn);gl_Position=vec4(dot(d,right)*2.0*focal/viewport.x,dot(d,up)*2.0*focal/viewport.y,zz,z);vColor=c;}`;
+const FS=`precision mediump float;uniform float alpha;varying vec3 vColor;void main(){gl_FragColor=vec4(vColor,alpha);}`;
+function shader(type,src){let s=gl.createShader(type);gl.shaderSource(s,src);gl.compileShader(s);if(!gl.getShaderParameter(s,gl.COMPILE_STATUS))throw Error(gl.getShaderInfoLog(s));return s}
+let program=gl.createProgram();gl.attachShader(program,shader(gl.VERTEX_SHADER,VS));gl.attachShader(program,shader(gl.FRAGMENT_SHADER,FS));gl.linkProgram(program);if(!gl.getProgramParameter(program,gl.LINK_STATUS))throw Error(gl.getProgramInfoLog(program));gl.useProgram(program);
+const loc={p:gl.getAttribLocation(program,'p'),c:gl.getAttribLocation(program,'c'),eye:gl.getUniformLocation(program,'eye'),right:gl.getUniformLocation(program,'right'),up:gl.getUniformLocation(program,'up'),forward:gl.getUniformLocation(program,'forward'),viewport:gl.getUniformLocation(program,'viewport'),focal:gl.getUniformLocation(program,'focal'),alpha:gl.getUniformLocation(program,'alpha')};
+let buffer=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,buffer);gl.enableVertexAttribArray(loc.p);gl.enableVertexAttribArray(loc.c);gl.vertexAttribPointer(loc.p,3,gl.FLOAT,false,24,0);gl.vertexAttribPointer(loc.c,3,gl.FLOAT,false,24,12);gl.enable(gl.DEPTH_TEST);gl.depthFunc(gl.LEQUAL);gl.disable(gl.CULL_FACE);gl.clearColor(.029,.055,.085,1);
+const PI=Math.PI,TAU=2*PI,MAX_TIME=180,GAP=55,CA=-205,CR=-55;
+const P={start:{x:4,x2:34,y:-40,y2:-12},safe:{x:6,x2:26,y:16,y2:36},road:{x:138,x2:150,y:-45,y2:45},rock:{x:CA+2,x2:CA+23,y:-43,y2:-25},bay:{x:CA+57,x2:CA+93,y:-3,y2:18},warning:{x:CA+5,x2:CA+44,y:12,y2:42}};
+// 單一幾何來源：繪圖與物理碰撞使用相同的木條、燈塔尺寸（cm）。
+const A_BARS={x:60,x2:105,yBands:[[-19,-15],[14,18]]}; // 兩條均由 60 cm 縮為 45 cm，並為入口留出轉向空間。
+const LAMP={x:CA+27,y:29,width:6.5,depth:7.5,height:24}; // 將燈塔向落石滑道側收攏。
+const lampBody={x:LAMP.x-LAMP.width/2-.85,x2:LAMP.x+LAMP.width/2+.85,
+                y:LAMP.y-LAMP.depth/2-.35,y2:LAMP.y+LAMP.depth/2+3.3};
+const V=(x,y,z=0)=>({x,y,z}),add=(a,b)=>V(a.x+b.x,a.y+b.y,a.z+b.z),sub=(a,b)=>V(a.x-b.x,a.y-b.y,a.z-b.z),mul=(a,n)=>V(a.x*n,a.y*n,a.z*n),dot=(a,b)=>a.x*b.x+a.y*b.y+a.z*b.z,cross=(a,b)=>V(a.y*b.z-a.z*b.y,a.z*b.x-a.x*b.z,a.x*b.y-a.y*b.x),normal=a=>{let t=Math.hypot(a.x,a.y,a.z)||1;return mul(a,1/t)},clamp=(v,a,b)=>Math.max(a,Math.min(v,b)),distance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y),within=(p,r,z=0)=>p.x-r>=z.x&&p.x+r<=z.x2&&p.y-r>=z.y&&p.y+r<=z.y2;
+// Camera: 全部 3D 模型由 GPU 的深度緩衝進行遮擋，不再按面片中心距離排序。
+let W=1,H=1,dpr=1,focal=800;let cam={yaw:-1.06,elev:.73,dist:405,target:V(-25,0,3)},eye,right,up,forward;
+function cameraBasis(){eye=add(cam.target,V(cam.dist*Math.cos(cam.elev)*Math.cos(cam.yaw),cam.dist*Math.cos(cam.elev)*Math.sin(cam.yaw),cam.dist*Math.sin(cam.elev)));forward=normal(sub(cam.target,eye));right=normal(cross(forward,V(0,0,1)));up=normal(cross(right,forward));focal=Math.min(W*1.02,H*1.50)}
+function project(p){let d=sub(p,eye),z=dot(d,forward);if(z<1)return null;return {x:W/2+dot(d,right)*focal/z,y:H/2-dot(d,up)*focal/z,scale:focal/z}}
+function unprojectFloor(sx,sy,z=0){let ray=normal(add(add(forward,mul(right,(sx-W/2)/focal)),mul(up,(H/2-sy)/focal)));let t=(z-eye.z)/ray.z;return t>0&&Number.isFinite(t)?add(eye,mul(ray,t)):null}
+function resize(){let r=canvas.getBoundingClientRect();W=Math.max(1,r.width);H=Math.max(1,r.height);dpr=Math.min(devicePixelRatio||1,2);let w=Math.round(W*dpr),h=Math.round(H*dpr);if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;gl.viewport(0,0,w,h)}cameraBasis()}
+window.addEventListener('resize',resize);resize();
+// Geometry builder: GPU z-buffer 渲染不透明物件，救援區牆面以獨立透明 pass 畫在正確深度。
+let verts=[],translucent=[];const rgb=s=>{s=s.replace('#','');return [parseInt(s.slice(0,2),16)/255,parseInt(s.slice(2,4),16)/255,parseInt(s.slice(4,6),16)/255]};
+function face(points,color,emissive=false,alpha=1){if(points.length<3)return;const n=normal(cross(sub(points[1],points[0]),sub(points[2],points[0]))),lit=emissive?1:clamp(.69+.34*dot(n,normal(V(-.55,-.5,1.75))),.46,1.16);let col=rgb(color).map(q=>clamp(q*lit,0,1));const data=[];for(let i=1;i<points.length-1;i++){for(const p of [points[0],points[i],points[i+1]])data.push(p.x,p.y,p.z,col[0],col[1],col[2])}if(alpha<.99){let center=V(0,0,0);points.forEach(p=>center=add(center,p));center=mul(center,1/points.length);translucent.push({data,center,alpha})}else verts.push(...data)}
+function cuboid(cx,cy,cz,l,w,h,color,angle=0){const c=Math.cos(angle),s=Math.sin(angle);let p=[[-1,-1,-1],[1,-1,-1],[1,1,-1],[-1,1,-1],[-1,-1,1],[1,-1,1],[1,1,1],[-1,1,1]].map(([x,y,z])=>V(cx+(x*l*c-y*w*s)/2,cy+(x*l*s+y*w*c)/2,cz+z*h/2));for(const f of [[0,3,2,1],[4,5,6,7],[0,1,5,4],[1,2,6,5],[2,3,7,6],[3,0,4,7]])face(f.map(i=>p[i]),color)}
+function panel(p1,p2,height,color,alpha=.5){face([V(p1.x,p1.y,.4),V(p2.x,p2.y,.4),V(p2.x,p2.y,height),V(p1.x,p1.y,height)],color,false,alpha)}
+function beam(a,b,r,color,sides=6){const axis=normal(sub(b,a));let basis=normal(cross(axis,Math.abs(axis.z)<.9?V(0,0,1):V(0,1,0))),basis2=normal(cross(axis,basis));let A=[],B=[];for(let i=0;i<sides;i++){let t=i*TAU/sides,off=add(mul(basis,r*Math.cos(t)),mul(basis2,r*Math.sin(t)));A.push(add(a,off));B.push(add(b,off))}for(let i=0;i<sides;i++)face([A[i],A[(i+1)%sides],B[(i+1)%sides],B[i]],color);face(A.slice().reverse(),color);face(B,color)}
+function ball(x,y,z,r,color,lat=8,lng=14){for(let i=0;i<lat;i++){let a=-PI/2+i*PI/lat,b=-PI/2+(i+1)*PI/lat;for(let j=0;j<lng;j++){let u=j*TAU/lng,v=(j+1)*TAU/lng,f=(q,t)=>V(x+r*Math.cos(q)*Math.cos(t),y+r*Math.cos(q)*Math.sin(t),z+r*Math.sin(q));face([f(a,u),f(a,v),f(b,v),f(b,u)],color)}}}
+function frustum(x,y,z,r1,r2,h,color,sides=12){let A=[],B=[];for(let i=0;i<sides;i++){let t=i*TAU/sides;A.push(V(x+Math.cos(t)*r1,y+Math.sin(t)*r1,z));B.push(V(x+Math.cos(t)*r2,y+Math.sin(t)*r2,z+h))}for(let i=0;i<sides;i++)face([A[i],A[(i+1)%sides],B[(i+1)%sides],B[i]],color);face(B,color)}
+function triangleTarget(x,y,z,col){let ps=[];for(let i=0;i<3;i++){let a=PI/2+i*TAU/3;ps.push([x+2.9*Math.cos(a),y+2.9*Math.sin(a)])}face(ps.map(p=>V(p[0],p[1],z+5)),col);for(let i=0;i<3;i++){let a=ps[i],b=ps[(i+1)%3];face([V(...a,z),V(...b,z),V(...b,z+5),V(...a,z+5)],col)}}
+function plaque(r,color,z=.61){face([V(r.x,r.y,z),V(r.x2,r.y,z),V(r.x2,r.y2,z),V(r.x,r.y2,z)],color,true);rectEdge(r,'#7b9cb0',z+.08)}
+function rectEdge(r,col,z=.8){let p=[V(r.x,r.y,z),V(r.x2,r.y,z),V(r.x2,r.y2,z),V(r.x,r.y2,z)];for(let i=0;i<4;i++)beam(p[i],p[(i+1)%4],.22,col,5)}
+function linePath(points,col,z=.84,dash=false){
+ for(let i=0;i<points.length-1;i++){
+  const a=points[i],b=points[i+1],dist=Math.hypot(b[0]-a[0],b[1]-a[1]);
+  // 原則上只容許與座標軸平行的直線段，確保路徑是直角折線。
+  if(dash&&Math.abs(b[0]-a[0])>1e-5&&Math.abs(b[1]-a[1])>1e-5)throw Error('救援路線必須為直角折線');
+  const segs=dash?Math.max(1,Math.ceil(dist/2.8)):1;
+  for(let j=0;j<segs;j++){
+   if(dash&&j%2===1)continue;
+   const t=j/segs,u=(j+1)/segs;
+   beam(V(a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t,z),V(a[0]+(b[0]-a[0])*u,a[1]+(b[1]-a[1])*u,z),.19,col,4)
+  }
+ }
+}
+let car,roads,targets,rock,scoopHeight=0,scoopLoad=null,pickupBlock=null,modeChoice="official",started=false,everStarted=false,finished=false,elapsed=0,finishTime=null,firstPass=false,returnBridge=false,returnCrossed=false,rescueClosed=false,rockCleared=false,resetPressed=false,resetRestored=false,alarmEver=false,alarmFault=false,failMode=false,redBlink=false,bridgeOrigin=null,zone='A',detourPart=0,detourValidated=false,routeNodes=[],routeKind="short",stagePhase='standby',gateT=0,freezeTime=0,held=new Set(),lastTime=0,uiTime=0,toastTimer=0;
+const FIXED=[...A_BARS.yBands.map(([y,y2])=>({x:A_BARS.x,x2:A_BARS.x2,y,y2})),
+ {x:31,x2:37,y:21,y2:43},
+ {x:P.bay.x-2,x2:P.bay.x2+2,y:P.bay.y-2,y2:P.bay.y+.2},
+ {x:P.bay.x-2,x2:P.bay.x2+2,y:P.bay.y2-.4,y2:P.bay.y2+2.3},
+ {x:P.bay.x-2,x2:P.bay.x+.4,y:P.bay.y-2,y2:P.bay.y2+2},
+ {x:P.bay.x2-.4,x2:P.bay.x2+2.2,y:P.bay.y-2,y2:P.bay.y2+2},
+ {x:CA+9,x2:CA+23,y:33,y2:43},lampBody];
+// 曝露在場地上的紅／綠路線是正交路徑：只能 90° 轉彎，不使用曲線。
+// 綠：警示正常、救援區前方的捷徑；紅：警示失效、繞到等待救援區外側的迂迴路徑。
+const SHORT_PATH=[[CR-9,-9],[CA+110,-9],[CA+110,-14],[CA+76,-14]];
+const LONG_PATH=[[CR-9,9],[CA+115,9],[CA+115,34],[CA+43,34],[CA+43,-14],[CA+76,-14]];
+function active(){return !finished&&(started||modeChoice==='test')}
+function canStart(){return !finished&&(started||modeChoice==='test')}
+function floorSupported(x,y){return (x>=0&&x<=150&&y>=-45&&y<=45)||(x>=CA&&x<=CR&&y>=-45&&y<=45)||(x>=CR&&x<=0&&Math.abs(y)<=15.1)}
+function carPoint(dx,dy,z=0,c=car){let s=Math.sin(c.angle),q=Math.cos(c.angle);return V(c.x+q*dx-s*dy,c.y+s*dx+q*dy,z)}
+function carCorners(p){let a=p.angle,c=Math.cos(a),s=Math.sin(a);return [[-7.6,-5.15],[-7.6,5.15],[7.6,-5.15],[7.6,5.15]].map(([x,y])=>V(p.x+c*x-s*y,p.y+s*x+c*y))}
+function rectIntersectCar(c,b){let ca=Math.cos(c.angle),sa=Math.sin(c.angle),centerX=(b.x+b.x2)/2,centerY=(b.y+b.y2)/2,ax=(b.x2-b.x)/2,ay=(b.y2-b.y)/2;
+// SAT：分離軸定理（車身 OBB vs 靜態 AABB），取代固定半徑粗略碰撞。
+for(let [nx,ny] of [[1,0],[0,1],[ca,sa],[-sa,ca]]){let delta=Math.abs((c.x-centerX)*nx+(c.y-centerY)*ny),rc=7.7*Math.abs(ca*nx+sa*ny)+5.2*Math.abs(-sa*nx+ca*ny),rb=ax*Math.abs(nx)+ay*Math.abs(ny);if(delta>=rc+rb-.08)return false}return true}
+function carLegal(c){
+ if(!carCorners(c).every(p=>floorSupported(p.x,p.y)))return false;
+ // 等待救援區四面都有擋牆：車輪／底盤不能進入，只有車前的鏟斗得越過矮牆。
+ if(rectIntersectCar(c,{x:P.bay.x,x2:P.bay.x2,y:P.bay.y,y2:P.bay.y2}))return false;
+ for(let b of FIXED){if(rectIntersectCar(c,b))return false}
+ return true;
+}
+function diskAgainstRect(o,b){let x=clamp(o.x,b.x,b.x2),y=clamp(o.y,b.y,b.y2);return Math.hypot(x-o.x,y-o.y)<o.r-.04}
+function objectLegal(o,ignoreId=null){if(!floorSupported(o.x+o.r,o.y)||!floorSupported(o.x-o.r,o.y)||!floorSupported(o.x,o.y+o.r)||!floorSupported(o.x,o.y-o.r))return false;
+for(let b of FIXED){if(diskAgainstRect(o,b))return false}for(let d of [...roads,rock]){if(d===o||d===ignoreId||d.state==='latched'||d.state==='ramp'||d.state==='rolling')continue;if(Math.hypot(o.x-d.x,o.y-d.y)<o.r+d.r-.15)return false}return true}
+function obbDisk(c,o,minX=-8,maxX=8,halfWidth=5.35){let dx=o.x-c.x,dy=o.y-c.y,q=Math.cos(c.angle),s=Math.sin(c.angle),lx=dx*q+dy*s,ly=-dx*s+dy*q,x=clamp(lx,minX,maxX),y=clamp(ly,-halfWidth,halfWidth),ex=lx-x,ey=ly-y,d=Math.hypot(ex,ey);if(d>=o.r)return null;
+if(d<.0001){let px=Math.min(lx-minX,maxX-lx),py=halfWidth-Math.abs(ly);if(px<py){ex=Math.sign(lx)||1;ey=0;d=0;return {nx:ex*q-ey*s,ny:ex*s+ey*q,overlap:o.r+px+.01}}else{ex=0;ey=Math.sign(ly)||1;return {nx:-ey*s,ny:ey*q,overlap:o.r+py+.01}}}
+let nx=(ex*q-ey*s)/d,ny=(ex*s+ey*q)/d;return {nx,ny,overlap:o.r-d}}
+// 對路障與落石的靜態接觸約束採用投影解算。
+// 舊版只要推動量稍微穿入木條或桌邊，就拒絕整個車輛位移，造成卡死。
+// 新版保留合法切向位移，僅移除垂直撞入障礙的分量。
+function constrainLoose(o,p){
+ const r=o.r, table=o===rock?{x:CA,x2:CR,y:-45,y2:45}:{x:0,x2:150,y:-45,y2:45},eps=.025;
+ const clampTable=()=>{p.x=clamp(p.x,table.x+r+eps,table.x2-r-eps);p.y=clamp(p.y,table.y+r+eps,table.y2-r-eps)};
+ clampTable();
+ for(let k=0;k<7;k++){
+  let changed=false;
+  for(const b of FIXED){
+   const xx=clamp(p.x,b.x,b.x2), yy=clamp(p.y,b.y,b.y2), dx=p.x-xx,dy=p.y-yy,d=Math.hypot(dx,dy);
+   if(d>=r-eps*.2)continue;
+   if(d>1e-7){const m=(r+eps-d)/d;p.x+=dx*m;p.y+=dy*m}
+   else{
+    // 圓心在矩形內部時，退出最近的一側，不穿越障礙物。
+    const exits=[{d:p.x-b.x,x:b.x-r-eps},{d:b.x2-p.x,x:b.x2+r+eps},
+                 {d:p.y-b.y,y:b.y-r-eps},{d:b.y2-p.y,y:b.y2+r+eps}];
+    exits.sort((a,b)=>a.d-b.d);
+    if(exits[0].x!==undefined)p.x=exits[0].x;else p.y=exits[0].y;
+   }
+   clampTable();changed=true;
+  }
+  if(!changed)break;
+ }
+ return p.x>=table.x+r-1e-3&&p.x<=table.x2-r+1e-3&&p.y>=table.y+r-1e-3&&p.y<=table.y2-r+1e-3
+   &&!FIXED.some(b=>diskAgainstRect(p,b));
+}
+function attemptCarMove(nx,ny,angle){
+ const next={x:nx,y:ny,angle};if(!carLegal(next))return false;
+ const objects=[...roads,...(rock.state==='rest'&&scoopLoad!==rock?[rock]:[])];
+ const temp=new Map(objects.map(o=>[o,{...o}]));
+ const dx=nx-car.x,dy=ny-car.y,l=Math.hypot(dx,dy),vx=l>1e-6?dx/l:Math.cos(angle),vy=l>1e-6?dy/l:Math.sin(angle);
+ const touched=new Set();let legal=true;
+ for(let iter=0;iter<23;iter++){
+  let overlapRemain=false;
+  // 先解開車身／鏟斗與路障的接觸，再將路障限制在桌緣、木條的可行空間。
+  for(const o of objects){
+   const q=temp.get(o);let h=obbDisk(next,q);
+   if(scoopHeight<.5){let front=obbDisk(next,q,7.5,19.6,6.4);if(front&&(!h||front.overlap>h.overlap))h=front}
+   if(h&&h.overlap>.005){
+    q.x+=h.nx*(h.overlap+.012);q.y+=h.ny*(h.overlap+.012);
+    legal=constrainLoose(o,q)&&legal;touched.add(o);overlapRemain=true;
+   }
+  }
+  // 相鄰的路障可形成接觸鏈；每一顆都要投影回桌面合法範圍。
+  for(let i=0;i<objects.length;i++)for(let j=i+1;j<objects.length;j++){
+   let o1=objects[i],o2=objects[j],a=temp.get(o1),b=temp.get(o2),ax=b.x-a.x,ay=b.y-a.y,d=Math.hypot(ax,ay),over=a.r+b.r+.008-d;
+   if(over>.006){
+    const ux=d>1e-6?ax/d:vx,uy=d>1e-6?ay/d:vy;
+    if(ux*vx+uy*vy>=0){b.x+=ux*over;b.y+=uy*over;legal=constrainLoose(o2,b)&&legal;touched.add(o2)}
+    else{a.x-=ux*over;a.y-=uy*over;legal=constrainLoose(o1,a)&&legal;touched.add(o1)}
+    overlapRemain=true;
+   }
+  }
+  if(!overlapRemain)break;
+ }
+ if(!legal)return false;
+ // 固定物件不能被穿透：若貼邊推擠後仍和車體重疊，改由外層嘗試切線位移。
+ for(const o of objects){let q=temp.get(o),h=obbDisk(next,q);
+  if(scoopHeight<.5){let front=obbDisk(next,q,7.5,19.6,6.4);if(front&&(!h||front.overlap>h.overlap))h=front}
+  if(h&&h.overlap>.055)return false;
+ }
+ for(let i=0;i<objects.length;i++)for(let j=i+1;j<objects.length;j++){
+  if(distance(temp.get(objects[i]),temp.get(objects[j]))<objects[i].r+objects[j].r-.055)return false;
+ }
+ for(const o of objects)if(touched.has(o)){
+  const q=temp.get(o),mx=q.x-o.x,my=q.y-o.y;
+  o.x=q.x;o.y=q.y;
+  o.vx=clamp((o.vx||0)+mx*10,-44,44);o.vy=clamp((o.vy||0)+my*10,-44,44);
+  if(o===rock&&!rescueClosed)closeRescue(false);
+ }
+ car.x=nx;car.y=ny;car.angle=angle;return true;
+}
+function tryMoveCar(nx,ny,angle){
+ const dx=nx-car.x,dy=ny-car.y,ca=car.angle;
+ // 先保留完整位移；被木條或桌緣擋住時，試著沿 X/Y 切線滑動。
+ // 候選位置對車身與路障都進行真正碰撞檢查，絕不穿越場地外緣。
+ const trial=[[dx,dy,angle]];
+ if(Math.abs(dx)>1e-5&&Math.abs(dy)>1e-5){
+  // 優先保留較大的切向分量，減少斜向碰撞造成的抖動。
+  if(Math.abs(dx)>=Math.abs(dy))trial.push([dx,0,angle],[0,dy,angle]);
+  else trial.push([0,dy,angle],[dx,0,angle]);
+ }
+ for(const k of [.55,.25]){trial.push([dx*k,dy*k,angle]);if(Math.abs(dx)>1e-5&&Math.abs(dy)>1e-5)trial.push([dx*k,0,angle],[0,dy*k,angle])}
+ // 若僅是旋轉角度撞上路障，仍允許保持車頭朝向沿邊緣滑出。
+ if(Math.abs(angle-ca)>1e-5){trial.push([dx,dy,ca]);if(Math.abs(dx)>1e-5&&Math.abs(dy)>1e-5)trial.push([dx,0,ca],[0,dy,ca])}
+ for(const [ax,ay,a] of trial){
+  if(attemptCarMove(car.x+ax,car.y+ay,a))return true;
+ }
+ return false;
+}
+function zoneOf(x){return x>1?'A':x<-56?'C':'B'}
+function chooseRoute(){routeKind=alarmEver?'short':'long';routeNodes=routeKind==='short'?SHORT_PATH:LONG_PATH;detourPart=0;detourValidated=false;}
+function crossCheck(oldX,newX){let z=zoneOf(newX);if(z===zone)return;
+ if(zone==='A'&&z==='B')bridgeOrigin='A';
+ if(zone==='C'&&z==='B')bridgeOrigin='C';
+ if(zone==='B'&&z==='C'&&bridgeOrigin==='A'){
+  if(!firstPass){firstPass=true;stagePhase='rescue';toast('首次通過救援橋 · +9 分')}
+  chooseRoute();toast(routeKind==='short'?'警示正常：走綠色捷徑':'警示失效：必須走紅色迂迴路徑');
+ }
+ if(zone==='B'&&z==='A'&&bridgeOrigin==='C'){
+  if(rescueClosed&&rockCleared&&resetPressed)returnCrossed=true;
+ }
+ zone=z;
+}
+function checkRoute(){
+ if(!firstPass||rescueClosed||zoneOf(car.x)!=='C'||detourValidated||!routeNodes.length)return;
+ let near=routeNodes[detourPart],radius=detourPart===0?21:detourPart===routeNodes.length-1?16:15;
+ if(near&&distance(car,{x:near[0],y:near[1]})<radius){detourPart++;if(detourPart>=routeNodes.length){detourValidated=true;toast(routeKind==='short'?'完成綠色捷徑':'完成紅色安全迂迴路線')}}
+}
+function moveCarTo(tx,ty,rotate=true){if(!active())return false;let dx=tx-car.x,dy=ty-car.y,len=Math.hypot(dx,dy);if(len<.05)return false;let targetAngle=rotate?Math.atan2(dy,dx):car.angle;
+let steps=Math.min(400,Math.max(1,Math.ceil(len/1.05))),done=false;for(let i=0;i<steps;i++){let bx=car.x,by=car.y;let nx=car.x+dx/steps,ny=car.y+dy/steps;let a=rotate?targetAngle:car.angle;if(tryMoveCar(nx,ny,a)){done=true;crossCheck(bx,car.x);checkObjectives();tryScoop()}else break}return done}
+function turnCar(da){if(!active())return;if(tryMoveCar(car.x,car.y,car.angle+da))checkObjectives()}
+// 差速車：單按左／右可原地轉；前進或後退搭配方向時為連續弧線。
+// 車頭朝 +X 時，倒車＋右轉會先向 -X/-Y（車右後方）退，而非先原地右轉。
+function driveCar(forwardInput,steer,dt){
+ if(!active()||!forwardInput)return;
+ const steps=Math.max(2,Math.ceil(dt/.009)),step=dt/steps;
+ for(let i=0;i<steps;i++){
+  let x=car.x,y=car.y,oldAngle=car.angle;
+  // 倒車時轉向角必須反號；右打方向盤，車尾向車右側轉。
+  let dAngle=steer*forwardInput*1.35*step;
+  const a=oldAngle+dAngle/2;
+  // 同時處理轉向所需的側向位移，避免複合按鍵只會定點旋轉。
+  const side=steer*.30;
+  const vx=forwardInput*Math.cos(a)-side*Math.sin(a);
+  const vy=forwardInput*Math.sin(a)+side*Math.cos(a);
+  const speed=40/Math.max(1,Math.hypot(vx,vy));
+  const nextX=x+vx*speed*step,nextY=y+vy*speed*step;
+  if(!tryMoveCar(nextX,nextY,oldAngle+dAngle))break;
+  crossCheck(x,car.x);checkObjectives();tryScoop();
+ }
+}
+function carTip(){return carPoint(17.1,0,2.9+scoopHeight*6.5)}
+function scoopAt(){return carPoint(16.9,0,0)}
+function scoopCoordinates(o){let dx=o.x-car.x,dy=o.y-car.y,co=Math.cos(car.angle),si=Math.sin(car.angle);return {f:dx*co+dy*si,side:-dx*si+dy*co}}
+function inScoop(o){const q=scoopCoordinates(o);return q.f>9.2&&q.f<22.0&&Math.abs(q.side)<7.7}
+function closeRescue(show=true){if(rescueClosed)return;rescueClosed=true;stagePhase='clear';if(show)toast('疏散階段結束 · 不得再救援')}
+function tryScoop(){
+ if(!active()||scoopHeight>.25||scoopLoad)return;
+ // 卸載後必須先讓鏟口離開該物件，才能重新鏟取；避免下一動畫格立刻吸回。
+ if(pickupBlock){
+  if(!inScoop(pickupBlock)||distance(car,pickupBlock)>28)pickupBlock=null;
+ }
+
+ if(!rescueClosed&&firstPass&&detourValidated&&zoneOf(car.x)==='C'){
+   const ts=targets.filter(t=>t!==pickupBlock&&!t.delivered&&!t.carried&&inScoop(t)&&distance(car,t)<24);
+   if(ts.length){let t=ts.sort((a,b)=>distance(a,scoopAt())-distance(b,scoopAt()))[0];t.carried=true;scoopLoad=t;toast('鏟取救援目標成功 · 升起鏟斗搬運');return}
+ }
+ // 開始鏟取落石就正式結束疏散；不再依賴已移除的「結束疏散」按鈕。
+ if(!rescueClosed&&firstPass&&zoneOf(car.x)==='C'&&rock.state==='rest'&&rock!==pickupBlock&&inScoop(rock))closeRescue(false);
+ if(rescueClosed&&rock!==pickupBlock&&rock.state==='rest'&&!rockCleared&&inScoop(rock)){
+   scoopLoad=rock;rock.state='held';rock.vx=rock.vy=0;toast('已鏟起落石 · 移往落石置放區')
+ }
+}
+function lowerScoop(){
+ if(!active()){toast('請先開始計時或切換測試模式');return}
+ // 無論鏟斗已升高或已在低位，只要承載物件，按下降都要能確實卸貨。
+ const cargo=scoopLoad;
+ scoopHeight=0;
+ if(cargo){
+  const tip=scoopAt(),isRock=cargo===rock;
+  const rect=isRock?P.rock:P.safe,r=isRock?rock.r:2.8;
+  // 實際落點在鏟斗前緣；不使用車身中心計分。
+  const pos=V(tip.x,tip.y,0),credited=within(pos,r,rect);
+  cargo.x=pos.x;cargo.y=pos.y;cargo.vx=0;cargo.vy=0;
+  if(isRock){cargo.z=cargo.r;cargo.state='rest'}
+  else{cargo.carried=false;cargo.delivered=credited}
+  pickupBlock=cargo;
+  scoopLoad=null;
+  toast(credited?(isRock?'落石已卸入置放區 · +6 分':`救援目標已送入安全區 · ${rescueCount()}／4`):
+   (isRock?'落石已卸下（未進入指定置放區）':'救援目標已卸下（未進入安全區）'));
+ }else if(scoopHeight<.25){tryScoop();if(!scoopLoad)toast('鏟斗已在低位，請將鏟口接近物件')}
+ else{tryScoop();if(!scoopLoad)toast('鏟斗下降 · 前進接觸物件即可鏟取')}
+ checkObjectives();
+}
+function raiseScoop(){if(!active()){toast('請先開始計時或切換測試模式');return}
+ if(scoopHeight>.75){toast('鏟斗已升起');return}tryScoop();scoopHeight=1;toast(scoopLoad?'鏟斗升起 · 物件已承載':'鏟斗升起 · 按 ↓ 降低鏟口')}
+function rescueCount(){return targets.filter(t=>t.delivered).length}
+function roadCount(){return roads.filter(o=>Math.hypot(o.vx,o.vy)<1.7&&within(o,o.r,P.road)).length}
+function rockInZone(){return rock.state==='rest'&&Math.hypot(rock.vx,rock.vy)<1.7&&within(rock,rock.r,P.rock)}
+function checkObjectives(){if(!active())return;
+ checkRoute();
+ if(firstPass&&!rescueClosed&&targets.length&&targets.every(t=>t.delivered))closeRescue(false);
+ if(rockCleared&&!rockInZone())rockCleared=false;
+ if(rockInZone()&&!rockCleared){rockCleared=true;closeRescue(false);toast('落石完全進入置放區 · +6 分')}
+ let tip=carTip(),switchPos=V(CA+34,7);
+ if(rescueClosed&&rockCleared&&!resetPressed&&scoopHeight<.5&&distance(tip,switchPos)<6.8){resetPressed=true;resetRestored=alarmEver;toast(resetRestored?'車輛按下重置開關 · 綠燈恆亮':'車輛已按下重置開關（燈號未復歸）')}
+ if(returnCrossed&&within(car,5.9,P.start)){returnBridge=true;returnCrossed=false;toast('完成 C → A 返程 · +9 分');if(roads.every(o=>within(o,o.r,P.road))&&targets.every(t=>t.delivered))complete(true)}
+}
+function resetWorld(){
+ releaseJoystick();car={x:18,y:-25,angle:0};scoopHeight=0;scoopLoad=null;pickupBlock=null;
+ roads=[{x:45,y:-27},{x:71,y:-1},{x:112,y:32},{x:123,y:-29}].map((q,i)=>({...q,id:i,r:3.1,vx:0,vy:0}));
+ const cc=['#71bdf4','#f1a17e','#76d4b2','#e6c56b'];targets=[0,1,2,3].map(i=>({id:i,x:P.bay.x+5.5+8.25*i,y:P.bay.y+4.8,color:cc[i],carried:false,delivered:false}));
+ rock={x:CA+17,y:37,z:28.4,r:2.1,state:'latched',progress:0,v:0,vx:0,vy:0};
+ started=false;everStarted=false;finished=false;elapsed=0;finishTime=null;firstPass=false;returnBridge=false;returnCrossed=false;rescueClosed=false;rockCleared=false;resetPressed=false;resetRestored=false;alarmEver=false;alarmFault=false;redBlink=false;bridgeOrigin=null;zone='A';detourPart=0;detourValidated=false;routeNodes=[];routeKind='short';stagePhase='standby';gateT=0;freezeTime=0;held.clear();
+ for(let id of ['playBtn','lowerBtn','raiseBtn'])$(id).disabled=false;
+ $('playBtn').textContent='開始';$('clock').textContent=modeChoice==='official'?'03:00':'--:--';$('faultToggle').checked=failMode;
+ $('modeBtn').textContent=modeChoice==='official'?'計時':'不計時';$('modeBtn').classList.toggle('testing',modeChoice==='test');$('modeBtn').setAttribute('aria-pressed',modeChoice==='test'?'true':'false');
+ updateUI(true);
+}
+function help(s){}
+function toast(s){$('toast').textContent=s;$('toast').classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').classList.remove('show'),2000)}
+function releaseRock(){if(finished)return;if(!started&&modeChoice==='official'){begin();return}if(rock.state!=='latched')return;everStarted=true;gateT=.001;rock.state='ramp';rock.v=0;toast('抽出卡榫 · 落石沿滑道滾入承接槽')}
+function begin(){if(started||finished)return;started=true;everStarted=true;stagePhase='road';$('playBtn').textContent='開始';$('playBtn').disabled=true;releaseRock();toast(modeChoice==='official'?'實測開始 · 三分鐘倒數':'測試計時開始 · 不限時')}
+function complete(natural=false){if(finished)return;finished=true;started=false;stagePhase='end';if(natural)finishTime=elapsed;freezeTime=performance.now();held.clear();releaseJoystick();for(let id of ['playBtn','lowerBtn','raiseBtn'])$(id).disabled=true;toast(natural?`全部任務完成 · ${elapsed.toFixed(1)} 秒`:`結束 · ${score().total} 分`);updateUI(true)}
+// iPadOS 不一定在 UA 中標明 iPad；以觸控能力與 coarse pointer 判斷，並可在首次觸碰時啟用。
+const coarseQuery=window.matchMedia?window.matchMedia('(any-pointer: coarse)'):null;
+let touchInterface=!!((navigator.maxTouchPoints||0)>0||(coarseQuery&&coarseQuery.matches));
+const joy={x:0,y:0,pointerId:null};
+function enableTouchUI(){touchInterface=true;document.body.classList.add('touch-device');}
+if(touchInterface)enableTouchUI();
+if(coarseQuery){const syncTouch=()=>{if(coarseQuery.matches)enableTouchUI()};if(coarseQuery.addEventListener)coarseQuery.addEventListener('change',syncTouch);else if(coarseQuery.addListener)coarseQuery.addListener(syncTouch)}
+const joystick=$('touchDrive'),joyNub=$('joyNub');
+function releaseJoystick(){joy.pointerId=null;joy.x=joy.y=0;joystick.classList.remove('engaged');joystick.style.setProperty('--joy-x','0px');joystick.style.setProperty('--joy-y','0px')}
+function updateJoystick(e){let r=joystick.getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top+r.height/2;
+ // 手指允許移出搖桿外緣，但類比行程始終限制在可視範圍，避免意外全速衝刺。
+ const radius=Math.min(r.width,r.height)*.30;let x=(e.clientX-cx)/radius,y=(e.clientY-cy)/radius;
+ const d=Math.hypot(x,y);if(d>1){x/=d;y/=d}
+ const dz=.12;if(Math.hypot(x,y)<dz){x=0;y=0}
+ joy.x=x;joy.y=y;joystick.style.setProperty('--joy-x',(x*radius).toFixed(2)+'px');joystick.style.setProperty('--joy-y',(y*radius).toFixed(2)+'px');
+}
+joystick.addEventListener('pointerdown',e=>{if(e.pointerType==='touch'||e.pointerType==='pen')enableTouchUI();if(joy.pointerId!==null)return;e.preventDefault();e.stopPropagation();joy.pointerId=e.pointerId;joystick.classList.add('engaged');try{joystick.setPointerCapture(e.pointerId)}catch(_){}updateJoystick(e)});
+joystick.addEventListener('pointermove',e=>{if(e.pointerId!==joy.pointerId)return;e.preventDefault();e.stopPropagation();updateJoystick(e)});
+const endJoy=e=>{if(e.pointerId!==joy.pointerId)return;e.preventDefault();e.stopPropagation();releaseJoystick()};
+joystick.addEventListener('pointerup',endJoy);joystick.addEventListener('pointercancel',endJoy);
+joystick.addEventListener('lostpointercapture',e=>{if(e.pointerId===joy.pointerId)releaseJoystick()});
+joystick.addEventListener('contextmenu',e=>e.preventDefault());
+window.addEventListener('pagehide',releaseJoystick);document.addEventListener('visibilitychange',()=>{if(document.hidden)releaseJoystick()});
+function simulation(dt,wallDt=dt){if(!active())return;
+ if(started&&modeChoice==='official')elapsed+=wallDt;gateT=clamp(gateT+dt*3.2,0,1);
+ if(rock.state==='ramp'){
+  let theta=Math.atan2(21.6,26);rock.v+=981*Math.sin(theta)*5/7*dt;
+  rock.progress=Math.min(1,rock.progress+rock.v*dt/Math.hypot(21.6,26));let k=rock.progress;
+  rock.y=37-23*k;rock.z=2.1+5.4+(rock.y-14)*21.6/26;
+  if(!alarmEver&&!alarmFault&&rock.y<17.2){
+   if(failMode){alarmFault=true;redBlink=false;toast('落石已觸發 · 故障情境：紅色迂迴路徑')}
+   else {alarmEver=true;redBlink=true;toast('落石觸發微動開關 · 紅燈持續閃爍')}
+  }
+  if(k>=1){rock.state='rolling';rock.vy=-Math.max(7,rock.v*.20);rock.z=rock.r}
+ } else if(rock.state==='rolling'){
+  rock.y+=rock.vy*dt;rock.vy*=Math.exp(-11*dt);rock.z=rock.r;
+  if(rock.y<7.5||Math.abs(rock.vy)<1){rock.y=clamp(rock.y,7.5,12.2);rock.vy=0;rock.state='rest'}
+ }
+ // All loose objects share the same floor-friction model.
+ for(const o of [...roads,...(rock.state==='rest'?[rock]:[])]){
+  o.vx*=Math.exp(-9*dt);o.vy*=Math.exp(-9*dt);if(Math.abs(o.vx)+Math.abs(o.vy)<.38){o.vx=o.vy=0}
+  if(o.vx||o.vy){
+   const px=o.x,py=o.y,next={...o,x:px+o.vx*dt,y:py+o.vy*dt};
+   const ok=constrainLoose(o,next)&&objectLegal(next,o);
+   if(ok){o.x=next.x;o.y=next.y;
+     // 撞擊木條或桌邊：削去碰撞法線上的速度，保留沿邊滑行的速度。
+     if(Math.abs(next.x-(px+o.vx*dt))>.007)o.vx=0;
+     if(Math.abs(next.y-(py+o.vy*dt))>.007)o.vy=0;
+   }else{
+     const sx={...o,x:px+o.vx*dt,y:py},sy={...o,x:px,y:py+o.vy*dt};
+     const canX=constrainLoose(o,sx)&&objectLegal(sx,o),canY=constrainLoose(o,sy)&&objectLegal(sy,o);
+     if(canX&&Math.abs(sx.x-px)>1e-4){o.x=sx.x;o.vy=0}
+     else if(canY&&Math.abs(sy.y-py)>1e-4){o.y=sy.y;o.vx=0}
+     else o.vx=o.vy=0;
+   }
+  }
+ }
+ // 虛擬搖桿與 WASD 共用同一驅動解算：上＝前、下＝後、右＝右轉；斜推形成弧形行進。
+ // 不使用行動裝置的畫面座標直接設定車輛位置，避免視角變動時拖曳錯位。
+ const left=held.has('a')||held.has('arrowleft'),rightKey=held.has('d')||held.has('arrowright');
+ const keyboardSteer=+left-+rightKey;
+ const keyboardDrive=+(held.has('w')||held.has('arrowup'))-+(held.has('s')||held.has('arrowdown'));
+ const joystickDrive=active()?-joy.y:0,joystickSteer=active()?-joy.x:0;
+ const forwardInput=keyboardDrive||joystickDrive,steer=keyboardSteer||joystickSteer;
+ if(Math.abs(forwardInput)>.02)driveCar(forwardInput,steer,dt);
+ else if(Math.abs(steer)>.02)turnCar(steer*dt*1.95);
+ tryScoop();checkObjectives();
+ if(modeChoice==='official'&&started&&elapsed>=MAX_TIME){elapsed=MAX_TIME;complete(false)}
+}
+function score(){let a=roadCount()*5,b=(firstPass?9:0)+(returnBridge?9:0),c0=(everStarted||modeChoice==='test')?8:0,c1=alarmEver?8:0,c2=redBlink?6:0,c3=resetPressed?6:0,c4=resetRestored?8:0,c5=rescueCount()*5,c6=rockCleared?6:0,c=c0+c1+c2+c3+c4+c5+c6;return {a,b,c,total:a+b+c,parts:[c0,c1,c2,c3,c4,c5,c6]}}
+function shadeLamp(t){let red=alarmEver&&!resetRestored&&Math.sin(t*.014)>0,green=(!alarmEver&&!alarmFault)||resetRestored;return {red,green}}
+function cylinder(cx,cy,z,rad,height,col,axis='z'){
+ let ends=axis==='z'?[V(cx,cy,z),V(cx,cy,z+height)]:axis==='x'?[V(cx-height/2,cy,z),V(cx+height/2,cy,z)]:[V(cx,cy-height/2,z),V(cx,cy+height/2,z)];beam(ends[0],ends[1],rad,col,10)
+}
+function electronicAssembly(){
+ // 取消燈號下方橫向伸出的托盤：電路與 AA 電池改為立裝在燈塔後側，不占救援通道。
+ // 零件是造型示意，不代表已驗證的 3V 警示電路接線設計。
+ const x=LAMP.x,y=LAMP.y+LAMP.depth/2+.65;
+ // 垂直 5×7 cm 電路板（無水平承盤），尺寸向內收在燈塔附近。
+ cuboid(x,y,10.4,7.8,.65,12.4,'#265c51');
+ for(let i=0;i<4;i++)for(let j=0;j<5;j++){
+  const xx=x-2.85+i*1.9,zz=5.0+j*2.2;
+  ball(xx,y+.39,zz,.14,'#e4c279',4,6);
+ }
+ cuboid(x-2.05,y+.8,12.2,2.3,1.25,2.8,'#2667a3'); // SRD-03VDC-SL-C 繼電器
+ for(const xx of [x+.4,x+1.8]){
+  cylinder(xx,y+.95,8.4,.51,2.3,'#202a36');
+  cylinder(xx,y+.95,10.5,.43,.35,'#cbd9de');
+ }
+ for(let xx of [x-2.1,x-1.05])cuboid(xx,y+.6,6.9,.55,.9,1.1,'#202834'); // 9013
+ for(let xx of [x-.2,x+.7,x+1.6]){
+  cuboid(xx,y+.55,13.3,.2,.65,.65,'#b2714c');
+ }
+ // 3V 兩節 AA 電池盒改成窄型、直立貼背形式，與電路板一起收進塔後方。
+ cuboid(x+2.25,y+1.0,6.7,2.1,1.15,8.0,'#151f28');
+ cylinder(x+1.73,y+1.64,3.9,.38,5.2,'#aebdc6');
+ cylinder(x+2.75,y+1.64,3.9,.38,5.2,'#b2c2c6');
+ const sw=V(CA+17,15,3.9),re=V(x-1.4,y+.9,12),tower=V(x,LAMP.y-4.4,17.0),rs=V(CA+34,8.6,4.3);
+ beam(sw,re,.15,'#df6d68',5);beam(re,tower,.12,'#ed6765',5);beam(re,rs,.11,'#64d8b6',5);
+}
+function worldGeometry(time){verts.length=0;translucent.length=0;
+// 外部暗色網格（置於兩桌下方，不影響碰撞）
+for(let x=-250;x<185;x+=25)beam(V(x,-66,-10.8),V(x,66,-10.8),.09,'#1c2d40',4);for(let y=-65;y<=65;y+=25)beam(V(-250,y,-10.8),V(185,y,-10.8),.09,'#1c2d40',4);
+// A 和 C 兩張桌面：150 × 90；桌面高度 z=0，使用 GPU 深度確保遮擋正確
+cuboid(75,0,-4,150,90,8,'#253747');cuboid(CA+75,0,-4,150,90,8,'#293d4b');cuboid(75,0,-.28,149.2,89.2,.56,'#34485a');cuboid(CA+75,0,-.28,149.2,89.2,.56,'#354956');
+for(let x of [0,150,CA,CR])beam(V(x,-45,.45),V(x,45,.45),.29,'#6d95aa',5);for(let x of [0,CA])for(let y of [-45,45])beam(V(x,y,.45),V(x+150,y,.45),.29,'#6d95aa',5);
+// B 區 55cm 淨距，橋面 30cm 通行寬，橋樑只作擺放狀態示意
+cuboid(-27.5,0,-2,59,31,3.7,'#6e4b30');cuboid(-27.5,0,.57,59,29.5,1.15,'#b7864e');for(let x=-55;x<=0;x+=6)beam(V(x,-14.2,1.2),V(x,14.2,1.2),.12,'#d9ad71');for(let y of [-15.3,15.3])beam(V(-57,y,1.25),V(2,y,1.25),.85,'#b9874f');
+plaque(P.start,'#5d5030');rectEdge(P.start,'#deb467');plaque(P.safe,'#244f49');rectEdge(P.safe,'#79d2b7');plaque(P.road,'#5c4c2c');rectEdge(P.road,'#ecc378');plaque(P.rock,'#5e4d2f');rectEdge(P.rock,'#efd087');plaque(P.warning,'#593f37');rectEdge(P.warning,'#e1a072');
+// 道路固定障礙、窄道及低門檻；固定物與車體作 OBB 碰撞
+// 兩條固定木條同長 45cm；物理 FIXED 直接引用 A_BARS，不會出現可見物與碰撞體不一致。
+for(const [y0,y1] of A_BARS.yBands)cuboid((A_BARS.x+A_BARS.x2)/2,(y0+y1)/2,1.5,A_BARS.x2-A_BARS.x,y1-y0,3,'#c38a4f');
+cuboid(34,32,7.7,6,22,15.4,'#988554');cuboid(34,32,15.5,7,23,1.4,'#deb071');
+// 救援區 35 × 20 cm：前方低牆 5cm，其他三邊高牆 23cm。
+let b=P.bay;const LEFT=b.x-1.1,RIGHT=b.x2+1.1;
+// 朝向通道的前邊為完整連續的 5cm 矮牆（不能留洞）；後邊與左右三邊為約 23cm 高牆。
+ cuboid((b.x+b.x2)/2,b.y-1.1,2.6,b.x2-b.x+3,2.6,5.2,'#b6ab61');
+ beam(V(b.x-1.5,b.y-1.1,5.25),V(b.x2+1.5,b.y-1.1,5.25),.45,'#dfd28a',6);
+for(let [a,c] of [[V(LEFT,b.y2+.7),V(RIGHT,b.y2+.7)],[V(LEFT,b.y-1),V(LEFT,b.y2+.7)],[V(RIGHT,b.y-1),V(RIGHT,b.y2+.7)]]){panel(a,c,23,'#8baf84',.42);beam(V(a.x,a.y,23),V(c.x,c.y,23),.55,'#b2ca86');beam(V(a.x,a.y,.4),V(a.x,a.y,23),.55,'#b2ca86');beam(V(c.x,c.y,.4),V(c.x,c.y,23),.55,'#b2ca86')}
+linePath(SHORT_PATH,'#31dc77',1.04,true);linePath(LONG_PATH,'#ff5548',1.04,true);
+// 木製斜坡與 V 形導槽（參照影片），球沿滑道撞擊下端微動開關，最後落入承接框。
+const rx=CA+17;
+face([V(rx-6.7,42,27),V(rx+6.7,42,27),V(rx+6.7,14,5.1),V(rx-6.7,14,5.1)],'#9f7654');
+for(let xx of [rx-5.5,rx+5.5])beam(V(xx,41.7,27.7),V(xx,14,5.6),.74,'#cc9d63');
+beam(V(rx,41.7,26.9),V(rx,14,4.8),.8,'#6a513c');
+cuboid(rx,40.6,27.4,13.6,2,1.3,'#e2bc7c');
+if(gateT<1){cuboid(rx+gateT*17,38.7,29,13,1.5,1.7,'#e4b678');cuboid(rx+8+gateT*17,38.7,29.1,3,3,2.8,'#aa7742')}
+// Landing pocket (front open): 15cm x 17cm shallow box receiving the ball
+cuboid(rx,10.0,.5,15.4,17.8,1.0,'#ac875b');
+cuboid(rx-7.45,10.0,3.0,.95,18,5.6,'#d0a86e');cuboid(rx+7.45,10.0,3.0,.95,18,5.6,'#d0a86e');
+cuboid(rx,18.35,3.0,15.4,.9,5.6,'#cba372');
+// The trigger micro-switch has COM/NO/NC contacts and a spring-metal lever.
+cuboid(rx+3.5,16.8,2.0,4.6,2.3,3.4,'#252d38');beam(V(rx+3.5,16.2,3.9),V(rx,14.9,5.0),.27,'#d9e0e5',6);
+electronicAssembly();
+// 燈塔縮窄，無突出底座；LED 位置隨燈塔同步調整。
+cuboid(LAMP.x,LAMP.y,LAMP.height/2,LAMP.width,LAMP.depth,LAMP.height,'#285f4f');
+cuboid(LAMP.x,LAMP.y-LAMP.depth/2-.35,LAMP.height/2,LAMP.width,1.3,LAMP.height-.8,'#318b68');
+cuboid(LAMP.x,LAMP.y,LAMP.height+.55,LAMP.width+1.1,LAMP.depth+1.1,1.1,'#439875');
+let ls=shadeLamp(time);
+const ledY=LAMP.y-LAMP.depth/2-1.2;
+ball(LAMP.x,ledY,18.5,1.75,ls.green?'#6cff9c':'#1c493c',8,12);ball(LAMP.x,ledY,11.2,1.75,ls.red?'#ff4f67':'#5b2736',8,12);
+if(ls.green)ball(LAMP.x,ledY-.24,18.5,1.15,'#d2ffe1',7,10);if(ls.red)ball(LAMP.x,ledY-.24,11.2,1.15,'#ffd2da',7,10);
+// Reset microswitch must be physically pressed by the car scoop, not remotely triggered.
+cuboid(CA+34,10.5,2,7,5,3.7,'#394b55');cuboid(CA+34,7.2,3.25,4.8,2.7,2.4,resetPressed?'#45d4a1':'#ebbd63');
+// 4 個會受車輛接觸推動的圓錐路障
+for(const o of roads){ball(o.x,o.y,.4,3.15,'#142434',5,10);frustum(o.x,o.y,.28,3.2,1.02,7.6,'#de714e',10);frustum(o.x,o.y,4.1,1.95,1.5,1.16,'#ffe1b6',10)}
+// 4 個正三角柱，物體被搬運時固定在車上
+for(const t of targets){if(t.carried)continue;triangleTarget(t.x,t.y,.5,t.color)}
+if(rock.state!=='held')ball(rock.x,rock.y,rock.z,rock.r,'#bbc8d0',10,14);
+// Vehicle with two powered arms and a tilting, lifting shovel/bucket instead of pinch grippers.
+let a=car.angle,c=Math.cos(a),s=Math.sin(a),at=(dx,dy,z)=>V(car.x+dx*c-dy*s,car.y+dx*s+dy*c,z);
+cuboid(car.x,car.y,4.5,15.1,10.1,3.8,'#aebfc9',a);let p=at(-1.6,0,7.2);cuboid(p.x,p.y,p.z,9.5,8,2.1,'#d8edf0',a);
+for(let xx of [-5.5,5.5])for(let yy of [-5.9,5.9]){let q=at(xx,yy,2.8);ball(q.x,q.y,q.z,2.8,'#1d2734',7,12);ball(q.x,q.y,q.z,1.0,'#8498a8',5,10)}
+let hz=2.2+scoopHeight*7.2;
+for(let y of [-4.1,4.1])beam(at(6.5,y,4.2),at(13.3,y,hz+1.5),.55,'#d9ae7a');
+const bp=at(16.3,0,hz+0.45);cuboid(bp.x,bp.y,bp.z,8.8,12.4,1.15,'#d3b36e',a);
+for(let y of [-5.8,5.8]){let q=at(16.3,y,hz+2.1);cuboid(q.x,q.y,q.z,8.9,.85,3.2,'#dbb981',a)}
+let lip=at(19.8,0,hz+.45);cuboid(lip.x,lip.y,lip.z,1.8,12.5,.48,'#e8c990',a);
+let light=at(-3,0,8.9);ball(light.x,light.y,light.z,1.25,'#65dce0',7,10);beam(at(-5,3.8,7.3),at(-5,3.8,12.1),.25,'#c8e1ec');
+if(scoopLoad){let cp=at(16.5,0,hz+1.25);if(scoopLoad===rock)ball(cp.x,cp.y,cp.z+1.2,rock.r,'#bcc9d2',9,12);else triangleTarget(cp.x,cp.y,cp.z,scoopLoad.color)}
+}
+function draw(time){cameraBasis();gl.viewport(0,0,canvas.width,canvas.height);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);gl.useProgram(program);gl.uniform3f(loc.eye,eye.x,eye.y,eye.z);gl.uniform3f(loc.right,right.x,right.y,right.z);gl.uniform3f(loc.up,up.x,up.y,up.z);gl.uniform3f(loc.forward,forward.x,forward.y,forward.z);gl.uniform2f(loc.viewport,W,H);gl.uniform1f(loc.focal,focal);worldGeometry(time);
+// GL depth test replaces painter's algorithm: 斜角不再有假性消失／畫面穿透。
+const upload=(data)=>{gl.bindBuffer(gl.ARRAY_BUFFER,buffer);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(data),gl.DYNAMIC_DRAW);gl.vertexAttribPointer(loc.p,3,gl.FLOAT,false,24,0);gl.vertexAttribPointer(loc.c,3,gl.FLOAT,false,24,12);gl.drawArrays(gl.TRIANGLES,0,data.length/6)};
+gl.disable(gl.BLEND);gl.depthMask(true);gl.uniform1f(loc.alpha,1);upload(verts);
+// 高牆透明面按實際視點排序，但仍受已寫入的像素深度約束。
+translucent.sort((a,b)=>dot(sub(b.center,eye),forward)-dot(sub(a.center,eye),forward));gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);gl.depthMask(false);for(const t of translucent){gl.uniform1f(loc.alpha,t.alpha);upload(t.data)}gl.depthMask(true);gl.disable(gl.BLEND);
+}
+function updateUI(force=false){let sc=score();$('totalScore').textContent=String(sc.total);
+let lamp=resetRestored?'已復歸':alarmEver?'紅燈閃爍':alarmFault?'警示失效':'綠燈恆亮';$('lampLabel').textContent=lamp;$('lampLabel').parentElement.classList.toggle('alert',alarmEver&&!resetRestored||alarmFault);
+$('rescueLabel').textContent=`${rescueCount()} / 4`;$('phaseLabel').textContent=finished?'已結束':!started&&modeChoice==='official'?'準備中':rescueClosed?'清石／復歸':firstPass?'疏散中':'清障中';
+let t=Math.max(0,MAX_TIME-elapsed);
+$('clock').textContent=modeChoice==='official'?String(Math.floor(t/60)).padStart(2,'0')+':'+String(Math.floor(t%60)).padStart(2,'0'):'--:--';
+joystick.classList.toggle('inactive',!active());
+if(force||$('scorePanel').classList.contains('visible')){
+$('scoreDetails').innerHTML=`<div class="scorecard"><div class="row"><span>任務一 · 排除路障</span><strong>${sc.a} / 20</strong></div><div class="detail"><span>${roadCount()}／4 個完全進入 90cm 長置放區</span><span>${sc.a} 分</span></div></div>
+<div class="scorecard"><div class="row"><span>任務二 · 救援便橋通行</span><strong>${sc.b} / 18</strong></div><div class="detail"><span>首次 A → B → C</span><span>${firstPass?9:0} / 9</span></div><div class="detail"><span>清石、操作重置後回 A 起始區</span><span>${returnBridge?9:0} / 9</span></div></div>
+<div class="scorecard"><div class="row"><span>任務三 · 警示及救援</span><strong>${sc.c} / 62</strong></div>${[['待命：綠亮、紅滅',8],['落石直接觸發警戒',8],['紅燈持續閃爍',6],['車輛直接按下重置開關',6],['曾警戒且復歸成功',8],['救援 '+rescueCount()+'／4 個',20],['落石完全移入置放區',6]].map((q,i)=>`<div class="detail"><span>${q[0]}</span><span>${sc.parts[i]} / ${q[1]}</span></div>`).join('')}</div>
+<div class="scorecard"><div class="row"><span>計時與路線</span><strong>${modeChoice==='official'?'實測 03:00':'測試不限時'}</strong></div><div class="detail"><span>已計時</span><span>${modeChoice==='official'?elapsed.toFixed(1)+' 秒':'不計時'}</span></div><div class="detail"><span>全部任務完成時間</span><span>${finishTime===null?'不記錄':finishTime.toFixed(1)+' 秒'}</span></div><div class="detail"><span>入 C 區路線</span><span>${alarmEver?'綠色捷徑':'紅色迂迴路徑'}：${detourValidated?'已通過':`檢核 ${detourPart}/${routeNodes.length}`}</span></div></div>`;
+}}
+function frame(ts){let wallDt=Math.max(0,(ts-lastTime)/1000||0);let dt=Math.min(wallDt,.038);lastTime=ts;simulation(dt,wallDt);draw(finished&&modeChoice==='official'?freezeTime:ts);if(ts-uiTime>125){updateUI();uiTime=ts}requestAnimationFrame(frame)}
+// Interaction: 游標投影到桌面平面；接觸移動需逐格檢查，不能瞬移穿越牆。
+let pointers=new Map(),mode=null,lastPointer=null,offset=V(0,0),lastPinch=0;
+function screenPos(e){const r=canvas.getBoundingClientRect();return {x:e.clientX-r.left,y:e.clientY-r.top}}
+function nearby(p,q,d){let c=project(q);return c&&Math.hypot(c.x-p.x,c.y-p.y)<Math.max(20,d*c.scale)}
+canvas.addEventListener('pointerdown',e=>{if(e.pointerType==='touch')enableTouchUI();e.preventDefault();canvas.setPointerCapture(e.pointerId);let p=screenPos(e);pointers.set(e.pointerId,p);lastPointer=p;
+if(pointers.size===2){let a=[...pointers.values()];lastPinch=Math.hypot(a[0].x-a[1].x,a[0].y-a[1].y);mode='pinch';return}
+if(finished&&modeChoice==='official'){mode='locked';return}if(nearby(p,V(CA+25,38.7,29),11)&&rock.state==='latched'){mode='latch';return}
+if(!(touchInterface&&e.pointerType!=='mouse')&&nearby(p,V(car.x,car.y,5.7),11)&&active()){mode='car';let q=unprojectFloor(p.x,p.y,0);if(q){offset.x=q.x-car.x;offset.y=q.y-car.y}canvas.classList.add('car-pointer')}
+else{mode='orbit';canvas.classList.add('grabbing')}});
+canvas.addEventListener('pointermove',e=>{if(!pointers.has(e.pointerId))return;let p=screenPos(e);pointers.set(e.pointerId,p);
+if(pointers.size===2){let a=[...pointers.values()],dd=Math.hypot(a[0].x-a[1].x,a[0].y-a[1].y);if(lastPinch)cam.dist=clamp(cam.dist*lastPinch/Math.max(1,dd),175,850);lastPinch=dd;return}
+if(mode==='car'){let q=unprojectFloor(p.x,p.y,0);if(q)moveCarTo(q.x-offset.x,q.y-offset.y)}
+else if(mode==='orbit'){cam.yaw-=(p.x-lastPointer.x)/W*4.5;cam.elev=clamp(cam.elev+(p.y-lastPointer.y)/H*2.4,.16,1.52)}
+else if(mode==='latch'&&Math.hypot(p.x-lastPointer.x,p.y-lastPointer.y)>14){releaseRock();mode='orbit'}lastPointer=p});
+function pointerUp(e){if(mode==='latch')releaseRock();pointers.delete(e.pointerId);if(!pointers.size){mode=null;canvas.classList.remove('grabbing','car-pointer');lastPinch=0}else if(pointers.size===1){mode='orbit';lastPointer=[...pointers.values()][0]}}
+canvas.addEventListener('pointerup',pointerUp);canvas.addEventListener('pointercancel',pointerUp);canvas.addEventListener('contextmenu',e=>e.preventDefault());canvas.addEventListener('wheel',e=>{e.preventDefault();if(finished&&modeChoice==='official')return;cam.dist=clamp(cam.dist*Math.exp(e.deltaY*.0011),170,850)},{passive:false});
+window.addEventListener('keydown',e=>{if(['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName))return;let k=e.key.toLowerCase();if([' ','arrowup','arrowdown','arrowleft','arrowright'].includes(k))e.preventDefault();if(!e.repeat){if(k==='q')lowerScoop();else if(k==='e')raiseScoop();else if(k===' '){if(scoopHeight>.5)lowerScoop();else raiseScoop()}}held.add(k)});
+window.addEventListener('keyup',e=>held.delete(e.key.toLowerCase()));window.addEventListener('blur',()=>{held.clear();releaseJoystick()});
+$('playBtn').onclick=begin;
+$('modeBtn').onclick=()=>{modeChoice=modeChoice==='official'?'test':'official';resetWorld();toast(modeChoice==='official'?'計時：三分鐘後鎖定':'不計時：自由練習')};
+$('resetBtn').onclick=()=>{resetWorld();toast('場地及分數已重置')};
+$('lowerBtn').onclick=lowerScoop;$('raiseBtn').onclick=raiseScoop;
+$('faultToggle').onchange=e=>{if(everStarted||firstPass){e.target.checked=failMode;toast('警示故障設定須於落石釋放前修改');return}failMode=e.target.checked;toast(failMode?'已設定：紅色迂迴路線':'已設定：綠色正常捷徑')};
+$('scoreBtn').onclick=()=>{$('scorePanel').classList.toggle('visible');updateUI(true)};$('scoreBtn').onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();$('scoreBtn').click()}};$('closePanel').onclick=()=>$('scorePanel').classList.remove('visible');
+// 自動化／手動測試用只讀狀態，避免控制畫面被一層假象替代。
+window.__sim={state:()=>({car:{...car},roads:roads.map(q=>({...q})),targets:targets.map(q=>({...q})),rock:{...rock},scoopHeight,scoopLoad:scoopLoad===rock?'rock':scoopLoad?.id??null,score:score(),firstPass,returnBridge,returnCrossed,rescueClosed,rockCleared,resetPressed,alarmEver,alarmFault,detourPart,detourValidated,routeKind,modeChoice,started,finished,finishTime,elapsed,joystick:{x:joy.x,y:joy.y,visible:touchInterface}}),move:(x,y,rotate=true)=>moveCarTo(x,y,rotate),turn:(angle)=>turnCar(angle),drive:(drive,steer,dt)=>driveCar(drive,steer,dt),lower:lowerScoop,raise:raiseScoop,close:()=>closeRescue(true),reset:resetWorld,begin,score,camera:(yaw,elev,dist)=>{cam.yaw=yaw;cam.elev=elev;cam.dist=dist??cam.dist},mode:(m)=>{modeChoice=m==='test'?'test':'official';resetWorld();},fault:(x)=>{failMode=!!x;}};
+resetWorld();requestAnimationFrame(frame);
+})();
+
+</script>
+</body></html>
