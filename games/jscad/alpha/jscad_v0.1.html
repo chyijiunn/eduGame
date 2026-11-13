@@ -1,0 +1,361 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#081c2b">
+<meta name="description" content="JSCAD Physics Lab v0.1 — 在立體小島上從簡單幾何開始學習 JSCAD。">
+<title>JSCAD Physics Lab｜幾何之島</title>
+<!-- 沿用 eduGame 專案既有 GA4 設定；放上 GitHub Pages 的 /eduGame/ 目錄即可套用。 -->
+<script src="/eduGame/ga4.js" defer></script>
+<script type="importmap">{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.1/examples/jsm/"
+  }
+}</script>
+<style>
+:root{color-scheme:dark;--night:#081c2b;--panel:#102938;--line:#ffffff24;--ink:#eff8f7;--muted:#a9c1c8;--teal:#9bd9c6;--sand:#e4c9a3;--drawer:440px;font-family:ui-sans-serif,system-ui,-apple-system,"PingFang TC","Microsoft JhengHei",sans-serif}
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--night);color:var(--ink)}button,input,textarea{font:inherit}button{cursor:pointer;-webkit-tap-highlight-color:transparent}button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid #9bd9c6;outline-offset:2px}button:disabled{opacity:.35;cursor:default}
+#stage{position:fixed;inset:0;width:100%;height:100%;overflow:hidden;transition:width .42s cubic-bezier(.22,.85,.15,1);touch-action:none}body.editing #stage{width:calc(100% - var(--drawer))}#stage canvas{display:block;width:100%;height:100%}
+#veil{pointer-events:none;position:fixed;inset:0;background:linear-gradient(90deg,#0617253a,transparent 38%,#06172514);z-index:1}
+.topbar{position:fixed;top:0;left:0;right:0;display:flex;align-items:flex-start;justify-content:space-between;gap:12px;pointer-events:none;padding:24px 28px;z-index:3}.topbar>*{pointer-events:auto}.brand{display:flex;gap:13px;align-items:center;min-width:0}.brandmark{width:42px;height:42px;border-radius:13px;display:grid;place-items:center;background:linear-gradient(130deg,#306879a1,#96d6b72c);border:1px solid #d6fff14d;box-shadow:0 8px 30px #0002}.brandmark svg{width:24px;height:24px}.brand strong{display:block;font-size:16px;letter-spacing:.06em;font-weight:750}.brand small{display:block;margin-top:3px;color:#cee1e1;font-size:11px;letter-spacing:.075em}.header-actions{display:flex;gap:9px;align-items:center}
+.pill,.iconbtn,.actionbtn,.lesson{background:#092335bb;border:1px solid #d3e7e835;color:var(--ink);box-shadow:0 6px 22px #04152325;backdrop-filter:blur(15px)}.pill{min-height:36px;border-radius:20px;padding:8px 13px;font-size:12px}.pill b{color:#b8e9d4}.pill:hover,.iconbtn:hover,.actionbtn:hover{background:#1c4859c9;border-color:#bbddd77d}.iconbtn{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;font-size:18px}.actionbtn{border-radius:10px;padding:9px 13px;font-size:12px}.actionbtn.primary{background:#d6efe4;color:#163a40;border-color:#d6efe4;font-weight:700}.actionbtn.primary:hover{background:#fff}
+.zonetags{position:fixed;left:29px;top:95px;z-index:2;pointer-events:none;display:flex;gap:7px;flex-wrap:wrap;max-width:430px}.zone{border:1px solid #ffffff36;background:#092c3b87;color:#e1f2ef;backdrop-filter:blur(9px);font-size:10px;letter-spacing:.04em;padding:7px 10px;border-radius:7px}.zone.active{background:#d6efe4;color:#234b47;border-color:#d6efe4}
+#help{position:fixed;bottom:24px;right:27px;z-index:3;max-width:250px;color:#e1f0f0bb;font-size:11px;line-height:1.7;text-align:right;pointer-events:none;text-shadow:0 2px 8px #071a25}body.editing #help{display:none}
+#learning{position:fixed;left:28px;bottom:24px;max-width:min(720px,calc(100vw - 56px));z-index:3;pointer-events:auto}.eyebrow{font-size:10px;letter-spacing:.16em;color:#d0e7e0b3;margin:0 0 9px 3px}.lessons{display:flex;flex-wrap:wrap;gap:8px}.lesson{min-width:110px;padding:11px 13px 11px;border-radius:12px;text-align:left;transition:background .15s,border-color .15s,transform .15s}.lesson:hover{transform:translateY(-3px);background:#1e5264cd}.lesson.current{border-color:#9ddbc3;background:#27556bdc;box-shadow:inset 0 0 0 1px #8cdbc13a}.lesson span{display:block;font-size:10px;color:#a3d1c8;letter-spacing:.08em;margin-bottom:5px}.lesson strong{display:block;font-size:12px;font-weight:650}
+#toast{position:fixed;top:100px;left:50%;transform:translateX(-50%) translateY(-8px);z-index:12;background:#102d3fe8;border:1px solid #ffffff45;padding:10px 17px;border-radius:10px;font-size:12px;color:#e9f5f2;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;white-space:nowrap;max-width:90vw;overflow:hidden;text-overflow:ellipsis}#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+#loading{position:fixed;inset:0;background:#081c2b;z-index:20;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;transition:opacity .6s;pointer-events:auto}#loading.hide{opacity:0;pointer-events:none}.loading-orbit{width:54px;height:54px;border:1px solid #d0e9e66d;border-radius:50%;display:grid;place-items:center;box-shadow:0 0 48px #4ba0a144}.loading-orbit:before{content:'◆';font-size:24px;color:#a5d7c1}#loading b{font-size:17px;letter-spacing:.075em}#loading span{font-size:12px;color:#b3c8ca;text-align:center;max-width:310px;line-height:1.75}
+.drawer{position:fixed;top:0;right:0;bottom:0;width:var(--drawer);max-width:100vw;z-index:10;transform:translateX(105%);transition:transform .42s cubic-bezier(.22,.85,.15,1);background:linear-gradient(162deg,#123345fa 0%,#0a1d2bfc 62%);border-left:1px solid #d1f1ef3e;box-shadow:-20px 0 60px #0616246e;display:flex;flex-direction:column;min-height:0;backdrop-filter:blur(20px)}body.editing .drawer{transform:translateX(0)}.drawer-header{padding:23px 22px 16px;border-bottom:1px solid var(--line);flex:none}.drawer-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:15px}.mini-label{font-size:10px;letter-spacing:.16em;color:#a8d4d1}.drawer-header h2{margin:0;font-size:23px;letter-spacing:.015em;line-height:1.35}.drawer-header p{font-size:12px;color:#c0d9d7;margin:7px 0 0;line-height:1.6}.close{border:1px solid #ffffff32;background:#ffffff0c;color:#f2ffff;width:34px;height:34px;border-radius:10px;font-size:22px;display:grid;place-items:center}.close:hover{background:#ffffff25}.tabs{display:flex;gap:7px;padding:12px 22px 0;flex:none}.tab{padding:9px 16px;border:1px solid transparent;background:none;color:#b8c9cb;border-radius:9px;font-size:12px;flex:1}.tab.on{background:#cbeee21f;color:#e1fff3;border-color:#b7e6d142}.tab:hover{color:#fff}.tabpanel{display:none;flex:1;min-height:0;overflow:auto;padding:15px 22px 12px}.tabpanel.on{display:flex;flex-direction:column;gap:11px}.help-line{font-size:11px;line-height:1.6;color:#a7bec3;margin:0}.section-label{display:flex;align-items:center;justify-content:space-between;font-size:11px;color:#b5ccc9;letter-spacing:.05em}.section-label b{font-weight:500;color:#88d4c1}.editor-shell{position:relative;flex:1;min-height:235px;border:1px solid #34556b;border-radius:11px;background:#061826;overflow:hidden;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:11px;line-height:1.7}.line-nums{position:absolute;left:0;top:0;bottom:0;width:35px;background:#071d2c;border-right:1px solid #284052;color:#648394;text-align:right;padding:12px 7px 12px 0;overflow:hidden;white-space:pre;user-select:none;pointer-events:none}.highlight,.codeedit{position:absolute;top:0;left:35px;right:0;bottom:0;width:calc(100% - 35px);height:100%;margin:0;padding:12px 10px;background:transparent;border:0;border-radius:0;outline:0;white-space:pre;tab-size:2;overflow:auto;word-wrap:normal;font:inherit;line-height:inherit;letter-spacing:0}.highlight{pointer-events:none;overflow:hidden;color:#e7eff0}.codeedit{resize:none;color:transparent;caret-color:#f3ffff;-webkit-text-fill-color:transparent;z-index:2}.codeedit::selection{background:#59afbd7a}.tok-comment{color:#79a6a2}.tok-str{color:#e6cc97}.tok-num{color:#eabf96}.tok-kw{color:#abccf7}.tok-fn{color:#b2e2ca}
+.status{font-size:11px;color:#b3e4cf;min-height:19px;line-height:1.5}.status.error{color:#ffb6a3}.status.busy{color:#f2d1a2}.drawer-footer{flex:none;border-top:1px solid var(--line);padding:13px 22px max(16px,env(safe-area-inset-bottom));display:flex;gap:8px;flex-wrap:wrap;align-items:center}.drawer-footer .actionbtn{flex:1;white-space:nowrap}.param-row{border:1px solid #ffffff19;border-radius:10px;padding:12px;background:#ffffff08}.param-row label{display:flex;justify-content:space-between;align-items:center;color:#d9ebe5;font-size:12px;margin-bottom:8px;gap:10px}.param-row input[type=number]{width:110px;padding:8px 9px;border:1px solid #426177;background:#092636;border-radius:8px;color:#f0fff9;text-align:right;font-size:12px}.param-row input[type=range]{width:100%;accent-color:#9ddac3}.empty{padding:22px 12px;text-align:center;font-size:12px;color:#afc8ca;border:1px dashed #ffffff30;border-radius:10px}.info-card{padding:14px;border-radius:10px;background:#0d2d3d;border:1px solid #ffffff24;font-size:12px;line-height:1.7;color:#c9ddd9}.info-card strong{color:#f0fffb}.chiplist{display:flex;gap:6px;flex-wrap:wrap}.codechip{font:11px ui-monospace,monospace;padding:6px 8px;border:1px solid #8bd3b84f;border-radius:7px;background:#98d2bc1a;color:#b4e4d3}.param-note{font-size:11px;color:#a5bdc3;line-height:1.7}#errorBanner{font-size:11px;color:#fec7bb;white-space:pre-wrap;word-break:break-word;line-height:1.6;max-height:92px;overflow:auto}
+#picktip{position:fixed;z-index:4;pointer-events:none;display:none;background:#0e2d3bef;color:#f0fcf9;border:1px solid #e3fff55a;border-radius:8px;padding:8px 11px;font-size:12px;box-shadow:0 8px 22px #0004}#picktip small{display:block;color:#a5d8cb;margin-top:2px}
+#network{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);display:none;padding:20px;background:#0d2c3af7;border:1px solid #ffffff55;border-radius:13px;max-width:min(460px,90vw);font-size:13px;z-index:25;line-height:1.8}#network b{font-size:17px}
+@media(max-width:850px){:root{--drawer:min(440px,75vw)}.topbar{padding:17px 17px}.zonetags{top:80px;left:17px}.brand small{font-size:10px}#learning{left:17px;bottom:16px;max-width:calc(100vw - 34px)}.lesson{min-width:94px;padding:9px 10px}#help{right:18px;bottom:15px}.header-actions .desktop{display:none}}
+@media(max-width:640px){:root{--drawer:100vw}.topbar{padding:14px 13px}.brandmark{width:36px;height:36px}.brand strong{font-size:13px}.brand small{font-size:9px}.header-actions{gap:5px}.header-actions .pill{font-size:11px;min-height:33px;padding:7px 9px}.zonetags{top:72px;left:14px;gap:4px}.zone{font-size:9px;padding:5px 7px}#learning{left:10px;bottom:12px;max-width:calc(100vw - 20px)}.lessons{gap:5px}.lesson{min-width:0;flex:1 1 29%;padding:8px}.lesson span{font-size:9px}.lesson strong{font-size:11px}#help{display:none}body.editing #stage{width:100%}.drawer-header{padding:15px 16px 12px}.drawer-header h2{font-size:20px}.tabs{padding:9px 16px 0}.tabpanel{padding:12px 16px}.drawer-footer{padding:10px 16px max(12px,env(safe-area-inset-bottom))}body.editing #learning,body.editing .zonetags,body.editing .topbar{display:none}}
+@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition-duration:.01ms!important}}
+</style>
+</head>
+<body>
+<div id="stage" aria-label="3D 小島學習場景"></div><div id="veil"></div>
+<header class="topbar"><div class="brand"><div class="brandmark"><svg viewBox="0 0 24 24" fill="none" stroke="#d2fff1" stroke-width="1.35"><path d="M12 2 21 7 12 12 3 7 12 2Zm-9 5v10l9 5 9-5V7M12 12v10"/><path d="M7 4.5 16 9.5" stroke-opacity=".5"/></svg></div><div><strong>JSCAD PHYSICS LAB</strong><small>幾何之島 · v0.1　/　用程式改變世界</small></div></div><div class="header-actions"><button id="home" class="pill" title="返回 A 島全景">⌂ <span class="desktop">返回全景</span></button><button id="resetScene" class="pill desktop" title="清除儲存的編輯，恢復全部教材">↺ 重設場景</button><span class="pill desktop">A 區 <b>學習開放</b></span></div></header>
+<div class="zonetags"><span class="zone active">A　基礎幾何</span><span class="zone">B　橋樑預留</span><span class="zone">C　高島遠景</span></div>
+<div id="learning"><div class="eyebrow">LEARNING PATH　/　選擇物件開始建模</div><div class="lessons" id="lessonButtons"></div></div>
+<div id="help">拖曳旋轉　·　滾輪／雙指縮放<br>點選島上的教學物件，即可修改 JSCAD 程式</div>
+<div id="picktip"></div><div id="toast"></div>
+<div id="loading"><div class="loading-orbit"></div><b>正在進入幾何之島</b><span id="loadmsg">建立海面、島嶼與 JSCAD 教學物件…</span></div>
+<div id="network"><b>3D 模組載入失敗</b><p>此檔案雖然只有一個 HTML，但第一次執行需連線載入 Three.js 與 JSCAD 建模核心。請連上網路，或上傳到 GitHub Pages 後再開啟。</p><small id="networkErr"></small></div>
+<aside class="drawer" id="drawer" aria-label="JSCAD 物件編輯器"><div class="drawer-header"><div class="drawer-top"><span class="mini-label">OBJECT STUDIO　 /　 JSCAD</span><button id="close" class="close" title="關閉編輯器">×</button></div><h2 id="objectTitle">—</h2><p id="objectSubtitle">選取物件開始學習</p></div><div class="tabs"><button class="tab on" data-tab="code">JSCAD 程式</button><button class="tab" data-tab="params">幾何參數</button><button class="tab" data-tab="learn">學習重點</button></div><div class="tabpanel on" id="tab-code"><div class="section-label"><span>完整原始碼 · 繁體中文註解</span><b>AUTO PREVIEW</b></div><div class="editor-shell"><div class="line-nums" id="lineNums">1</div><pre aria-hidden="true" id="highlight" class="highlight"></pre><textarea aria-label="可編輯的 JSCAD 程式碼" id="code" class="codeedit" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off" wrap="off"></textarea></div><div class="status" id="compileStatus">載入 JSCAD…</div><div id="errorBanner"></div><p class="help-line">停止輸入約 500 毫秒後，自動重新建模。程式錯誤時保留上一次成功的模型。</p></div><div class="tabpanel" id="tab-params"><div id="paramItems"></div><p class="param-note">修改參數會呼叫目前程式碼的 getParameterDefinitions() 與 main(params)，不會覆蓋你的原始程式碼。</p></div><div class="tabpanel" id="tab-learn"><div class="info-card" id="lessonInfo"></div><div class="section-label">本課使用的函式</div><div class="chiplist" id="lessonTags"></div><div class="info-card">所有座標使用 <strong>Z 軸向上</strong>；教材 JSCAD 用 <strong>毫米（mm）</strong>，島嶼場景按 1000 mm = 1 m 轉換。<br>v0.1 專注幾何建模，物理碰撞將於後續版本實作。</div></div><footer class="drawer-footer"><button class="actionbtn" id="restoreModel">↺ 恢復此物件</button><button class="actionbtn" id="copyCode">複製程式</button><button class="actionbtn primary" id="exportCode">匯出 .jscad</button></footer></aside>
+<!-- JSCAD 使用獨立 Worker。可編輯程式不在主視窗執行，避免錯誤將 3D 介面鎖住。 -->
+<script id="jscad-worker" type="text/plain">
+'use strict';
+try { importScripts('https://cdn.jsdelivr.net/npm/@jscad/modeling@2.13.0/dist/jscad-modeling.min.js'); }
+catch(e) { self.postMessage({type:'fatal',error:'JSCAD 程式庫載入失敗：'+e.message}); }
+const MODEL=self.jscadModeling;
+// 在載入建模函式庫後，限制一般使用者程式碼可使用的 Worker API。
+// 這是教學程式碼的隔離與限制，並非可抵擋惡意程式的完整安全沙箱。
+try { self.fetch=undefined; self.XMLHttpRequest=undefined; self.WebSocket=undefined; self.Worker=undefined; self.importScripts=undefined; }catch(e){}
+function normalizedColor(c){if(!Array.isArray(c))return [0.72,0.83,0.79,1];return [Math.max(0,Math.min(1,Number(c[0]??.8))),Math.max(0,Math.min(1,Number(c[1]??.8))),Math.max(0,Math.min(1,Number(c[2]??.8))),Math.max(0,Math.min(1,Number(c[3]??1)))]}
+function flatten(x,out){if(Array.isArray(x))for(const item of x)flatten(item,out);else if(x!=null)out.push(x)}
+self.onmessage=e=>{
+ const {id,source,params}=e.data;
+ try {
+  if(!MODEL)throw Error('無法取得 JSCAD 核心（請檢查網路連線）');
+  // 僅允許取得指定的 JSCAD 建模模組；不允許載入其他 require 模組。
+  const localRequire=(name)=>{if(name==='@jscad/modeling')return MODEL;throw Error('僅可 require("@jscad/modeling")');};
+  const module={exports:{}};
+  const api=new Function('require','module','exports','"use strict";\n'+source+'\n;return module.exports;')(localRequire,module,module.exports);
+  if(typeof api.main!=='function')throw Error('請使用 module.exports = { main, getParameterDefinitions } 輸出 main()');
+  const originalDefs=typeof api.getParameterDefinitions==='function'?api.getParameterDefinitions():[];
+  if(!Array.isArray(originalDefs))throw Error('getParameterDefinitions() 必須傳回陣列');
+  const defs=originalDefs.filter(p=>p&&typeof p.name==='string').slice(0,40).map(p=>({name:p.name,caption:String(p.caption??p.name),type:p.type||'float',initial:p.initial??0,min:p.min,max:p.max,step:p.step}));
+  const given={};for(const d of defs){let v=(params&&Object.prototype.hasOwnProperty.call(params,d.name))?params[d.name]:d.initial;if(d.type==='int'||d.type==='float'||d.type==='number'){v=Number(v);if(!Number.isFinite(v))v=Number(d.initial)||0;}given[d.name]=v;}
+  const raw=api.main(given);const parts=[];flatten(raw,parts);
+  const meshes=[];let total=0;
+  for(const g of parts){
+    if(!MODEL.geometries.geom3.isA(g))throw Error('目前教學場景僅支援 3D geom3 模型');
+    const polygons=MODEL.geometries.geom3.toPolygons(g),palette=new Map();
+    for(const poly of polygons){
+      const vs=poly.vertices;if(!vs||vs.length<3)continue;
+      const color=normalizedColor(poly.color||g.color);
+      const key=color.join(',');if(!palette.has(key))palette.set(key,{color,positions:[]});const out=palette.get(key).positions;
+      for(let j=1;j<vs.length-1;j++)for(const v of [vs[0],vs[j],vs[j+1]]){
+        if(!v.every(Number.isFinite))throw Error('模型有無效的頂點座標');
+        out.push(v[0]/1000,v[1]/1000,v[2]/1000);total++;
+        if(total>240000)throw Error('模型太複雜：三角形頂點超過 240,000 個，請降低細分數量');
+      }
+    }
+    for(const m of palette.values())meshes.push(m);
+  }
+  if(!meshes.length)throw Error('main() 沒有產生可顯示的 3D 幾何');
+  self.postMessage({type:'done',id,meshes,defs,params:given,triangles:total/3});
+ } catch(err){ self.postMessage({type:'error',id,error:err&&err.message?String(err.message):String(err)}); }
+};
+</script>
+<script type="module">
+import * as THREE from 'three';
+import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
+const $=q=>document.querySelector(q), $$=q=>[...document.querySelectorAll(q)];
+const LS='jscad_physics_lab_v0.1', MM=.001;
+const STORAGE=(()=>{try{return JSON.parse(localStorage.getItem(LS)||'{}')}catch(e){return {}}})();
+const clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
+const randint=(seed)=>{let a=seed>>>0;return()=>((a=Math.imul(a,1664525)+1013904223>>>0)/4294967296)};
+function toast(message){const e=$('#toast');e.textContent=message;e.classList.add('show');clearTimeout(toast.timer);toast.timer=setTimeout(()=>e.classList.remove('show'),2600)}
+function save(){try{const saved={};for(const o of lessons)saved[o.id]={source:o.lastGoodSource||TEMPLATES[o.id],params:o.lastGoodParams||{}};localStorage.setItem(LS,JSON.stringify(saved));}catch(e){toast('無法儲存到此瀏覽器：'+e.message)}}
+
+// 每一份教材是真實 JSCAD 程式，不是僅供觀看的假範例。
+const TEMPLATES={
+stone:`/*
+ * 第 1 課｜圓形小石頭
+ * 學習：sphere() 球體、scale() 縮放、translate() 平移。
+ * 座標單位：毫米 (mm)；Z 軸代表高度。
+ * 試試看：把 radius 改大、把 height 改小。
+ */
+const { primitives, transforms, colors } = require('@jscad/modeling');
+const { sphere } = primitives;
+const { scale, translate } = transforms;
+const { colorize } = colors;
+
+// 可調參數會顯示在「幾何參數」頁籤。
+const getParameterDefinitions = () => [
+  { name:'radius', type:'float', initial:480, min:150, max:1100, step:20, caption:'石頭半徑 (mm)' },
+  { name:'height', type:'float', initial:0.72, min:0.2, max:1.8, step:0.05, caption:'垂直縮放比例' }
+];
+
+const main = (p) => {
+  // 建立一顆半徑為 p.radius 的球。
+  const round = sphere({ radius:p.radius, segments:24 });
+  // 垂直方向乘上 p.height，做成較扁的天然石頭。
+  const shaped = scale([1.08, 0.9, p.height], round);
+  // 往上移動，讓石頭底部接近地面 Z = 0。
+  const elevated = translate([0,0,p.radius*p.height], shaped);
+  return colorize([0.62,0.70,0.68], elevated);
+};
+module.exports = { main, getParameterDefinitions };`,
+platform:`/*
+ * 第 2 課｜方形小平台
+ * 學習：cuboid() 長方體的長、寬、高。
+ * size: [X長度, Y寬度, Z高度]，全部使用毫米。
+ * 試試看：把 width 變窄，或將平台升高。
+ */
+const { primitives, transforms, colors } = require('@jscad/modeling');
+const { cuboid } = primitives;
+const { translate } = transforms;
+const { colorize } = colors;
+const getParameterDefinitions = () => [
+ { name:'length', type:'float', initial:2400, min:600, max:4400, step:100, caption:'X 長度 (mm)' },
+ { name:'width', type:'float', initial:1850, min:600, max:3800, step:100, caption:'Y 寬度 (mm)' },
+ { name:'thickness', type:'float', initial:280, min:80, max:900, step:20, caption:'Z 厚度 (mm)' }
+];
+const main = (p) => {
+  // cuboid 的中心在原點，底面預設在負的一半高度。
+  const block = cuboid({ size:[p.length,p.width,p.thickness] });
+  // 向上移動半個厚度，將底部放在 Z = 0。
+  return colorize([0.76,0.67,0.52],translate([0,0,p.thickness/2],block));
+};
+module.exports = { main, getParameterDefinitions };`,
+tree:`/*
+ * 第 3 課｜幾何樹木
+ * 學習：cylinder() 圓柱、sphere() 球體與 translate()。
+ * 注意：回傳多個幾何物件，各零件可保留自己的顏色。
+ */
+const { primitives, transforms, colors } = require('@jscad/modeling');
+const { cylinder, sphere } = primitives;
+const { translate, scale } = transforms;
+const { colorize } = colors;
+const getParameterDefinitions = () => [
+ { name:'trunkHeight', type:'float', initial:2100, min:900, max:3600, step:100, caption:'樹幹高度 (mm)' },
+ { name:'crownRadius', type:'float', initial:1080, min:500, max:1700, step:50, caption:'樹冠半徑 (mm)' }
+];
+const main = (p) => {
+  // 樹幹：Z 軸圓柱，高度的中心移到 p.trunkHeight / 2。
+  const trunk = colorize([.46,.31,.21],translate([0,0,p.trunkHeight/2],
+      cylinder({radius:160,height:p.trunkHeight,segments:12})));
+  // 樹冠：橢圓形球體，位於樹幹上方。
+  const crown = colorize([.26,.52,.37],translate([0,0,p.trunkHeight+400],
+      scale([1,1,.83],sphere({radius:p.crownRadius,segments:16}))));
+  // 使用陣列保留樹幹與樹冠的兩種顏色。
+  return [trunk,crown];
+};
+module.exports = { main, getParameterDefinitions };`,
+traffic:`/*
+ * 第 4 課｜橫式紅綠燈
+ * 學習：長方體、圓柱、旋轉、平移及多零件配色。
+ * 柱子沿 Z 軸向上；燈罩沿 X 軸橫向排列。
+ * 三個彩色圓柱穿過燈罩的 Y 軸厚度，前後都看得見。
+ */
+const { primitives, transforms, colors } = require('@jscad/modeling');
+const { cuboid, cylinder } = primitives;
+const { translate, rotateX } = transforms;
+const { colorize } = colors;
+const getParameterDefinitions = () => [
+ {name:'postHeight',type:'float',initial:2700,min:1700,max:4500,step:100,caption:'支柱高度 (mm)'},
+ {name:'housingWidth',type:'float',initial:2600,min:2000,max:3400,step:100,caption:'燈罩長度 (mm)'},
+ {name:'lampRadius',type:'float',initial:285,min:160,max:380,step:10,caption:'燈面半徑 (mm)'}
+];
+const main = (p) => {
+  // 直立圓柱：支柱底部在 Z = 0。
+  const pole = colorize([.64,.73,.73],translate([0,0,p.postHeight/2],
+      cylinder({radius:95,height:p.postHeight,segments:16})));
+  // 橫式長方體：X 方向較長，Y 方向很薄，Z 是高度。
+  const housingZ=p.postHeight+420;
+  const body = colorize([.15,.23,.27],translate([0,0,housingZ],
+      cuboid({size:[p.housingWidth,280,760]})));
+  // 圓柱原本沿 Z 軸；rotateX(90°) 後改為沿 Y 軸穿透燈罩。
+  const bulb = cylinder({radius:p.lampRadius,height:400,segments:32});
+  const throughY = rotateX(Math.PI/2,bulb);
+  const red = colorize([.92,.24,.22],translate([-p.housingWidth*.29,0,housingZ],throughY));
+  const yellow = colorize([.98,.76,.18],translate([0,0,housingZ],throughY));
+  const green = colorize([.19,.77,.49],translate([p.housingWidth*.29,0,housingZ],throughY));
+  return [pole,body,red,yellow,green];
+};
+module.exports = { main, getParameterDefinitions };`,
+house:`/*
+ * 第 5 課｜帶真正窗洞的小屋
+ * 學習：subtract() 布林差集、union() 與貫穿孔洞。
+ * 窗戶不是貼圖；從一整塊牆體扣除穿透的方形空間。
+ * 注意：所有長度為毫米，Z 軸向上。
+ */
+const { primitives, transforms, booleans, colors } = require('@jscad/modeling');
+const { cuboid } = primitives;
+const { translate } = transforms;
+const { subtract } = booleans;
+const { colorize } = colors;
+const getParameterDefinitions = () => [
+ {name:'width',type:'float',initial:3500,min:2200,max:5200,step:100,caption:'建築寬度 X (mm)'},
+ {name:'depth',type:'float',initial:2900,min:1900,max:4500,step:100,caption:'建築深度 Y (mm)'},
+ {name:'height',type:'float',initial:2700,min:2000,max:4100,step:100,caption:'牆體高度 Z (mm)'},
+ {name:'windowWidth',type:'float',initial:580,min:280,max:950,step:20,caption:'窗洞寬度 (mm)'}
+];
+const main = (p) => {
+  // 外牆先建立完整實體長方體。
+  const outer = translate([0,0,p.height/2],cuboid({size:[p.width,p.depth,p.height]}));
+  // 沿 Y 軸穿透的窗孔：孔洞深度比整棟建築還長。
+  // 左右各一扇窗，從屋子的前方可看見後方。
+  const hole1 = translate([-p.width*.28,0,p.height*.61],
+      cuboid({size:[p.windowWidth,p.depth+700,650]}));
+  const hole2 = translate([p.width*.28,0,p.height*.61],
+      cuboid({size:[p.windowWidth,p.depth+700,650]}));
+  // 門洞：在牆面正中央，從地板一路切到屋內。
+  const door = translate([0,-p.depth/2+70,910],
+      cuboid({size:[750,320,1820]}));
+  // subtract()：逐一將孔洞從牆體扣除。
+  const walls = colorize([.88,.81,.66],subtract(outer,hole1,hole2,door));
+  // 屋頂使用獨立長方體，方便先理解孔洞的幾何原理。
+  const roof = colorize([.49,.56,.52],translate([0,0,p.height+125],
+      cuboid({size:[p.width+260,p.depth+260,250]})));
+  return [walls,roof];
+};
+module.exports = { main, getParameterDefinitions };`
+};
+
+const lessons=[
+ {id:'stone',title:'圓形小石頭',step:'01 · 基本球體',type:'單體幾何',desc:'從球體開始，學習尺寸、縮放與位置。',tags:['sphere','scale','translate'],position:[-14.6,-2.8,0.06],yaw:.24,teach:'把「半徑」調大，觀察石頭如何變化；再嘗試修改 scale([1.08, 0.9, p.height]) 的前兩個數字，使石頭變得狹長。'},
+ {id:'platform',title:'方形地景',step:'02 · 長方體',type:'基礎地形',desc:'用三個數字控制長、寬、高，認識 X／Y／Z。',tags:['cuboid','translate'],position:[-8.3,-4.15,.05],yaw:-.16,teach:'試著把平台長度改成 3600 mm、厚度改成 500 mm，觀察尺寸如何變化。'},
+ {id:'tree',title:'簡單樹木',step:'03 · 幾何組合',type:'組合幾何',desc:'利用圓柱與球體，組合樹幹和樹冠。',tags:['cylinder','sphere','colorize'],position:[-18,3.4,.06],yaw:.24,teach:'試著增加樹幹高度、縮小樹冠，或修改 colorize([R,G,B]) 製作秋天的樹。'},
+ {id:'traffic',title:'橫式紅綠燈',step:'04 · 旋轉與配色',type:'多零件組合',desc:'一根圓柱桿、橫向薄長方體、三個貫穿燈面。',tags:['cylinder','cuboid','rotateX','colorize'],position:[-10.4,3.1,.07],yaw:.08,teach:'先調整燈罩寬度，再找出 rotateX(Math.PI/2)：若移除旋轉，三個燈面會改成垂直方向。'},
+ {id:'house',title:'有窗洞的建築',step:'05 · 布林挖空',type:'差集與孔洞',desc:'真正挖出門窗，而不是在牆面貼黑色圖案。',tags:['cuboid','subtract','translate'],position:[-5.7,4.05,.04],yaw:.3,teach:'試著調整 windowWidth，也可以刪掉一個 hole 參數，觀察窗洞如何消失。'}
+].map(v=>({...v,source:STORAGE[v.id]?.source||TEMPLATES[v.id],params:STORAGE[v.id]?.params||{},lastGoodSource:STORAGE[v.id]?.source||TEMPLATES[v.id],lastGoodParams:STORAGE[v.id]?.params||{},mesh:null,collisionData:null,defs:[],busy:false,error:'',ready:false}));
+
+// --- 使用 Three.js 描繪沿用教育群島視覺語彙的環境，Z 軸為向上。 ---
+const scene=new THREE.Scene();scene.background=new THREE.Color(0x9cc6d1);scene.fog=new THREE.FogExp2(0x9fcad3,.013);
+window.__jscad3DReady=true;const stage=$('#stage');const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});
+renderer.setPixelRatio(Math.min(devicePixelRatio,1.7));renderer.setSize(stage.clientWidth,stage.clientHeight);renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.22;stage.appendChild(renderer.domElement);
+const camera=new THREE.PerspectiveCamera(47,stage.clientWidth/stage.clientHeight,.05,400);camera.up.set(0,0,1);camera.position.set(-27,-30,24);
+const controls=new OrbitControls(camera,renderer.domElement);controls.enableDamping=true;controls.dampingFactor=.075;controls.minDistance=3;controls.maxDistance=85;controls.maxPolarAngle=Math.PI*.46;controls.target.set(-12,0,0);controls.update();
+scene.add(new THREE.HemisphereLight(0xeaf9ff,0x426667,2.5));const sun=new THREE.DirectionalLight(0xfff5dc,2.4);sun.position.set(-28,-42,65);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);sun.shadow.camera.left=-60;sun.shadow.camera.right=60;sun.shadow.camera.top=60;sun.shadow.camera.bottom=-60;sun.shadow.normalBias=.018;scene.add(sun);
+const mat=(hex,roughness=.9)=>new THREE.MeshStandardMaterial({color:hex,roughness,flatShading:true});
+const standard={grass:mat(0x799a77),grassLight:mat(0x88ab82),earth:mat(0x826e55),stone:mat(0x929a90),tree:mat(0x436e55),sea:new THREE.MeshStandardMaterial({color:0x368fa8,roughness:.56,metalness:.04,flatShading:true,transparent:true,opacity:.98})};
+function box(parent,sizes,hex,pos){const mesh=new THREE.Mesh(new THREE.BoxGeometry(...sizes),mat(hex));mesh.position.set(...pos);mesh.castShadow=true;mesh.receiveShadow=true;parent.add(mesh);return mesh}
+function sphere(parent,r,hex,pos,detail=1){const mesh=new THREE.Mesh(new THREE.IcosahedronGeometry(r,detail),mat(hex));mesh.position.set(...pos);mesh.castShadow=true;mesh.receiveShadow=true;parent.add(mesh);return mesh}
+function cyl(parent,rt,rb,h,hex,pos,segments=9){const mesh=new THREE.Mesh(new THREE.CylinderGeometry(rt,rb,h,segments),mat(hex));mesh.rotation.x=Math.PI/2;mesh.position.set(...pos);mesh.castShadow=true;mesh.receiveShadow=true;parent.add(mesh);return mesh}
+function cone(parent,r,h,hex,pos){return cyl(parent,0,r,h,hex,pos,7)}
+function meshTriangles(tris,colors){const verts=[],cols=[];for(let i=0;i<tris.length;i++){const t=tris[i],c=colors[i];for(const p of t){verts.push(...p);cols.push(...c)}}const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(verts,3));g.setAttribute('color',new THREE.Float32BufferAttribute(cols,3));g.computeVertexNormals();return g}
+function makeIsland(cx,cy,z,r,seed){const group=new THREE.Group();group.position.set(cx,cy,0);scene.add(group);const random=randint(seed),n=34,angles=[];for(let i=0;i<n;i++){const a=i/n*Math.PI*2,RR=r*(.93+random()*.15);angles.push([Math.cos(a)*RR,Math.sin(a)*RR]);}const triangles=[],colors=[],edge=[];const grassPalette=[[.47,.63,.46],[.51,.66,.48],[.43,.59,.45],[.54,.67,.49]],soilPalette=[[.48,.43,.34],[.54,.47,.35],[.42,.41,.35],[.49,.48,.38]],baseZ=Math.min(z-3.2,-3.1); // 高島的岩壁也需向下延伸至海面以下
+ for(let i=0;i<n;i++){const [x,y]=angles[i], [xx,yy]=angles[(i+1)%n];const top1=[x*.85,y*.85,z-.08],top2=[xx*.85,yy*.85,z-.08],rim1=[x,y,z-.34],rim2=[xx,yy,z-.34],foot1=[x*.76,y*.76,baseZ],foot2=[xx*.76,yy*.76,baseZ];triangles.push([[0,0,z],top1,top2],[top1,rim1,rim2],[top1,rim2,top2],[rim1,foot1,foot2],[rim1,foot2,rim2]);const gr=grassPalette[Math.floor(random()*4)],er=soilPalette[Math.floor(random()*4)];colors.push(gr,gr,gr,er,er);edge.push(new THREE.Vector3(x,y,z-.29));}
+ const mesh=new THREE.Mesh(meshTriangles(triangles,colors),new THREE.MeshStandardMaterial({vertexColors:true,flatShading:true,roughness:1,side:THREE.DoubleSide}));mesh.castShadow=true;mesh.receiveShadow=true;group.add(mesh);
+ // 一圈非常淡的岸線，襯托島嶼與海面的高差。
+ const outline=new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(edge),new THREE.LineBasicMaterial({color:0xb9b89a,transparent:true,opacity:.35}));group.add(outline);return group;}
+const ocean=new THREE.Mesh(new THREE.PlaneGeometry(380,380,58,58),standard.sea);ocean.position.z=-2.65;ocean.receiveShadow=true;scene.add(ocean);const waterBase=Float32Array.from(ocean.geometry.attributes.position.array);
+const A=makeIsland(-12,0,0,10.8,2243),C=makeIsland(15,4.0,2.7,8.35,6073);
+function decorativeTree(group,x,y,z,random,kind='broadleaf'){const h=1.2+random()*.95;cyl(group,.10,.16,h,0x78624a,[x,y,z+h/2],7);if(kind==='pine'){cone(group,.68,h*1.25,0x3c7456,[x,y,z+h*1.03]);cone(group,.47,h*.85,0x598f66,[x,y,z+h*1.33]);}else{const crown=sphere(group,.78+random()*.35,random()>.46?0x6a9863:0x4e835c,[x,y,z+h+.35],1);crown.scale.z=.84;}}
+function scatteredTrees(group,seed,num,r,z,exclusion=[]){const rand=randint(seed);for(let i=0,attempt=0;i<num&&attempt<400;attempt++){const a=rand()*Math.PI*2,d=3.2+rand()*(r-4.3),x=Math.cos(a)*d,y=Math.sin(a)*d;if(exclusion.some(([ex,ey,rr])=>(x-ex)**2+(y-ey)**2<rr*rr))continue;decorativeTree(group,x,y,z,rand,rand()<.35?'pine':'broadleaf');i++;}}
+scatteredTrees(A,448,20,10.8,0,[[-2.6,-2.8,3],[3.7,-4.2,2.7],[-6.0,3.4,2.1],[1.6,3.1,2.6],[6.3,4.0,3.4]]);
+scatteredTrees(C,839,24,8.35,2.7,[[0,0,2]]);
+// 自然裝飾物只是背景；真正可編輯的五種教材模型另由 JSCAD 建立。
+const rand=randint(9231);for(let i=0;i<24;i++){const a=rand()*Math.PI*2,d=4.2+rand()*5.5,x=Math.cos(a)*d,y=Math.sin(a)*d;if(x>2&&y>1)continue;const s=sphere(A,.1+rand()*.19,0x9ca99e,[x,y,.08],0);s.scale.set(1.1,.72,.66)}
+// 樹木之間的小徑以薄片構成，並不影響未來車輛與碰撞邏輯。
+function path(parent,pts,w=1.2){for(let i=0;i<pts.length-1;i++){const p=pts[i],q=pts[i+1],dx=q[0]-p[0],dy=q[1]-p[1],len=Math.hypot(dx,dy);const tile=box(parent,[len,w,.045],0xb6b39a,[(p[0]+q[0])/2,(p[1]+q[1])/2,.028]);tile.rotation.z=Math.atan2(dy,dx);tile.receiveShadow=true;}}
+path(A,[[-6.3,-5.2],[-3.2,-3.3],[-.2,-.5],[2.1,1.1],[5.8,3.0]],.79);
+// 遠方高島上的小型建物，維持簡潔的群島風格。
+box(C,[2.0,1.8,1.9],0xd9cfb4,[2.2,1.4,3.75]);box(C,[2.3,2.1,.32],0x899b8b,[2.2,1.4,4.86]);box(C,[.45,.62,.12],0x719ca7,[2.2,.46,3.72]);
+const lighthouse=new THREE.Group();C.add(lighthouse);lighthouse.position.set(-2.1,-2.6,2.7);cyl(lighthouse,.5,.74,3.1,0xf1ede1,[0,0,1.55],12);cyl(lighthouse,.78,.74,.31,0xc56f5e,[0,0,3.2],12);sphere(lighthouse,.35,0xffdfaa,[0,0,3.38],1);
+// 以世界 X／Y／Z 坐標放置個別可編輯模型。
+const objectLayer=new THREE.Group();scene.add(objectLayer);
+const hitMeshes=[];let selected=null,outline=null,flight=null,drawState='scene';let resizeLastW=0,resizeLastH=0;
+function fallbackMarker(item){const g=new THREE.Group();const p=item.position;g.position.set(p[0],p[1],p[2]);const halo=new THREE.Mesh(new THREE.TorusGeometry(.94,.014,3,64),new THREE.MeshBasicMaterial({color:0xc2e9d6,transparent:true,opacity:.55}));halo.position.z=.015;g.add(halo);const small=box(g,[.12,.12,.25],0x9edac6,[0,0,.16]);small.castShadow=false;objectLayer.add(g);item.marker=g;}
+for(const o of lessons)fallbackMarker(o);
+// --- 獨立 Worker：相同 JSCAD 幾何可用於將來的碰撞網格。 ---
+let worker=null,pending=[],active=null,reqID=0,workerReady=false;
+function createWorker(){if(worker)worker.terminate();const source=$('#jscad-worker').textContent;const blob=new Blob([source],{type:'text/javascript'}),url=URL.createObjectURL(blob);worker=new Worker(url);URL.revokeObjectURL(url);workerReady=true;worker.onmessage=e=>{const msg=e.data;if(msg.type==='fatal'){workerReady=false;toast(msg.error);if(active){clearTimeout(active.timer);active.reject(new Error(msg.error));active=null;}while(pending.length)pending.shift().reject(new Error(msg.error));return}if(!active||msg.id!==active.id)return;clearTimeout(active.timer);const job=active;active=null;if(msg.type==='error')job.reject(new Error(msg.error));else job.resolve(msg);pump()};worker.onerror=e=>{if(active){clearTimeout(active.timer);active.reject(new Error(e.message||'Worker 無法執行'));active=null;}workerReady=false;toast('建模執行緒發生錯誤');setTimeout(()=>{createWorker();pump()},350);};}
+function pump(){if(active||!pending.length)return;if(!workerReady){createWorker();}active=pending.shift();const job=active;job.timer=setTimeout(()=>{if(active!==job)return;active=null;job.reject(new Error('計算超過 8 秒，已停止此物件的建模'));createWorker();pump()},8000);try{worker.postMessage({id:job.id,source:job.source,params:job.params})}catch(e){clearTimeout(job.timer);active=null;job.reject(e);pump()}}
+function compile(source,params){return new Promise((resolve,reject)=>{pending.push({id:++reqID,source,params,resolve,reject});pump()})}
+createWorker();
+function disposeGroup(group){if(!group)return;group.traverse(o=>{if(o.isMesh){o.geometry?.dispose();if(Array.isArray(o.material))o.material.forEach(m=>m.dispose());else o.material?.dispose();}});group.removeFromParent()}
+function createModel(item,result){const group=new THREE.Group();group.position.set(...item.position);group.rotation.z=item.yaw;group.userData.lessonID=item.id;
+ for(const part of result.meshes){const geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.Float32BufferAttribute(part.positions,3));geometry.computeVertexNormals();const c=part.color;const material=new THREE.MeshStandardMaterial({color:new THREE.Color(c[0],c[1],c[2]),metalness:.02,roughness:.83,side:THREE.DoubleSide,transparent:c[3]<.999,opacity:c[3]});const mesh=new THREE.Mesh(geometry,material);mesh.castShadow=true;mesh.receiveShadow=true;mesh.userData.lessonID=item.id;group.add(mesh);hitMeshes.push(mesh)}
+ // 排除非有限長度，防止惡意或錯誤程式破壞鏡頭。
+ const bounds=new THREE.Box3().setFromObject(group);const size=bounds.getSize(new THREE.Vector3());if(!Number.isFinite(size.length())||size.length()>200||size.length()<.002){disposeGroup(group);throw Error('模型尺寸無效或超出教學場景範圍');}
+ if(item.mesh){item.mesh.traverse(o=>{if(o.isMesh){const idx=hitMeshes.indexOf(o);if(idx>=0)hitMeshes.splice(idx,1)}});disposeGroup(item.mesh)}
+ item.mesh=group;objectLayer.add(group);item.marker.visible=false;item.ready=true;item.defs=result.defs;item.params=result.params;item.triangles=result.triangles;item.collisionData=result.meshes.map(m=>m.positions); // 預留後續物理網格來源
+ if(item===selected){refreshParams();highlightSelected();if(!item.hasFocusedOnce){cameraToObject(item);item.hasFocusedOnce=true;}updateStatus(`✓ 幾何更新完成 · ${result.triangles.toLocaleString()} 個三角形`);}
+}
+async function rebuild(item,code=item.source,params=item.params){item.busy=true;if(item===selected)updateStatus('正在重新計算幾何…','busy');const revision=(item.revision||0)+1;item.revision=revision;try{const r=await compile(code,params);if(revision!==item.revision)return;createModel(item,r);item.error='';item.busy=false;item.lastGoodSource=code;item.lastGoodParams={...item.params};save()}catch(e){if(revision!==item.revision)return;item.busy=false;item.error=e.message;if(item===selected){updateStatus('程式無法建立模型','error');$('#errorBanner').textContent='⚠ '+e.message;}if(!item.ready)console.error('初始模型建構失敗',item.id,e);}}
+function updateStatus(text,kind=''){const s=$('#compileStatus');s.textContent=text;s.className='status '+kind;if(kind!=='error')$('#errorBanner').textContent=''}
+// 啟動畫面只等待第一個可互動物件，其餘教材在背景依序建立。
+(async()=>{try{await rebuild(lessons[0]);$('#loading').classList.add('hide');for(const o of lessons.slice(1))await rebuild(o);if(lessons.some(o=>!o.ready))toast('有部分物件載入失敗，可在編輯器檢查');}catch(e){$('#loadmsg').textContent='載入失敗：'+e.message;setTimeout(()=>$('#loading').classList.add('hide'),800)}})();
+// --- 鏡頭聚焦、教學選取與可見物件中心 ---
+const baseTarget=new THREE.Vector3(-10.7,0,.4),basePosition=new THREE.Vector3(-27,-30,24);
+function smoothCamera(target,distance){const toTarget=target.clone(),dir=camera.position.clone().sub(controls.target).normalize(),toPos=toTarget.clone().addScaledVector(dir,distance);flight={t0:performance.now(),fromP:camera.position.clone(),fromT:controls.target.clone(),toP:toPos,toT:toTarget,duration:700};}
+function cameraToObject(item){if(!item.mesh)return;item.mesh.updateWorldMatrix(true,true);const box=new THREE.Box3().setFromObject(item.mesh),center=box.getCenter(new THREE.Vector3()),size=box.getSize(new THREE.Vector3());const span=Math.max(size.length()*.92,2.7);smoothCamera(center,clamp(span*2.5,4.2,16));}
+function cameraHome(){flight={t0:performance.now(),fromP:camera.position.clone(),fromT:controls.target.clone(),toP:basePosition.clone(),toT:baseTarget.clone(),duration:900};}
+function highlightSelected(){if(outline){disposeGroup(outline);outline=null}if(!selected?.mesh)return;const g=selected.mesh;g.updateMatrixWorld(true);const bounds=new THREE.Box3().setFromObject(g);const size=bounds.getSize(new THREE.Vector3());const center=bounds.getCenter(new THREE.Vector3());const geometry=new THREE.EdgesGeometry(new THREE.BoxGeometry(size.x+.12,size.y+.12,size.z+.1));const edges=new THREE.LineSegments(geometry,new THREE.LineBasicMaterial({color:0xd8fff0,transparent:true,opacity:.5}));edges.position.copy(center);outline=new THREE.Group();outline.add(edges);scene.add(outline);}
+function setEditor(item){$('#objectTitle').textContent=item.title;$('#objectSubtitle').textContent=`${item.step}　·　${item.desc}`;$('#code').value=item.source;paintCode();refreshParams();$('#lessonInfo').innerHTML=`<strong>${escapeHTML(item.title)}</strong><p>${escapeHTML(item.teach)}</p><span>試著修改一項參數，再旋轉鏡頭觀察改變。</span>`;$('#lessonTags').innerHTML=item.tags.map(tag=>`<span class="codechip">${escapeHTML(tag)}()</span>`).join('');$('#errorBanner').textContent=item.error?'⚠ '+item.error:'';updateStatus(item.ready?`✓ 模型已載入 · ${(item.triangles||0).toLocaleString()} 個三角形`:'正在生成模型…',item.error?'error':'');if(item.error)$('#errorBanner').textContent='⚠ '+item.error;$$('.lesson').forEach(e=>e.classList.toggle('current',e.dataset.id===item.id));}
+function selectItem(id){const item=lessons.find(x=>x.id===id);if(!item)return;selected=item;document.body.classList.add('editing');setEditor(item);switchTab('code');if(item.ready){cameraToObject(item);item.hasFocusedOnce=true;}else toast('正在建立 '+item.title+'…');}
+function closeEditor(){document.body.classList.remove('editing');selected=null;if(outline){disposeGroup(outline);outline=null}$$('.lesson').forEach(e=>e.classList.remove('current'));cameraHome()}
+$('#home').addEventListener('click',()=>{closeEditor();cameraHome()});$('#close').addEventListener('click',closeEditor);
+for(const item of lessons){const button=document.createElement('button');button.className='lesson';button.dataset.id=item.id;button.innerHTML=`<span>${escapeHTML(item.step)}</span><strong>${escapeHTML(item.title)}</strong>`;button.addEventListener('click',()=>selectItem(item.id));$('#lessonButtons').appendChild(button)}
+function switchTab(name){$$('.tab').forEach(e=>e.classList.toggle('on',e.dataset.tab===name));$$('.tabpanel').forEach(e=>e.classList.toggle('on',e.id==='tab-'+name))}
+$$('.tab').forEach(e=>e.addEventListener('click',()=>switchTab(e.dataset.tab)));
+function escapeHTML(s){return String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;')}
+function colorCode(s){const re=/(\/\*[\s\S]*?\*\/|\/\/[^\n]*|'(?:\\.|[^'\\])*'|"(?:\\.|[^"\\])*"|\b(?:const|let|return|function|module|exports|require|Math|true|false|null)\b|\b\d+(?:\.\d+)?\b|\b[A-Za-z_$][\w$]*(?=\s*\())/g;let res='',offset=0,m;while((m=re.exec(s))){res+=escapeHTML(s.slice(offset,m.index));const token=m[0];let cls=token.startsWith('//')||token.startsWith('/*')?'tok-comment':token.startsWith('"')||token.startsWith("'")?'tok-str':/^\d/.test(token)?'tok-num':/^(const|let|return|function|module|exports|require|Math|true|false|null)$/.test(token)?'tok-kw':'tok-fn';res+=`<span class="${cls}">${escapeHTML(token)}</span>`;offset=re.lastIndex;}return res+escapeHTML(s.slice(offset))+'\n'}
+function paintCode(){const el=$('#code'),s=el.value;$('#highlight').innerHTML=colorCode(s);$('#lineNums').textContent=Array.from({length:s.split('\n').length},(_,i)=>i+1).join('\n');syncEditorScroll()}
+function syncEditorScroll(){const e=$('#code');$('#highlight').scrollTop=e.scrollTop;$('#highlight').scrollLeft=e.scrollLeft;$('#lineNums').scrollTop=e.scrollTop;}
+$('#code').addEventListener('scroll',syncEditorScroll);
+let debounce=0;$('#code').addEventListener('input',()=>{if(!selected)return;const item=selected;item.source=$('#code').value;paintCode();updateStatus('修改已記錄，準備更新…','busy');clearTimeout(debounce);debounce=setTimeout(()=>rebuild(item),500)});
+$('#code').addEventListener('keydown',e=>{if(e.key==='Tab'){e.preventDefault();const t=e.currentTarget,i=t.selectionStart;t.setRangeText('  ',i,t.selectionEnd,'end');t.dispatchEvent(new Event('input',{bubbles:true}))}if((e.metaKey||e.ctrlKey)&&e.key==='Enter'){e.preventDefault();clearTimeout(debounce);if(selected)rebuild(selected)}});
+function refreshParams(){if(!selected)return;const root=$('#paramItems');root.replaceChildren();if(!selected.defs?.length){root.innerHTML='<div class="empty">此物件尚無可調參數，或尚未完成建模。<br>可直接在「JSCAD 程式」修改數值。</div>';return;}for(const d of selected.defs){const line=document.createElement('div');line.className='param-row';const label=document.createElement('label');label.textContent=d.caption||d.name;const input=document.createElement('input');input.type='number';input.step=d.step??'any';if(Number.isFinite(d.min))input.min=d.min;if(Number.isFinite(d.max))input.max=d.max;input.value=selected.params[d.name]??d.initial??0;label.appendChild(input);line.appendChild(label);if(Number.isFinite(d.min)&&Number.isFinite(d.max)&&d.max>d.min){const range=document.createElement('input');range.type='range';range.min=d.min;range.max=d.max;range.step=d.step||1;range.value=input.value;range.addEventListener('input',()=>{input.value=range.value;input.dispatchEvent(new Event('change'))});input.addEventListener('input',()=>{range.value=input.value});line.appendChild(range)}input.addEventListener('change',()=>{if(!selected)return;const v=Number(input.value);if(!Number.isFinite(v)){toast('請輸入有效數字');return}selected.params[d.name]=v;rebuild(selected)});root.appendChild(line)}}
+$('#restoreModel').addEventListener('click',()=>{if(!selected)return;const item=selected;item.source=TEMPLATES[item.id];item.params={};$('#code').value=item.source;paintCode();rebuild(item);toast('已恢復 '+item.title+' 的預設程式')});
+$('#copyCode').addEventListener('click',async()=>{if(!selected)return;try{await navigator.clipboard.writeText(selected.source);toast('已複製 JSCAD 原始碼')}catch(e){$('#code').select();toast('請使用複製快捷鍵複製程式')}});
+$('#exportCode').addEventListener('click',()=>{if(!selected)return;const blob=new Blob([selected.source],{type:'text/javascript;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='jscad_'+selected.id+'.jscad';a.click();setTimeout(()=>URL.revokeObjectURL(url),2000)});
+$('#resetScene').addEventListener('click',()=>{if(!confirm('要清除所有已編輯的物件，恢復預設教材嗎？'))return;localStorage.removeItem(LS);for(const o of lessons){o.source=TEMPLATES[o.id];o.params={};rebuild(o)}if(selected)setEditor(selected);toast('已重新載入所有預設教材')});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeEditor();if(e.key==='Home'&&e.target.tagName!=='TEXTAREA'){closeEditor();cameraHome()}});
+// 只在點擊而非拖曳時選取物件；支援滑鼠及觸控筆／單指。
+const raycaster=new THREE.Raycaster(),pointer=new THREE.Vector2(),tip=$('#picktip');let down=null;
+function pick(e){const rect=renderer.domElement.getBoundingClientRect();pointer.set((e.clientX-rect.left)/rect.width*2-1,1-(e.clientY-rect.top)/rect.height*2);raycaster.setFromCamera(pointer,camera);const candidates=raycaster.intersectObjects(hitMeshes,false);return candidates.length?lessons.find(l=>l.id===candidates[0].object.userData.lessonID):null}
+renderer.domElement.addEventListener('pointerdown',e=>{down={x:e.clientX,y:e.clientY};flight=null;tip.style.display='none'},{passive:true});
+renderer.domElement.addEventListener('pointerup',e=>{if(!down)return;const moved=Math.hypot(down.x-e.clientX,down.y-e.clientY);down=null;if(moved>8)return;const item=pick(e);if(item)selectItem(item.id)});
+renderer.domElement.addEventListener('pointermove',e=>{if(e.pointerType==='touch'||down){tip.style.display='none';return;}const item=pick(e);renderer.domElement.style.cursor=item?'pointer':'grab';if(!item){tip.style.display='none';return}tip.style.display='block';tip.textContent=item.title;const label=document.createElement('small');label.textContent='點擊編輯 JSCAD';tip.appendChild(label);tip.style.left=Math.min(innerWidth-170,e.clientX+15)+'px';tip.style.top=Math.max(8,e.clientY-16)+'px'});
+renderer.domElement.addEventListener('pointerleave',()=>tip.style.display='none');
+// --- 動畫與 canvas 尺寸適應（抽屜開關時重新計算透視）。 ---
+const clock=new THREE.Clock();function render(){requestAnimationFrame(render);const t=clock.getElapsedTime();if(flight){const u=clamp((performance.now()-flight.t0)/flight.duration,0,1),v=u*u*(3-2*u);camera.position.lerpVectors(flight.fromP,flight.toP,v);controls.target.lerpVectors(flight.fromT,flight.toT,v);if(u>=1)flight=null;}controls.update();const width=stage.clientWidth,height=stage.clientHeight;if(width&&height&&(width!==resizeLastW||height!==resizeLastH)){renderer.setSize(width,height,false);camera.aspect=width/height;camera.updateProjectionMatrix();resizeLastW=width;resizeLastH=height;}
+ const attr=ocean.geometry.attributes.position;for(let i=0;i<attr.count;i++){const v=i*3;attr.setZ(i,Math.sin(waterBase[v]*.086+t*.50)*.085+Math.cos(waterBase[v+1]*.1+t*.37)*.075);}attr.needsUpdate=true; // 海面低幅起伏，避免每幀重算大量法線。
+ if(outline){outline.children[0].material.opacity=.42+.13*Math.sin(t*2.6)}
+ renderer.render(scene,camera)}render();
+window.addEventListener('unhandledrejection',e=>{console.error('JSCAD Lab:',e.reason)});
+</script>
+<script>
+// 遇到 CDN 失敗時，避免使用者只看到永遠不結束的載入動畫。
+setTimeout(function(){if(!window.__jscad3DReady){document.getElementById('loading').classList.add('hide');document.getElementById('network').style.display='block';}},13000);
+</script>
+</body>
+</html>
