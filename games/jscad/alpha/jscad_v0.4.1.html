@@ -4,10 +4,49 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#081c2b">
-<meta name="description" content="JSCAD Physics Lab v0.4 — 放大 A 島、可推動 JSCAD 石頭與小型四輪車。">
-<title>JSCAD Physics Lab｜幾何之島 v0.4</title>
+<meta name="description" content="JSCAD Physics Lab v0.4.1 — 放大 A 島、可推動 JSCAD 石頭與小型四輪車。">
+<title>JSCAD Physics Lab｜幾何之島 v0.4.1</title>
 <!-- 沿用 eduGame 專案既有 GA4 設定；放上 GitHub Pages 的 /eduGame/ 目錄即可套用。 -->
 <script src="/eduGame/ga4.js" defer></script>
+<script>
+// v0.4.1 啟動監測：即使模組 / Worker 報錯，也不可永遠停在載入畫面。
+(function(){
+ const boot={errors:[],started:Date.now(),sceneReady:false,modelsReady:false,phase:'載入程式庫'};
+ window.__labBoot=boot;
+ function showFatal(message){
+  if(boot.sceneReady)return;  // 場景已能使用時，保留畫面；不以錯誤覆蓋場景。
+  const loading=document.getElementById('loading'),network=document.getElementById('network');
+  if(!loading||!network)return;
+  loading.classList.add('hide'); network.style.display='block';
+  document.getElementById('networkTitle').textContent='場景初始化未完成';
+  document.getElementById('networkErr').textContent=message+'\n請截圖這段訊息，以便定位問題。';
+ }
+ window.__labFatal=showFatal;
+ window.addEventListener('error',function(e){
+  // 外部資源（例如 GA4）載入失敗不是主程式例外，不能誤判為 3D 啟動失敗。
+  if(!('message' in e))return;
+  const msg=(e.message||e.error?.message||'未知 JavaScript 錯誤')+(e.filename?'\n'+e.filename.split('/').pop()+':'+e.lineno+':'+e.colno:'');
+  boot.errors.push(msg);console.error('[JSCAD 啟動]',msg);
+  if(!boot.sceneReady)showFatal(msg);
+ },true);
+ window.addEventListener('unhandledrejection',function(e){
+  const msg=String(e.reason?.stack||e.reason?.message||e.reason||'Promise 初始化失敗');
+  boot.errors.push(msg);console.error('[JSCAD Promise]',msg);
+  if(!boot.sceneReady)showFatal(msg);
+ });
+ // 不等 DOMContentLoaded：若 module 網路請求懸而未決，此事件可能一直不觸發。
+ document.addEventListener('click',function(e){
+  if(e.target?.closest?.('#networkRetry'))location.reload();
+ });
+ setTimeout(function(){
+  if(!boot.sceneReady){showFatal(boot.errors.slice(-2).join('\n')||'3D 程式未完成初始化，可能是外部模組載入失敗或程式提前中斷。');}
+  else {
+   document.getElementById('loading')?.classList.add('hide');
+   if(!boot.modelsReady){const el=document.getElementById('compileStatus');if(el)el.textContent='幾何模型仍在背景建立中；可先操作場景。';}
+  }
+ },12000);
+})();
+</script>
 <script type="importmap">{
   "imports": {
     "three": "https://cdn.jsdelivr.net/npm/three@0.160.1/build/three.module.js",
@@ -116,7 +155,7 @@ body.driving .header-actions{pointer-events:auto}
 
 #steerRead{font-size:10px;line-height:1.5;color:#b9e1cf;margin-top:6px}
 
-/* v0.4：ABC 只在左下更多選單；觀察工具改成不佔畫面的六顆微型按鈕。 */
+/* v0.4.1：ABC 只在左下更多選單；觀察工具改成不佔畫面的六顆微型按鈕。 */
 #morePanel{width:min(310px,calc(100vw - 24px));padding:12px;max-height:min(72dvh,620px)}
 #morePanel .zonetags{position:static!important;top:auto!important;left:auto!important;right:auto!important;bottom:auto!important;display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr));max-width:none!important;gap:6px;pointer-events:auto;margin:0 0 9px}
 #morePanel .zonetags .zone{display:grid!important;place-items:center;width:100%!important;height:32px!important;min-height:32px!important;border-radius:8px!important;padding:0!important;font-size:12px!important}
@@ -135,7 +174,7 @@ body.driving #morePanel .zonetags,body.editing #morePanel .zonetags{display:grid
 </head>
 <body>
 <div id="stage" aria-label="3D 小島學習場景"></div><div id="veil"></div>
-<header class="topbar"><div class="brand"><div class="brandmark"><svg viewBox="0 0 24 24" fill="none" stroke="#d2fff1" stroke-width="1.35"><path d="M12 2 21 7 12 12 3 7 12 2Zm-9 5v10l9 5 9-5V7M12 12v10"/><path d="M7 4.5 16 9.5" stroke-opacity=".5"/></svg></div><div><strong>JSCAD PHYSICS LAB</strong><small>幾何之島 · v0.4　/　用程式改變世界</small></div></div>
+<header class="topbar"><div class="brand"><div class="brandmark"><svg viewBox="0 0 24 24" fill="none" stroke="#d2fff1" stroke-width="1.35"><path d="M12 2 21 7 12 12 3 7 12 2Zm-9 5v10l9 5 9-5V7M12 12v10"/><path d="M7 4.5 16 9.5" stroke-opacity=".5"/></svg></div><div><strong>JSCAD PHYSICS LAB</strong><small>幾何之島 · v0.4.1　/　用程式改變世界</small></div></div>
 <div class="header-actions" aria-label="場景操作">
 <button id="driveBtn" class="head-icon" title="車輛試駕／結束試駕" aria-label="進入車輛試駕"><svg viewBox="0 0 24 24"><path d="M5 16l1-6 2-4h8l2 4 1 6M6 10h12M5 16v3m14-3v3M3 16h18M7 13h.01M17 13h.01"/></svg></button>
 <button id="home" class="head-icon" title="返回全景" aria-label="返回全景"><svg viewBox="0 0 24 24"><path d="m3 11 9-8 9 8M5 10v10h14V10M9 20v-7h6v7"/></svg></button>
@@ -160,16 +199,16 @@ body.driving #morePanel .zonetags,body.editing #morePanel .zonetags{display:grid
 <div id="picktip"></div><div id="toast"></div>
 <div id="measureOverlay" aria-hidden="true"></div>
 <section id="driveHud" aria-label="車輛動力學儀表">
- <div class="drive-head"><span>PHYSICS / v0.4</span><b id="driveReady">正在準備物理引擎</b></div>
+ <div class="drive-head"><span>PHYSICS / v0.4.1</span><b id="driveReady">正在準備物理引擎</b></div>
  <div class="drive-readings"><div><label>地面速度</label><strong><span id="speedRead">0.00</span><small>m/s</small></strong></div><div><label>車體俯仰</label><strong><span id="pitchRead">0.0</span><small>°</small></strong></div><div><label>車體側傾</label><strong><span id="rollRead">0.0</span><small>°</small></strong></div></div>
  <div class="drive-foot"><span id="tractionRead">實體車輪 · 後輪驅動</span><span id="drivePosition">A 島</span></div><div class="steer-readout" id="steerRead">前輪轉向 · 左 0.0°／右 0.0°（硬限位）</div><div class="steer-readout" id="contactRead">碰撞：等待物理引擎啟動</div>
  <div class="drive-actions"><button id="driveCamera" title="跟隨／自由鏡頭">◉ 跟隨鏡頭</button><button id="driveConfigBtn" title="物理參數">⚙ 物理設定</button><button id="driveReset" title="回到起點">↺ 重置 R</button><button id="driveSelfTest" title="自動施加油門 1.5 秒，檢查馬達、車輪、車身及地面接觸">◎ 行駛自檢</button><button id="driveHillStart" title="將車放到坡頂並解除煞車，觀察下滑">↘ 坡頂試放</button><button id="driveObstacleStart" title="讓石頭歸位，放車在它前方，按 W 推動它">◇ 推動石頭測試</button><button id="driveBridgeStart" title="在 A 島橋頭放車，前進測試橋樑">↗ A 島橋頭</button><button id="driveCStart" title="在 C 島高地放車，測試下坡">↙ C 島試放</button><button id="driveResetProps" title="把可推動的石頭、方塊和小石塊送回起點">↺ 小物歸位</button><button id="driveExit" title="返回建模">✕ 返回繪圖</button></div><div id="driveSignals" aria-live="polite">物理狀態：尚未啟動</div><div id="driveDiag" role="alert" aria-live="assertive"></div>
 </section>
 <div id="mobileDrive" aria-label="觸控駕駛按鍵"><div class="touch-steer"><button data-drivekey="a" aria-label="左轉">◀</button><button data-drivekey="d" aria-label="右轉">▶</button></div><div class="touch-motion"><button data-drivekey="w" aria-label="前進">▲</button><button data-drivekey="s" aria-label="後退">▼</button><button data-drivekey="space" aria-label="煞車">煞車</button></div></div>
 <aside id="driveSettings" aria-label="車輛物理設定"><div class="phys-title"><div><small>RAPIER PHYSICS</small><h2>車輛與路面</h2></div><button id="closeSettings" aria-label="關閉物理設定">×</button></div><div id="physicsInputs" class="phys-scroll"></div><p class="phys-note">Z 軸向上，重力 −9.81 m/s²。前輪有 ±可調角度的物理轉向硬限位，內外輪採 Ackermann 幾何；轉向伺服馬達扭力可調，實際／目標轉角可由儀表觀察；後輪由馬達扭力獨立驅動；解除油門不施加馬達煞車。車輪使用實體圓柱碰撞體；可見轉向連桿與半軸為建模示意，並非完整閉環機構或實體差速器。<br>進入試駕／按 R 重置時，會先檢查島岸、坡道、樹木、石頭與可編輯物件的佔地，再選擇安全位置；若無足夠空間會提示，而不強行把車放進障礙物。A 區石頭為具質量的動態凸包；B 區橋面與橋墩為可編輯固定碰撞網格，其他四種教學物件維持 JSCAD 固定三角網格；修改後同步重建碰撞，已開放碰撞網格與接觸點偵錯。裝飾樹具有樹幹碰撞；小石塊和新增小方塊可被推動。按「行駛自檢」可檢查輪子是否受力和接地。<br>目前車身以長方體、輪子以圓柱建立動態碰撞形狀；任意挖空的「車體」仍需後續凸包分解，不能直接套用固定障礙物的凹面網格。引擎不計算彈性變形與材料破壞。</p></aside>
-<div id="loading"><div class="loading-orbit"></div><b>正在進入幾何之島</b><span id="loadmsg">建立海面、島嶼與 JSCAD 教學物件…</span></div>
-<div id="network"><b>3D 模組載入失敗</b><p>此檔案雖然只有一個 HTML，但執行需連線載入 Three.js、JSCAD 與 Rapier 物理引擎。請連上網路，或上傳到 GitHub Pages 後再開啟。</p><small id="networkErr"></small></div>
-<aside class="drawer" id="drawer" aria-label="JSCAD 物件編輯器"><div class="drawer-header"><div class="drawer-top"><span class="mini-label">OBJECT STUDIO　 /　 JSCAD</span><button id="close" class="close" title="關閉編輯器">×</button></div><h2 id="objectTitle">—</h2><p id="objectSubtitle">選取物件開始學習</p></div><div class="tabs"><button class="tab on" data-tab="code">JSCAD 程式</button><button class="tab" data-tab="params">幾何參數</button><button class="tab" data-tab="learn">學習重點</button><button class="tab" data-tab="observe">拆解觀察</button></div><div class="tabpanel on" id="tab-code"><div class="section-label"><span>完整原始碼 · 繁體中文註解</span><b>AUTO PREVIEW</b></div><div class="histbar"><button id="undoBtn" title="復原上一次程式碼或參數修改">↶ 復原</button><button id="redoBtn" title="重做上一次被復原的編輯">↷ 重做</button><small id="histLabel">版本 1 / 1</small></div><div class="editor-shell"><div class="line-nums" id="lineNums">1</div><pre aria-hidden="true" id="highlight" class="highlight"></pre><textarea aria-label="可編輯的 JSCAD 程式碼" id="code" class="codeedit" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off" wrap="off"></textarea></div><div class="status" id="compileStatus">載入 JSCAD…</div><div id="errorBanner"></div><button id="errorJump" type="button">跳至錯誤行</button><p class="help-line">停止輸入約 500 毫秒後，自動重新建模。程式錯誤時保留上一次成功的模型。</p></div><div class="tabpanel" id="tab-params"><div id="paramItems"></div><p class="param-note">修改參數會呼叫目前程式碼的 getParameterDefinitions() 與 main(params)，不會覆蓋你的原始程式碼。</p></div><div class="tabpanel" id="tab-learn"><div class="info-card" id="lessonInfo"></div><div class="section-label">本課使用的函式</div><div class="chiplist" id="lessonTags"></div><div class="info-card">所有座標使用 <strong>Z 軸向上</strong>；教材 JSCAD 用 <strong>毫米（mm）</strong>，島嶼場景按 1000 mm = 1 m 轉換。<br>v0.1～v0.11 建立幾何教材，v0.2 加入車輛動力學。v0.4 將石頭設為動態凸包，其他幾何教材使用固定網格碰撞體；新模型成功生成後會同步更新碰撞，錯誤時仍保留上一個有效碰撞形狀。</div></div><div class="tabpanel" id="tab-observe"><div class="observer">
+<div id="loading"><div class="loading-orbit"></div><b>正在進入幾何之島</b><span id="loadmsg">正在初始化 3D 場景與教學模型…</span></div>
+<div id="network"><b id="networkTitle">3D 模組載入失敗</b><p>此檔案雖然只有一個 HTML，但執行需連線載入 Three.js、JSCAD 與 Rapier 物理引擎。請連上網路，或上傳到 GitHub Pages 後再開啟。</p><small id="networkErr" style="display:block;white-space:pre-wrap;max-width:440px;overflow-wrap:anywhere"></small><button id="networkRetry" type="button" style="margin-top:12px;padding:8px 15px;border-radius:8px;color:#fff;background:#385968;border:1px solid #7ca4aa">重新載入</button></div>
+<aside class="drawer" id="drawer" aria-label="JSCAD 物件編輯器"><div class="drawer-header"><div class="drawer-top"><span class="mini-label">OBJECT STUDIO　 /　 JSCAD</span><button id="close" class="close" title="關閉編輯器">×</button></div><h2 id="objectTitle">—</h2><p id="objectSubtitle">選取物件開始學習</p></div><div class="tabs"><button class="tab on" data-tab="code">JSCAD 程式</button><button class="tab" data-tab="params">幾何參數</button><button class="tab" data-tab="learn">學習重點</button><button class="tab" data-tab="observe">拆解觀察</button></div><div class="tabpanel on" id="tab-code"><div class="section-label"><span>完整原始碼 · 繁體中文註解</span><b>AUTO PREVIEW</b></div><div class="histbar"><button id="undoBtn" title="復原上一次程式碼或參數修改">↶ 復原</button><button id="redoBtn" title="重做上一次被復原的編輯">↷ 重做</button><small id="histLabel">版本 1 / 1</small></div><div class="editor-shell"><div class="line-nums" id="lineNums">1</div><pre aria-hidden="true" id="highlight" class="highlight"></pre><textarea aria-label="可編輯的 JSCAD 程式碼" id="code" class="codeedit" spellcheck="false" autocomplete="off" autocapitalize="off" autocorrect="off" wrap="off"></textarea></div><div class="status" id="compileStatus">載入 JSCAD…</div><div id="errorBanner"></div><button id="errorJump" type="button">跳至錯誤行</button><p class="help-line">停止輸入約 500 毫秒後，自動重新建模。程式錯誤時保留上一次成功的模型。</p></div><div class="tabpanel" id="tab-params"><div id="paramItems"></div><p class="param-note">修改參數會呼叫目前程式碼的 getParameterDefinitions() 與 main(params)，不會覆蓋你的原始程式碼。</p></div><div class="tabpanel" id="tab-learn"><div class="info-card" id="lessonInfo"></div><div class="section-label">本課使用的函式</div><div class="chiplist" id="lessonTags"></div><div class="info-card">所有座標使用 <strong>Z 軸向上</strong>；教材 JSCAD 用 <strong>毫米（mm）</strong>，島嶼場景按 1000 mm = 1 m 轉換。<br>v0.1～v0.11 建立幾何教材，v0.2 加入車輛動力學。v0.4.1 將石頭設為動態凸包，其他幾何教材使用固定網格碰撞體；新模型成功生成後會同步更新碰撞，錯誤時仍保留上一個有效碰撞形狀。</div></div><div class="tabpanel" id="tab-observe"><div class="observer">
 <div class="observe-heading">① 檢視開關</div><div class="observe-row"><button class="actionbtn" data-toggle="axes">XYZ 座標軸</button><button class="actionbtn" data-toggle="grid">底面網格</button><button class="actionbtn" data-toggle="dims">尺寸標註</button><button class="actionbtn" data-toggle="wire">三角線框</button></div>
 <div class="observe-heading">② 模型局部尺寸（模型自身 XYZ 軸）</div><div class="measure-table" id="measureItems"><div>—</div></div>
 <div class="observe-heading">③ 零件隔離檢視</div><div class="parts-list" id="partItems"></div><div class="previewNote">點選零件名稱，可只顯示該零件；返回「完整模型」即恢復。零件名稱由 JSCAD 的 getPartNames() 定義，與模型程式同步。</div>
@@ -545,7 +584,7 @@ const lessons=[
 
 // --- 使用 Three.js 描繪沿用教育群島視覺語彙的環境，Z 軸為向上。 ---
 const scene=new THREE.Scene();scene.background=new THREE.Color(0x9cc6d1);scene.fog=new THREE.FogExp2(0x9fcad3,.013);
-window.__jscad3DReady=true;const stage=$('#stage');const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});
+window.__labBoot.phase='建立 WebGL 場景';const stage=$('#stage');const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});
 renderer.setPixelRatio(Math.min(devicePixelRatio,1.7));renderer.setSize(stage.clientWidth,stage.clientHeight);renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.22;stage.appendChild(renderer.domElement);
 const camera=new THREE.PerspectiveCamera(47,stage.clientWidth/stage.clientHeight,.05,400);camera.up.set(0,0,1);camera.position.set(-27,-30,24);
 const controls=new OrbitControls(camera,renderer.domElement);controls.enableDamping=true;controls.dampingFactor=.075;controls.minDistance=3;controls.maxDistance=85;controls.maxPolarAngle=Math.PI*.46;controls.target.set(-12,0,0);controls.update();
@@ -677,10 +716,15 @@ function fallbackMarker(item){const g=new THREE.Group();const p=item.position;g.
 for(const o of lessons)fallbackMarker(o);
 // --- 獨立 Worker：相同 JSCAD 幾何可用於將來的碰撞網格。 ---
 let worker=null,pending=[],active=null,reqID=0,workerReady=false;
-function createWorker(){if(worker)worker.terminate();const source=$('#jscad-worker').textContent;const blob=new Blob([source],{type:'text/javascript'}),url=URL.createObjectURL(blob);worker=new Worker(url);URL.revokeObjectURL(url);workerReady=true;worker.onmessage=e=>{const msg=e.data;if(msg.type==='fatal'){workerReady=false;toast(msg.error);if(active){clearTimeout(active.timer);active.reject(new Error(msg.error));active=null;}while(pending.length)pending.shift().reject(new Error(msg.error));return}if(!active||msg.id!==active.id)return;clearTimeout(active.timer);const job=active;active=null;if(msg.type==='error')job.reject(Object.assign(new Error(msg.error),{line:msg.line,column:msg.column}));else job.resolve(msg);pump()};worker.onerror=e=>{if(active){clearTimeout(active.timer);active.reject(new Error(e.message||'Worker 無法執行'));active=null;}workerReady=false;toast('建模執行緒發生錯誤');setTimeout(()=>{createWorker();pump()},350);};}
-function pump(){if(active||!pending.length)return;if(!workerReady){createWorker();}active=pending.shift();const job=active;job.timer=setTimeout(()=>{if(active!==job)return;active=null;job.reject(new Error('計算超過 8 秒，已停止此物件的建模'));createWorker();pump()},8000);try{worker.postMessage({id:job.id,source:job.source,params:job.params})}catch(e){clearTimeout(job.timer);active=null;job.reject(e);pump()}}
+function createWorker(){if(worker)worker.terminate();const source=$('#jscad-worker').textContent;const blob=new Blob([source],{type:'text/javascript'}),url=URL.createObjectURL(blob);worker=new Worker(url);setTimeout(()=>URL.revokeObjectURL(url),10000);workerReady=true;worker.onmessage=e=>{const msg=e.data;if(msg.type==='fatal'){workerReady=false;toast(msg.error);if(active){clearTimeout(active.timer);active.reject(new Error(msg.error));active=null;}while(pending.length)pending.shift().reject(new Error(msg.error));return}if(!active||msg.id!==active.id)return;clearTimeout(active.timer);const job=active;active=null;if(msg.type==='error')job.reject(Object.assign(new Error(msg.error),{line:msg.line,column:msg.column}));else job.resolve(msg);pump()};worker.onerror=e=>{if(active){clearTimeout(active.timer);active.reject(new Error(e.message||'Worker 無法執行'));active=null;}workerReady=false;toast('建模執行緒發生錯誤');setTimeout(()=>{createWorker();pump()},350);};}
+function pump(){if(active||!pending.length)return;if(!workerReady){try{createWorker();}catch(e){
+  workerReady=false;while(pending.length)pending.shift().reject(new Error('無法建立 JSCAD Worker：'+e.message));return;
+ }}active=pending.shift();const job=active;job.timer=setTimeout(()=>{if(active!==job)return;active=null;job.reject(new Error('計算超過 8 秒，已停止此物件的建模'));createWorker();pump()},8000);try{worker.postMessage({id:job.id,source:job.source,params:job.params})}catch(e){clearTimeout(job.timer);active=null;job.reject(e);pump()}}
 function compile(source,params){return new Promise((resolve,reject)=>{pending.push({id:++reqID,source,params,resolve,reject});pump()})}
-createWorker();
+try{createWorker();}catch(e){
+ workerReady=false;console.error('JSCAD 建模執行緒建立失敗',e);
+ window.__labBoot.errors.push('Worker：'+e.message);
+}
 function disposeGroup(group){if(!group)return;group.traverse(o=>{o.geometry?.dispose?.();const clean=m=>{m?.map?.dispose?.();m?.dispose?.()};if(Array.isArray(o.material))o.material.forEach(clean);else clean(o.material)});group.removeFromParent()}
 // ===== v0.3：JSCAD 原始幾何直接轉換為 Rapier 固定三角網格 =====
 // 視覺及碰撞皆取自 Worker 傳回的同一份 result.meshes，不以長方體假裝洞口。
@@ -751,7 +795,7 @@ function syncAllObjectColliders(){
  }
  refreshCollisionWire(true);
 }
-// v0.4：所有裝飾石塊、樹幹、新增小方塊均有實際 Rapier 碰撞。
+// v0.4.1：所有裝飾石塊、樹幹、新增小方塊均有實際 Rapier 碰撞。
 // 動態小物使用球、長方體或凸包，避免移動 trimesh 不穩定。
 function setupSceneryPhysics(){
  if(!rapier||!world)return;
@@ -785,7 +829,7 @@ function setupSceneryPhysics(){
    else desc=R.ColliderDesc.ball(o.radius);
    setMinCombine(desc.setMass(o.mass||.3).setFriction(.95).setRestitution(.06).setCollisionGroups(0x00040007));
    o.collider=world.createCollider(desc,body);o.body=body;
-  }catch(e){console.warn('[JSCAD v0.4] 小物碰撞建立失敗',o.label,e);}
+  }catch(e){console.warn('[JSCAD v0.4.1] 小物碰撞建立失敗',o.label,e);}
  }
 }
 function updateMovableObjects(){
@@ -869,7 +913,19 @@ function jumpToError(){if(!selected?.errorLine)return;switchTab('code');const el
 $('#errorJump').addEventListener('click',jumpToError);
 
 // 啟動畫面只等待第一個可互動物件，其餘教材在背景依序建立。
-(async()=>{try{await rebuild(lessons[0]);$('#loading').classList.add('hide');for(const o of lessons.slice(1))await rebuild(o);if(lessons.some(o=>!o.ready))toast('有部分物件載入失敗，可在編輯器檢查');}catch(e){$('#loadmsg').textContent='載入失敗：'+e.message;setTimeout(()=>$('#loading').classList.add('hide'),800)}})();
+(async()=>{
+ // 場景的可操作性不依賴 Worker 或第一個 JSCAD 模型是否成功。
+ // 無論第一課成功、逾時或失敗，都繼續載入其餘教材，不鎖住整個頁面。
+ let failures=[];
+ for(const o of lessons){
+  window.__labBoot.phase='載入教材：'+o.title;
+  try{await rebuild(o);if(!o.ready)failures.push(o.title+'：'+(o.error||'建模未成功'));}
+  catch(e){failures.push(o.title+'：'+e.message);console.error('教材初始化',o.id,e);}
+ }
+ window.__labBoot.modelsReady=true;
+ if(failures.length){console.warn('[JSCAD 教材部分載入失敗]',failures);toast('部分教材載入失敗，可點選模型檢查詳細錯誤');}
+ else{console.info('[JSCAD] 七項教材已完成建模');}
+})();
 // --- 鏡頭聚焦、教學選取與可見物件中心 ---
 const baseTarget=new THREE.Vector3(-10.7,0,.4),basePosition=new THREE.Vector3(-27,-30,24);
 function smoothCamera(target,distance){const toTarget=target.clone(),dir=camera.position.clone().sub(controls.target).normalize(),toPos=toTarget.clone().addScaledVector(dir,distance);flight={t0:performance.now(),fromP:camera.position.clone(),fromT:controls.target.clone(),toP:toPos,toT:toTarget,duration:700};}
@@ -989,7 +1045,7 @@ function safeVehicleSpawn(p,startMode){
   const b=new THREE.Box3().setFromObject(l.mesh);return b.isEmpty()?null:b;
  }).filter(Boolean);
  for(const [x,y] of baseCandidates){
-  // 輪子不能架在島的邊緣，也不能與坡道開始處交疊；v0.4 與擴大後物理地面一致。
+  // 輪子不能架在島的邊緣，也不能與坡道開始處交疊；v0.4.1 與擴大後物理地面一致。
   const corners=[[x-hx,y-hy],[x+hx,y-hy],[x-hx,y+hy],[x+hx,y+hy]];
   if(corners.some(([px,py])=>Math.hypot(px+12,py)>13.25))continue;
   if(x+hx>rampData.startX-.35 && Math.abs(y-rampData.cy)<rampData.width/2+hy+.2)continue;
@@ -1164,7 +1220,7 @@ function motorStep(dt){const car=driveVehicle;if(!car)return;const p=car.p;
  for(const wheel of car.wheels)wheel.resetTorques(true);
  const throttle=(keys.w?1:0)-(keys.s?1:0),turn=(keys.a?1:0)-(keys.d?1:0),brake=keys.space;
  const maxAngle=phys.steerDeg*Math.PI/180;
- // v0.4：橫拉桿只是可見的建模零件，不是物理關節；原本真正的轉向伺服
+ // v0.4.1：橫拉桿只是可見的建模零件，不是物理關節；原本真正的轉向伺服
  // 僅有 14 N·m 的限幅，遇到高抓地輪胎時可能推不動轉向節。
  // 改由可調整扭力的 Rapier 關節馬達帶動，絕不直接旋轉車身／瞬移。
  // WASD 方向維持：W 朝 +X，A 左轉，D 右轉；高速時縮慢「轉向速度」而非削掉所有轉角。
@@ -1341,11 +1397,15 @@ const clock=new THREE.Clock();function render(){requestAnimationFrame(render);co
  const attr=ocean.geometry.attributes.position;for(let i=0;i<attr.count;i++){const v=i*3;attr.setZ(i,Math.sin(waterBase[v]*.086+t*.50)*.085+Math.cos(waterBase[v+1]*.1+t*.37)*.075);}attr.needsUpdate=true; // 海面低幅起伏，避免每幀重算大量法線。
  if(outline){outline.children[0].material.opacity=.42+.13*Math.sin(t*2.6)}
  if(typeof updateDriveFrame==='function')updateDriveFrame(frameDt);if(!driving)refreshCollisionWire();positionLabels();renderer.render(scene,camera)}render();
+window.__jscad3DReady=true;
+window.__labBoot.sceneReady=true;
+window.__labBoot.phase='場景完成初始化，教材背景建立中';
+$('#loading').classList.add('hide');
 window.addEventListener('unhandledrejection',e=>{console.error('JSCAD Lab:',e.reason)});
 </script>
 <script>
 // 遇到 CDN 失敗時，避免使用者只看到永遠不結束的載入動畫。
-setTimeout(function(){if(!window.__jscad3DReady){document.getElementById('loading').classList.add('hide');document.getElementById('network').style.display='block';}},13000);
+setTimeout(function(){if(!window.__labBoot?.sceneReady){window.__labFatal?.(window.__labBoot?.errors?.slice(-2).join('\n')||'載入 Three.js 或場景建立未完成，請確認網路連線。');}},13000);
 </script>
 </body>
 </html>
