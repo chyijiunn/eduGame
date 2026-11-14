@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
+<meta name="theme-color" content="#ddc5a4">
+<title>AEOLIAN — 風塑沙丘實驗室 v0.2</title>
+<style>
+:root{color-scheme:light;--ink:#f5ede1;--muted:#c2b2a0;--panel:rgba(33,30,28,.91);--accent:#e5be82}
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,"Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif}body{background:#ddc5a4;color:#44372b}canvas{width:100%;height:100%;display:block;touch-action:none;cursor:grab}canvas:active{cursor:grabbing}button,input,select{font:inherit}button{cursor:pointer}button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid #e5be82;outline-offset:2px}
+#brand{position:fixed;left:26px;top:24px;z-index:2;pointer-events:none;text-shadow:0 1px 18px #f3dfbd99}
+.eyebrow{font-size:11px;font-weight:750;letter-spacing:.30em;opacity:.75}.brand-title{font-family:Georgia,"Times New Roman",serif;font-size:33px;font-weight:400;letter-spacing:.08em;margin:2px 0 1px}.brand-sub{font-size:12px;letter-spacing:.24em;opacity:.73}
+#status{position:fixed;right:23px;top:22px;z-index:2;display:flex;gap:20px;align-items:center;color:#514535;background:#f7e7cf63;border:1px solid #ffffff67;padding:12px 16px;border-radius:15px;backdrop-filter:blur(12px)}.statcap{font-size:10px;letter-spacing:.16em;opacity:.62}.statval{font:500 19px Georgia,serif;margin-top:3px;white-space:nowrap}.windbox{display:flex;align-items:center;gap:9px}.compass{width:33px;height:33px;border:1px solid #786a566f;border-radius:50%;display:grid;place-items:center;position:relative}.compass:after{content:"N";position:absolute;top:-13px;font:8px sans-serif;opacity:.65}.compass svg{width:21px;height:21px;transition:transform .25s}
+#toggle{position:fixed;left:24px;bottom:25px;z-index:4;display:flex;align-items:center;gap:10px;background:#29231fde;color:#f3e5d1;border:1px solid #eedecb47;border-radius:99px;padding:12px 18px;box-shadow:0 12px 35px #3d291b34;backdrop-filter:blur(14px);font-size:13px;letter-spacing:.08em}#toggle:hover{background:#41362e}
+#hint{position:fixed;right:24px;bottom:28px;pointer-events:none;font-size:11px;letter-spacing:.11em;color:#392e25c4;text-shadow:0 1px 12px #fff9}
+#panel{position:fixed;z-index:3;left:23px;top:50%;transform:translate(-115%,-50%);width:304px;max-height:min(72dvh,700px);overflow:auto;overscroll-behavior:contain;background:var(--panel);color:var(--ink);border:1px solid #f6deb62b;border-radius:20px;box-shadow:0 18px 80px #1c15114f;backdrop-filter:blur(24px);padding:19px 19px 17px;transition:transform .32s cubic-bezier(.22,.8,.18,1),opacity .32s;opacity:0;scrollbar-width:thin;scrollbar-color:#9b8361 transparent}
+#panel.open{transform:translate(0,-50%);opacity:1}#panel header{display:flex;justify-content:space-between;align-items:center;margin-bottom:17px}#panel header span{font-size:11px;font-weight:700;letter-spacing:.24em}#close{border:0;background:transparent;color:#d2c0aa;font-size:24px;width:30px;height:30px;line-height:22px}#panel .group{padding:12px 0;border-top:1px solid #e9d2ad26}.group-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}.group-head label{font-size:12px;letter-spacing:.08em}.out{font-size:12px;color:#e4bb7e;font-variant-numeric:tabular-nums}.range{width:100%;accent-color:#e6bd7a;height:5px;cursor:pointer}.range-bottom{display:flex;justify-content:space-between;color:#968b7e;font-size:10px;margin-top:9px}.grid-buttons{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}.opt{border:1px solid #ffffff26;border-radius:8px;color:#cbbba8;background:#ffffff0c;padding:9px 2px;font-size:12px}.opt.active{border-color:#dcb982;background:#d0a66c2a;color:#f9dfb7}.row-check{display:flex;align-items:center;justify-content:space-between;font-size:12px;min-height:35px}.row-check input{accent-color:#e5bb79;width:16px;height:16px}.row-actions{display:flex;gap:8px;margin-top:11px}.action{flex:1;background:#f0d6ae1a;border:1px solid #fff3dc39;color:#f4e6d5;border-radius:10px;padding:10px 7px;font-size:12px}.action.main{background:#ddaf6b;color:#282018;border-color:transparent;font-weight:700}.footnote{font-size:10px;line-height:1.6;color:#a79a8b;margin:12px 0 0}
+#pauseMini{position:fixed;right:24px;bottom:59px;z-index:2;border:1px solid #a88e7073;color:#534434;border-radius:50%;width:37px;height:37px;background:#f3e0bf8c;backdrop-filter:blur(10px);font-size:15px}
+#error{position:fixed;inset:0;display:none;align-items:center;justify-content:center;padding:30px;background:#e9cfac;color:#4f3525;text-align:center;z-index:10}
+@media(min-width:900px){#panel.open~#toggle{opacity:1}}
+@media(max-width:600px){#brand{left:17px;top:env(safe-area-inset-top,12px);padding-top:13px}.eyebrow{font-size:9px}.brand-title{font-size:25px}.brand-sub{font-size:10px;letter-spacing:.12em}#status{right:12px;top:calc(env(safe-area-inset-top,12px) + 11px);gap:8px;padding:9px 10px;border-radius:12px}.statcap{font-size:9px}.statval{font-size:15px}.compass{width:26px;height:26px}.compass svg{width:17px;height:17px}#status .windbox{display:none}#toggle{left:15px;bottom:calc(env(safe-area-inset-bottom,0px) + 15px);padding:11px 15px;font-size:12px}#hint{right:12px;bottom:calc(env(safe-area-inset-bottom,0px) + 21px);font-size:9px;max-width:40%;text-align:right}#pauseMini{right:15px;bottom:calc(env(safe-area-inset-bottom,0px) + 60px)}#panel{left:10px;right:10px;bottom:calc(env(safe-area-inset-bottom,0px) + 74px);top:auto;max-height:min(59dvh,580px);width:auto;transform:translateY(130%);border-radius:17px;padding:15px}#panel.open{transform:translateY(0)}#panel .group{padding:9px 0}#panel header{margin-bottom:8px}}
+@media(prefers-reduced-motion:reduce){#panel,.compass svg{transition:none}}
+#compareMini{position:fixed;right:24px;bottom:111px;z-index:4;background:#29231fe0;color:#fff0d8;border:1px solid #f9ddb55e;border-radius:99px;padding:10px 15px;font-size:12px;backdrop-filter:blur(12px);cursor:pointer}#compareMini.active{background:#ddaf6b;color:#302018;border-color:transparent}
+#compareLabels{position:fixed;top:93px;left:0;width:100%;display:flex;justify-content:space-around;align-items:flex-start;pointer-events:none;z-index:2;font-size:10px;letter-spacing:.12em;font-weight:750;color:#49372a;text-shadow:0 1px 8px #ffedc5}#compareLabels[hidden]{display:none}#compareLabels span{background:#f3debaad;border:1px solid #fff6e1b0;border-radius:99px;padding:7px 13px}#compareLabels:after{content:"";position:fixed;top:0;bottom:0;left:50%;width:1px;background:#f6ddb0b8;box-shadow:0 0 5px #4b38278c}
+#profile{position:fixed;right:24px;bottom:158px;z-index:2;width:314px;padding:13px 14px 11px;background:#28221ed6;color:#f1e2cd;border:1px solid #ffebc743;border-radius:15px;box-shadow:0 10px 35px #1e120a2b;backdrop-filter:blur(14px);pointer-events:none}#profile[hidden]{display:none}.profileHead{display:flex;justify-content:space-between;gap:6px;align-items:center;font-size:10px;letter-spacing:.10em}.profileHead span{color:#e9bf83;font-size:11px}#profileCanvas{width:100%;height:100px;margin-top:3px}.key{display:flex;justify-content:center;gap:18px;font-size:10px;color:#d4c6b1}.key span:before{content:"";display:inline-block;width:14px;margin-right:6px;vertical-align:middle;border-top:2px solid #e5ba7d}.key .keyOld:before{border-top:2px dashed #fcfaf3}.key .keyNow:before{border-top-color:#e5ba7d}
+@media(max-width:600px){#panel{z-index:6}#toggle{z-index:7}#compareMini{right:13px;bottom:calc(env(safe-area-inset-bottom,0px) + 106px);padding:9px 10px;font-size:11px}#profile{right:10px;bottom:calc(env(safe-area-inset-bottom,0px) + 150px);width:min(63vw,245px);padding:9px 10px}#profileCanvas{height:76px}#profile .profileHead{font-size:9px;letter-spacing:0}#profile .profileHead span{font-size:9px}.key{font-size:9px;gap:8px}#compareLabels{top:83px;font-size:9px}#compareLabels span{padding:5px 8px}#hint{display:none}}
+</style>
+</head>
+<body>
+<canvas id="scene" aria-label="可旋轉的風塑沙丘三維模擬畫面"></canvas>
+<div id="brand"><div class="eyebrow">AEOLIAN / 風塑地貌</div><div class="brand-title">Dune Lab</div><div class="brand-sub">沙丘演化模擬 · v0.2</div></div>
+<div id="status"><div><div class="statcap">模擬時間</div><div class="statval" id="timeLabel">第 0 年 · 0 日</div></div><div class="windbox"><span class="compass"><svg id="windArrow" viewBox="0 0 24 24" fill="none" stroke="#72583c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21V4m-6 6 6-6 6 6"/></svg></span><div><div class="statcap">風速 / 風向</div><div class="statval" id="windStat">10 m/s · 東</div></div></div></div>
+<button id="toggle" aria-expanded="false"><span style="font-size:17px">☷</span> 風況與時間設定</button><button id="pauseMini" title="暫停或繼續" aria-label="暫停演化">Ⅱ</button>
+<div id="hint">拖曳旋轉視角 · 雙指縮放</div>
+<section id="panel" role="region" aria-label="風況設定">
+<header><span>ENVIRONMENT / 風況</span><button id="close" aria-label="關閉設定">×</button></header>
+<div class="group"><div class="group-head"><label for="windSpeed">風速</label><span class="out" id="windSpeedValue">10.0 m/s</span></div><input class="range" type="range" id="windSpeed" min="0" max="20" value="10" step="0.5"><div class="range-bottom"><span>0 · 靜風</span><span>4 · 起砂門檻（示意）</span><span>20 · 強風</span></div></div>
+<div class="group"><div class="group-head"><label for="direction">風吹往的方向</label><span class="out" id="directionValue">東 · 90°</span></div><input class="range" type="range" id="direction" min="0" max="359" value="90" step="1"><div class="range-bottom"><span>0° 北</span><span>90° 東</span><span>180° 南</span><span>270° 西</span></div></div>
+<div class="group"><div class="group-head"><label>演化時間倍率</label><span class="out" id="speedValue">20×</span></div><div class="grid-buttons" id="speeds"><button class="opt" data-speed="1">1×</button><button class="opt active" data-speed="20">20×</button><button class="opt" data-speed="100">100×</button></div></div>
+<div class="group"><div class="group-head"><label for="transport">沙粒搬運強度</label><span class="out" id="transportValue">100%</span></div><input class="range" type="range" id="transport" min="20" max="180" step="10" value="100"></div>
+<div class="group"><div class="group-head"><label>沙丘地形</label></div><div class="grid-buttons" id="terrains"><button class="opt active" data-terrain="barchan">新月丘</button><button class="opt" data-terrain="transverse">橫向丘</button><button class="opt" data-terrain="mixed">混合</button></div></div>
+<div class="group"><div class="row-check"><label for="particles">顯示風沙移動</label><input type="checkbox" id="particles" checked></div><div class="row-check"><label for="ripples">顯示細小風紋</label><input type="checkbox" id="ripples" checked></div></div>
+<div class="row-actions"><button class="action main" id="playPause">Ⅱ 暫停</button><button class="action" id="reset">↻ 重置地形</button></div>
+<p class="footnote">以簡化的格網輸沙、背風遮蔽、33° 安息角滑落近似地形變化。模擬年為教學時間刻度，不是特定地區的實測遷移速率。橘色表示較初始堆積，青色表示侵蝕。</p>
+<div class="group"><div class="group-head"><label>地貌比較</label></div>
+<div class="row-check"><label for="compare">初始／目前分割對照</label><input type="checkbox" id="compare"></div>
+<div class="row-check"><label for="changeMap">侵蝕／堆積顏色提示</label><input type="checkbox" id="changeMap"></div>
+<div class="row-check"><label for="profileCheck">顯示地形剖面圖</label><input type="checkbox" id="profileCheck" checked></div></div>
+<div class="group"><div class="group-head"><label>跳轉模擬時間</label><span class="out" id="skipStatus"></span></div>
+<div class="grid-buttons" id="jumps"><button class="opt" data-years="1">＋1 年</button><button class="opt" data-years="5">＋5 年</button><button class="opt" data-years="20">＋20 年</button></div></div>
+</section>
+<button id="compareMini" aria-label="切換前後對照">◧ 對照</button>
+<div id="compareLabels" hidden><span>INITIAL / 初始地形</span><span>EVOLVED / 目前地形</span></div>
+<div id="profile" aria-label="初始與演化地形剖面圖"><div class="profileHead"><strong>地形剖面 / EVOLUTION</strong><span id="changeAmount">0.0% 變化</span></div><canvas id="profileCanvas" width="640" height="212" aria-label="沙丘剖面圖，虛線為初始、實線為目前"></canvas><div class="key"><span class="keyOld">初始地形</span><span class="keyNow">目前地形</span></div></div>
+<div id="error">此裝置無法啟用 WebGL。請改用更新版本的 Safari 或 Chrome 開啟。</div>
+<script>
+'use strict';
+(function(){
+const $ = id=>document.getElementById(id);
+const canvas=$('scene'),gl=canvas.getContext('webgl',{alpha:false,antialias:true,powerPreference:'high-performance',depth:true,stencil:false});
+if(!gl){$('error').style.display='flex';return;}
+const VERTS=145, WORLD=380, SPACING=WORLD/(VERTS-1), COUNT=VERTS*VERTS, BASE=.72;
+const state={speed:10,direction:90,rate:20,transport:1,terrain:'barchan',particles:true,ripples:true,paused:false,days:0};
+const h=new Float32Array(COUNT),original=new Float32Array(COUNT),delta=new Float32Array(COUNT),verts=new Float32Array(COUNT*7),originalVerts=new Float32Array(COUNT*7);
+let comparison=false,heatmap=false,chartShown=true,initialMass=1,bulkMoved=0, busy=false;
+const wx=()=>Math.sin(state.direction*Math.PI/180),wz=()=>-Math.cos(state.direction*Math.PI/180);
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v)),smooth=(a,b,x)=>{let t=clamp((x-a)/(b-a),0,1);return t*t*(3-2*t)};
+function rnd(x,y){return (Math.sin(x*127.1+y*311.7)*43758.5453)%1}
+function dune(s,t,w,l,high){const v=Math.abs(t)/w;if(v>1.24)return 0;const aa=Math.min(1,v);const hump=Math.pow(Math.max(0,1-aa*aa),1.12);const crest=w*.8*Math.pow(aa,2.35);const ds=s-crest;const frontWidth=l*(.84-.15*aa);const backWidth=l*(.19+.05*aa);const profile=ds<0?Math.exp(-Math.pow(ds/frontWidth,2)*1.18):Math.exp(-ds/backWidth*1.35);const horn=Math.exp(-Math.pow((v-.86)/.13,2))*Math.exp(-Math.pow((s-crest)/(.36*l),2))*.1;return high*(hump*profile+horn)}
+const DUNES=[[-95,-96,39,53,21],[-18,-49,51,64,26],[105,-91,36,47,17],[-116,52,41,53,19],[59,47,54,64,25],[-31,116,33,46,16],[135,115,28,37,11],[-133,-150,30,38,12],[-4,-151,42,50,15]];
+function initialHeight(x,z){let v=BASE+0.095*(Math.sin(x*.08+z*.047)+Math.sin(z*.057-x*.035));let b=0;
+ if(state.terrain!=='transverse'){for(let i=0;i<DUNES.length;i++){let d=DUNES[i];b+=dune(x-d[0],z-d[1],d[2],d[3],d[4])}}
+ if(state.terrain!=='barchan'){for(let j=0;j<5;j++){let crest=-143+j*79+6*Math.sin(z*.024+j);let dist=x-crest;let transverse=(dist<0?Math.exp(-Math.pow(dist/40,2)):Math.exp(-dist/10.8));let envelope=smooth(191,125,Math.abs(z));b+=transverse*(15+5*Math.sin(z*.026+j*.6))*envelope*(state.terrain==='mixed'?.40:1)}}
+ let edge=smooth(180,131,Math.max(Math.abs(x),Math.abs(z)));return Math.max(BASE+.03,v+b*edge)}
+function reset(){for(let z=0;z<VERTS;z++)for(let x=0;x<VERTS;x++){const px=(x/(VERTS-1)-.5)*WORLD,pz=(z/(VERTS-1)-.5)*WORLD;h[z*VERTS+x]=initialHeight(px,pz);}original.set(h);state.days=0;bulkMoved=0;initialMass=sandMass(h);uploadTerrain();uploadOriginal();updateLabels();drawProfile();}
+function sandMass(data){let sum=0;for(let z=1;z<VERTS-1;z++)for(let x=1;x<VERTS-1;x++)sum+=Math.max(0,data[z*VERTS+x]-BASE);return sum;}
+const shader=(type,src)=>{let s=gl.createShader(type);gl.shaderSource(s,src);gl.compileShader(s);if(!gl.getShaderParameter(s,gl.COMPILE_STATUS)){throw Error(gl.getShaderInfoLog(s))}return s};
+function program(vs,fs){const p=gl.createProgram();gl.attachShader(p,shader(gl.VERTEX_SHADER,vs));gl.attachShader(p,shader(gl.FRAGMENT_SHADER,fs));gl.linkProgram(p);if(!gl.getProgramParameter(p,gl.LINK_STATUS))throw Error(gl.getProgramInfoLog(p));return p}
+const terrainProg=program(`
+attribute vec3 aPos;attribute vec3 aNorm;attribute float aChange;uniform mat4 uVP;varying vec3 vPos,vNorm;varying float vChange;void main(){vPos=aPos;vNorm=aNorm;vChange=aChange;gl_Position=uVP*vec4(aPos,1.);}`,`
+precision highp float;varying vec3 vPos,vNorm;varying float vChange;uniform vec3 uEye;uniform vec2 uWind;uniform float uRipples;uniform float uHeat;
+float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
+void main(){vec3 n=normalize(vNorm);vec3 light=normalize(vec3(-.62,.72,-.3));float lit=max(.0,dot(n,light));
+vec2 v=vPos.xz;float grain=hash(floor(v*4.3));float ripple=sin(dot(v,uWind)*3.45+.28*sin(dot(v,vec2(-uWind.y,uWind.x))*.21));
+float fine=sin(dot(v,uWind)*7.4+sin(v.y*.8)*.32);float ridges=uRipples*(ripple*.043+fine*.013)*(clamp(n.y,.0,1.));
+float sand=mix(.82,1.,clamp(vPos.y/30.,0.,1.));vec3 base=vec3(.81,.596,.37)*sand;
+base*=.89+grain*.07+ridges;vec3 shade=base*(.51+.68*lit);shade+=vec3(.09,.052,.024)*pow(lit,8.);
+float contrast=smoothstep(.35,5.5,abs(vChange))*.82*uHeat;
+vec3 dye=vChange>=0.?vec3(.98,.35,.15):vec3(.08,.52,.63);
+shade=mix(shade,dye,contrast);
+float dist=length(vPos.xz-uEye.xz);float fog=1.-exp(-pow(max(0.,dist-85.)/310.,2.));vec3 fogColor=vec3(.82,.708,.56);gl_FragColor=vec4(mix(shade,fogColor,clamp(fog,.0,.96)),1.);
+}`);
+const skyProg=program(`attribute vec2 aPoint;varying vec2 vUv;void main(){vUv=aPoint*.5+.5;gl_Position=vec4(aPoint,0.,1.);}`,`
+precision mediump float;varying vec2 vUv;uniform float uAspect;void main(){float y=vUv.y;vec3 low=vec3(.91,.776,.60);vec3 high=vec3(.50,.68,.72);vec3 sky=mix(low,high,smoothstep(.15,.97,y));sky=mix(vec3(.96,.81,.62),sky,smoothstep(.0,.42,y));
+vec2 sun=(vUv-vec2(.78,.81))*vec2(uAspect,1.);float r=length(sun);sky+=vec3(.45,.33,.15)*exp(-r*8.)*.38;sky+=vec3(.9,.73,.44)*exp(-r*120.)*.32;gl_FragColor=vec4(sky,1.);}`);
+const particleProg=program(`attribute vec3 aP;attribute float aA;uniform mat4 uVP;uniform vec3 uEye;varying float vA;void main(){gl_Position=uVP*vec4(aP,1.);float d=length(aP-uEye);gl_PointSize=clamp(3.5*160./max(50.,d),1.,3.8);vA=aA*clamp(1.-(d-150.)/260.,.15,.75);}`,`
+precision mediump float;varying float vA;void main(){vec2 q=gl_PointCoord-.5;float a=(1.-smoothstep(.12,.5,length(q)))*vA;gl_FragColor=vec4(1.,.93,.75,a);}`);
+const attr=(p,name)=>gl.getAttribLocation(p,name),uni=(p,name)=>gl.getUniformLocation(p,name);
+const aT=attr(terrainProg,'aPos'),nT=attr(terrainProg,'aNorm'),cT=attr(terrainProg,'aChange'),vpT=uni(terrainProg,'uVP'),eyeT=uni(terrainProg,'uEye'),windT=uni(terrainProg,'uWind'),ripT=uni(terrainProg,'uRipples'),heatT=uni(terrainProg,'uHeat');
+const skyA=attr(skyProg,'aPoint'),skyAspect=uni(skyProg,'uAspect');
+const pP=attr(particleProg,'aP'),pA=attr(particleProg,'aA'),pVP=uni(particleProg,'uVP'),pEye=uni(particleProg,'uEye');
+const mainBuffer=gl.createBuffer(),originalBuffer=gl.createBuffer(),indexBuffer=gl.createBuffer(),skyBuffer=gl.createBuffer(),baseBuffer=gl.createBuffer(),baseIndex=gl.createBuffer(),particleBuffer=gl.createBuffer();
+let indices=[];for(let z=0;z<VERTS-1;z++)for(let x=0;x<VERTS-1;x++){let k=z*VERTS+x;indices.push(k,k+VERTS,k+1,k+1,k+VERTS,k+VERTS+1)}
+gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,indexBuffer);gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,new Uint16Array(indices),gl.STATIC_DRAW);
+gl.bindBuffer(gl.ARRAY_BUFFER,skyBuffer);gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,1,1]),gl.STATIC_DRAW);
+const baseV=new Float32Array([-3500,.50,-3500,0,1,0,0, 3500,.50,-3500,0,1,0,0, -3500,.50,3500,0,1,0,0, 3500,.50,3500,0,1,0,0]);
+gl.bindBuffer(gl.ARRAY_BUFFER,baseBuffer);gl.bufferData(gl.ARRAY_BUFFER,baseV,gl.STATIC_DRAW);gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,baseIndex);gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,new Uint16Array([0,2,1,1,2,3]),gl.STATIC_DRAW);
+function fillGeometry(src,dst,changes){
+ for(let z=0;z<VERTS;z++)for(let x=0;x<VERTS;x++){
+  const k=z*VERTS+x,o=k*7;
+  const left=src[z*VERTS+Math.max(0,x-1)],right=src[z*VERTS+Math.min(VERTS-1,x+1)];
+  const top=src[Math.max(0,z-1)*VERTS+x],bot=src[Math.min(VERTS-1,z+1)*VERTS+x];
+  const nx=(left-right)/(SPACING*(x===0||x===VERTS-1?1:2));
+  const nz=(top-bot)/(SPACING*(z===0||z===VERTS-1?1:2));
+  const norm=Math.hypot(nx,1,nz);
+  dst[o]=(x/(VERTS-1)-.5)*WORLD;dst[o+1]=src[k];dst[o+2]=(z/(VERTS-1)-.5)*WORLD;
+  dst[o+3]=nx/norm;dst[o+4]=1/norm;dst[o+5]=nz/norm;dst[o+6]=changes?src[k]-original[k]:0;
+ }
+}
+function uploadTerrain(){fillGeometry(h,verts,true);gl.bindBuffer(gl.ARRAY_BUFFER,mainBuffer);gl.bufferData(gl.ARRAY_BUFFER,verts,gl.DYNAMIC_DRAW);}
+function uploadOriginal(){fillGeometry(original,originalVerts,false);gl.bindBuffer(gl.ARRAY_BUFFER,originalBuffer);gl.bufferData(gl.ARRAY_BUFFER,originalVerts,gl.STATIC_DRAW);}
+function sample(x,z){const fx=clamp((x/WORLD+.5)*(VERTS-1),0,VERTS-1.001),fz=clamp((z/WORLD+.5)*(VERTS-1),0,VERTS-1.001),ix=fx|0,iz=fz|0,ax=fx-ix,az=fz-iz;const a=iz*VERTS+ix,b=a+VERTS;return h[a]*(1-ax)*(1-az)+h[a+1]*ax*(1-az)+h[b]*(1-ax)*az+h[b+1]*ax*az}
+// Volume-conserving pedagogical cellular transport: short saltation hops and slope failure.
+// Physical wind (m/s) is an input; "years" are accelerated illustrative time, NOT calibrated years.
+function step(days){
+ const v=state.speed;if(v<=4||days<=0)return;
+ const windPower=Math.pow((v-4)/6,1.65)*state.transport;
+ const potential=.00062*days*windPower;
+ const passes=clamp(Math.ceil(potential/.073),1,9),fraction=Math.min(.075,potential/passes);
+ const windX=wx(),windZ=wz();
+ const normWind=Math.abs(windX)+Math.abs(windZ)+1e-9,aX=Math.abs(windX)/normWind,aZ=Math.abs(windZ)/normWind;
+ const signX=windX>=0?1:-1,signZ=windZ>=0?1:-1;
+ const windSlopeScale=1/SPACING;
+ const edge=2;
+ for(let pass=0;pass<passes;pass++){
+  delta.fill(0);
+  for(let z=edge;z<VERTS-edge;z++)for(let x=edge;x<VERTS-edge;x++){
+   let k=z*VERTS+x,sand=h[k]-BASE;if(sand<=.006)continue;
+   // Weighted upwind gradient; a higher upwind obstacle indicates a wind shadow.
+   let up=h[z*VERTS+(x-signX)]*aX+h[(z-signZ)*VERTS+x]*aZ;
+   let distant=h[z*VERTS+(x-2*signX)]*aX+h[(z-2*signZ)*VERTS+x]*aZ;
+   const slope=(h[k]-up)*windSlopeScale;
+   const shadow=Math.max(0,up-h[k],distant-h[k]-.75);
+   let exposure=clamp(.70+1.65*slope-.24*shadow,.055,1.55);
+   // A small hop crosses approximately 1.6 grid cells, rather than shifting the whole dune mesh.
+   const tx=x+windX*1.65,tz=z+windZ*1.65;
+   const ix=Math.floor(tx),iz=Math.floor(tz);
+   if(ix<1||iz<1||ix>=VERTS-2||iz>=VERTS-2)continue; // closed field boundaries
+   const amount=Math.min(sand*.095,sand*fraction*exposure);
+   if(amount<1.e-7)continue;
+   delta[k]-=amount;
+   const fx=tx-ix,fz=tz-iz,idx=iz*VERTS+ix;
+   delta[idx]+=amount*(1-fx)*(1-fz);
+   delta[idx+1]+=amount*fx*(1-fz);
+   delta[idx+VERTS]+=amount*(1-fx)*fz;
+   delta[idx+VERTS+1]+=amount*fx*fz;
+   bulkMoved+=amount;
+  }
+  for(let i=0;i<COUNT;i++)h[i]=Math.max(BASE,h[i]+delta[i]);
+  // Dry-sand angle of repose ~33°, two volume-conserving relaxation sweeps.
+  const limit=SPACING*Math.tan(33*Math.PI/180);
+  for(let relax=0;relax<2;relax++){
+   delta.fill(0);
+   for(let z=1;z<VERTS-2;z++)for(let x=1;x<VERTS-2;x++){
+    let k=z*VERTS+x;
+    // The two nearest-axis neighbors are sufficient for a lightweight browser model.
+    for(let neighbor of [k+1,k+VERTS]){
+     let diff=h[k]-h[neighbor],excess=Math.abs(diff)-limit;
+     if(excess<=0)continue;
+     const hi=diff>0?k:neighbor,lo=diff>0?neighbor:k;
+     const moved=Math.min(excess*.23,Math.max(0,h[hi]-BASE)*.13);
+     delta[hi]-=moved;delta[lo]+=moved;
+    }
+   }
+   for(let i=0;i<COUNT;i++)h[i]=Math.max(BASE,h[i]+delta[i]);
+  }
+ }
+ uploadTerrain();
+}
+const particles=[];let parData=new Float32Array(850*4);for(let i=0;i<850;i++){let x=(Math.random()-.5)*WORLD,z=(Math.random()-.5)*WORLD;particles.push({x,z,seed:Math.random(),a:.15+Math.random()*.52})}
+function updateParticles(dt){const xw=wx(),zw=wz(),vel=(.4+state.speed*.18)*dt;for(let i=0;i<particles.length;i++){let p=particles[i];if(!state.paused){p.x+=xw*vel*(.75+p.seed)+Math.sin(p.z*.17+p.seed*10)*dt*.25;p.z+=zw*vel*(.75+p.seed);if(p.x>182)p.x=-182;if(p.x< -182)p.x=182;if(p.z>182)p.z=-182;if(p.z< -182)p.z=182;}const k=i*4;parData[k]=p.x;parData[k+1]=sample(p.x,p.z)+.22+p.seed*(1+state.speed*.11);parData[k+2]=p.z;parData[k+3]=p.a*(state.speed>4?smooth(4,9,state.speed):0)}gl.bindBuffer(gl.ARRAY_BUFFER,particleBuffer);gl.bufferData(gl.ARRAY_BUFFER,parData,gl.DYNAMIC_DRAW)}
+function perspective(fovy,asp,near,far){const t=1/Math.tan(fovy/2),nf=1/(near-far);return [t/asp,0,0,0,0,t,0,0,0,0,(far+near)*nf,-1,0,0,2*far*near*nf,0]}
+function lookAt(eye,target){let z=[eye[0]-target[0],eye[1]-target[1],eye[2]-target[2]],zl=Math.hypot(...z);z=z.map(v=>v/zl);let x=[z[2],0,-z[0]],xl=Math.hypot(...x);x=x.map(v=>v/xl);let y=[z[1]*x[2]-z[2]*x[1],z[2]*x[0]-z[0]*x[2],z[0]*x[1]-z[1]*x[0]];return [x[0],y[0],z[0],0,x[1],y[1],z[1],0,x[2],y[2],z[2],0,-x[0]*eye[0]-x[1]*eye[1]-x[2]*eye[2],-y[0]*eye[0]-y[1]*eye[1]-y[2]*eye[2],-z[0]*eye[0]-z[1]*eye[1]-z[2]*eye[2],1]}
+function mul(A,B){let out=new Float32Array(16);for(let c=0;c<4;c++)for(let r=0;r<4;r++)out[c*4+r]=A[r]*B[c*4]+A[4+r]*B[c*4+1]+A[8+r]*B[c*4+2]+A[12+r]*B[c*4+3];return out}
+const cam={yaw:-.80,pitch:.43,radius:255,target:[0,2,0]},maxDPR=()=>Math.min(window.devicePixelRatio||1,window.innerWidth<650?1.35:1.6);
+function resize(){let dpr=maxDPR(),w=Math.max(1,Math.floor(innerWidth*dpr)),hh=Math.max(1,Math.floor(innerHeight*dpr));if(canvas.width!==w||canvas.height!==hh){canvas.width=w;canvas.height=hh;}gl.viewport(0,0,w,hh)}
+function drawMesh(buf,ibo,count){gl.bindBuffer(gl.ARRAY_BUFFER,buf);gl.enableVertexAttribArray(aT);gl.vertexAttribPointer(aT,3,gl.FLOAT,false,28,0);gl.enableVertexAttribArray(nT);gl.vertexAttribPointer(nT,3,gl.FLOAT,false,28,12);gl.enableVertexAttribArray(cT);gl.vertexAttribPointer(cT,1,gl.FLOAT,false,28,24);gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,ibo);gl.drawElements(gl.TRIANGLES,count,gl.UNSIGNED_SHORT,0)}
+function render(dt){
+ resize();const eye=[cam.target[0]+Math.sin(cam.yaw)*Math.cos(cam.pitch)*cam.radius,cam.target[1]+Math.sin(cam.pitch)*cam.radius,cam.target[2]+Math.cos(cam.yaw)*Math.cos(cam.pitch)*cam.radius];
+ const view=lookAt(eye,cam.target),w=canvas.width,hh=canvas.height;
+ function renderSide(left,width,reference){
+  gl.viewport(left,0,width,hh);gl.scissor(left,0,width,hh);
+  const proj=perspective(.84,width/hh,1,6500),vp=mul(proj,view);
+  gl.disable(gl.DEPTH_TEST);gl.disable(gl.BLEND);gl.depthMask(true);gl.clear(gl.DEPTH_BUFFER_BIT);
+  gl.useProgram(skyProg);gl.bindBuffer(gl.ARRAY_BUFFER,skyBuffer);gl.enableVertexAttribArray(skyA);gl.vertexAttribPointer(skyA,2,gl.FLOAT,false,0,0);gl.uniform1f(skyAspect,width/hh);gl.drawArrays(gl.TRIANGLE_STRIP,0,4);
+  gl.enable(gl.DEPTH_TEST);gl.depthFunc(gl.LEQUAL);gl.useProgram(terrainProg);
+  gl.uniformMatrix4fv(vpT,false,vp);gl.uniform3fv(eyeT,eye);
+  gl.uniform2f(windT,wx(),wz());gl.uniform1f(ripT,state.ripples?1:0);gl.uniform1f(heatT,heatmap&&!reference?1:0);
+  drawMesh(baseBuffer,baseIndex,6);drawMesh(reference?originalBuffer:mainBuffer,indexBuffer,indices.length);
+  if(!reference&&state.particles){
+   gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);gl.depthMask(false);gl.useProgram(particleProg);gl.uniformMatrix4fv(pVP,false,vp);gl.uniform3fv(pEye,eye);
+   gl.bindBuffer(gl.ARRAY_BUFFER,particleBuffer);gl.enableVertexAttribArray(pP);gl.vertexAttribPointer(pP,3,gl.FLOAT,false,16,0);gl.enableVertexAttribArray(pA);gl.vertexAttribPointer(pA,1,gl.FLOAT,false,16,12);gl.drawArrays(gl.POINTS,0,particles.length);
+   gl.depthMask(true);gl.disable(gl.BLEND);
+  }
+ }
+ if(state.particles)updateParticles(dt);
+ gl.enable(gl.SCISSOR_TEST);
+ if(comparison){const half=Math.floor(w/2);renderSide(0,half,true);renderSide(half,w-half,false);}else renderSide(0,w,false);
+ gl.disable(gl.SCISSOR_TEST);
+}
+function compassName(deg){const names=['北','東北','東','東南','南','西南','西','西北'];return names[Math.round(deg/45)%8]}
+function updateLabels(){const year=Math.floor(state.days/365),days=Math.floor(state.days%365);$('timeLabel').textContent=`第 ${year} 年 · ${days} 日`;$('windStat').textContent=`${state.speed.toFixed(0)} m/s · ${compassName(state.direction)}`;$('windSpeedValue').textContent=state.speed.toFixed(1)+' m/s';$('directionValue').textContent=`${compassName(state.direction)} · ${state.direction}°`;$('windArrow').style.transform=`rotate(${state.direction}deg)`;$('transportValue').textContent=Math.round(state.transport*100)+'%';$('speedValue').textContent=state.rate+'×';updateChangeValue();}
+function pauseSet(paused){state.paused=paused;$('playPause').textContent=paused?'▶ 繼續':'Ⅱ 暫停';$('pauseMini').textContent=paused?'▶':'Ⅱ';$('pauseMini').setAttribute('aria-label',paused?'繼續演化':'暫停演化')}
+$('windSpeed').oninput=e=>{state.speed=+e.target.value;updateLabels()};$('direction').oninput=e=>{state.direction=+e.target.value;updateLabels()};$('transport').oninput=e=>{state.transport=+e.target.value/100;updateLabels()};$('particles').onchange=e=>state.particles=e.target.checked;$('ripples').onchange=e=>state.ripples=e.target.checked;
+function setCompare(value){comparison=value;$('compare').checked=value;$('compareMini').classList.toggle('active',value);$('compareLabels').hidden=!value;}
+$('compare').onchange=e=>setCompare(e.target.checked);$('compareMini').onclick=()=>setCompare(!comparison);
+$('changeMap').onchange=e=>heatmap=e.target.checked;
+$('profileCheck').onchange=e=>{chartShown=e.target.checked;$('profile').hidden=!chartShown;};
+$('speeds').onclick=e=>{const b=e.target.closest('[data-speed]');if(!b)return;state.rate=+b.dataset.speed;$('speeds').querySelectorAll('button').forEach(x=>x.classList.toggle('active',x===b));updateLabels()};$('terrains').onclick=e=>{const b=e.target.closest('[data-terrain]');if(!b)return;state.terrain=b.dataset.terrain;$('terrains').querySelectorAll('button').forEach(x=>x.classList.toggle('active',x===b));reset()};
+$('playPause').onclick=$('pauseMini').onclick=()=>pauseSet(!state.paused);$('reset').onclick=()=>reset();
+const setPanel=(open)=>{$('panel').classList.toggle('open',open);$('toggle').setAttribute('aria-expanded',String(open));$('toggle').innerHTML=open?'<span style="font-size:17px">×</span> 收合設定':'<span style="font-size:17px">☷</span> 風況與時間設定'};
+$('toggle').onclick=()=>setPanel(!$('panel').classList.contains('open'));$('close').onclick=()=>setPanel(false);if(innerWidth>920)setPanel(true);
+let drag=null,pinch=null;canvas.addEventListener('pointerdown',e=>{canvas.setPointerCapture(e.pointerId);if(!drag){drag={id:e.pointerId,x:e.clientX,y:e.clientY};}});
+canvas.addEventListener('pointermove',e=>{if(!drag||e.pointerId!==drag.id||pinch)return;let dx=e.clientX-drag.x,dy=e.clientY-drag.y;cam.yaw-=dx*.006;cam.pitch=clamp(cam.pitch+dy*.005,.10,1.42);drag.x=e.clientX;drag.y=e.clientY});
+const endDrag=e=>{if(drag?.id===e.pointerId)drag=null};canvas.addEventListener('pointerup',endDrag);canvas.addEventListener('pointercancel',endDrag);
+canvas.addEventListener('wheel',e=>{e.preventDefault();cam.radius=clamp(cam.radius*Math.exp(e.deltaY*.001),85,560)},{passive:false});
+const touchDistance=ev=>Math.hypot(ev.touches[0].clientX-ev.touches[1].clientX,ev.touches[0].clientY-ev.touches[1].clientY);
+canvas.addEventListener('touchstart',e=>{if(e.touches.length===2){pinch={dist:touchDistance(e),radius:cam.radius};drag=null}},{passive:true});
+canvas.addEventListener('touchmove',e=>{if(e.touches.length===2){if(!pinch)pinch={dist:touchDistance(e),radius:cam.radius};cam.radius=clamp(pinch.radius*pinch.dist/Math.max(30,touchDistance(e)),85,560)}},{passive:true});
+canvas.addEventListener('touchend',e=>{if(e.touches.length<2){pinch=null;drag=null}},{passive:true});
+// Position-transect comparison through the dominant central dune, oriented downwind.
+const cv=$('profileCanvas'),ctx=cv.getContext('2d');
+function sampleField(data,x,z){const fx=clamp((x/WORLD+.5)*(VERTS-1),0,VERTS-1.001),fz=clamp((z/WORLD+.5)*(VERTS-1),0,VERTS-1.001);const ix=fx|0,iz=fz|0,ax=fx-ix,az=fz-iz;const k=iz*VERTS+ix;return data[k]*(1-ax)*(1-az)+data[k+1]*ax*(1-az)+data[k+VERTS]*(1-ax)*az+data[k+VERTS+1]*ax*az;}
+let lastChange=0;
+function updateChangeValue(){let total=0;for(let i=0;i<COUNT;i++)total+=Math.abs(h[i]-original[i]);lastChange=total/Math.max(1,initialMass)*100;$('changeAmount').textContent=lastChange.toFixed(1)+'% 變化';}
+function drawProfile(){
+ if(!ctx||!chartShown)return;
+ const w=cv.width,hh=cv.height,padX=29,padT=22,padB=29,N=110,old=[],now=[];
+ let maxH=15;const dx=wx(),dz=wz();
+ for(let i=0;i<N;i++){const t=(i/(N-1)-.5)*155,x=-18+t*dx,z=-49+t*dz;const a=sampleField(original,x,z)-BASE,b=sampleField(h,x,z)-BASE;old.push(a);now.push(b);maxH=Math.max(maxH,a,b);}
+ ctx.clearRect(0,0,w,hh);ctx.font='18px system-ui';ctx.textBaseline='middle';
+ const xval=i=>padX+i*(w-padX*2)/(N-1),yval=v=>hh-padB-v/maxH*(hh-padT-padB);
+ ctx.strokeStyle='rgba(255,255,255,.18)';ctx.lineWidth=1;for(let j=0;j<3;j++){let y=yval(maxH*j/2);ctx.beginPath();ctx.moveTo(padX,y);ctx.lineTo(w-padX,y);ctx.stroke();}
+ ctx.font='15px system-ui';ctx.fillStyle='#c5b29a';ctx.textAlign='left';ctx.fillText('迎風',padX,hh-12);ctx.textAlign='right';ctx.fillText('背風',w-padX,hh-12);
+ function plot(values,color,dashed){ctx.beginPath();ctx.lineWidth=dashed?2.4:3.5;ctx.strokeStyle=color;ctx.setLineDash(dashed?[7,6]:[]);for(let i=0;i<N;i++){const x=xval(i),y=yval(values[i]);if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);}ctx.stroke();ctx.setLineDash([]);}
+ plot(old,'rgba(255,251,240,.95)',true);plot(now,'#e8b974',false);
+}
+$('direction').addEventListener('input',drawProfile);
+let lastChart=0;
+// Jump buttons process their simulation in small browser batches to keep touch UI responsive.
+$('jumps').onclick=e=>{const b=e.target.closest('[data-years]');if(!b||busy)return;busy=true;
+ const extra=+b.dataset.years*365,target=state.days+extra;const wasPaused=state.paused;pauseSet(true);
+ $('skipStatus').textContent='計算中…';$('jumps').querySelectorAll('button').forEach(el=>el.disabled=true);
+ function batch(){let n=0;while(state.days<target && n<9){const d=Math.min(36,target-state.days);step(d);state.days+=d;n++;}
+  updateLabels();drawProfile();if(state.days+0.001<target){requestAnimationFrame(batch);return;}
+  busy=false;$('skipStatus').textContent='完成';$('jumps').querySelectorAll('button').forEach(el=>el.disabled=false);pauseSet(wasPaused);
+ }requestAnimationFrame(batch);
+};
+reset();updateParticles(0);let then=performance.now(),acc=0,tick=0;
+function frame(now){const dt=Math.min(.06,(now-then)/1000);then=now;if(!state.paused){acc+=dt;if(acc>.11){let elapsed=Math.min(.22,acc);acc=0;let days=elapsed*10*state.rate;state.days+=days;step(days)}if(now-tick>220){updateLabels();if(now-lastChart>450){drawProfile();lastChart=now;}tick=now}}render(dt);requestAnimationFrame(frame)}requestAnimationFrame(frame);
+window.addEventListener('resize',resize);document.addEventListener('visibilitychange',()=>{then=performance.now();acc=0});
+})();
+</script>
+</body>
+</html>
