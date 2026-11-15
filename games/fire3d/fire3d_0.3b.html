@@ -1,0 +1,1291 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no" />
+<meta name="theme-color" content="#f6f8f8" />
+<title>FIRE 3D｜火災現場逆向評估系統 v0.3b</title>
+<!-- FIRE 3D v0.3b：沿用 eduGame GA4 共用載入檔，部署路徑 /eduGame/games/fire3d/ -->
+<script src="/eduGame/ga4.js" defer></script>
+<style>
+:root{--bg:#f6f8f8;--ink:#243640;--muted:#778891;--line:#dae4e5;--white:#fff;--accent:#337e83;--accent-soft:#e2f1ef;--shadow:0 20px 58px rgba(28,59,69,.12),0 5px 18px rgba(28,59,69,.07);font-family:-apple-system,BlinkMacSystemFont,"Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif;color:var(--ink)}
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--bg)}button,input,select{font:inherit}button{cursor:pointer}button:disabled{cursor:not-allowed;opacity:.45}.hidden{display:none!important}
+#app{position:relative;width:100%;height:100%;height:100dvh;overflow:hidden;background:linear-gradient(165deg,#f9fbfa 0%,#eef4f3 56%,#e8eff1 100%)}
+#app:before{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse at 45% 36%,rgba(255,255,255,.95),transparent 66%)}
+#gl{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;outline:none;cursor:grab}#gl.dragging{cursor:grabbing}#gl.editing{cursor:crosshair}#gl.wall-hover{cursor:grab}#gl.wall-grab{cursor:grabbing}
+.header{position:absolute;top:0;left:0;right:0;z-index:10;height:75px;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:15px 29px;pointer-events:none}
+.header>*{pointer-events:auto}.brand{display:flex;gap:12px;align-items:center;user-select:none}.brandmark{width:42px;height:42px;background:#fff;border:1px solid #d8e7e7;border-radius:13px;display:grid;place-items:center;box-shadow:0 3px 8px rgba(30,70,70,.05)}.brandmark svg{width:22px;height:22px;stroke:var(--accent)}.brand strong{font-size:14px;letter-spacing:.045em;display:block;font-weight:700}.brand small{display:block;font-size:8px;letter-spacing:.15em;color:#92a0a4;margin-top:2px}.header-right{display:flex;align-items:center;gap:7px}.chip{border:1px solid #d9e4e4;background:rgba(255,255,255,.88);color:#536a72;padding:9px 13px;border-radius:20px;font-size:12px;white-space:nowrap;box-shadow:0 5px 15px rgba(52,73,73,.035)}.chip:hover,.tool:hover,.mini:hover{border-color:#a9cccb;color:var(--accent)}
+.toolbar{position:absolute;z-index:12;top:50%;left:22px;transform:translateY(-50%);display:flex;flex-direction:column;gap:7px;padding:8px;background:rgba(255,255,255,.9);backdrop-filter:blur(15px);border:1px solid #e0e9e8;border-radius:20px;box-shadow:0 8px 32px rgba(40,73,82,.08)}.tool{width:45px;height:45px;border:1px solid transparent;border-radius:12px;background:transparent;color:#6c8289;display:flex;align-items:center;justify-content:center;position:relative}.tool svg,.mini svg,.iconbtn svg,.panelhead svg{width:20px;height:20px;stroke:currentColor;stroke-width:1.7;fill:none;stroke-linecap:round;stroke-linejoin:round}.tool.active{background:#e6f3f0;color:#2c7c80;border-color:#d6ebe8}.tool[data-tip]:after{content:attr(data-tip);position:absolute;left:55px;top:50%;transform:translateY(-50%);font-size:12px;white-space:nowrap;color:#3d555b;background:#fff;border:1px solid #e3ebeb;border-radius:8px;padding:7px 10px;box-shadow:0 6px 16px #4562  ;pointer-events:none;opacity:0;transition:opacity .12s}.tool[data-tip]:hover:after{opacity:1}
+.bottom{position:absolute;z-index:9;left:30px;right:29px;bottom:23px;display:flex;align-items:flex-end;justify-content:space-between;gap:12px;pointer-events:none}.bottom>*{pointer-events:auto}.scene-meta{background:#ffffffde;backdrop-filter:blur(14px);border:1px solid #e2ebea;border-radius:16px;padding:13px 17px;box-shadow:0 9px 30px #29404412;max-width:340px}.scene-meta strong{display:block;font-size:13px}.scene-meta p{margin:5px 0 0;color:#88979b;font-size:11px;line-height:1.5}.view-controls{display:flex;align-items:center;gap:6px;background:#ffffffed;border:1px solid #dfe9e8;border-radius:15px;padding:6px;box-shadow:0 10px 28px #29404416}.mini{width:37px;height:37px;border:1px solid transparent;background:transparent;border-radius:10px;color:#71868b;display:grid;place-items:center}.mini.active{background:#e8f2ef;color:#307e80}.mini svg{width:18px;height:18px}.separator{width:1px;height:22px;background:#e1e9e9;margin:0 3px}
+.float{position:absolute;z-index:22;width:344px;min-width:270px;min-height:70px;max-width:calc(100vw - 12px);max-height:calc(100dvh - 18px);background:rgba(255,255,255,.96);backdrop-filter:blur(22px);border:1px solid #dce7e7;border-radius:18px;box-shadow:var(--shadow);overflow:hidden;display:flex;flex-direction:column}.float.minimized{min-height:0!important;height:54px!important}.float.minimized .panelbody,.float.minimized .grip{display:none}.panelhead{flex-shrink:0;height:55px;display:flex;align-items:center;gap:11px;padding:0 12px 0 18px;border-bottom:1px solid #e9eeee;touch-action:none;cursor:move;user-select:none}.float.minimized .panelhead{border-bottom:0}.panel-title{flex:1;min-width:0;font-weight:700;font-size:13px;letter-spacing:.03em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.panelhead button{width:28px;height:28px;border:0;background:transparent;color:#86989b;border-radius:8px;display:grid;place-items:center}.panelhead button:hover{background:#eef5f3;color:#437c7d}.panelhead svg{width:16px;height:16px}.panelbody{overflow:auto;padding:17px 18px 19px;min-height:0;scrollbar-width:thin;scrollbar-color:#cbd8d7 transparent}.grip{position:absolute;bottom:3px;right:3px;width:26px;height:26px;touch-action:none;cursor:nwse-resize;border-radius:0 0 13px 0}.grip:before{content:"";position:absolute;right:6px;bottom:6px;width:12px;height:12px;background:linear-gradient(135deg,transparent 40%,#9db2b5 42%,#9db2b5 49%,transparent 51%,transparent 70%,#9db2b5 72%,#9db2b5 79%,transparent 81%)}
+.kicker{font-size:10px;letter-spacing:.12em;font-weight:700;color:#97a7a7;margin:0 0 10px}.sect{margin:0 0 17px}.sect:last-child{margin-bottom:0}.sect-title{font-size:12px;font-weight:700;color:#52676d;margin:0 0 10px}.subtle{font-size:11px;color:#91a0a4;line-height:1.6}.list{display:grid;gap:7px}.item{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;background:#f5f8f7;border:1px solid #e6eded;border-radius:12px}.item strong{font-size:12px;font-weight:650}.item small{font-size:10px;color:#96a6a8}.item.active{border-color:#78b5b2;background:#edf7f4}.btn{padding:10px 13px;border:1px solid #dae6e4;border-radius:11px;background:#fff;color:#526c70;font-weight:600;font-size:12px;white-space:nowrap}.btn:hover{border-color:#8fbfba}.btn.primary{background:#347f84;color:#fff;border-color:#347f84}.btn.primary:hover{background:#256e72}.btn.danger{color:#ad6c5c;border-color:#f0dbd4}.btn:disabled{opacity:.42}.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.furniture-pick{min-height:79px;padding:11px 7px;border:1px solid #e3ebea;border-radius:12px;background:#f9fbfa;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:6px;color:#647a7f}.furniture-pick:hover{background:#edf5f2;border-color:#a7cfcb}.furniture-pick .symbol{font-size:25px;line-height:1.2}.furniture-pick span:last-child{font-size:11px}.field{display:grid;gap:5px;min-width:0}.field label{font-size:10px;color:#899b9d}.field input,.field select{width:100%;min-width:0;height:37px;padding:0 9px;border:1px solid #dce7e6;border-radius:9px;background:#fbfcfc;color:#405a61;outline:0;font-size:12px}.field input:focus,.field select:focus{border-color:#7fb6b5;background:#fff}.field input[type=range]{padding:0;height:24px;accent-color:#337e83}.twocol{display:grid;grid-template-columns:1fr 1fr;gap:9px}.threecol{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.row{display:flex;align-items:center;gap:7px}.row.between{justify-content:space-between}.stack{display:grid;gap:9px}.line{height:1px;background:#eaf0ee;margin:13px 0}.tag{font-size:10px;padding:4px 7px;border-radius:6px;background:#edf5f2;color:#41827e;font-weight:600}.tiptxt{font-size:11px;line-height:1.7;color:#8d9fa1;background:#f4f8f7;padding:10px 11px;border-radius:9px}.color-dot{display:inline-block;width:13px;height:13px;border-radius:4px;border:1px solid #a5aaa54d;vertical-align:middle;margin-right:8px}.full{width:100%}.panel-tabs{display:flex;gap:4px;background:#f2f6f5;border-radius:10px;padding:4px;margin-bottom:15px}.panel-tabs button{flex:1;border:0;padding:8px 0;background:transparent;border-radius:8px;font-size:11px;color:#86969b}.panel-tabs button.active{background:#fff;color:#357c7f;box-shadow:0 2px 8px #577a7a15;font-weight:700}
+#wallMeasure{position:absolute;z-index:16;left:0;top:0;pointer-events:none;transform:translate(-50%,-100%);background:rgba(34,84,88,.96);color:#fff;padding:7px 10px;border-radius:9px;font-size:11px;line-height:1.45;box-shadow:0 6px 20px #23535728;white-space:nowrap;max-width:min(90vw,350px);text-align:center}#wallMeasure[hidden]{display:none}#wallMeasure small{color:#c4e6e1;font-size:10px}#gl.wall-hover{cursor:grab}#gl.wall-grab{cursor:grabbing}
+.toast{position:absolute;z-index:48;bottom:94px;left:50%;transform:translateX(-50%) translateY(12px);padding:11px 16px;background:#334e56ed;color:#fff;border-radius:12px;font-size:12px;pointer-events:none;opacity:0;transition:opacity .18s,transform .18s;max-width:min(520px,90vw);text-align:center;box-shadow:0 10px 24px #25384118}.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+#file{display:none}.loading{position:absolute;inset:0;z-index:90;background:#f7fafa;display:flex;align-items:center;justify-content:center;color:#7b9295;font-size:13px;flex-direction:column;gap:13px}.loading .spin{width:26px;height:26px;border:3px solid #dceae8;border-top-color:#438e8f;border-radius:50%;animation:sp .8s linear infinite}@keyframes sp{to{transform:rotate(360deg)}}
+@media(max-width:690px){.header{padding:12px 13px;height:65px}.brandmark{width:36px;height:36px;border-radius:11px}.brand strong{font-size:11px}.brand small{font-size:7px;letter-spacing:0}.header-right .desktop{display:none}.chip{padding:8px 10px;font-size:11px}.toolbar{top:auto;left:50%;bottom:89px;transform:translateX(-50%);flex-direction:row;gap:3px;padding:5px;border-radius:16px}.tool{width:40px;height:42px}.tool svg{width:19px;height:19px}.tool[data-tip]:after{display:none}.bottom{left:11px;right:11px;bottom:14px;align-items:flex-end}.scene-meta{max-width:190px;padding:9px 11px}.scene-meta strong{font-size:11px}.scene-meta p{font-size:10px}.view-controls{padding:3px;gap:1px}.mini{width:31px;height:32px}.view-controls .hide-mobile{display:none}.separator{height:18px}.float{width:min(344px,calc(100vw - 16px));max-height:min(68dvh,650px)}.float.minimized{max-height:54px}.toast{bottom:147px}.panelbody{padding:14px}}
+
+/* v0.2 正向燃燒：維持白底低彩 UI，火焰為物理狀態的視覺呈現而非 CFD */
+#fx{position:absolute;inset:0;z-index:2;display:block;width:100%;height:100%;pointer-events:none;touch-action:none}
+#gl{z-index:1} .header{z-index:11}.toolbar{z-index:12}.bottom{z-index:9}
+.fire-timeline{position:absolute;z-index:20;left:50%;bottom:20px;transform:translateX(-50%);display:none;align-items:center;gap:9px;padding:10px 13px;border:1px solid #e2e8e4;border-radius:18px;background:rgba(255,255,255,.96);backdrop-filter:blur(22px);box-shadow:0 12px 35px rgba(32,62,69,.14);max-width:calc(100vw - 26px)}
+.fire-timeline.visible{display:flex}.fire-time{width:86px;display:grid;gap:2px}.fire-time span{font-size:19px;font-weight:750;letter-spacing:.025em;font-variant-numeric:tabular-nums}.fire-timeline small{font-size:10px;color:#8c9d9f;white-space:nowrap}.fire-ctl{padding:10px 12px;font-size:12px}.fire-readout{display:grid;gap:2px;min-width:95px}.fire-readout strong{font-size:14px;white-space:nowrap;font-variant-numeric:tabular-nums}
+#fireSpeed{height:37px;border:1px solid #e1e8e6;border-radius:10px;background:#f8fbf9;color:#52676d;padding:0 8px}
+#app.sim-running .bottom{bottom:94px}#app.sim-running .scene-meta{padding:10px 14px}
+#gl.ignite-mode{cursor:crosshair}
+@media(max-width:650px){.fire-timeline{bottom:8px;width:calc(100% - 14px);gap:5px;padding:8px 6px;border-radius:13px;justify-content:space-between}.fire-time{width:auto}.fire-time span{font-size:15px}.fire-time small{font-size:9px}.fire-ctl{padding:9px 8px;font-size:11px}.fire-readout{min-width:55px}.fire-readout strong{font-size:11px}.fire-readout small{font-size:8px}#fireSpeed{height:32px;padding:0 3px;font-size:11px}#app.sim-running .bottom{bottom:84px}#app.sim-running .scene-meta{display:none}#app.sim-running .view-controls{gap:1px;padding:3px}.float.minimized{width:170px!important;left:auto!important;right:10px!important;top:76px!important;height:45px!important}.float.minimized .panelhead{height:44px;padding:0 7px 0 11px}.float.minimized .panel-title{font-size:10px}.float.minimized .panelhead button{width:25px;height:25px}}
+/* v0.3b：房間風險，低彩量化介面，避免覆蓋室內家具 */
+.risk-number{font-variant-numeric:tabular-nums;font-weight:750}
+.risk-dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;vertical-align:middle}
+.risk-bar{height:7px;background:#edf1f0;border-radius:20px;overflow:hidden;margin-top:7px}
+.risk-bar>i{display:block;height:100%;border-radius:20px}
+.risk-score{font-size:39px;line-height:1;letter-spacing:-.055em;font-weight:750}
+.risk-stat{border:1px solid #e1e9e7;background:#f9fbfa;border-radius:11px;padding:10px 9px;min-width:0}
+.risk-stat span{font-size:10px;color:#87989b;display:block;margin-bottom:4px}
+.risk-stat strong{font-size:15px;font-variant-numeric:tabular-nums}
+.risk-meta{font-size:11px;color:#6a7f81;line-height:1.7}
+.risk-list-btn{width:100%;text-align:left;border:1px solid #e4ebea;background:#f8faf9;border-radius:11px;padding:11px;display:flex;align-items:center;gap:9px;justify-content:space-between;color:#465c62}
+.risk-list-btn.active{border-color:#8ebbb2;background:#eaf5f2}
+.risk-list-btn strong{font-size:12px}
+.risk-delta{font-size:10px;color:#72868b;margin-left:4px}
+.risk-delta.raised{color:#b36044}.risk-delta.lowered{color:#2a817c}
+.risk-chip{display:inline-block;font-size:10px;border:1px solid #e0e9e5;border-radius:20px;padding:5px 8px;color:#627d7d;background:#f8fbfa}
+@media(max-width:690px){.toolbar{gap:2px;padding:4px}.tool{width:35px;height:40px}.tool svg{width:18px;height:18px}}
+</style>
+</head>
+<body>
+<div id="app">
+  <canvas id="gl" aria-label="可旋轉及編輯的 3D 公寓"></canvas><canvas id="fx" aria-hidden="true"></canvas>
+  <div class="header"><div class="brand"><div class="brandmark"><svg viewBox="0 0 24 24" fill="none" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5V21H3z" stroke-width="1.7"/><path d="M9 21v-7h6v7M3 10.5l9 3 9-3" stroke-width="1.3"/></svg></div><div><strong>FIRE 3D · 火災現場逆向評估系統</strong><small>FORENSIC INCIDENT RECONSTRUCTION &amp; EVALUATION SYSTEM <span style="color:#397e80">/ v0.3</span></small></div></div>
+    <div class="header-right"><button class="chip desktop" id="modeLabel" title="此版本先完成室內配置">● 災前配置模式</button><button class="chip" id="btnTemplate">範本 <span style="font-size:9px">⌄</span></button><button class="chip" id="btnSaveTop">儲存 <span style="font-size:10px">↗</span></button></div>
+  </div>
+  <nav class="toolbar" aria-label="場景編輯工具">
+    <button class="tool active" data-tool="select" data-tip="選取與編輯" aria-label="選取與編輯"><svg viewBox="0 0 24 24"><path d="m5 3 13 9-7 1-3 7z"/></svg></button>
+    <button class="tool" data-tool="furniture" data-tip="家具庫" aria-label="家具庫"><svg viewBox="0 0 24 24"><path d="M4 13V8a3 3 0 0 1 3-3h10a3 3 0 0 1 3 3v5M3 13h18v6H3zM6 19v2m12-2v2M7 13v-2h10v2"/></svg></button>
+    <button class="tool" data-tool="rooms" data-tip="隔間與尺寸" aria-label="隔間與尺寸"><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4zM13 4v10H4M13 14h7M8 14v6"/></svg></button>
+    <button class="tool" data-tool="materials" data-tip="地坪與牆面材質" aria-label="地坪與牆面材質"><svg viewBox="0 0 24 24"><path d="m4 9 8-5 8 5-8 5zM4 14l8 5 8-5M4 18l8 5 8-5"/></svg></button>
+    <button class="tool" data-tool="openings" data-tip="門窗設計" aria-label="門窗設計"><svg viewBox="0 0 24 24"><path d="M4 3h16v18H4zM12 3v18M4 12h16M9 10h.1M15 14h.1"/></svg></button>
+    <button class="tool" data-tool="fire" data-tip="正向燃燒" aria-label="正向燃燒"><svg viewBox="0 0 24 24"><path d="M12.5 21c4.1-.9 6.5-3.5 6.5-7.4 0-2.7-1.6-5.1-4.2-7.5.2 2.5-.7 4-2.2 4.8C12.5 7 10.9 4.6 8.8 3c.2 4-1.4 6.4-3.3 8.8-1.4 1.7-1.5 3.3-1.1 4.7.7 2.8 3.5 4.2 8.1 4.5Z"/><path d="M12.5 21c1.3-.8 1.7-2 1.4-3.2-.2-.7-1-1.8-1.5-2.3-1.2 1.1-2.5 2.8-2.1 4.1"/></svg></button>
+    <button class="tool" data-tool="risk" data-tip="隔間蔓延風險" aria-label="隔間蔓延風險"><svg viewBox="0 0 24 24"><path d="M4 20h16M5 17V9m5 8V5m5 12v-6m5 6V3"/><path d="M3 8 9 3l4 5 8-6"/></svg></button>
+    <button class="tool" data-tool="layers" data-tip="場景顯示" aria-label="場景顯示"><svg viewBox="0 0 24 24"><path d="m12 3 9 5-9 5-9-5zM3 12l9 5 9-5M3 16l9 5 9-5"/></svg></button>
+    <button class="tool" data-tool="files" data-tip="匯入／匯出" aria-label="匯入／匯出"><svg viewBox="0 0 24 24"><path d="M4 7h7l2 2h7v11H4zM4 7V4h7l2 3M12 12v6m-3-3 3-3 3 3"/></svg></button>
+  </nav>
+  <div class="bottom"><div class="scene-meta"><strong id="statusName">現代公寓 · 4 房間</strong><p id="statusHint">拖曳旋轉視角 · 點選家具或地板進行編輯</p></div>
+    <div class="view-controls"><button class="mini" id="btnView45" title="回到 45° 視角" aria-label="回到 45° 視角"><svg viewBox="0 0 24 24"><path d="m3 10 9-5 9 5-9 5zM3 10v5l9 5 9-5v-5M12 15v5"/></svg></button><button class="mini" id="btnTop" title="俯視平面圖" aria-label="俯視平面圖"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="1"/><path d="M12 4v10H4M12 14h8"/></svg></button><div class="separator hide-mobile"></div><button class="mini hide-mobile" id="btnUndo" title="復原" aria-label="復原"><svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5M4 9h10a6 6 0 0 1 0 12h-2"/></svg></button><button class="mini" id="btnZoomIn" title="放大" aria-label="放大"><svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M10.5 7v7m-3.5-3.5h7M16 16l5 5"/></svg></button><button class="mini" id="btnZoomOut" title="縮小" aria-label="縮小"><svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M7 10.5h7M16 16l5 5"/></svg></button></div>
+  </div>
+  <div id="panels"></div>
+  <div id="fireTimeline" class="fire-timeline" aria-label="正向燃燒控制列">
+    <div class="fire-time"><span id="fireClock">00:00</span><small id="fireStatus">尚未點火</small></div>
+    <button id="firePlay" class="btn primary fire-ctl">▶ 開始</button><button id="fireReset" class="btn fire-ctl" title="重設燃燒">↺ 重設</button>
+    <div class="fire-readout"><strong id="firePower">0 kW</strong><small id="fireBurning">燃燒 0 件 · 耗盡 0 件</small></div>
+    <select id="fireSpeed" aria-label="正向模擬速度"><option value="1">1×</option><option value="10" selected>10×</option><option value="40">40×</option></select>
+  </div><div id="wallMeasure" hidden aria-live="off"></div><div class="toast" id="toast" role="status"></div><input id="file" type="file" accept=".json,application/json" />
+  <div class="loading" id="loading"><div class="spin"></div><span>正在建立 3D 公寓場景…</span></div>
+</div>
+<script type="module">
+// FIRE 3D v0.3b：延續 v0.2 正向燃燒，新增多情境的隔間相對蔓延風險評估。
+const $ = s => document.querySelector(s), $$ = s => Array.from(document.querySelectorAll(s));
+const canvas=$('#gl'), app=$('#app'), panels=$('#panels');
+const MAT={
+  oak:{name:'自然橡木',c:'#c5a879',kind:'wood'},walnut:{name:'深色胡桃木',c:'#8e7057',kind:'wood'},
+  tile:{name:'暖白磁磚',c:'#e6e2d9',kind:'tile'},stone:{name:'淺灰石材',c:'#d0d6d2',kind:'tile'},
+  carpet:{name:'織物地毯',c:'#c7d2ca',kind:'carpet'},vinyl:{name:'PVC 地板',c:'#c9b9a5',kind:'wood'},
+  white:{name:'米白乳膠漆',c:'#e9ebe5',kind:'wall'},sage:{name:'鼠尾草綠',c:'#c3d4c5',kind:'wall'},
+  clay:{name:'暖杏色漆',c:'#e7d0bd',kind:'wall'},concrete:{name:'清水混凝土',c:'#b6bfbe',kind:'wall'},
+  wallpaper:{name:'紙質壁紙（示範）',c:'#d2c3a5',kind:'wall'},woodpanel:{name:'木質護牆板（示範）',c:'#ac875e',kind:'wall'},vinylwall:{name:'PVC 壁板（示範）',c:'#c2b5a6',kind:'wall'},
+  fabric:{name:'布面／泡棉',c:'#b0c1b8',kind:'fabric'},linen:{name:'淺色織品',c:'#e2d7c9',kind:'fabric'},
+  leather:{name:'合成皮革',c:'#9a715e',kind:'fabric'},metal:{name:'金屬',c:'#8b999e',kind:'other'},
+  wood:{name:'木質家具',c:'#b68c60',kind:'wood'},plastic:{name:'塑膠',c:'#d4d3c8',kind:'other'},
+};
+const TYPES={
+ sofa:{name:'三人沙發',icon:'🛋',w:2.25,d:.91,h:.86,mat:'fabric',category:'客廳'},chair:{name:'單人椅',icon:'▣',w:.8,d:.85,h:.9,mat:'fabric',category:'客廳'},
+ coffee:{name:'茶几',icon:'▤',w:1.12,d:.65,h:.42,mat:'wood',category:'客廳'},tv:{name:'電視櫃',icon:'▣',w:1.75,d:.45,h:.57,mat:'wood',category:'客廳'},
+ bookcase:{name:'書櫃',icon:'▥',w:1.15,d:.4,h:2.06,mat:'wood',category:'收納'},wardrobe:{name:'衣櫃',icon:'▥',w:1.7,d:.65,h:2.3,mat:'wood',category:'收納'},
+ bed:{name:'雙人床',icon:'▦',w:1.92,d:2.13,h:.65,mat:'linen',category:'臥室'},desk:{name:'書桌',icon:'▤',w:1.45,d:.7,h:.76,mat:'wood',category:'臥室'},
+ dining:{name:'餐桌',icon:'▤',w:1.65,d:.9,h:.74,mat:'wood',category:'餐廚'},dchair:{name:'餐椅',icon:'▣',w:.49,d:.55,h:.92,mat:'wood',category:'餐廚'},
+ fridge:{name:'冰箱',icon:'▥',w:.78,d:.75,h:1.85,mat:'metal',category:'餐廚'},counter:{name:'廚房流理台',icon:'▤',w:2.3,d:.65,h:.9,mat:'wood',category:'餐廚'},
+ stove:{name:'電陶爐櫃',icon:'▤',w:.84,d:.65,h:.9,mat:'metal',category:'餐廚'},rug:{name:'地毯',icon:'▱',w:2.7,d:1.6,h:.02,mat:'carpet',category:'裝飾'},
+ plant:{name:'植栽',icon:'✿',w:.54,d:.54,h:1.25,mat:'plastic',category:'裝飾'},curtain:{name:'窗簾',icon:'▥',w:1.5,d:.15,h:2.05,mat:'linen',category:'裝飾'},
+ toilet:{name:'馬桶',icon:'▢',w:.42,d:.68,h:.72,mat:'white',category:'浴廁'},basin:{name:'洗手台',icon:'◡',w:.75,d:.48,h:.87,mat:'white',category:'浴廁'},
+};
+let nextId=100;
+const uid=prefix=>prefix+(nextId++);
+function room(id,name,floor='oak',wall='white'){return {id,name,floor,wall};}
+// 室內計畫以公開公寓平面圖的空間分區原則重新繪製，不直接複製任何建商原始圖面。
+const R=(id,name,floor='oak',wall='white')=>room(id,name,floor,wall);
+const S=(id,axis,ratio,first,second)=>({id,axis,ratio,first,second});
+function layoutTwoBedroom(){
+  // 10.3 x 7.7m：左側客餐與廚房、中間 1.32m 連通走道、右側兩間臥室與浴室。
+  return S('split-l-corridor','x',.515,
+    S('split-living-kitchen','z',.62,R('room-living','客餐廳','oak'),R('room-kitchen','廚房','tile')),
+    S('split-corridor-right','x',.265,R('room-hall','玄關走道','tile'),
+      S('split-bedroom-top','z',.42,R('room-bedroom1','主臥室','walnut','sage'),
+        S('split-bedroom-bottom','z',.54,R('room-bedroom2','次臥室','oak','white'),R('room-bath','浴室','stone')))));
+}
+function layoutOneBedroom(){
+  // 8.9 x 7.3m：開放式餐廚 + 臥室 + 浴室。
+  return S('split-core','x',.66,
+    S('split-living-kitchen','z',.60,R('room-living','客餐廳','oak'),R('room-kitchen','開放式廚房','tile')),
+    S('split-private','z',.65,R('room-bedroom1','臥室','walnut','sage'),R('room-bath','浴室','stone')));
+}
+function layoutOpenTwoBedroom(){
+  // 10.1 x 7.7m：大面積開放式客餐廚 + 兩臥一浴。
+  return S('split-core','x',.63,
+    S('split-living-kitchen','z',.67,R('room-living','開放式客餐廳','oak'),R('room-kitchen','廚房區','tile')),
+    S('split-bedroom-top','z',.44,R('room-bedroom1','主臥室','walnut','sage'),
+      S('split-bedroom-bottom','z',.55,R('room-bedroom2','次臥室','oak'),R('room-bath','浴室','stone'))));
+}
+const F=(type,x,z,rot=0,mat=null,w=null,d=null,h=null)=>({id:uid('f'),type,x,z,rot,mat:mat||TYPES[type].mat,w:w||TYPES[type].w,d:d||TYPES[type].d,h:h||TYPES[type].h});
+const presetDefinitions=[
+  {id:'home',name:'雙房中央走道',sub:'約 79㎡ · 客餐廳、獨立廚房、兩臥一衛'},
+  {id:'dense',name:'高家具密度雙房',sub:'約 79㎡ · 同格局增加書櫃及布料家具'},
+  {id:'minimal',name:'簡約一房公寓',sub:'約 65㎡ · 開放式餐廚、一房一衛'},
+  {id:'open',name:'雙房開放式餐廚',sub:'約 78㎡ · 客餐廚連通、兩臥一衛'}
+];
+function makePreset(key){
+  const small=key==='minimal',open=key==='open';
+  const base={schema:'fire3d-interior-v0.1',sceneName:'雙房中央走道公寓',width:small?8.9:(open?10.1:10.3),depth:small?7.3:7.7,height:2.68,
+    layout:small?layoutOneBedroom():(open?layoutOpenTwoBedroom():layoutTwoBedroom()),furniture:[],openings:[],wallMode:'cut',openWallIds:[],selected:null};
+  let f=[];
+  if(small){
+    base.sceneName='簡約一房公寓';base.openWallIds=['split-living-kitchen'];
+    f=[F('sofa',1.65,1.23,0,'linen'),F('coffee',1.65,2.46),F('tv',1.65,3.92,Math.PI),
+      F('rug',1.65,2.52,0,'carpet',2.65,1.5),F('dining',4.63,2.80,Math.PI/2,'wood',1.40,.85),
+      F('counter',1.52,6.87,Math.PI),F('stove',3.35,6.89,Math.PI),F('fridge',5.40,5.65,-Math.PI/2),
+      F('bed',7.04,1.40,0,'linen'),F('wardrobe',8.47,3.67,-Math.PI/2),
+      F('toilet',6.63,6.06),F('basin',8.44,6.25,-Math.PI/2),F('plant',.50,.54)];
+    base.openings=[
+      {id:'door-main',type:'door',segId:'ext-south',t:.61,width:.95,open:true},
+      {id:'door-bed',type:'door',segId:'split-core',t:.31,width:.90,open:true},
+      {id:'door-bath',type:'door',segId:'split-core',t:.82,width:.82,open:true},
+      {id:'window-living',type:'window',segId:'ext-north',t:.26,width:1.90,open:false},
+      {id:'window-bed',type:'window',segId:'ext-north',t:.84,width:1.45,open:false},
+      {id:'window-side',type:'window',segId:'ext-west',t:.33,width:1.55,open:false},
+      {id:'window-service',type:'window',segId:'ext-east',t:.78,width:.95,open:false}];
+  }else if(open){
+    base.sceneName='雙房開放式餐廚公寓';base.openWallIds=['split-living-kitchen'];
+    f=[F('sofa',1.55,1.25,0),F('coffee',1.55,2.56),F('tv',1.55,4.55,Math.PI),
+      F('rug',1.57,2.68),F('bookcase',5.93,1.25,-Math.PI/2),F('dining',4.78,3.15,Math.PI/2),
+      F('dchair',4.78,4.09,Math.PI),F('counter',1.65,7.23,Math.PI),F('stove',3.35,7.23,Math.PI),
+      F('fridge',5.88,6.10,-Math.PI/2),F('bed',8.26,1.35,0),F('wardrobe',9.73,2.41,-Math.PI/2),
+      F('bed',8.14,4.54,Math.PI/2,'linen',1.17,1.98),F('desk',9.60,4.54,-Math.PI/2),
+      F('toilet',7.13,6.84),F('basin',9.55,6.65,-Math.PI/2),F('plant',.55,4.55),
+      F('curtain',2.18,.16)];
+    base.openings=[
+      {id:'door-main',type:'door',segId:'ext-south',t:.54,width:.95,open:true},
+      {id:'door-mainbed',type:'door',segId:'split-core',t:.24,width:.91,open:true},
+      {id:'door-secondbed',type:'door',segId:'split-core',t:.60,width:.85,open:true},
+      {id:'door-bath',type:'door',segId:'split-core',t:.87,width:.79,open:true},
+      {id:'window-living',type:'window',segId:'ext-north',t:.24,width:2.0,open:false},
+      {id:'window-bed',type:'window',segId:'ext-north',t:.81,width:1.55,open:false},
+      {id:'window-west',type:'window',segId:'ext-west',t:.44,width:1.85,open:false},
+      {id:'window-secondbed',type:'window',segId:'ext-east',t:.58,width:1.30,open:false}];
+  }else{
+    f=[F('sofa',1.61,1.22,0),F('coffee',1.61,2.53),F('tv',1.62,4.26,Math.PI),
+      F('rug',1.63,2.60),F('plant',.47,4.20),F('bookcase',4.96,1.05,-Math.PI/2),
+      F('dining',4.06,3.52,0,'wood',1.40,.80),F('counter',1.65,7.27,Math.PI),F('stove',3.40,7.28,Math.PI),
+      F('fridge',4.93,6.20,-Math.PI/2),F('bed',8.18,1.31,0),F('wardrobe',9.86,2.18,-Math.PI/2),
+      F('bed',8.10,4.47,Math.PI/2,'linen',1.14,1.98),F('desk',9.68,4.61,-Math.PI/2),
+      F('toilet',7.36,6.77),F('basin',9.74,6.45,-Math.PI/2),F('curtain',1.66,.16)];
+    if(key==='dense'){
+      base.sceneName='高家具密度雙房公寓';
+      f=f.map(o=>o.type==='sofa'?{...o,mat:'linen'}:o);
+      f.push(F('bookcase',.28,3.42,Math.PI/2),F('chair',4.40,1.42,-Math.PI/2),
+        F('bookcase',4.96,4.35,-Math.PI/2,'wood',.82,.36,1.80),
+        F('curtain',4.0,.16,0,'linen',1.05),F('rug',3.90,2.18,0,'linen',1.32,1.05,.02),
+        F('bookcase',7.14,2.36,Math.PI/2,'wood',.74,.32,1.60));
+    }
+    base.openings=[
+      {id:'door-main',type:'door',segId:'ext-south',t:.58,width:1.00,open:true},
+      {id:'door-living',type:'door',segId:'split-l-corridor',t:.30,width:1.04,open:true},
+      {id:'door-kitchen',type:'door',segId:'split-l-corridor',t:.83,width:.89,open:true},
+      {id:'door-mainbed',type:'door',segId:'split-corridor-right',t:.22,width:.91,open:true},
+      {id:'door-secondbed',type:'door',segId:'split-corridor-right',t:.57,width:.82,open:true},
+      {id:'door-bath',type:'door',segId:'split-corridor-right',t:.87,width:.78,open:true},
+      {id:'door-kitchenliving',type:'door',segId:'split-living-kitchen',t:.58,width:.91,open:true},
+      {id:'window-living',type:'window',segId:'ext-north',t:.24,width:1.90,open:false},
+      {id:'window-mainbed',type:'window',segId:'ext-north',t:.80,width:1.48,open:false},
+      {id:'window-west',type:'window',segId:'ext-west',t:.32,width:1.65,open:false},
+      {id:'window-kitchen',type:'window',segId:'ext-south',t:.20,width:1.42,open:false},
+      {id:'window-secondbed',type:'window',segId:'ext-east',t:.58,width:1.30,open:false}];
+  }
+  base.furniture=f;
+  return base;
+}
+const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
+const deep=o=>JSON.parse(JSON.stringify(o));
+const safeText=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const state={data:makePreset('home'),selected:null,focusTool:'select',panelKey:null,panelMoved:false,undo:[],zoom:1,yaw:.72,pitch:.91,target:{x:6.6,y:.62,z:4.55},viewTop:false,drag:null,pointers:new Map(),geomDirty:true,rooms:[],segments:[],objects:[],wallConflicts:new Set(),wallHover:null};
+try{let raw=localStorage.getItem('fire3d-v0.1-autosave');if(raw){const s=JSON.parse(raw);if(s&&s.schema==='fire3d-interior-v0.1'&&s.layout&&Array.isArray(s.furniture)){state.data=s;state.target.x=s.width/2;state.target.z=s.depth/2;}}}catch(e){}
+function traverse(node,x,z,w,d,rooms,segments){
+  if(!node.first){rooms.push({id:node.id,name:node.name,floor:node.floor||'oak',wall:node.wall||'white',x,z,w,d,node});return;}
+  const r=clamp(Number(node.ratio)||.5,.15,.85);
+  if(node.axis==='x'){
+    const split=x+w*r;
+    segments.push({id:node.id,x1:split,z1:z,x2:split,z2:z+d,interior:true});
+    traverse(node.first,x,z,w*r,d,rooms,segments);traverse(node.second,split,z,w*(1-r),d,rooms,segments);
+  }else{
+    const split=z+d*r;
+    segments.push({id:node.id,x1:x,z1:split,x2:x+w,z2:split,interior:true});
+    traverse(node.first,x,z,w,d*r,rooms,segments);traverse(node.second,x,split,w,d*(1-r),rooms,segments);
+  }
+}
+function calcLayout(){const d=state.data;state.rooms=[];state.segments=[{id:'ext-north',x1:0,z1:0,x2:d.width,z2:0},{id:'ext-south',x1:0,z1:d.depth,x2:d.width,z2:d.depth},{id:'ext-west',x1:0,z1:0,x2:0,z2:d.depth},{id:'ext-east',x1:d.width,z1:0,x2:d.width,z2:d.depth}];traverse(d.layout,0,0,d.width,d.depth,state.rooms,state.segments);}
+calcLayout();
+function roomAt(x,z){return state.rooms.find(r=>x>=r.x-1e-4&&x<=r.x+r.w+1e-4&&z>=r.z-1e-4&&z<=r.z+r.d+1e-4)}
+function footprint(o){const c=Math.abs(Math.cos(o.rot)),s=Math.abs(Math.sin(o.rot));return {x:(o.w*c+o.d*s)*.5,z:(o.w*s+o.d*c)*.5};}
+function keepInsideRoom(o, r=roomAt(o.x,o.z)){
+  if(!r)return false;
+  const e=footprint(o),margin=.035;
+  if(r.w<2*(e.x+margin)||r.d<2*(e.z+margin))return false;
+  o.x=clamp(o.x,r.x+e.x+margin,r.x+r.w-e.x-margin);
+  o.z=clamp(o.z,r.z+e.z+margin,r.z+r.d-e.z-margin);
+  return true;
+}
+// 櫃類及電器的「正面」統一採物件局部座標 +Z；對應抽屜、書本、冰箱門與電視螢幕。
+const FRONT_TYPES=new Set(['bookcase','wardrobe','fridge','tv','counter','stove']);
+function frontDirection(o){return {x:Math.sin(o.rot),z:Math.cos(o.rot)};}
+function facingWallClearance(o,r=roomAt(o.x,o.z)){
+  if(!r)return 0;const v=frontDirection(o),sx=o.x+v.x*o.d*.5,sz=o.z+v.z*o.d*.5;
+  const distances=[];
+  if(v.x>1e-5)distances.push((r.x+r.w-sx)/v.x);
+  if(v.x< -1e-5)distances.push((r.x-sx)/v.x);
+  if(v.z>1e-5)distances.push((r.z+r.d-sz)/v.z);
+  if(v.z< -1e-5)distances.push((r.z-sz)/v.z);
+  return Math.max(0,Math.min(...distances.filter(Number.isFinite)));
+}
+function autoFaceRoom(o,r=roomAt(o.x,o.z)){
+  if(!r||!FRONT_TYPES.has(o.type))return;
+  // 保留中心位置；將最近邊牆視為背面，正面轉向房間內。
+  const e=footprint(o);
+  const candidates=[{gap:o.x-e.x-r.x,rot:Math.PI/2},
+    {gap:r.x+r.w-o.x-e.x,rot:-Math.PI/2},
+    {gap:o.z-e.z-r.z,rot:0},
+    {gap:r.z+r.d-o.z-e.z,rot:Math.PI}];
+  candidates.sort((a,b)=>a.gap-b.gap);
+  o.rot=candidates[0].rot;
+  keepInsideRoom(o,r);
+}
+function wallPlacement(o,r){
+  if(!FRONT_TYPES.has(o.type))return;
+  // 新增櫃子預設靠右側邊牆，門片／書本／冰箱門朝向室內。
+  o.rot=-Math.PI/2;
+  const e=footprint(o);o.x=r.x+r.w-e.x-.09;
+  o.z=clamp(r.z+r.d*.52,r.z+e.z+.09,r.z+r.d-e.z-.09);
+  keepInsideRoom(o,r);
+}
+function detectWallConflicts(oldRooms=null){
+  state.wallConflicts=new Set();
+  for(const o of state.data.furniture){
+    const r=roomAt(o.x,o.z),e=footprint(o),oldId=oldRooms?.get(o.id);
+    if(!r||oldId&&oldId!==r.id||o.x-e.x<r.x+.015||o.x+e.x>r.x+r.w-.015||o.z-e.z<r.z+.015||o.z+e.z>r.z+r.d-.015)state.wallConflicts.add(o.id);
+  }
+  state.geomDirty=true;
+  return state.wallConflicts.size;
+}
+function relocateAfterPartition(){let conflicts=0;for(let o of state.data.furniture){if(!keepInsideRoom(o))conflicts++;}detectWallConflicts();if(conflicts)toast(`${conflicts} 件家具超出隔間，請調整其尺寸或位置`);}
+function openingAnchors(){return state.data.openings.map(o=>{let s=state.segments.find(s=>s.id===o.segId);return s?{o,axis:Math.abs(s.x2-s.x1)>Math.abs(s.z2-s.z1)?'x':'z',long:(s.x1+(s.x2-s.x1)*o.t),depth:(s.z1+(s.z2-s.z1)*o.t)}:null}).filter(Boolean)}
+function maintainOpenings(anchors){for(const a of anchors){const s=state.segments.find(s=>s.id===a.o.segId);if(!s)continue;const length=Math.hypot(s.x2-s.x1,s.z2-s.z1);if(length<.02)continue;const along=a.axis==='x'?(a.long-s.x1)/(s.x2-s.x1||1):(a.depth-s.z1)/(s.z2-s.z1||1);const inset=Math.min(.49,a.o.width/(2*length)+.025);a.o.t=clamp(along,inset,1-inset)}}
+
+function getNode(id,n=state.data.layout,p=null,side=null){if(n.id===id)return {node:n,parent:p,side};if(n.first)return getNode(id,n.first,n,'first')||getNode(id,n.second,n,'second');return null}
+function touchSave(){if(window.__fire3dEditReset)window.__fire3dEditReset();if(window.__fire3dRiskDirty)window.__fire3dRiskDirty();state.geomDirty=true;const saved=JSON.stringify(state.data);try{localStorage.setItem('fire3d-v0.1-autosave',saved)}catch(e){};updateStatus();}
+function checkpoint(){state.undo.push(JSON.stringify(state.data));if(state.undo.length>30)state.undo.shift();$('#btnUndo').disabled=false}
+function undo(){if(!state.undo.length){toast('沒有可以復原的操作');return;}state.data=JSON.parse(state.undo.pop());state.selected=null;calcLayout();touchSave();renderPanel();toast('已復原上一項修改');}
+function updateStatus(){const d=state.data;$('#statusName').textContent=`${d.sceneName} · ${state.rooms.length} 個隔間`;$('#statusHint').textContent=state.selected?.kind==='furniture'?`已選取 ${TYPES[state.selected.item.type]?.name||'家具'} · 拖曳可移動`:state.selected?.kind==='room'?`已選取 ${state.selected.item.name} · 可編輯隔間與地坪`:state.selected?.kind==='opening'?`已選取${state.selected.item.type==='door'?'門':'窗'} · 可調整位置與尺寸`:state.focusTool==='rooms'?'隔間模式 · 拖曳青綠色牆線或控制點 · 雙指縮放／平移':'拖曳旋轉 · 點選家具或地板 · 雙指縮放和平移';}
+let toastTimer;function toast(msg){const el=$('#toast');el.textContent=msg;el.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.classList.remove('show'),2700)}
+// ===== 無相依套件 3D WebGL 渲染器 =====
+const nativeGL=canvas.getContext('webgl',{antialias:true,alpha:true,preserveDrawingBuffer:false})||canvas.getContext('experimental-webgl',{antialias:true,alpha:true});
+const flat=!nativeGL?canvas.getContext('2d',{alpha:true}):null;
+// 沒有 WebGL 時用同一組 3D 頂點以 Canvas 2D 深度排序繪圖，維持跨裝置可用。
+const noopGL=new Proxy({getShaderParameter:()=>true,getProgramParameter:()=>true,createShader:()=>({}),createProgram:()=>({}),createBuffer:()=>({}),getAttribLocation:()=>0,getUniformLocation:()=>0}, {get:(obj,key)=>key in obj?obj[key]:(()=>{})});
+const gl=nativeGL||noopGL;
+if(!nativeGL&&!flat){$('#loading').innerHTML='<strong>瀏覽器無法建立繪圖介面</strong>';throw new Error('Graphics unavailable');}
+
+const vert=`attribute vec3 aPos;attribute vec3 aNormal;attribute vec3 aCol;uniform vec3 uCenter,uRight,uUp,uDir;uniform vec2 uScale;varying vec3 vCol;varying vec3 vNormal;varying vec3 vWorld;void main(){vec3 d=aPos-uCenter;gl_Position=vec4(dot(d,uRight)*uScale.x,dot(d,uUp)*uScale.y,-dot(d,uDir)/44.0,1.0);vCol=aCol;vNormal=aNormal;vWorld=aPos;}`;
+const frag=`precision mediump float;varying vec3 vCol,vNormal,vWorld;void main(){float l=max(dot(normalize(vNormal),normalize(vec3(-0.35,0.85,0.55))),0.0);float shade=0.72+0.28*l;float warm=0.016*max(0.0,vWorld.y);gl_FragColor=vec4(vCol*shade+vec3(warm,warm*.7,warm*.45),1.0);}`;
+function shader(type,source){let sh=gl.createShader(type);gl.shaderSource(sh,source);gl.compileShader(sh);if(!gl.getShaderParameter(sh,gl.COMPILE_STATUS))throw new Error(gl.getShaderInfoLog(sh));return sh}
+let prog=gl.createProgram();gl.attachShader(prog,shader(gl.VERTEX_SHADER,vert));gl.attachShader(prog,shader(gl.FRAGMENT_SHADER,frag));gl.linkProgram(prog);if(!gl.getProgramParameter(prog,gl.LINK_STATUS))throw new Error(gl.getProgramInfoLog(prog));gl.useProgram(prog);
+let loc={pos:gl.getAttribLocation(prog,'aPos'),normal:gl.getAttribLocation(prog,'aNormal'),col:gl.getAttribLocation(prog,'aCol'),center:gl.getUniformLocation(prog,'uCenter'),right:gl.getUniformLocation(prog,'uRight'),up:gl.getUniformLocation(prog,'uUp'),dir:gl.getUniformLocation(prog,'uDir'),scale:gl.getUniformLocation(prog,'uScale')};
+const buffer=gl.createBuffer();gl.enable(gl.DEPTH_TEST);gl.depthFunc(gl.LEQUAL);gl.disable(gl.CULL_FACE);let vertices=[],drawCount=0,fallbackVertices=null,lastFlatSignature='',flatPrimitives=[],paintLayer=0;
+const hex=(str)=>{str=(str||'#aaaaaa').replace('#','');if(str.length===3)str=str.split('').map(v=>v+v).join('');return [parseInt(str.slice(0,2),16)/255,parseInt(str.slice(2,4),16)/255,parseInt(str.slice(4,6),16)/255]};
+function tint(c,m){return c.map(v=>clamp(v*m,0,1))}
+function vertex(p,n,c){vertices.push(p[0],p[1],p[2],n[0],n[1],n[2],c[0],c[1],c[2]);}
+function quad(a,b,c,d,n,col){
+  // 小面片降低 Canvas 2D 回退模式的深度排序誤差，3D WebGL 模式仍正常深度測試。
+  const ab=Math.hypot(b[0]-a[0],b[1]-a[1],b[2]-a[2]),ad=Math.hypot(d[0]-a[0],d[1]-a[1],d[2]-a[2]);
+  const nx=Math.min(26,Math.max(1,Math.ceil(ab/.65))),ny=Math.min(26,Math.max(1,Math.ceil(ad/.65)));
+  const mix=(u,v)=>[a[0]+(b[0]-a[0])*u+(d[0]-a[0])*v,a[1]+(b[1]-a[1])*u+(d[1]-a[1])*v,a[2]+(b[2]-a[2])*u+(d[2]-a[2])*v];
+  for(let j=0;j<ny;j++)for(let i=0;i<nx;i++){
+    const u=i/nx,v=j/ny,du=1/nx,dv=1/ny,p=mix(u,v),q=mix(u+du,v),r=mix(u+du,v+dv),s=mix(u,v+dv);
+    vertex(p,n,col);vertex(q,n,col);vertex(r,n,col);vertex(p,n,col);vertex(r,n,col);vertex(s,n,col);
+  }
+}
+function box(cx,cy,cz,w,h,d,color,rot=0){if(w<=0||h<=0||d<=0)return;const col=Array.isArray(color)?color:hex(color),cs=Math.cos(rot),sn=Math.sin(rot);
+  if(flat)flatPrimitives.push({kind:'box',cx,cy,cz,w,h,d,col,rot,layer:paintLayer});
+  const P=(x,y,z)=>[cx+x*cs+z*sn,cy+y,cz-x*sn+z*cs];
+  const N=(x,y,z)=>[x*cs+z*sn,y,-x*sn+z*cs];
+  let x=w/2,y=h/2,z=d/2;
+  quad(P(-x,y,-z),P(x,y,-z),P(x,y,z),P(-x,y,z),N(0,1,0),tint(col,1.12));
+  quad(P(-x,-y,z),P(x,-y,z),P(x,-y,-z),P(-x,-y,-z),N(0,-1,0),tint(col,.78));
+  quad(P(-x,-y,z),P(-x,y,z),P(x,y,z),P(x,-y,z),N(0,0,1),tint(col,.94));
+  quad(P(x,-y,-z),P(x,y,-z),P(-x,y,-z),P(-x,-y,-z),N(0,0,-1),tint(col,.81));
+  quad(P(x,-y,z),P(x,y,z),P(x,y,-z),P(x,-y,-z),N(1,0,0),tint(col,.87));
+  quad(P(-x,-y,-z),P(-x,y,-z),P(-x,y,z),P(-x,-y,z),N(-1,0,0),tint(col,.98));}
+function cylinder(cx,cy,cz,r,h,color,n=12){let col=Array.isArray(color)?color:hex(color);if(flat)flatPrimitives.push({kind:'cylinder',cx,cy,cz,r,h,col,layer:paintLayer});for(let i=0;i<n;i++){let a=i/n*Math.PI*2,b=(i+1)/n*Math.PI*2;let p=[cx+Math.cos(a)*r,cy+h/2,cz+Math.sin(a)*r],q=[cx+Math.cos(b)*r,cy+h/2,cz+Math.sin(b)*r],d=[cx,cy+h/2,cz],nu=[0,1,0];vertex(d,nu,tint(col,1.06));vertex(p,nu,tint(col,1.06));vertex(q,nu,tint(col,1.06));let p2=[p[0],cy-h/2,p[2]],q2=[q[0],cy-h/2,q[2]];quad(p2,p,q,q2,[Math.cos((a+b)/2),0,Math.sin((a+b)/2)],tint(col,.88));}}
+function part(o,lx,ly,lz,w,h,d,col){const cs=Math.cos(o.rot),sn=Math.sin(o.rot);box(o.x+lx*cs+lz*sn,ly,o.z-lx*sn+lz*cs,w,h,d,col,o.rot)}
+const colorOf=k=>MAT[k]?.c||'#acb8b4';
+function furnitureDraw(o){const C=fireObjectColor(o,colorOf(o.mat)),w=o.w,d=o.d,h=o.h,type=o.type;
+  // 接近地坪的輕微陰影加強幾何閱讀性，沒有物理上的火災含意。
+  part(o,0,.039,0,w*1.1,.015,d*1.1,'#d8ddd9');
+  if(type==='sofa'||type==='chair'){
+    part(o,0,.28,0,w,.31,d,C);part(o,0,.59,-d*.39,w,.55,d*.18,C);
+    part(o,-w*.44,.51,0,w*.12,.46,d*.91,C);part(o,w*.44,.51,0,w*.12,.46,d*.91,C);
+    let count=type==='sofa'?3:1;for(let k=0;k<count;k++)part(o,(k-(count-1)/2)*(w*.8/count),.475,d*.11,w*.78/count,.13,d*.60,'#d6d9cd');
+    part(o,-w*.38,.10,-d*.33,.12,.2,.12,'#80776c');part(o,w*.38,.10,-d*.33,.12,.2,.12,'#80776c');
+  }else if(type==='bed'){
+    part(o,0,.19,0,w,.3,d,'#9b826b');part(o,0,.43,0,w*.95,.27,d*.94,C);
+    part(o,0,.65,-d*.45,w,.67,.1,'#9a795f');
+    part(o,-w*.23,.60,-d*.28,w*.39,.09,.34,'#f5f1e7');part(o,w*.23,.60,-d*.28,w*.39,.09,.34,'#f5f1e7');
+    part(o,0,.585,d*.19,w*.92,.038,d*.54,'#a9c1bf');
+  }else if(['coffee','dining','desk'].includes(type)){
+    part(o,0,h-.06,0,w,.11,d,C);
+    for(let xx of [-.42,.42])for(let zz of [-.4,.4])part(o,xx*w,h*.47,zz*d,.065,h*.81,.065,'#8d7866');
+    if(type==='desk'){part(o,0,h-.18,-d*.35,w*.65,.18,d*.14,'#e8e7de');}
+  }else if(type==='dchair'){
+    part(o,0,.48,0,w,.12,d,C);part(o,0,.72,-d*.42,w,.49,.10,C);
+    for(let xx of [-.37,.37])for(let zz of [-.35,.35])part(o,xx*w,.24,zz*d,.06,.46,.06,'#8a755c');
+  }else if(type==='tv'){
+    part(o,0,.27,0,w,.5,d,C);part(o,0,.86,d*.27,w*.74,.82,.06,'#59676d');part(o,0,.87,d*.235,w*.69,.72,.022,'#223a48');
+    part(o,0,.32,d*.51,w*.93,.016,.012,'#dacbb6');
+  }else if(type==='bookcase'||type==='wardrobe'){
+    part(o,0,h/2,0,w,h,d,C);
+    if(type==='bookcase')for(let i=0;i<4;i++){part(o,0,(i+.7)*h/5,d*.5+.018,w*.82,.055,.055,'#ead8ae');for(let k=0;k<4;k++){const colors=['#d4b68a','#8cabb0','#bbc59c','#e7c9bb'];part(o,-w*.32+k*w*.205,(i+.7)*h/5+.155,d*.48+.03,w*.15,.27,.06,colors[(i+k)%4]);}}
+    else{part(o,0,h*.55,d*.505,.025,h*.8,.02,'#e9ddcb');part(o,-w*.12,h*.51,d*.53,.025,.15,.045,'#d4cec0');part(o,w*.12,h*.51,d*.53,.025,.15,.045,'#d4cec0');}
+  }else if(type==='fridge'){
+    part(o,0,h*.5,0,w,h,d,'#ccd4d1');part(o,0,h*.61,d*.504,w*.94,.018,.016,'#f2f1e9');
+    part(o,w*.31,h*.78,d*.515,.027,.24,.035,'#8b9a9d');part(o,w*.31,h*.37,d*.515,.027,.24,.035,'#8b9a9d');
+  }else if(type==='counter'||type==='stove'){
+    part(o,0,h*.48,0,w,h*.95,d,C);part(o,0,h-.018,0,w+.055,.045,d+.055,'#e3e0d6');
+    if(type==='counter'){part(o,-w*.26,h+.013,0,w*.35,.012,d*.59,'#99adb2');part(o,-w*.26,h+.029,0,w*.24,.009,d*.44,'#d3dcda');}
+    else for(let xx of [-.2,.2])for(let zz of [-.22,.22])cylinder(o.x+xx*w,o.h+.027,o.z+zz*d,.095,.02,'#69777d',14);
+  }else if(type==='rug'){
+    part(o,0,.052,0,w,.025,d,C);for(let i=0;i<7;i++)part(o,(i-3)*w/8,.068,0,.008,.006,d*.86,'#eee5d7');
+  }else if(type==='plant'){
+    cylinder(o.x,.21,o.z,.21,.42,'#b5a18a');box(o.x,.6,o.z,.065,.65,.065,'#74836b');for(let a=0;a<6;a++){let ang=a*Math.PI/3;cylinder(o.x+Math.sin(ang)*.21,.8+Math.sin(a*2)*.12,o.z+Math.cos(ang)*.18,.19,.24,a%2?'#829d83':'#759278',9)}cylinder(o.x,1.08,o.z,.22,.25,'#91a88a',10);
+  }else if(type==='curtain'){
+    part(o,0,h*.52,0,w,h,d,C);for(let i=0;i<6;i++)part(o,(-.42+i*.168)*w,h*.52,d*.4,.026,h*.91,.017,'#f4e9de');
+  }else if(type==='toilet'){
+    part(o,0,.25,-d*.30,w*.92,.51,d*.35,'#f0f2ee');part(o,0,.39,d*.11,w,.37,d*.57,'#f0f2ee');part(o,0,.58,d*.15,w*.9,.045,d*.55,'#d3dbd8');
+  }else if(type==='basin'){
+    part(o,0,.42,0,w*.52,.8,d*.53,'#a4b3b1');part(o,0,.78,0,w,.19,d,'#ebeeeb');part(o,0,.89,-d*.14,.04,.19,.04,'#95a5a7');
+  }else part(o,0,h*.5,0,w,h,d,C);
+}
+function roomFloor(r){const color=hex(colorOf(r.floor));box(r.x+r.w/2,.024,r.z+r.d/2,r.w-.038,.04,r.d-.038,colorOf(r.floor));
+  const kind=MAT[r.floor]?.kind;
+  if(kind==='wood'){
+    const step=.30, rows=Math.floor(r.d/step);for(let i=1;i<rows;i++){
+      let z=r.z+i*r.d/rows;box(r.x+r.w/2,.050,z,r.w-.04,.003,.012,tint(color,.89));
+      if(i%2===0)for(let x=r.x+.9;x<r.x+r.w-.3;x+=1.9)box(x,.05,z-step/2,.009,.003,step-.016,tint(color,.9));
+    }
+  }else if(kind==='tile'){
+    for(let x=r.x+.67;x<r.x+r.w-.2;x+=.67)box(x,.05,r.z+r.d/2,.01,.003,r.d-.08,'#d0d6d3');
+    for(let z=r.z+.65;z<r.z+r.d-.2;z+=.65)box(r.x+r.w/2,.05,z,r.w-.08,.003,.010,'#d0d6d3');
+  }else if(kind==='carpet'){
+    for(let z=r.z+.18;z<r.z+r.d-.2;z+=.21)box(r.x+r.w/2,.049,z,r.w-.07,.002,.007,tint(color,.96));
+  }
+}
+function wallBetween(seg,base0,base1,low,high,wallColor){if(base1-base0<.03||high-low<.03)return;let dx=seg.x2-seg.x1,dz=seg.z2-seg.z1,L=Math.hypot(dx,dz),t=(base0+base1)/2;let xx=seg.x1+dx*t,zz=seg.z1+dz*t;box(xx,(low+high)/2,zz,L*(base1-base0),high-low,.12,wallColor,Math.atan2(-dz,dx));}
+function drawWall(seg){const L=Math.hypot(seg.x2-seg.x1,seg.z2-seg.z1);if(L<.03)return;
+  const mode=state.data.wallMode;let H=state.data.height;
+  if(mode==='none')return;
+  if(mode==='cut'){
+    H=seg.interior?1.02:((seg.id==='ext-north'||seg.id==='ext-west')?state.data.height:0.44);
+  }
+  if(state.data.openWallIds?.includes(seg.id))H=Math.min(H,.12);
+  const middleX=(seg.x1+seg.x2)/2,middleZ=(seg.z1+seg.z2)/2,adj=state.rooms.find(r=>middleX>=r.x-.02&&middleX<=r.x+r.w+.02&&middleZ>=r.z-.02&&middleZ<=r.z+r.d+.02)||roomAt(middleX+.12,middleZ+.12)||roomAt(middleX-.12,middleZ-.12);
+  const wallColor=adj?colorOf(adj.wall):(seg.interior?'#ebede7':'#e7ebe6');
+  const openings=state.data.openings.filter(o=>o.segId===seg.id).map(o=>({...o,a:clamp(o.t-o.width/(2*L),0,1),b:clamp(o.t+o.width/(2*L),0,1)}));
+  const cuts=[0,1];openings.forEach(o=>cuts.push(o.a,o.b));cuts.sort((a,b)=>a-b);
+  for(let i=0;i<cuts.length-1;i++){
+    const a=cuts[i],b=cuts[i+1],mid=(a+b)/2;if(b-a<.0001)continue;
+    const op=openings.find(o=>mid>=o.a&&mid<=o.b);
+    if(op){const sill=op.type==='window'?1.0:0;const top=op.type==='window'?2.0:2.08;
+      if(sill>0)wallBetween(seg,a,b,0,Math.min(H,sill),wallColor);
+      if(top<H)wallBetween(seg,a,b,top,H,wallColor);
+      // 開口邊框，半牆模式使用低矮色條辨識位置。
+      if(H<=1.05){wallBetween(seg,a,b,.018,.07,op.type==='door'?'#8cb9b0':'#9cbccc');}
+      else if(op.type==='window'){
+        let dx=seg.x2-seg.x1,dz=seg.z2-seg.z1,t=(a+b)/2;
+        box(seg.x1+dx*t,1.50,seg.z1+dz*t,L*(b-a)-.05,.7,.025,'#b9d5db',Math.atan2(-dz,dx));
+        wallBetween(seg,a,b,1.0,1.04,'#f7f8f5');wallBetween(seg,a,b,1.96,2.02,'#f7f8f5');
+      }
+    }else wallBetween(seg,a,b,0,H,wallColor);
+  }
+  if(H>.15&&seg.interior){wallBetween(seg,0,1,H-.027,H,'#f5f6f1')}
+}
+function borderHighlight(x,z,w,d,col='#4da9a8',y=.075){const t=.055;box(x+w/2,y,z,w,.02,t,col);box(x+w/2,y,z+d,w,.02,t,col);box(x,y,z+d/2,t,.02,d,col);box(x+w,y,z+d/2,t,.02,d,col)}
+function rebuildGeometry(){vertices=[];flatPrimitives=[];const d=state.data;
+  paintLayer=0;box(d.width/2,-.16,d.depth/2,d.width+.36,.31,d.depth+.36,'#c6d0cf');
+  box(d.width/2,-.012,d.depth/2,d.width+.12,.075,d.depth+.12,'#fafbf7');
+  paintLayer=1;state.rooms.forEach(roomFloor);
+  state.furnitureDrawOrder=[...d.furniture].sort((a,b)=>a.z-b.z);
+  paintLayer=2;d.furniture.forEach(o=>{furnitureDraw(o);drawBurnDamage(o)});
+  state.segments.forEach(drawWall);
+  paintLayer=3;
+  if(state.focusTool==='rooms'){
+    for(const seg of state.segments.filter(s=>s.interior)){
+      const x=(seg.x1+seg.x2)/2,z=(seg.z1+seg.z2)/2;
+      const len=Math.hypot(seg.x2-seg.x1,seg.z2-seg.z1);
+      const active=state.selected?.kind==='wall'&&state.selected.id===seg.id;
+      const hover=state.wallHover===seg.id;
+      const col=active?'#147c86':hover?'#21999b':'#56b7ae';
+      box(x,.15,z,len,.042,active?.105:.07,col,Math.atan2(-(seg.z2-seg.z1),seg.x2-seg.x1));
+      box(x,.20,z,.27,.075,.27,active?'#0b7782':'#3ea9a5');
+      box(x,.251,z,.105,.038,.105,'#ffffff');
+    }
+  }
+  for(const o of d.furniture){if(state.wallConflicts.has(o.id)){const e=footprint(o);borderHighlight(o.x-e.x-.04,o.z-e.z-.04,2*e.x+.08,2*e.z+.08,'#d56e43',.108)}}
+  if(state.selected?.kind==='furniture'){
+    const o=d.furniture.find(o=>o.id===state.selected.id);if(o){const e=footprint(o);borderHighlight(o.x-e.x*1.09,o.z-e.z*1.09,e.x*2.18,e.z*2.18);if(FRONT_TYPES.has(o.type)){const v=frontDirection(o);box(o.x+v.x*(o.d*.5+.14),.108,o.z+v.z*(o.d*.5+.14),.21,.035,.21,'#2f9794');}}
+  }else if(state.selected?.kind==='room'){
+    const r=state.rooms.find(r=>r.id===state.selected.id);if(r)borderHighlight(r.x+.08,r.z+.08,r.w-.16,r.d-.16,'#5baaa5');
+  }else if(state.selected?.kind==='opening'){
+    const o=d.openings.find(o=>o.id===state.selected.id),s=state.segments.find(s=>s.id===o?.segId);
+    if(s){let xx=s.x1+(s.x2-s.x1)*o.t,zz=s.z1+(s.z2-s.z1)*o.t;box(xx,.08,zz,Math.abs(s.x2-s.x1)>0?o.width:.12,.09,Math.abs(s.z2-s.z1)>0?o.width:.12,'#469f9a');}
+  }
+  const arr=new Float32Array(vertices);fallbackVertices=arr;if(nativeGL){gl.bindBuffer(gl.ARRAY_BUFFER,buffer);gl.bufferData(gl.ARRAY_BUFFER,arr,gl.DYNAMIC_DRAW);}drawCount=arr.length/9;state.geomDirty=false;
+}
+let vw=0,vh=0,dpr=1;
+function viewport(){const b=canvas.getBoundingClientRect(),ratio=Math.min(window.devicePixelRatio||1,2);if(b.width!==vw||b.height!==vh||ratio!==dpr){vw=b.width;vh=b.height;dpr=ratio;canvas.width=Math.round(vw*dpr);canvas.height=Math.round(vh*dpr);if(nativeGL)gl.viewport(0,0,canvas.width,canvas.height);lastFlatSignature='';}return {w:vw,h:vh}}
+function basis(){let {yaw,pitch}=state,c=Math.cos(pitch),s=Math.sin(pitch),cy=Math.cos(yaw),sy=Math.sin(yaw);
+  return {right:[cy,0,-sy],up:[-sy*s,c,-cy*s],dir:[sy*c,s,cy*c]};}
+function pixelScale(){return Math.min(vw/(state.data.width*1.57),vh/(state.data.depth*1.60))*state.zoom;}
+function project(x,y,z){const b=basis(),sc=pixelScale(),v=[x-state.target.x,y-state.target.y,z-state.target.z];return {x:vw*.51+(v[0]*b.right[0]+v[1]*b.right[1]+v[2]*b.right[2])*sc,y:vh*.535-(v[0]*b.up[0]+v[1]*b.up[1]+v[2]*b.up[2])*sc};}
+function rayScreen(px,py){const b=basis(),sc=pixelScale(),sx=(px-vw*.51)/sc,sy=(vh*.535-py)/sc;
+  return {o:[state.target.x+b.right[0]*sx+b.up[0]*sy+b.dir[0]*100,state.target.y+b.right[1]*sx+b.up[1]*sy+b.dir[1]*100,state.target.z+b.right[2]*sx+b.up[2]*sy+b.dir[2]*100],d:b.dir.map(a=>-a)};
+}
+function hitPlane(px,py,y=0){let {o,d}=rayScreen(px,py);if(Math.abs(d[1])<.0001)return null;let t=(y-o[1])/d[1];return {x:o[0]+d[0]*t,z:o[2]+d[2]*t};}
+function pickFurniture(px,py){const ray=rayScreen(px,py);let best=null,dist=Infinity;
+  for(const o of state.data.furniture){const cs=Math.cos(o.rot),sn=Math.sin(o.rot);let x=ray.o[0]-o.x,z=ray.o[2]-o.z;let ro=[x*cs-z*sn,ray.o[1],x*sn+z*cs];let rd=[ray.d[0]*cs-ray.d[2]*sn,ray.d[1],ray.d[0]*sn+ray.d[2]*cs];
+    let tmin=-Infinity,tmax=Infinity,lo=[-o.w/2,.02,-o.d/2],hi=[o.w/2,Math.max(.12,o.h),o.d/2];
+    for(let i=0;i<3;i++){if(Math.abs(rd[i])<1e-8){if(ro[i]<lo[i]||ro[i]>hi[i]){tmin=Infinity;break}}else{let t1=(lo[i]-ro[i])/rd[i],t2=(hi[i]-ro[i])/rd[i];if(t1>t2)[t1,t2]=[t2,t1];tmin=Math.max(tmin,t1);tmax=Math.min(tmax,t2);}}
+    if(tmin>=0&&tmax>=tmin&&tmin<dist){dist=tmin;best=o;}
+  }
+  return best;
+}
+function pickPartitionWall(px,py){
+  if(state.focusTool!=='rooms')return null;
+  let best=null,bestScore=Infinity;
+  for(const s of state.segments){if(!s.interior)continue;
+    const a=project(s.x1,.17,s.z1),b=project(s.x2,.17,s.z2),mx=(a.x+b.x)/2,my=(a.y+b.y)/2;
+    const vx=b.x-a.x,vy=b.y-a.y,den=vx*vx+vy*vy;
+    if(den<1)return null;
+    const t=clamp(((px-a.x)*vx+(py-a.y)*vy)/den,0,1);
+    const dist=Math.hypot(px-a.x-t*vx,py-a.y-t*vy),midDist=Math.hypot(px-mx,py-my);
+    const threshold=(window.matchMedia('(pointer:coarse)').matches?23:13);
+    const hit=dist<=threshold||(midDist<=threshold+8);
+    if(hit&&dist<bestScore){best=s;bestScore=dist;}
+  }
+  return best;
+}
+function wallMinSpan(n,axis){if(!n.first)return 1.2;const a=wallMinSpan(n.first,axis),b=wallMinSpan(n.second,axis);return n.axis===axis?Math.max(a/clamp(n.ratio,.15,.85),b/(1-clamp(n.ratio,.15,.85))):Math.max(a,b);}
+function wallLimits(id){const rec=getNode(id),n=rec?.node,b=nodeBounds(id);if(!n?.first||!b)return null;
+  const extent=n.axis==='x'?b.w:b.d;
+  const start=n.axis==='x'?b.x:b.z;
+  const l=wallMinSpan(n.first,n.axis),r=wallMinSpan(n.second,n.axis);
+  const lo=Math.max(.15,l/extent),hi=Math.min(.85,1-r/extent);
+  return {n,b,extent,start,lo,hi,valid:lo<=hi};
+}
+function setWallCoordinate(id,worldCoordinate,anchors=null,oldRoomMap=null){
+  const cfg=wallLimits(id);if(!cfg?.valid)return false;
+  const ratio=clamp((worldCoordinate-cfg.start)/cfg.extent,cfg.lo,cfg.hi);
+  if(Math.abs(cfg.n.ratio-ratio)<1e-6)return false;
+  const op=anchors||openingAnchors();
+  cfg.n.ratio=ratio;
+  calcLayout();maintainOpenings(op);detectWallConflicts(oldRoomMap);
+  if(state.selected?.kind==='room')state.selected.item=state.rooms.find(r=>r.id===state.selected.id)||state.selected.item;
+  if(state.selected?.kind==='wall')state.selected.item=state.segments.find(s=>s.id===id)||state.selected.item;
+  return true;
+}
+function selectWall(seg){state.selected={kind:'wall',id:seg.id,item:seg};state.geomDirty=true;updateStatus();openPanel('selection');if(window.innerWidth<690)$('#activePanel')?.classList.add('minimized');updateWallMeasure();}
+function wallSideRooms(s){const mx=(s.x1+s.x2)/2,mz=(s.z1+s.z2)/2,vertical=Math.abs(s.x1-s.x2)<.001;
+  const a=vertical?roomAt(mx-.09,mz):roomAt(mx,mz-.09),b=vertical?roomAt(mx+.09,mz):roomAt(mx,mz+.09);
+  return [a,b];
+}
+function updateWallMeasure(){const label=$('#wallMeasure');if(!label)return;const s=state.focusTool==='rooms'&&state.selected?.kind==='wall'?state.segments.find(s=>s.id===state.selected.id):null;
+  if(!s){label.hidden=true;return;}
+  const p=project((s.x1+s.x2)/2,.26,(s.z1+s.z2)/2),[a,b]=wallSideRooms(s);
+  let coord=Math.abs(s.x1-s.x2)<.001?s.x1:s.z1;
+  label.innerHTML=`<b>${Math.abs(s.x1-s.x2)<.001?'X':'Z'} = ${coord.toFixed(2)} m</b><small>${a?` · ${safeText(a.name)} ${ (a.w*a.d).toFixed(1)}㎡`:''}${b?` · ${safeText(b.name)} ${(b.w*b.d).toFixed(1)}㎡`:''}</small>`;
+  label.style.left=clamp(p.x,115,Math.max(115,vw-115))+'px';label.style.top=clamp(p.y-12,86,Math.max(100,vh-20))+'px';label.hidden=false;
+}
+function pickOpening(px,py){const hit=hitPlane(px,py,.1);if(!hit)return null;let best=null,ds=.24;for(let o of state.data.openings){let s=state.segments.find(s=>s.id===o.segId);if(!s)continue;let x=s.x1+(s.x2-s.x1)*o.t,z=s.z1+(s.z2-s.z1)*o.t,dd=Math.hypot(x-hit.x,z-hit.z);if(dd<ds){ds=dd;best=o;}}return best}
+function drawFlatFallback(){
+  const signature=[state.yaw,state.pitch,state.zoom,state.target.x,state.target.y,state.target.z,drawCount,vw,vh].join('|');
+  if(signature===lastFlatSignature)return;lastFlatSignature=signature;
+  const ctx=flat;ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,vw,vh);
+  const b=basis(),sc=pixelScale();
+  const proj=(p)=>{const x=p[0]-state.target.x,y=p[1]-state.target.y,z=p[2]-state.target.z;return [vw*.51+(x*b.right[0]+y*b.right[1]+z*b.right[2])*sc,vh*.535-(x*b.up[0]+y*b.up[1]+z*b.up[2])*sc]};
+  const colStyle=(col,n)=>{let light=Math.max(0,(n[0]*-.35+n[1]*.85+n[2]*.55)/1.06),sh=.72+.28*light;return `rgb(${col.map(v=>Math.round(clamp(v*sh,0,1)*255)).join(',')})`};
+  const drawFace=(pts,n,col)=>{if(n[0]*b.dir[0]+n[1]*b.dir[1]+n[2]*b.dir[2]<.001)return;ctx.beginPath();let pt=proj(pts[0]);ctx.moveTo(pt[0],pt[1]);for(let k=1;k<pts.length;k++){pt=proj(pts[k]);ctx.lineTo(pt[0],pt[1]);}ctx.closePath();ctx.fillStyle=colStyle(col,n);ctx.fill();};
+  const ordered=[...flatPrimitives].sort((a,bb)=>{
+    if(a.layer!==bb.layer){if(a.layer<2&&bb.layer<2)return a.cy-bb.cy||a.layer-bb.layer;return a.layer-bb.layer;}
+    if(a.layer<2)return a.cy-bb.cy;
+    const da=(a.cx-state.target.x)*b.dir[0]+(a.cy-state.target.y)*b.dir[1]+(a.cz-state.target.z)*b.dir[2];
+    const db=(bb.cx-state.target.x)*b.dir[0]+(bb.cy-state.target.y)*b.dir[1]+(bb.cz-state.target.z)*b.dir[2];return da-db;
+  });
+  for(let o of ordered){
+    if(o.kind==='cylinder'){
+      let n=12;const top=[0,1,0];const ring=[];for(let i=0;i<n;i++){const a=i/n*2*Math.PI;ring.push([o.cx+Math.cos(a)*o.r,o.cy+o.h/2,o.cz+Math.sin(a)*o.r]);}
+      for(let i=0;i<n;i++){let p=ring[i],q=ring[(i+1)%n];let normal=[(p[0]+q[0]-2*o.cx)/(2*o.r),0,(p[2]+q[2]-2*o.cz)/(2*o.r)];drawFace([[p[0],o.cy-o.h/2,p[2]],p,q,[q[0],o.cy-o.h/2,q[2]]],normal,o.col)}
+      drawFace(ring,top,o.col);continue;
+    }
+    const cs=Math.cos(o.rot),sn=Math.sin(o.rot),P=(x,y,z)=>[o.cx+x*cs+z*sn,o.cy+y,o.cz-x*sn+z*cs],N=(x,y,z)=>[x*cs+z*sn,y,-x*sn+z*cs];
+    let x=o.w/2,y=o.h/2,z=o.d/2;
+    drawFace([P(-x,y,-z),P(x,y,-z),P(x,y,z),P(-x,y,z)],N(0,1,0),tint(o.col,1.12));
+    drawFace([P(-x,-y,z),P(x,-y,z),P(x,-y,-z),P(-x,-y,-z)],N(0,-1,0),tint(o.col,.78));
+    drawFace([P(-x,-y,z),P(-x,y,z),P(x,y,z),P(x,-y,z)],N(0,0,1),tint(o.col,.94));
+    drawFace([P(x,-y,-z),P(x,y,-z),P(-x,y,-z),P(-x,-y,-z)],N(0,0,-1),tint(o.col,.81));
+    drawFace([P(x,-y,z),P(x,y,z),P(x,y,-z),P(x,-y,-z)],N(1,0,0),tint(o.col,.87));
+    drawFace([P(-x,-y,-z),P(-x,y,-z),P(-x,y,z),P(-x,-y,z)],N(-1,0,0),tint(o.col,.98));
+  }
+}
+
+function render(now=0){viewport();stepFireFrame(now);if(state.focusTool==='rooms'&&state.selected?.kind==='wall'){const sig=[state.yaw,state.pitch,state.zoom,state.target.x,state.target.z,state.selected.id,...(state.segments.find(s=>s.id===state.selected.id)?[state.segments.find(s=>s.id===state.selected.id).x1,state.segments.find(s=>s.id===state.selected.id).z1]:[])].join(',');if(sig!==state.lastWallLabel){state.lastWallLabel=sig;updateWallMeasure();}}if(state.geomDirty){lastFlatSignature='';rebuildGeometry();}if(flat){drawFlatFallback();drawFireFX();requestAnimationFrame(render);return;}gl.clearColor(0,0,0,0);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);gl.useProgram(prog);
+  const b=basis(),s=pixelScale();gl.uniform3fv(loc.center,[state.target.x,state.target.y,state.target.z]);gl.uniform3fv(loc.right,b.right);gl.uniform3fv(loc.up,b.up);gl.uniform3fv(loc.dir,b.dir);gl.uniform2fv(loc.scale,[s*2/vw,s*2/vh]);gl.bindBuffer(gl.ARRAY_BUFFER,buffer);
+  const stride=36;for(let [name,attr,off] of [['pos',loc.pos,0],['normal',loc.normal,12],['col',loc.col,24]]){gl.enableVertexAttribArray(attr);gl.vertexAttribPointer(attr,3,gl.FLOAT,false,stride,off);}gl.drawArrays(gl.TRIANGLES,0,drawCount);
+  drawFireFX();requestAnimationFrame(render);
+}
+// ===== 相機與選取／拖曳 =====
+const XY=e=>{let r=canvas.getBoundingClientRect();return {x:e.clientX-r.left,y:e.clientY-r.top}};
+const updateCamera=(kind,dx,dy)=>{
+  if(kind==='pan'){
+    const b=basis(),sc=pixelScale(),u=-dx/sc,v=dy/sc;
+    state.target.x+=u*b.right[0]+v*b.up[0];state.target.z+=u*b.right[2]+v*b.up[2];state.target.y=clamp(state.target.y+v*b.up[1],.05,3);
+  }else{state.yaw+=dx*.006;state.pitch=clamp(state.pitch+dy*.006,.22,1.55);}
+};
+canvas.addEventListener('pointerdown',e=>{
+  canvas.setPointerCapture(e.pointerId);const p=XY(e);state.pointers.set(e.pointerId,p);
+  if(state.pointers.size===2){if(state.drag?.saved){touchSave();renderPanel();}state.drag={kind:'touch2',start:[...state.pointers.values()],zoom:state.zoom,cameraTarget:{...state.target}};return;}
+  if(state.focusTool==='fire'&&fire.placing&&e.button===0&&!e.shiftKey){
+    const site=pickFireSite(p.x,p.y);if(site){fire.placed=site;fire.placing=false;renderPanel();updateFireUI();toast('點火位置已指定：'+fireSiteName());}
+    else toast('請點擊公寓內的家具或地板');
+    state.drag={kind:'fire-place',start:p,last:p,moved:false};return;
+  }
+  const wall=state.focusTool==='rooms'&&e.button===0&&!e.shiftKey?pickPartitionWall(p.x,p.y):null;const item=wall||['rooms','risk'].includes(state.focusTool)?null:pickFurniture(p.x,p.y),opening=!item&&!wall?pickOpening(p.x,p.y):null,ground=hitPlane(p.x,p.y),room=ground?roomAt(ground.x,ground.z):null;
+  let kind=(e.button===2||e.shiftKey)?'pan':'rotate';
+  if(e.button===0&&!e.shiftKey&&state.focusTool!=='layers'){
+    if(wall){selectWall(wall);kind='wall';}
+    else if(item){select('furniture',item);kind='object';}
+    else if(opening&&['openings','select'].includes(state.focusTool)){select('opening',opening);kind='rotate';}
+    else if(room){select('room',room);kind='rotate';}
+  }
+  state.drag={kind,start:p,last:p,item:item?item.id:null,wallId:wall?.id,moved:false,groundAtDown:ground,origin:item?{x:item.x,z:item.z}:null,wallStart:wall?{axis:Math.abs(wall.x1-wall.x2)<.001?'x':'z',coord:Math.abs(wall.x1-wall.x2)<.001?wall.x1:wall.z1,point:hitPlane(p.x,p.y,.17),openings:openingAnchors(),roomMap:new Map(state.data.furniture.map(o=>[o.id,roomAt(o.x,o.z)?.id]))}:null};
+  canvas.classList.add('dragging');canvas.classList.toggle('wall-grab',kind==='wall');
+});
+canvas.addEventListener('pointermove',e=>{
+ const p=XY(e);if(!state.pointers.has(e.pointerId)){if(state.focusTool==='rooms'){const w=pickPartitionWall(p.x,p.y);if((w?.id||null)!==state.wallHover){state.wallHover=w?.id||null;state.geomDirty=true;}canvas.classList.toggle('wall-hover',!!w);}return;}const prev=state.pointers.get(e.pointerId);state.pointers.set(e.pointerId,p);
+ if(state.pointers.size===2){const pts=[...state.pointers.values()],before=state.drag?.start?.length===2?state.drag.start:pts;
+   const dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);const prevDist=dist(...before),newDist=dist(...pts);
+   if(state.drag?.kind!=='touch2'){state.drag={kind:'touch2',start:before,zoom:state.zoom};}
+   if(prevDist>3){state.zoom=clamp(state.drag.zoom*newDist/prevDist,.35,3.8);}
+   let mid0={x:(before[0].x+before[1].x)/2,y:(before[0].y+before[1].y)/2},mid={x:(pts[0].x+pts[1].x)/2,y:(pts[0].y+pts[1].y)/2};
+   if(!state.drag.prevMid)state.drag.prevMid=mid0;updateCamera('pan',mid.x-state.drag.prevMid.x,mid.y-state.drag.prevMid.y);state.drag.prevMid=mid;
+   return;
+ }
+ if(!state.drag)return;let dx=p.x-state.drag.last.x,dy=p.y-state.drag.last.y;if(Math.hypot(p.x-state.drag.start.x,p.y-state.drag.start.y)>4)state.drag.moved=true;
+ if(state.drag.kind==='wall'&&state.drag.wallStart&&state.drag.moved){const drag=state.drag,at=hitPlane(p.x,p.y,.17),start=drag.wallStart;if(at&&start.point){const next=start.coord+(at[start.axis]-start.point[start.axis]);const limit=wallLimits(drag.wallId);if(limit?.valid){if(!drag.saved){checkpoint();drag.saved=true;}setWallCoordinate(drag.wallId,next,start.openings,start.roomMap);state.lastWallLabel='';renderPanel();}}}
+ else if(state.drag.kind==='object'&&state.drag.item&&state.drag.moved){let item=state.data.furniture.find(o=>o.id===state.drag.item),g=hitPlane(p.x,p.y);if(item&&g){if(!state.drag.saved){checkpoint();state.drag.saved=true;}const r=roomAt(g.x,g.z);if(r){const xx=item.x,zz=item.z;item.x=g.x;item.z=g.z;if(!keepInsideRoom(item,r)){item.x=xx;item.z=zz;}state.geomDirty=true;}}}
+ else if(state.drag.kind==='pan'||state.drag.kind==='rotate')updateCamera(state.drag.kind,dx,dy);
+ state.drag.last=p;
+});
+function pointerEnd(e){if(state.pointers.has(e.pointerId))state.pointers.delete(e.pointerId);if(state.drag?.saved){touchSave();if(state.drag.kind==='wall'){const n=state.wallConflicts.size;toast(n?`隔牆已更新；${n} 件家具與新隔間有衝突（橘色標示）`:'隔牆位置、房間面積及門窗位置已更新');renderPanel();}}if(!state.pointers.size){state.drag=null;canvas.classList.remove('dragging','wall-grab')}else if(state.pointers.size===1)state.drag={kind:'rotate',start:[...state.pointers.values()][0],last:[...state.pointers.values()][0]};}
+canvas.addEventListener('pointerup',pointerEnd);canvas.addEventListener('pointercancel',pointerEnd);
+canvas.addEventListener('contextmenu',e=>e.preventDefault());
+canvas.addEventListener('wheel',e=>{e.preventDefault();state.zoom=clamp(state.zoom*Math.exp(-e.deltaY*.0012),.35,3.8)},{passive:false});
+function setView(top=false){state.yaw=top?0:.72;state.pitch=top?1.56:.91;state.zoom=1;state.target={x:state.data.width/2,y:top?.1:.62,z:state.data.depth/2};state.viewTop=top;}
+// ===== 場景資料操作 =====
+function select(kind,item){state.selected={kind,id:item.id,item};state.geomDirty=true;updateStatus();
+  if(kind==='furniture')openPanel('selection');else if(kind==='room'&&['select','rooms','materials','risk'].includes(state.focusTool))openPanel(state.focusTool==='materials'?'materials':state.focusTool==='risk'?'risk':'selection');else if(kind==='opening')openPanel('selection');
+}
+function adjustObject(key,value){if(state.selected?.kind!=='furniture')return;let o=state.data.furniture.find(o=>o.id===state.selected.id);if(!o)return;checkpoint();if(key==='rot')o[key]=Number(value)*Math.PI/180;else if(key==='mat')o[key]=value;else o[key]=Number(value);if(!['rot','mat'].includes(key)){
+  keepInsideRoom(o);
+}touchSave();renderPanel();}
+function addFurniture(type){const info=TYPES[type];if(!info)return;checkpoint();const r=state.selected?.kind==='room'?state.rooms.find(v=>v.id===state.selected.id):state.rooms.find(v=>v.name.includes(type==='toilet'||type==='basin'?'浴':(type==='bed'||type==='wardrobe'?'臥':(type==='stove'||type==='fridge'||type==='counter'?'廚':'客'))))||state.rooms[0];
+ const candidate=F(type,r.x+r.w/2,r.z+r.d/2);candidate.w=Math.min(candidate.w,r.w-.22);candidate.d=Math.min(candidate.d,r.d-.22);
+ if(FRONT_TYPES.has(type))wallPlacement(candidate,r);keepInsideRoom(candidate,r);state.data.furniture.push(candidate);touchSave();select('furniture',candidate);toast(`已新增${info.name}，可在場景中拖曳位置`);
+}
+function splitRoom(axis){const target=state.selected?.kind==='room'?getNode(state.selected.id):null;if(!target){toast('請先點選要分割的房間');return;}
+ const r=state.rooms.find(r=>r.id===target.node.id);if(!r){return}if((axis==='x'?r.w:r.d)<3.1){toast('房間寬度不足，無法再分割');return;}
+ checkpoint();const old=deep(target.node),newRoom=room(uid('room-'),'新隔間',old.floor,old.wall);
+ Object.keys(target.node).forEach(k=>delete target.node[k]);Object.assign(target.node,{id:uid('split-'),axis,ratio:.5,first:old,second:newRoom});
+ calcLayout();relocateAfterPartition();state.selected=null;touchSave();openPanel('rooms');toast('已新增隔間，點選房間可再調整尺寸');
+}
+function mergeRoom(){const info=state.selected?.kind==='room'?getNode(state.selected.id):null;if(!info||!info.parent){toast('請先選取可合併的隔間');return;}
+ const other=info.parent[info.side==='first'?'second':'first'];if(other.first){toast('相鄰區域尚有其他隔間，請先合併其子隔間');return;}
+ checkpoint();const parent=info.parent,keep=deep(info.node),oldId=parent.id;Object.keys(parent).forEach(k=>delete parent[k]);Object.assign(parent,keep);
+ state.data.openings=state.data.openings.filter(o=>o.segId!==oldId);calcLayout();relocateAfterPartition();state.selected={kind:'room',id:keep.id,item:state.rooms.find(r=>r.id===keep.id)};touchSave();openPanel('rooms');toast('已移除一道隔間，房間已合併');
+}
+function nodeBounds(id,n=state.data.layout,x=0,z=0,w=state.data.width,d=state.data.depth){
+  if(n.id===id)return {x,z,w,d};
+  if(!n.first)return null;
+  if(n.axis==='x'){
+    const cut=w*n.ratio;return nodeBounds(id,n.first,x,z,cut,d)||nodeBounds(id,n.second,x+cut,z,w-cut,d);
+  }
+  const cut=d*n.ratio;return nodeBounds(id,n.first,x,z,w,cut)||nodeBounds(id,n.second,x,z+cut,w,d-cut);
+}
+function changeDivider(axis,delta){const id=state.selected?.kind==='room'?state.selected.id:null,info=id?getNode(id):null;if(!info)return;
+ let curr=info,firstFound=null;while(curr.parent){if(curr.parent.axis===axis){firstFound={node:curr.parent,side:curr.side};break;}curr=getNode(curr.parent.id)}
+ if(!firstFound){toast('此隔間沿該方向沒有可調整的分割牆');return;}
+ const cfg=wallLimits(firstFound.node.id);if(!cfg?.valid)return;checkpoint();const next=cfg.start+(cfg.n.ratio*cfg.extent)+delta*(firstFound.side==='first'?1:-1);setWallCoordinate(firstFound.node.id,next);state.selected.item=state.rooms.find(r=>r.id===id)||state.selected.item;touchSave();renderPanel();
+}
+function setRoomProp(key,value){const id=state.selected?.kind==='room'?state.selected.id:null,info=id?getNode(id):null;if(!info)return;checkpoint();info.node[key]=value;calcLayout();relocateAfterPartition();state.selected.item=state.rooms.find(r=>r.id===id)||state.selected.item;touchSave();renderPanel();}
+function addOpening(type){const seg=state.segments.find(s=>s.id==='split-root')||state.segments.find(s=>s.interior)||state.segments[0];checkpoint();const op={id:uid('opening'),type,segId:seg.id,t:.5,width:type==='door'?.92:1.45,open:type==='door'};state.data.openings.push(op);touchSave();select('opening',op);toast('已新增門窗，可選擇所在牆面與位置');}
+function setOpeningProp(key,value){if(state.selected?.kind!=='opening')return;const o=state.data.openings.find(o=>o.id===state.selected.id);if(!o)return;checkpoint();o[key]=['t','width'].includes(key)?Number(value):key==='open'?value==='true':value;touchSave();renderPanel();}
+function deleteSelected(){if(!state.selected)return;checkpoint();const {kind,id}=state.selected;if(kind==='furniture')state.data.furniture=state.data.furniture.filter(o=>o.id!==id);else if(kind==='opening')state.data.openings=state.data.openings.filter(o=>o.id!==id);else{toast('刪除隔間請使用「合併」');state.undo.pop();return;}
+ state.selected=null;touchSave();openPanel('furniture');toast('已移除選取物件');}
+function switchPreset(key){const found=presetDefinitions.find(t=>t.id===key);if(!found)return;checkpoint();if(window.__fire3dRiskRebase)window.__fire3dRiskRebase();state.data=makePreset(key);state.selected=null;calcLayout();setView();touchSave();openPanel('templates');toast('已載入「'+found.name+'」配置。先前內容可使用復原返回');}
+function exportJson(){const blob=new Blob([JSON.stringify(state.data,null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='v0.1_fire3d_'+Date.now()+'.json';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1500);toast('已匯出 JSON 配置檔');}
+function validImport(d){
+  if(!d||!['fire3d-interior-v0.1','fire-interior-v0.1'].includes(d.schema)||!Number.isFinite(d.width)||d.width<4||d.width>40||!Number.isFinite(d.depth)||d.depth<4||d.depth>40||!Number.isFinite(d.height)||d.height<2||d.height>5||!Array.isArray(d.furniture)||d.furniture.length>500||!Array.isArray(d.openings)||d.openings.length>150)return false;
+  const validId=id=>typeof id==='string'&&/^[a-zA-Z0-9_-]{1,60}$/.test(id);
+  let count=0;
+  function checkTree(n,depth=0){if(!n||!validId(n.id)||depth>12||++count>100)return false;
+    if(n.first||n.second)return n.first&&n.second&&['x','z'].includes(n.axis)&&Number.isFinite(n.ratio)&&n.ratio>.12&&n.ratio<.88&&checkTree(n.first,depth+1)&&checkTree(n.second,depth+1);
+    return typeof n.name==='string'&&n.name.length<=60&&MAT[n.floor]&&MAT[n.wall];
+  }
+  if(!checkTree(d.layout))return false;
+  for(let o of d.furniture)if(!validId(o.id)||!TYPES[o.type]||!MAT[o.mat]||!['x','z','w','d','h','rot'].every(k=>Number.isFinite(o[k]))||o.w<.03||o.d<.03||o.h<.005||o.w>15||o.d>15||o.h>7||Math.abs(o.x)>100||Math.abs(o.z)>100)return false;
+  for(let o of d.openings)if(!validId(o.id)||!validId(o.segId)||!['door','window'].includes(o.type)||!Number.isFinite(o.width)||o.width<.1||o.width>8||!Number.isFinite(o.t)||o.t<0||o.t>1||typeof o.open!=='boolean')return false;
+  if(d.openWallIds&&(!Array.isArray(d.openWallIds)||d.openWallIds.some(v=>!validId(v))))return false;
+  if(typeof d.sceneName!=='string'||d.sceneName.length>100||!['cut','full','none'].includes(d.wallMode))return false;
+  return true;
+}
+function loadJson(file){if(!file)return;const rdr=new FileReader();rdr.onload=()=>{try{const d=JSON.parse(String(rdr.result));if(!validImport(d))throw new Error('格式不符合');checkpoint();if(window.__fire3dRiskRebase)window.__fire3dRiskRebase();state.data=d;state.data.schema='fire3d-interior-v0.1';state.selected=null;calcLayout();setView();touchSave();openPanel('files');toast('JSON 配置匯入成功');}catch(e){toast('檔案無法匯入：需為 v0.1 的有效配置 JSON');}};rdr.readAsText(file);}
+// ===== 浮動視窗：拖曳、縮小、縮放 =====
+const icons={close:'<path d="M5 5l14 14M19 5 5 19"/>',minus:'<path d="M5 12h14"/>',restore:'<path d="M5 8V5h14v14h-3M5 11v8h8v-8z"/>'};
+function svg(path){return `<svg viewBox="0 0 24 24">${path}</svg>`}
+const MAT_OPTIONS=(kind,sel)=>Object.keys(MAT).filter(k=>kind==='floor'?['oak','walnut','tile','stone','carpet','vinyl'].includes(k):kind==='wall'?MAT[k].kind==='wall':!['wall'].includes(MAT[k].kind)).map(k=>`<option value="${safeText(k)}" ${k===sel?'selected':''}>${safeText(MAT[k].name)}</option>`).join('');
+function field(name,value,key,type='number',step='.1',min='0.1',extra=''){return `<div class="field"><label>${name}</label><input type="${type}" data-edit="${key}" value="${safeText(value)}" step="${step}" min="${min}" ${extra}></div>`;}
+function button(txt,action,arg='',klass=''){return `<button class="btn ${klass}" data-action="${action}" data-arg="${safeText(arg)}">${txt}</button>`}
+function selectPanel(){let sel=state.selected;
+  if(!sel)return `<div class="kicker">物件資訊</div><div class="tiptxt">點選場景中的家具、地板或門窗，這裡就會顯示可編輯的幾何及材質參數。<br>家具可直接拖曳移動；選取後也能調整尺寸與旋轉。</div>${button('前往家具庫','tool','furniture','full')}`;
+  if(sel.kind==='furniture'){
+    const o=state.data.furniture.find(o=>o.id===sel.id);if(!o)return '';const t=TYPES[o.type];return `<p class="kicker">FURNITURE / ${safeText(o.id)}</p><div class="sect"><div class="row between"><strong style="font-size:15px">${safeText(t?.name||o.type)}</strong><span class="tag">家具物件</span></div></div>
+      <div class="sect"><div class="sect-title">位置與角度</div><div class="threecol">${field('X 位置 (m)',o.x.toFixed(2),'f.x')}${field('Z 位置 (m)',o.z.toFixed(2),'f.z')}${field('角度 (°)',Math.round(o.rot*180/Math.PI),'f.rot','number','15','-360')}</div></div>
+      <div class="sect"><div class="sect-title">幾何尺寸</div><div class="threecol">${field('寬度 (m)',o.w.toFixed(2),'f.w')}${field('深度 (m)',o.d.toFixed(2),'f.d')}${field('高度 (m)',o.h.toFixed(2),'f.h')}</div></div>
+      ${FRONT_TYPES.has(o.type)?`<div class="sect"><div class="sect-title">家具正面方向</div><div class="row between"><span class="tag">${['朝南','朝東','朝北','朝西'][((Math.round(o.rot/(Math.PI/2))%4)+4)%4]}</span><span class="subtle">距房間邊界約 ${facingWallClearance(o).toFixed(2)} m</span></div><p class="subtle">選取時，地面青綠色標記代表櫃體正面（含門片、電視螢幕）。${facingWallClearance(o)<.35?'目前正面可能緊貼牆壁，請調整。':''}</p><div style="margin-top:8px">${button('正面自動朝向房內','faceInside','','full')}</div></div>`:''}
+      <div class="sect"><div class="sect-title">表面／主要材料</div><div class="field"><select data-edit="f.mat">${MAT_OPTIONS('furniture',o.mat)}</select></div><p class="subtle">v0.2 已加入示範熱物性與正向燃燒計算。這些是近似假設，未經 NIST 實驗逐件校正；請至火焰工具啟動模擬。</p></div>
+      ${button('移除家具','delete','','danger')} `;
+  }
+  if(sel.kind==='wall'){
+    const s=state.segments.find(v=>v.id===sel.id),lim=wallLimits(sel.id);if(!s||!lim)return '<p>隔間牆資料已變更。</p>';
+    const value=lim.start+lim.n.ratio*lim.extent,rooms=wallSideRooms(s),axis=lim.n.axis;
+    return `<p class="kicker">PARTITION WALL / ${safeText(s.id)}</p><div class="sect"><div class="row between"><strong>隔間牆位置</strong><span class="tag">${axis==='x'?'東西方向移動':'南北方向移動'}</span></div></div>
+    <div class="sect"><div class="sect-title">${axis==='x'?'X':'Z'} 座標</div><div class="field"><label>位置（公尺）</label><input data-edit="wall.coord" type="number" step="0.05" min="${(lim.start+lim.lo*lim.extent).toFixed(2)}" max="${(lim.start+lim.hi*lim.extent).toFixed(2)}" value="${value.toFixed(2)}" /></div></div>
+    <div class="sect"><div class="grid2">${button('− 0.25 m','wallNudge','-0.25')}${button('＋ 0.25 m','wallNudge','0.25')}</div></div>
+    <div class="sect"><div class="sect-title">相鄰房間</div>${rooms.filter(Boolean).map(r=>`<div class="item"><strong>${safeText(r.name)}</strong><span>${r.w.toFixed(2)} × ${r.d.toFixed(2)} m · ${(r.w*r.d).toFixed(1)}㎡</span></div>`).join('')}</div>
+    <p class="tiptxt">可直接在 3D 場景中拖曳青綠色隔牆線。房間最小單向尺寸為 1.2 m；門窗跟隨牆面，家具位置保持不動，若產生衝突將以橘色框線提醒。</p>`;
+  }
+  if(sel.kind==='room'){
+    const r=state.rooms.find(r=>r.id===sel.id);if(!r)return '<p>隔間已更新，請重新選取。</p>';
+    return `<p class="kicker">ROOM / ${safeText(r.id)}</p><div class="sect"><div class="field"><label>隔間名稱</label><input type="text" data-edit="r.name" value="${safeText(r.name)}" maxlength="20"></div></div>
+      <div class="sect"><div class="sect-title">房間尺寸（m）</div><div class="twocol">${field('寬度 · 東西向',r.w.toFixed(2),'r.w')}${field('深度 · 南北向',r.d.toFixed(2),'r.d')}</div></div>
+      <div class="sect"><div class="sect-title">移動相鄰隔牆（每次 0.25 m）</div><div class="grid2">${button('寬度 −','resize','x:-0.25')}${button('寬度 ＋','resize','x:0.25')}${button('深度 −','resize','z:-0.25')}${button('深度 ＋','resize','z:0.25')}</div></div>
+      <div class="sect"><div class="sect-title">隔間與合併</div><div class="grid2">${button('左右分割','split','x')}${button('前後分割','split','z')}</div><div style="margin-top:8px">${button('與相鄰隔間合併','merge','','full')}</div></div>
+      <div class="sect"><div class="sect-title">地板材質</div><div class="field"><select data-edit="r.floor">${MAT_OPTIONS('floor',r.floor)}</select></div></div>
+      <div class="sect"><div class="sect-title">牆面材質</div><div class="field"><select data-edit="r.wall">${MAT_OPTIONS('wall',r.wall)}</select></div></div>
+      <p class="tiptxt">在「隔間與尺寸」模式可直接抓住 3D 青綠色隔牆線拖曳，或使用上方 0.25 m 按鈕。家具原位置會保留，可再拖曳至適當位置。</p>`;
+  }
+  if(sel.kind==='opening'){
+    const o=state.data.openings.find(o=>o.id===sel.id);if(!o)return '';
+    return `<p class="kicker">OPENING / ${safeText(o.id)}</p><div class="sect"><strong>${o.type==='door'?'門':'窗'}的設定</strong></div>
+     <div class="sect"><div class="field"><label>所屬牆段</label><select data-edit="o.segId">${state.segments.map(s=>`<option value="${safeText(s.id)}" ${o.segId===s.id?'selected':''}>${s.interior?'隔間牆':'外牆'} · ${safeText(s.id)}</option>`).join('')}</select></div></div>
+     <div class="sect"><div class="grid2">${field('寬度 (m)',o.width,'o.width')}${field('沿牆位置（0～1）',o.t,'o.t','number','.05','0','max="1"')}</div></div>
+     <div class="sect"><div class="field"><label>開啟狀態（供後續通風模擬使用）</label><select data-edit="o.open"><option value="true" ${o.open?'selected':''}>開啟</option><option value="false" ${!o.open?'selected':''}>關閉</option></select></div></div>
+     ${button('移除門窗','delete','','danger')}<p class="subtle">門窗狀態已保存；v0.2 僅用隔牆與開啟的門近似遮蔽熱傳，完整通風與供氧計算預定 v0.4。</p>`;
+  }return '';
+}
+function roomPanel(){return `<p class="kicker">FLOOR PLAN</p><p class="tiptxt">隔間拖曳模式已啟用：點住場景中的青綠色牆線／控制點，沿垂直方向移動。建議切換俯視圖精準操作；雙指仍可縮放和平移。</p><div class="sect"><div class="sect-title">建築整體尺寸</div><div class="threecol">${field('總寬 (m)',state.data.width,'scene.width')}${field('總深 (m)',state.data.depth,'scene.depth')}${field('牆高 (m)',state.data.height,'scene.height')}</div></div>
+  <div class="sect"><div class="sect-title">點選隔間進行編輯</div><div class="list">${state.rooms.map(r=>`<button class="item ${state.selected?.id===r.id?'active':''}" data-action="selectroom" data-arg="${safeText(r.id)}"><span><strong>${safeText(r.name)}</strong><br><small>${r.w.toFixed(2)} × ${r.d.toFixed(2)} m</small></span><span>›</span></button>`).join('')}</div></div>
+  <div class="sect"><div class="sect-title">隔間操作</div><div class="grid2">${button('左右分割','split','x')}${button('前後分割','split','z')}${button('合併選取房間','merge','','full')}</div></div><p class="tiptxt">先點選房間，再分割或移動牆面；每個隔間都可單獨設定地板與牆面材質。公寓格局為示意，請勿直接用作施工或消防審查圖。</p>`;}
+function furniturePanel(){const cats=[...new Set(Object.values(TYPES).map(o=>o.category))];return `<p class="kicker">FURNITURE LIBRARY</p><p class="subtle" style="margin:-3px 0 13px">點選物件即可放進目前選取的房間，再於 3D 畫面拖曳擺設。</p>${cats.map(cat=>`<div class="sect"><div class="sect-title">${cat}</div><div class="grid3">${Object.entries(TYPES).filter(([_,o])=>o.category===cat).map(([key,o])=>`<button class="furniture-pick" data-action="addFurniture" data-arg="${key}"><span class="symbol">${o.icon}</span><span>${safeText(o.name)}</span></button>`).join('')}</div></div>`).join('')}`;}
+function materialPanel(){let r=state.selected?.kind==='room'?state.rooms.find(r=>r.id===state.selected.id):null;return `<p class="kicker">MATERIAL LIBRARY · v0.3b</p><p class="subtle">地坪與牆面已加入條件式相對延燒評估。下列數值均為未校正示範假設，不是實驗檢驗證書；牆面漆色不應被視為不同可燃等級。</p><div class="sect"><div class="sect-title">目前隔間</div><div class="list">${state.rooms.map(q=>`<button class="item ${r?.id===q.id?'active':''}" data-action="selectroom" data-arg="${safeText(q.id)}"><strong>${safeText(q.name)}</strong><small>${safeText(MAT[q.floor]?.name)}</small></button>`).join('')}</div></div>${r?`<div class="sect"><div class="sect-title">${safeText(r.name)} · 地板</div><div class="field"><select data-edit="r.floor">${MAT_OPTIONS('floor',r.floor)}</select></div></div><div class="sect"><div class="sect-title">牆面</div><div class="field"><select data-edit="r.wall">${MAT_OPTIONS('wall',r.wall)}</select></div><div class="sect"><div class="sect-title">裝修層參數（示範）</div>${[r.floor,r.wall].map((m,i)=>{const p=SURFACE_MATS[m];return `<div class="risk-stat" style="margin-bottom:6px"><span>${i?'牆面':'地坪'} · ${safeText(MAT[m].name)}</span><strong>${p?'引燃熱通量 '+p.qcrit+' kW/m²':'未計入可燃裝修層'}</strong><div class="risk-meta">${p?'可燃能量 '+p.fuel+' MJ/m² · HRR 上限 '+p.hrr+' kW/m²':'實際材料及底層須另行確認'}</div></div>`}).join('')}</div></div>`:'<div class="tiptxt">請先選取欲修改的隔間。</div>'}`;}
+function openingPanel(){return `<p class="kicker">DOORS & WINDOWS</p><div class="grid2 sect">${button('＋ 新增門','addOpening','door','primary')}${button('＋ 新增窗','addOpening','window')}</div><div class="sect"><div class="sect-title">已建立門窗</div><div class="list">${state.data.openings.map(o=>`<button class="item ${state.selected?.id===o.id?'active':''}" data-action="selectopening" data-arg="${safeText(o.id)}"><div><strong>${o.type==='door'?'門':'窗'}</strong><br><small>${safeText(o.segId)} · ${o.width.toFixed(2)} m</small></div><span>${o.open?'開':'關'} ›</span></button>`).join('')}</div></div><p class="tiptxt">選取門窗可更改牆段、尺寸、位置與開關狀態。門窗開口將保留給 v0.4 的通風計算使用。</p>`;}
+function templatePanel(){return `<p class="kicker">QUICK START</p><p class="subtle">參考公開住宅平面配置原則重新規劃：有中央走道、開放式餐廚及不同房型。所有格局均可再編輯；範本為教學示意，不是施工圖。</p><div class="list" style="margin-top:11px">${presetDefinitions.map((p,i)=>`<button class="item" data-action="preset" data-arg="${p.id}"><div><strong>${String.fromCharCode(65+i)}｜${p.name}</strong><br><small>${p.sub}</small></div><span>↗</span></button>`).join('')}</div>`;}
+function layerPanel(){return `<p class="kicker">VIEW OPTIONS</p><div class="sect"><div class="sect-title">牆面顯示方式</div><div class="list">${[{v:'cut',t:'智能剖牆',s:'低矮內牆、保留遠側外牆'},{v:'full',t:'完整牆高',s:'可觀察門窗與牆面'},{v:'none',t:'隱藏牆面',s:'專注家具與地面配置'}].map(p=>`<button class="item ${state.data.wallMode===p.v?'active':''}" data-action="walls" data-arg="${p.v}"><div><strong>${p.t}</strong><br><small>${p.s}</small></div><span>${state.data.wallMode===p.v?'●':'○'}</span></button>`).join('')}</div></div><div class="grid2">${button('45° 立體視角','camera','iso')}${button('俯視平面圖','camera','top')}</div>`;}
+function filePanel(){return `<p class="kicker">PROJECT FILES</p><div class="sect"><div class="list"><button class="item" data-action="export"><div><strong>匯出 JSON 配置</strong><br><small>完整保存家具、隔間、材質及門窗</small></div><span>↗</span></button><button class="item" data-action="import"><div><strong>匯入 JSON 配置</strong><br><small>讀取先前儲存的 v0.1 檔案</small></div><span>↗</span></button><button class="item" data-action="undo"><div><strong>復原上一個修改</strong><br><small>最多保留 30 次變更</small></div><span>↶</span></button></div></div><p class="tiptxt">編輯內容也會自動儲存在目前瀏覽器。換裝置、清除瀏覽器資料或更換網址前，建議另外匯出 JSON。</p><div class="line"></div>${button('回復預設公寓','reset','','danger')}`;}
+const PANEL_CONTENT={selection:selectPanel,rooms:roomPanel,furniture:furniturePanel,materials:materialPanel,openings:openingPanel,templates:templatePanel,layers:layerPanel,files:filePanel,fire:firePanel,risk:riskPanel};
+const PANEL_NAMES={selection:'物件與隔間編輯',rooms:'房間與隔間',furniture:'家具庫',materials:'材質編輯',openings:'門窗編輯',templates:'快速套用範本',layers:'場景顯示',files:'儲存與匯入',fire:'正向燃燒模擬',risk:'隔間蔓延風險'};
+let panelGeom={};try{panelGeom=JSON.parse(localStorage.getItem('fire3d-v0.1-panel')||'{}')}catch(e){};
+function openPanel(key){if(!PANEL_CONTENT[key])return;let old=panels.querySelector('.float');if(old&&state.panelKey===key){if(old.classList.contains('minimized'))old.classList.remove('minimized');renderPanel();return;}
+  if(old)old.remove();state.panelKey=key;state.panelMoved=false;
+  let el=document.createElement('section');el.className='float';el.id='activePanel';const point=state.selected?.kind==='furniture'?state.data.furniture.find(v=>v.id===state.selected.id):state.selected?.kind==='room'?state.rooms.find(v=>v.id===state.selected.id):null;const screenPoint=point?project(state.selected?.kind==='room'?point.x+point.w/2:point.x,0,state.selected?.kind==='room'?point.z+point.d/2:point.z):null;const defaultLeft=screenPoint&&screenPoint.x>window.innerWidth*.60?Math.max(94,window.innerWidth*.075):Math.max(100,window.innerWidth-405);el.style.left=panelGeom.left||defaultLeft+'px';el.style.top=panelGeom.top||'102px';el.style.width=panelGeom.width||'344px';el.style.height=panelGeom.height||(key==='risk'?'min(520px, calc(100dvh - 130px))':'auto');
+  el.innerHTML=`<div class="panelhead"><div class="panel-title"></div><button class="minbtn" title="縮小視窗">${svg(icons.minus)}</button><button class="closebtn" title="關閉視窗">${svg(icons.close)}</button></div><div class="panelbody"></div><div class="grip"></div>`;
+  panels.appendChild(el);el.querySelector('.closebtn').onclick=()=>{panels.innerHTML='';state.panelKey=null;setActiveTool('select',false)};
+  el.querySelector('.minbtn').onclick=()=>el.classList.toggle('minimized');
+  function begin(e,kind){if(e.button!==0)return;e.preventDefault();e.stopPropagation();el.setPointerCapture(e.pointerId);const b=el.getBoundingClientRect();el._move={id:e.pointerId,kind,startX:e.clientX,startY:e.clientY,left:b.left,top:b.top,w:b.width,h:b.height};}
+  el.querySelector('.panelhead').addEventListener('pointerdown',e=>{if(e.target.closest('button'))return;begin(e,'move')});
+  el.querySelector('.grip').addEventListener('pointerdown',e=>begin(e,'resize'));
+  el.addEventListener('pointermove',e=>{const m=el._move;if(!m||m.id!==e.pointerId)return;const dx=e.clientX-m.startX,dy=e.clientY-m.startY;
+    if(m.kind==='move'){el.style.left=clamp(m.left+dx,4,window.innerWidth-el.offsetWidth-4)+'px';el.style.top=clamp(m.top+dy,65,window.innerHeight-55)+'px';}
+    else{el.style.width=clamp(m.w+dx,270,window.innerWidth-10)+'px';el.style.height=clamp(m.h+dy,130,window.innerHeight-85)+'px';}
+    state.panelMoved=true;
+  });
+  el.addEventListener('pointerup',()=>{if(!el._move)return;el._move=null;panelGeom={left:el.style.left,top:el.style.top,width:el.style.width,height:el.style.height};try{localStorage.setItem('fire3d-v0.1-panel',JSON.stringify(panelGeom))}catch(e){}});
+  el.addEventListener('pointercancel',()=>el._move=null);
+  el.addEventListener('change',onPanelChange);el.addEventListener('click',onPanelClick);
+  if(window.innerWidth<690){el.style.left='8px';el.style.top='76px';el.style.width=Math.min(344,window.innerWidth-16)+'px';el.style.height=Math.min(375,window.innerHeight*.46)+'px';}
+  renderPanel();
+}
+function renderPanel(){let el=$('#activePanel');if(!el||!state.panelKey)return;let body=el.querySelector('.panelbody'),prev=body.scrollTop;el.querySelector('.panel-title').textContent=PANEL_NAMES[state.panelKey];body.innerHTML=PANEL_CONTENT[state.panelKey]();body.scrollTop=prev;}
+function onPanelChange(e){const key=e.target.dataset.edit;if(!key)return;let v=e.target.value;if(key==='risk.room'){risk.selectedId=v;state.selected={kind:'room',id:v,item:state.rooms.find(r=>r.id===v)};renderPanel();return;}if(key==='fire.scenario'){if(fire.started)return;fire.scenario=v;fire.placed=null;fire.placing=false;renderPanel();updateFireUI();return;}if(key==='wall.coord'){const id=state.selected?.kind==='wall'?state.selected.id:null;if(!id)return;const cfg=wallLimits(id);if(!cfg?.valid)return;const next=Number(v);if(!Number.isFinite(next))return;checkpoint();setWallCoordinate(id,next);touchSave();renderPanel();}
+ else if(key.startsWith('f.'))adjustObject(key.slice(2),v);
+ else if(key.startsWith('r.')){const attr=key.slice(2);if(attr==='w'||attr==='d'){const r=state.rooms.find(r=>r.id===state.selected?.id);const next=Number(v);if(r&&Number.isFinite(next)&&next>0)changeDivider(attr==='w'?'x':'z',next-r[attr]);}else setRoomProp(attr,v);}
+ else if(key.startsWith('o.'))setOpeningProp(key.slice(2),v);
+ else if(key.startsWith('scene.')){const attr=key.slice(6),num=Number(v);if(!Number.isFinite(num))return;checkpoint();const oldSize=state.data[attr];state.data[attr]=clamp(num,attr==='height'?2.0:5,attr==='height'?4.8:30);if(attr==='width')state.data.furniture.forEach(o=>o.x=o.x*state.data.width/oldSize);if(attr==='depth')state.data.furniture.forEach(o=>o.z=o.z*state.data.depth/oldSize);calcLayout();relocateAfterPartition();state.target.x=state.data.width/2;state.target.z=state.data.depth/2;touchSave();renderPanel();}
+}
+function onPanelClick(e){let btn=e.target.closest('[data-action]');if(!btn)return;let action=btn.dataset.action,arg=btn.dataset.arg;
+ if(fireAction(action,arg)||riskAction(action,arg))return;
+ if(action==='tool'){setActiveTool(arg);openPanel(arg)}
+ else if(action==='preset')switchPreset(arg);
+ else if(action==='faceInside'){const o=state.selected?.kind==='furniture'&&state.data.furniture.find(f=>f.id===state.selected.id);if(o){checkpoint();autoFaceRoom(o);touchSave();renderPanel();toast('已依最近牆面調整櫃體正面朝向');}}
+ else if(action==='addFurniture')addFurniture(arg);
+ else if(action==='selectroom'){let r=state.rooms.find(r=>r.id===arg);if(r){select('room',r);if(state.focusTool==='materials')openPanel('materials');}}
+ else if(action==='selectopening'){let o=state.data.openings.find(o=>o.id===arg);if(o)select('opening',o)}
+ else if(action==='split')splitRoom(arg);
+ else if(action==='merge')mergeRoom();
+ else if(action==='resize'){let [axis,d]=arg.split(':');changeDivider(axis,Number(d));}
+ else if(action==='wallNudge'){const id=state.selected?.kind==='wall'&&state.selected.id,seg=state.segments.find(s=>s.id===id);if(seg){checkpoint();const coord=Math.abs(seg.x1-seg.x2)<.001?seg.x1:seg.z1;setWallCoordinate(id,coord+Number(arg));touchSave();renderPanel();}}
+ else if(action==='delete')deleteSelected();
+ else if(action==='addOpening')addOpening(arg);
+ else if(action==='walls'){checkpoint();state.data.wallMode=arg;touchSave();renderPanel();}
+ else if(action==='camera')setView(arg==='top');
+ else if(action==='undo')undo();else if(action==='export')exportJson();else if(action==='import')$('#file').click();
+ else if(action==='reset'){if(confirm('確定還原一般家庭範本？目前修改仍可用「復原」返回。'))switchPreset('home');}
+}
+function setActiveTool(tool,open=true){if(tool!=='fire')fire.placing=false;if(tool==='risk'&&!state.selected?.kind==='room')state.selected={kind:'room',id:state.rooms[0]?.id,item:state.rooms[0]};if(state.focusTool==='rooms'&&tool!=='rooms'&&state.selected?.kind==='wall')state.selected=null;state.focusTool=tool;state.wallHover=null;state.geomDirty=true;updateWallMeasure();updateStatus();updateFireUI();canvas.classList.toggle('ignite-mode',tool==='fire'&&fire.placing);$$('.tool').forEach(t=>t.classList.toggle('active',t.dataset.tool===tool));if(open&&tool!=='select')openPanel(tool);else if(open&&tool==='select')openPanel('selection');if(tool==='rooms'&&window.innerWidth<690)$('#activePanel')?.classList.add('minimized');if(tool==='risk'&&window.innerWidth<690){const el=$('#activePanel');if(el)el.style.height=Math.min(285,window.innerHeight*.34)+'px';}}
+$$('.tool').forEach(t=>t.addEventListener('click',()=>setActiveTool(t.dataset.tool)));
+$('#btnTemplate').onclick=()=>openPanel('templates');$('#btnSaveTop').onclick=()=>openPanel('files');
+$('#btnView45').onclick=()=>setView(false);$('#btnTop').onclick=()=>setView(true);$('#btnZoomIn').onclick=()=>state.zoom=clamp(state.zoom*1.2,.35,3.8);$('#btnZoomOut').onclick=()=>state.zoom=clamp(state.zoom/1.2,.35,3.8);$('#btnUndo').onclick=undo;
+$('#file').addEventListener('change',e=>{loadJson(e.target.files[0]);e.target.value=''});
+window.addEventListener('keydown',e=>{if(e.target.matches('input,textarea,select'))return;if(e.key==='Escape'){setActiveTool('select',false);panels.innerHTML='';state.panelKey=null;state.selected=null;state.geomDirty=true;updateStatus();}if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'){e.preventDefault();undo()}if(['Backspace','Delete'].includes(e.key)&&state.selected?.kind==='furniture')deleteSelected();});
+window.addEventListener('resize',()=>{const el=$('#activePanel');if(el&&window.innerWidth>690){el.style.left=clamp(parseFloat(el.style.left)||8,4,window.innerWidth-el.offsetWidth-4)+'px';el.style.top=clamp(parseFloat(el.style.top)||74,62,window.innerHeight-56)+'px';}});
+// FIRE 3D v0.2 前向燃燒引擎：教學近似模型，非經驗證之火場鑑識/CFD 模擬。
+// 附於既有 module 內，沿用原版房間拓樸、材質與 3D 場景。
+const FIRE_MATS={
+  fabric:{name:'布面／聚氨酯泡棉（近似）',qcrit:7.5,tign:275,cap:2.8,alpha:.19,hoc:20},
+  linen:{name:'一般織品（近似）',qcrit:7.0,tign:275,cap:2.4,alpha:.16,hoc:16},
+  leather:{name:'合成皮革（近似）',qcrit:10,tign:300,cap:3.2,alpha:.12,hoc:22},
+  wood:{name:'木質／板材（近似）',qcrit:11,tign:325,cap:4.2,alpha:.055,hoc:16},
+  oak:{name:'橡木（近似）',qcrit:12,tign:340,cap:4.5,alpha:.05,hoc:17},
+  walnut:{name:'胡桃木（近似）',qcrit:12,tign:340,cap:4.7,alpha:.055,hoc:17},
+  carpet:{name:'地毯（近似）',qcrit:8.0,tign:290,cap:2.4,alpha:.13,hoc:18},
+  vinyl:{name:'PVC（近似）',qcrit:13,tign:330,cap:3.2,alpha:.08,hoc:20},
+  plastic:{name:'塑膠（近似）',qcrit:11,tign:310,cap:3,alpha:.13,hoc:22},
+  metal:{name:'金屬（本版視為不燃）',inert:true},
+  tile:{name:'磁磚（本版視為不燃）',inert:true},
+  stone:{name:'石材（本版視為不燃）',inert:true},
+  white:{name:'漆面（本版不模擬基材）',inert:true},
+  sage:{name:'漆面（本版不模擬基材）',inert:true},
+  clay:{name:'漆面（本版不模擬基材）',inert:true},
+  concrete:{name:'混凝土（本版視為不燃）',inert:true},
+  wallpaper:{name:'紙質壁紙（示範）',qcrit:9,tign:275,cap:2.6,alpha:.12,hoc:15},
+  woodpanel:{name:'木質護牆板（示範）',qcrit:12,tign:330,cap:4,alpha:.045,hoc:16},
+  vinylwall:{name:'PVC 壁板（示範）',qcrit:13,tign:310,cap:3,alpha:.07,hoc:20}
+};
+// 等效燃料質量與單件最大 HRR 是教學參數；不是從 NIST 實驗曲線直接反推的每個物件之數值。
+const FIRE_TYPES={
+ sofa:{mass:32,qmax:1800},chair:{mass:11,qmax:700},bed:{mass:33,qmax:1800},
+ coffee:{mass:9,qmax:250},tv:{mass:12,qmax:300},bookcase:{mass:24,qmax:1050},
+ wardrobe:{mass:38,qmax:1350},desk:{mass:22,qmax:470},dining:{mass:25,qmax:420},
+ dchair:{mass:7,qmax:170},fridge:{mass:0,qmax:0},counter:{mass:21,qmax:580},
+ stove:{mass:0,qmax:0},rug:{mass:8,qmax:500},plant:{mass:3,qmax:130},
+ curtain:{mass:2.6,qmax:500},toilet:{mass:0,qmax:0},basin:{mass:0,qmax:0}
+};
+// 油火或電器故障之選項為「假設火源已形成」，不代表預測故障率或特定電氣機制。
+const FIRE_SCENARIOS={
+ electrical:{label:'電器／插座起火假設',type:'tv',peak:65,duration:90,ignite:true,note:'假設電器周邊已有可持續火苗；並不計算短路或接觸不良的發生機率'},
+ kitchen:{label:'廚房爐具火源',type:'stove',peak:360,duration:210,ignite:false,note:'以指定火源功率代表爐具周邊可燃物燃燒；不預測油鍋、瓦斯等燃料細節'},
+ dropped:{label:'掉落火種／織品',type:'sofa',peak:28,duration:45,ignite:true,note:'假設火種在可燃物上已成功引燃，非微小火星的自動引燃預測'},
+ manual:{label:'手動點火',type:'sofa',peak:80,duration:95,ignite:true,note:'使用者指定已建立的火源；點擊家具時假設其成功引燃'}
+};
+const fire={scenario:'dropped',speed:10,placed:null,placing:false,running:false,started:false,finished:false,simTime:0,simAcc:0,lastFrame:0,particlesTime:0,records:new Map(),source:null,history:[],events:[],totalQ:0,peakQ:0,peakTime:0,visualTick:0,viewStamp:0,lastHud:0,lastHistory:0,lastLog:0,warningShown:false};
+const fxCanvas=$('#fx'),fxCtx=fxCanvas.getContext('2d');
+function fmtFire(t){t=Math.round(Math.max(0,t));return `${String(Math.floor(t/60)).padStart(2,'0')}:${String(t%60).padStart(2,'0')}`;}
+function fireProps(o){const p=FIRE_MATS[o.mat]||FIRE_MATS.wood,t=FIRE_TYPES[o.type]||{mass:8,qmax:280};
+ const def=TYPES[o.type]||o,vol=Math.max(.1,(o.w*o.d*Math.max(o.h,.12))/(def.w*def.d*Math.max(def.h,.12)));
+ const factor=clamp(Math.pow(vol,.72),.2,4),m=p.inert?0:t.mass*factor;
+ return {mat:p,initialKJ:m*(p.hoc||0)*1000,peakKW:p.inert?0:t.qmax*factor,massKg:m,alpha:(p.alpha||0)*Math.sqrt(factor)};
+}
+function resetFire(silent=false){
+ fire.running=false;fire.started=false;fire.finished=false;fire.simTime=0;fire.simAcc=0;fire.records=new Map();fire.history=[];fire.events=[];fire.source=null;fire.totalQ=0;fire.peakQ=0;fire.peakTime=0;fire.lastHistory=0;fire.viewStamp=0;fire.placing=false;
+ for(const o of state.data.furniture){const p=fireProps(o);fire.records.set(o.id,{id:o.id,temp:22,flux:0,energy:p.initialKJ,initial:p.initialKJ,burning:false,spent:false,born:null,heatKW:0,damage:0,...p});}
+ state.geomDirty=true;updateFireUI();if(!silent)toast('已清除燃燒結果，室內配置保持不變');
+}
+function updateFireSceneAfterEdit(){if(fire.started||fire.finished) {resetFire(true);toast('室內配置已變更：先前燃燒結果已清除，請重新計算');}else resetFire(true);}
+function fireLog(txt){fire.events.push({time:+fire.simTime.toFixed(1),text:txt});if(fire.events.length>120)fire.events.shift();}
+function siteForScenario(){
+  if(fire.placed){const selected=state.data.furniture.find(o=>o.id===fire.placed.itemId);if(selected)return {x:selected.x,z:selected.z,itemId:selected.id};
+    if(roomAt(fire.placed.x,fire.placed.z))return {...fire.placed,itemId:null};}
+  const desired=FIRE_SCENARIOS[fire.scenario].type;
+  const target=state.data.furniture.find(o=>o.type===desired)||state.data.furniture.find(o=>!FIRE_MATS[o.mat]?.inert);
+  return target?{x:target.x,z:target.z,itemId:target.id}:{x:state.data.width*.35,z:state.data.depth*.4,itemId:null};
+}
+function pickFireSite(px,py){const item=pickFurniture(px,py),g=hitPlane(px,py,.04);
+ if(item)return {x:item.x,z:item.z,itemId:item.id};if(g&&roomAt(g.x,g.z))return {x:g.x,z:g.z,itemId:null};return null;
+}
+function fireSiteName(){const s=siteForScenario(),o=state.data.furniture.find(o=>o.id===s.itemId),r=roomAt(s.x,s.z);
+ return `${r?.name||'公寓'} · ${o?TYPES[o.type]?.name||'家具':'指定位置'}`;
+}
+function startFire(){
+ if(fire.started)resetFire(true);
+ const p=FIRE_SCENARIOS[fire.scenario],site=siteForScenario();
+ if(!roomAt(site.x,site.z)){toast('請選擇公寓範圍內的火源位置');return;}
+ fire.source={...site,scenario:fire.scenario,peak:p.peak,duration:p.duration,q:0};
+ fire.placed={...site};fire.started=true;fire.running=true;fire.finished=false;fire.lastFrame=performance.now();
+ const target=fire.records.get(site.itemId),obj=state.data.furniture.find(o=>o.id===site.itemId);
+ if(p.ignite&&target&&obj&&!target.mat.inert){igniteRecord(target,obj,true);}else if(p.ignite&&(!obj||target?.mat.inert))fireLog('火源放置在非可燃表面；需以熱傳引燃其他物件');
+ fireLog(`開始：${p.label}（${fireSiteName()}）`);
+ if(window.innerWidth<690)$('#activePanel')?.classList.add('minimized');
+ sampleFire(true);updateFireUI();if(state.panelKey==='fire')renderPanel();
+}
+function igniteRecord(r,o,forced=false){
+ if(r.burning||r.spent||r.mat.inert||r.energy<=0)return false;
+ r.burning=true;r.born=fire.simTime;r.temp=Math.max(r.temp,r.mat.tign);r.heatKW=0;
+ fireLog(`${TYPES[o.type]?.name||'家具'} 引燃${forced?'（指定火源）':''}`);return true;
+}
+function lineCrossing(ax,az,bx,bz,s){
+ const cx=s.x1,cz=s.z1,dx=s.x2-s.x1,dz=s.z2-s.z1,ux=bx-ax,uz=bz-az;
+ const den=ux*dz-uz*dx;if(Math.abs(den)<1e-7)return null;
+ const t=((cx-ax)*dz-(cz-az)*dx)/den,v=((cx-ax)*uz-(cz-az)*ux)/den;
+ if(t>.015&&t<.985&&v>0&&v<1)return v;return null;
+}
+function rayPass(ax,az,bx,bz){
+ let att=1;
+ for(const seg of state.segments){if(!seg.interior||state.data.openWallIds?.includes(seg.id))continue;
+  const v=lineCrossing(ax,az,bx,bz,seg);if(v===null)continue;
+  const hole=state.data.openings.some(o=>o.segId===seg.id&&o.type==='door'&&o.open&&Math.abs(o.t-v)<(o.width/Math.hypot(seg.x2-seg.x1,seg.z2-seg.z1))/2);
+  att*=hole?.72:.055;
+ }
+ return Math.max(.006,att);
+}
+function targetDistance(a,o){const dx=o.x-a.x,dz=o.z-a.z;const gap=Math.hypot(dx,dz)-Math.min(.92,Math.hypot(o.w,o.d)*.31)-Math.min(.85,(a.rad||.35));return Math.max(.2,gap);}
+function fireSourcePower(t){if(!fire.source)return 0;const a=fire.source,peak=a.peak;
+ if(t<=a.duration)return peak*Math.min(1,t/9);
+ if(t>a.duration+55)return 0;
+ return peak*Math.exp(-(t-a.duration)/11.5);
+}
+function fireTick(dt){
+ fire.simTime+=dt;
+ const d=state.data,items=d.furniture, sources=[];
+ if(fire.source){fire.source.q=fireSourcePower(fire.simTime);if(fire.source.q>.1)sources.push({x:fire.source.x,z:fire.source.z,q:fire.source.q,rad:.30,y:.6,id:'pilot'});}
+ for(const o of items){const r=fire.records.get(o.id);if(!r||!r.burning)continue;
+  const age=Math.max(0,fire.simTime-r.born),want=Math.min(r.peakKW,r.alpha*Math.pow(age+5,2));
+  const q=Math.min(want,r.energy/Math.max(dt,.001));r.heatKW=Math.max(0,q);r.energy=Math.max(0,r.energy-q*dt);
+  r.damage=clamp(1-r.energy/(r.initial||1),0,1);
+  r.temp=clamp(r.mat.tign+300*Math.sqrt(r.heatKW/Math.max(1,r.peakKW)),r.mat.tign,650);
+  if(r.energy<.05){r.energy=0;r.heatKW=0;r.burning=false;r.spent=true;fireLog(`${TYPES[o.type]?.name||'家具'} 可燃能量耗盡`);}
+  else sources.push({x:o.x,z:o.z,q:r.heatKW,rad:Math.min(.85,Math.hypot(o.w,o.d)*.28),y:Math.min(o.h,1.0),id:o.id});
+ }
+ let tq=fire.source?.q||0;
+ for(const o of items){const r=fire.records.get(o.id);if(!r)continue;tq+=r.heatKW;
+  if(r.mat.inert||r.burning||r.spent)continue;
+  let rad=0,conv=0,contact=0;
+  for(const s of sources){if(s.id===o.id||s.q<1)continue;
+   const dst=targetDistance(s,o),pass=rayPass(s.x,s.z,o.x,o.z);
+   const qrad=.38*s.q/(4*Math.PI*(dst*dst+.14))*pass;
+   rad+=Math.min(65,qrad);
+   if(roomAt(s.x,s.z)?.id===roomAt(o.x,o.z)?.id){conv+=s.q*.0045/(dst*dst+1.4);} // 局部熱氣加熱近似項，並非房間 CFD
+   if(dst<.29&&pass>.6)contact+=Math.min(6,(.29-dst)*15)*Math.min(1,s.q/220);
+  }
+  const qTotal=Math.min(90,rad+conv+contact);r.flux=qTotal;
+  // 簡化單節點表面能量平衡：kW/m² ÷ [kJ/(m²·K)] = K/s。
+  const cool=.012*Math.max(0,r.temp-22);
+  r.temp=clamp(r.temp+(qTotal-cool)/r.mat.cap*dt,22,550);
+  // 有外部引燃源（piloted ignition）的代表性門檻；非材料通用自燃溫度。
+  if(qTotal>=r.mat.qcrit&&r.temp>=r.mat.tign)igniteRecord(r,o,false);
+ }
+ fire.totalQ=tq;if(tq>fire.peakQ){fire.peakQ=tq;fire.peakTime=fire.simTime;}
+ if(fire.simTime-fire.lastHistory>=5||fire.simTime>=1500){sampleFire();}
+ if(fire.simTime>=1500||((!sources.length||sources.every(s=>s.id==='pilot'&&s.q<1))&&fire.simTime>(fire.source?.duration||0)+60)){
+   fire.running=false;fire.finished=true;fireLog('模擬結束');sampleFire(true);
+ }
+}
+function sampleFire(force=false){if(!force&&fire.simTime-fire.lastHistory<5)return;
+ fire.lastHistory=fire.simTime;const rec=[];for(const r of fire.records.values())rec.push({id:r.id,T:+r.temp.toFixed(1),Q:+r.heatKW.toFixed(1),E:+r.energy.toFixed(0),burning:r.burning,spent:r.spent});
+ fire.history.push({t:+fire.simTime.toFixed(1),Q:+fire.totalQ.toFixed(1),objects:rec});if(fire.history.length>380)fire.history.shift();
+}
+function stepFireFrame(now){if(!fire.lastFrame)fire.lastFrame=now;const elapsed=clamp((now-fire.lastFrame)/1000,0,.15);fire.lastFrame=now;
+ if(!fire.started)return;
+ if(fire.running){fire.simAcc=Math.min(fire.simAcc+elapsed*fire.speed,9);
+  let count=0;while(fire.simAcc>=.4&&count<24){fireTick(.4);fire.simAcc-=.4;count++;if(!fire.running)break;}
+  // 幾何焦黑採較低更新頻率，粒子每影格更新。
+  const vt=Math.floor(fire.simTime/4);if(vt!==fire.viewStamp){fire.viewStamp=vt;state.geomDirty=true;}
+ }
+ if(now-fire.lastHud>220){fire.lastHud=now;updateFireUI();}
+}
+function mixFireColor(a,b,t){let ca=hex(a),cb=hex(b);return '#'+ca.map((v,i)=>Math.round(255*(v*(1-t)+cb[i]*t)).toString(16).padStart(2,'0')).join('');}
+function fireObjectColor(o,base){const r=fire.records.get(o.id);if(!fire.started||!r||r.damage<=0)return base;
+ return mixFireColor(base,'#302926',clamp(Math.pow(r.damage,.65)*.92,0,.92));}
+function drawBurnDamage(o){const r=fire.records.get(o.id);if(!fire.started||!r||r.damage<.1)return;
+ const fac=clamp(r.damage*1.15,0,1),y=Math.max(.085,o.h*.96);
+ for(let i=0;i<5;i++){
+  const n=Math.sin(i*14.221+o.x*11.83+o.z*8.31),m=Math.cos(i*17.812+o.x*4.23);
+  const scale=(.085+fac*.19)*Math.max(.4,Math.abs(n));
+  part(o,n*o.w*.30,y,m*o.d*.28,Math.max(.035,o.w*scale),.008,Math.max(.035,o.d*scale),i%2?'#493c35':'#5b4840');
+ }
+}
+function drawFireFX(){if(!fxCtx)return;
+ const bounds=canvas.getBoundingClientRect(),w=bounds.width,h=bounds.height,dd=Math.min(window.devicePixelRatio||1,2);
+ if(fxCanvas.width!==Math.round(w*dd)||fxCanvas.height!==Math.round(h*dd)){fxCanvas.width=Math.round(w*dd);fxCanvas.height=Math.round(h*dd);fxCanvas.style.width=w+'px';fxCanvas.style.height=h+'px';}
+ fxCtx.setTransform(dd,0,0,dd,0,0);fxCtx.clearRect(0,0,w,h);drawRiskOverlay(w,h);
+ if(state.focusTool==='fire'&&!fire.started){
+  const a=siteForScenario(),p=project(a.x,.18,a.z);
+  fxCtx.save();fxCtx.translate(p.x,p.y);fxCtx.lineWidth=2;
+  fxCtx.strokeStyle='#db814e';fxCtx.fillStyle='rgba(255,255,255,.92)';fxCtx.beginPath();fxCtx.arc(0,0,13,0,Math.PI*2);fxCtx.fill();fxCtx.stroke();
+  fxCtx.beginPath();fxCtx.moveTo(-5,0);fxCtx.lineTo(5,0);fxCtx.moveTo(0,-5);fxCtx.lineTo(0,5);fxCtx.stroke();
+  fxCtx.font='600 11px sans-serif';fxCtx.textAlign='center';fxCtx.fillStyle='#9f5c34';fxCtx.fillText(fire.placing?'請點選火源': '火源位置',0,-20);fxCtx.restore();
+ }
+ if(!fire.started)return;
+ let spots=[];
+ for(const o of state.data.furniture){const r=fire.records.get(o.id);if(r&&r.heatKW>1)spots.push({x:o.x,y:Math.max(.22,o.h*.73),z:o.z,q:r.heatKW,radius:Math.max(.15,Math.min(o.w,o.d)*.35),name:o.id});}
+ if(fire.source?.q>2)spots.push({x:fire.source.x,y:.65,z:fire.source.z,q:fire.source.q,radius:.26,name:'source'});
+ let k=0;
+ for(const s of spots){const p=project(s.x,s.y,s.z),scale=pixelScale(),power=Math.sqrt(Math.max(1,s.q)/300),rad=Math.max(5,Math.min(45,(s.radius+.07)*scale*(.6+power*.3)));
+  if(p.x< -150||p.x>w+150||p.y< -170||p.y>h+190)continue;
+  const time=fire.simTime*.6+performance.now()*.0005;
+  fxCtx.save();fxCtx.translate(p.x,p.y);fxCtx.globalCompositeOperation='source-over';
+  const tongues=Math.min(14,5+Math.floor(power*3));
+  for(let i=0;i<tongues;i++){
+    const xx=Math.sin(i*5.72+s.x*2.4)*rad*.68,hh=rad*(.85+power*.48)*(1+Math.sin(time*2.9+i*2.1)*.15)*(1+((i*7)%5)*.11);
+    const ww=rad*(.26+Math.sin(i+2)*.04);fxCtx.beginPath();fxCtx.moveTo(xx-ww,0);
+    fxCtx.quadraticCurveTo(xx-ww*.55,-hh*.57,xx+Math.sin(time+i)*ww*.25,-hh);
+    fxCtx.quadraticCurveTo(xx+ww*.75,-hh*.48,xx+ww,0);fxCtx.closePath();
+    fxCtx.fillStyle=i%3===0?'rgba(255,203,61,.83)':i%3===1?'rgba(251,119,36,.70)':'rgba(228,62,31,.66)';fxCtx.fill();
+  }
+  fxCtx.beginPath();fxCtx.ellipse(0,rad*.15,rad*.93,rad*.26,0,0,Math.PI*2);fxCtx.fillStyle='rgba(239,117,35,.22)';fxCtx.fill();
+  // 僅為火焰觀察輔助效果；v0.4 前沒有煙氣粒徑/傳輸物理。
+  for(let i=0;i<5;i++){let a=((time*.24+i*.217)%1),xx=Math.sin(i*9.2+a*5)*rad*.46;
+    fxCtx.beginPath();fxCtx.ellipse(xx,-rad*1.1-a*rad*(2.1+power),rad*(.17+.15*a),rad*(.13+.10*a),0,0,Math.PI*2);
+    fxCtx.fillStyle=`rgba(89,83,81,${(.19*(1-a)).toFixed(3)})`;fxCtx.fill();
+  }
+  fxCtx.restore();k++;
+ }
+}
+function updateFireUI(){
+ const active=[...fire.records.values()].filter(r=>r.burning).length,hit=[...fire.records.values()].filter(r=>r.spent).length;
+ $('#fireClock').textContent=fmtFire(fire.simTime);
+ $('#firePower').textContent=(fire.totalQ>=1000?(fire.totalQ/1000).toFixed(2)+' MW':Math.round(fire.totalQ)+' kW');
+ $('#fireBurning').textContent=`燃燒 ${active} 件 · 耗盡 ${hit} 件`;
+ $('#firePlay').textContent=fire.running?'⏸ 暫停':fire.started&&!fire.finished?'▶ 繼續':'▶ 開始';
+ $('#firePlay').disabled=fire.finished;
+ $('#fireReset').disabled=!fire.started;
+ $('#fireSpeed').value=String(fire.speed);
+ $('#fireTimeline').classList.toggle('visible',fire.started||state.focusTool==='fire');
+ $('#fireStatus').textContent=fire.finished?'已完成':fire.started?(fire.running?'計算中':'已暫停'):'尚未點火';
+ canvas.classList.toggle('ignite-mode',state.focusTool==='fire'&&fire.placing);
+ app.classList.toggle('sim-running',fire.started||state.focusTool==='fire');
+ $('#modeLabel').textContent=state.focusTool==='fire'||fire.started?'● 正向燃燒模式':state.focusTool==='risk'?'● 蔓延風險評估':'● 災前配置模式';
+ const pc=$('#firePanelClock'),pq=$('#firePanelPower');if(pc)pc.textContent=fmtFire(fire.simTime);if(pq)pq.textContent=Math.round(fire.totalQ)+' kW';
+ if(state.focusTool==='risk')$('#statusHint').textContent='各房間分數為相對延燒指數；點選房間查看細節；不代表起火機率';if(state.focusTool==='fire')$('#statusHint').textContent=fire.placing?'點選家具或地板指定火源位置；雙指可平移縮放':fire.started?`正向模擬 ${fmtFire(fire.simTime)} · ${fire.running?'運算中':'已暫停'}`:'選擇火源情境，再按開始；可先指定點火位置';
+}
+function toggleFire(){if(!fire.started){startFire();return;}if(fire.finished)return;fire.running=!fire.running;fire.lastFrame=performance.now();updateFireUI();if(state.panelKey==='fire')renderPanel();}
+function exportFire(){if(!fire.started){toast('請先開始一場模擬');return;}
+ const obj={schema:'fire3d-forward-v0.2',engine:'fire3d-demo-lumped-v0.2',caution:'教學近似模型，尚未經實驗驗證，不得用於起火原因鑑識判定',source:fire.source,scenario:fire.scenario,settings:{speed:fire.speed,stepsize:0.4},layout:deep(state.data),materials:deep(FIRE_MATS),time:fire.simTime,maxHRRkW:fire.peakQ,events:deep(fire.events),snapshots:deep(fire.history)};
+ const url=URL.createObjectURL(new Blob([JSON.stringify(obj,null,2)],{type:'application/json'})),a=document.createElement('a');a.href=url;a.download='v0.2_fire3d_forward_'+Date.now()+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1500);toast('已匯出正向模擬紀錄 JSON（非鑑識報告）');
+}
+function firePanel(){const site=fireSiteName(),f=FIRE_SCENARIOS[fire.scenario],sp=fire.source;
+ let target=fire.placed?.itemId&&state.data.furniture.find(o=>o.id===fire.placed.itemId);
+ let rows=[...fire.records.values()].filter(r=>r.burning||r.spent).slice(0,14).map(r=>`<div class="item"><strong>${safeText(TYPES[state.data.furniture.find(o=>o.id===r.id)?.type]?.name||'家具')}</strong><small>${r.burning?'燃燒中':r.spent?'燃料耗盡':'受熱'} · ${Math.round(r.heatKW)} kW · ${Math.round(r.temp)} °C</small></div>`).join('');
+ return `<p class="kicker">FORWARD FIRE · SIMULATION v0.2</p><div class="sect"><div class="sect-title">起火情境</div><div class="field"><select data-edit="fire.scenario" ${fire.started?'disabled':''}>${Object.entries(FIRE_SCENARIOS).map(([k,p])=>`<option value="${k}" ${fire.scenario===k?'selected':''}>${p.label}</option>`).join('')}</select></div><p class="subtle" style="margin:8px 0 0">${f.note}</p></div>
+ <div class="sect"><div class="row between"><div><strong style="font-size:12px">火源位置</strong><div class="subtle">${safeText(site)}</div></div><span class="tag">${fire.placed?'自訂':'預設'}</span></div><div class="grid2" style="margin-top:9px"><button class="btn ${fire.placing?'primary':''}" data-action="firePlace" ${fire.started?'disabled':''}>${fire.placing?'正在選取位置…':'在畫面指定位置'}</button><button class="btn" data-action="fireAutoSite" ${fire.started?'disabled':''}>使用預設位置</button></div></div>
+ <div class="sect"><div class="row between"><strong style="font-size:12px">燃燒計算</strong><span class="tag">${fire.finished?'已完成':fire.started?(fire.running?'模擬中':'已暫停'):'未開始'}</span></div><div class="grid2" style="margin-top:9px"><button class="btn primary" data-action="firePlay" ${fire.finished?'disabled':''}>${fire.running?'⏸ 暫停':fire.started?'▶ 繼續':'▶ 開始正向燃燒'}</button><button class="btn" data-action="fireReset" ${!fire.started?'disabled':''}>↺ 重設燃燒</button></div></div>
+ <div class="sect"><div class="sect-title">模擬倍率</div><div class="grid3">${[1,10,40].map(s=>`<button class="btn ${fire.speed===s?'primary':''}" data-action="fireSpeed" data-arg="${s}">${s}×</button>`).join('')}</div></div>
+ <div class="sect"><div class="grid2"><div class="item" style="display:block"><small>火場時間</small><br><strong id="firePanelClock">${fmtFire(fire.simTime)}</strong></div><div class="item" style="display:block"><small>總熱釋放率</small><br><strong id="firePanelPower">${Math.round(fire.totalQ)} kW</strong></div></div></div>
+ ${rows?`<div class="sect"><div class="sect-title">燃燒物件</div><div class="list">${rows}</div></div>`:''}
+ ${fire.events.length?`<div class="sect"><div class="sect-title">最近事件</div><div class="list">${fire.events.slice(-5).reverse().map(e=>`<div class="item"><small>${fmtFire(e.time)}</small><strong>${safeText(e.text)}</strong></div>`).join('')}</div></div>`:''}
+ <button class="btn full" data-action="fireExport" ${!fire.started?'disabled':''}>匯出本次燃燒紀錄 JSON</button>
+ <p class="tiptxt" style="margin-top:12px">本版為未驗證的簡化引燃與熱傳示範。參數為教學假設，不是家具實測燃燒係數；未納入 CFD、真實煙層、供氧限制、閃燃、滅火與結構坍塌。門窗開關目前不改變空氣流場（預定 v0.4）。</p>`;
+}
+function fireAction(action,arg){if(action==='firePlace'){if(fire.started){toast('請先重設燃燒再指定點火位置');return true;}fire.placing=!fire.placing;updateFireUI();renderPanel();return true;}
+ if(action==='fireAutoSite'){fire.placed=null;fire.placing=false;renderPanel();return true;}
+ if(action==='firePlay'){toggleFire();return true;}
+ if(action==='fireReset'){resetFire();renderPanel();return true;}
+ if(action==='fireSpeed'){fire.speed=Number(arg);updateFireUI();renderPanel();return true;}
+ if(action==='fireExport'){exportFire();return true;}return false;
+}
+
+// ===== v0.3 隔間相對延燒風險（非起火機率、避難安全值或法定評等） =====
+// 採 v0.2 的相同燃料/近似熱傳方程，於獨立記憶體中重算，不改變使用者的正向模擬。
+// 標準化測試：每個隔間選最多三個具代表性的可燃物，固定 80 kW / 95 秒火源並強制引燃初始物件。
+// 取候選情境中較不利的延燒結果；所有「時間」都屬未校正的相對比較量。
+const RISK_ENGINE='fire3d-risk-screen-v0.3b-surfaces-unvalidated';
+// v0.3b：地坪／牆面裝修層的「示範數值」；非 ASTM / NIST 單一材料實測常數。
+// qcrit 為假設觸發熱通量(kW/m²)，dose 為累積超額熱暴露(kJ/m²)，
+// fuel 為等效可燃能量(MJ/m²)，hrr 為最大表面 HRR(kW/m²)。
+// 塗料選項一律假設薄漆塗於不燃基材上；不代表任意石膏／夾板牆體都不燃。
+const SURFACE_MATS={
+ oak:{fuel:32,qcrit:12,dose:390,hrr:90,alpha:.024,description:'假設實木表層；不含底層組合'},
+ wood:{fuel:32,qcrit:12,dose:390,hrr:90,alpha:.024,description:'舊版木地板相容映射；僅適用地坪'},
+ walnut:{fuel:32,qcrit:12,dose:400,hrr:90,alpha:.023,description:'假設實木表層；不含底層組合'},
+ carpet:{fuel:25,qcrit:8,dose:220,hrr:155,alpha:.050,description:'示範織物地毯與襯墊組合'},
+ vinyl:{fuel:19,qcrit:12,dose:290,hrr:125,alpha:.033,description:'示範 PVC 地坪；不代表任何產品等級'},
+ wallpaper:{fuel:8,qcrit:9,dose:185,hrr:105,alpha:.065,description:'假設紙質壁紙貼於不燃基材'},
+ woodpanel:{fuel:26,qcrit:12,dose:380,hrr:120,alpha:.023,description:'假設木質護牆板的薄層燃料'},
+ vinylwall:{fuel:17,qcrit:13,dose:315,hrr:100,alpha:.033,description:'假設 PVC 裝飾壁板'},
+ tile:null,stone:null,white:null,sage:null,clay:null,concrete:null
+};
+function surfaceSummary(mat,kind,area){
+ const p=SURFACE_MATS[mat]||null;
+ return {mat,name:MAT[mat]?.name||mat,kind,area:+area.toFixed(1),combustible:!!p,
+  qcrit:p?.qcrit??null,dose:p?.dose??null,fuel:p?.fuel??0,
+  fuelMJ:p?+(area*p.fuel).toFixed(1):0,peakKWm2:p?.hrr??0,parameterClass:'未經校正的示範材料假設'};
+}
+function roomWallPieces(room){
+ const pieces=[],eps=.025;
+ for(const seg of state.segments){
+  if(seg.interior&&state.data.openWallIds?.includes(seg.id))continue;
+  const vertical=Math.abs(seg.x1-seg.x2)<.001,lo=vertical?Math.min(seg.z1,seg.z2):Math.min(seg.x1,seg.x2),hi=vertical?Math.max(seg.z1,seg.z2):Math.max(seg.x1,seg.x2);
+  if(vertical && Math.abs(seg.x1-room.x)>eps && Math.abs(seg.x1-room.x-room.w)>eps)continue;
+  if(!vertical && Math.abs(seg.z1-room.z)>eps && Math.abs(seg.z1-room.z-room.d)>eps)continue;
+  const a=Math.max(lo,vertical?room.z:room.x),b=Math.min(hi,vertical?room.z+room.d:room.x+room.w);
+  if(b-a<.12)continue;
+  const count=Math.min(18,Math.max(1,Math.ceil((b-a)/1.35)));
+  for(let j=0;j<count;j++){
+   const segmentLength=(b-a)/count,m=a+segmentLength*(j+.5);
+   const matching=(state.data.openings||[]).filter(o=>o.segId===seg.id).some(op=>{
+    const dist=(m-lo),pos=op.t*(hi-lo);
+    return Math.abs(dist-pos)<op.width/2;
+   });
+   const factor=matching?.38:1; // 只近似扣除部分門窗開口；非詳細牆面開口幾何。
+   pieces.push({x:vertical?seg.x1:m,z:vertical?m:seg.z1,area:segmentLength*state.data.height*factor,kind:'wall',exposure:.7});
+  }
+ }
+ return pieces;
+}
+function roomSurfacePatches(r){
+ const patches=[],floorP=SURFACE_MATS[r.floor],wallP=SURFACE_MATS[r.wall];
+ const floorNx=Math.min(12,Math.max(1,Math.ceil(r.w/1.25))),floorNz=Math.min(12,Math.max(1,Math.ceil(r.d/1.25)));
+ if(floorP){for(let ix=0;ix<floorNx;ix++)for(let iz=0;iz<floorNz;iz++){
+  patches.push({kind:'floor',p:floorP,mat:r.floor,x:r.x+r.w*(ix+.5)/floorNx,z:r.z+r.d*(iz+.5)/floorNz,area:(r.w*r.d)/(floorNx*floorNz),exposure:1});
+ }}
+ const wallPieces=roomWallPieces(r);
+ if(wallP){for(const w of wallPieces)patches.push({...w,p:wallP,mat:r.wall});}
+ for(const q of patches){q.energy=q.p.fuel*q.area*1000;q.burning=false;q.spent=false;q.heat=0;q.dose=0;q.born=0;}
+ return {patches,floorArea:r.w*r.d,wallArea:wallPieces.reduce((n,q)=>n+q.area,0),floor:surfaceSummary(r.floor,'floor',r.w*r.d),wall:surfaceSummary(r.wall,'wall',wallPieces.reduce((n,q)=>n+q.area,0))};
+}
+const risk={results:[],baseline:null,rebase:false,selectedId:null,showNumbers:true,heatmap:false,pending:false,lastRun:0,lastMS:0,calcToken:0,error:null};
+const riskScoreText=r=>r&&r.scenarioCount?String(r.score):'—';
+const riskColor=n=>n>=70?'#ad5f4d':n>=40?'#c48b40':'#4f988c';
+const riskLabel=n=>n>=70?'相對較高':n>=40?'相對偏高':'相對較低';
+const riskById=id=>risk.results.find(x=>x.id===id);
+const riskFmtTime=t=>t===null||!Number.isFinite(t)?'未觀察到':fmtFire(t);
+function riskCandidates(items){
+ const combustible=items.filter(o=>fireProps(o).initialKJ>1);
+ const environment=combustible.map(o=>({o,p:fireProps(o),adj:combustible.filter(b=>b.id!==o.id).reduce((acc,b)=>acc+1/(.3+Math.hypot(o.x-b.x,o.z-b.z)**2),0)}));
+ const chosen=[],add=e=>{if(e&&!chosen.some(v=>v.id===e.o.id))chosen.push(e.o)};
+ add([...environment].sort((a,b)=>b.p.peakKW-a.p.peakKW)[0]);
+ add([...environment].sort((a,b)=>b.adj-a.adj)[0]);
+ add([...environment].sort((a,b)=>a.o.id.localeCompare(b.o.id))[0]);
+ return chosen.slice(0,3);
+}
+function riskScenario(origin,home,all,roomOf,props,pairs){
+ const N=all.length,dt=.8,maxTime=600,rec=all.map((o,i)=>({id:o.id,temp:22,energy:props[i].initialKJ,initial:props[i].initialKJ,mat:props[i].mat,peakKW:props[i].peakKW,alpha:props[i].alpha,burning:false,spent:false,heatKW:0,born:0}));
+ const start=all.findIndex(o=>o.id===origin.id);if(start<0&&origin.type!=='finish')return null;
+ if(start>=0){rec[start].burning=true;rec[start].temp=rec[start].mat.tign;rec[start].born=0;}
+ const surfaces=roomSurfacePatches(home),patches=surfaces.patches;
+ let firstFloor=null,firstWall=null,litFloorArea=0,litWallArea=0,peakSurface=0;
+ // 若房間沒有可燃家具，採用「已成功引燃一小片裝修層」的對照情境，
+ // 不將微弱火源能否引燃該材料當成火災發生機率。
+ if(origin.type==='finish'&&patches.length){
+  const target=patches.reduce((a,b)=>Math.hypot(b.x-origin.x,b.z-origin.z)<Math.hypot(a.x-origin.x,a.z-origin.z)?b:a);
+  target.burning=true;target.born=0;
+  if(target.kind==='floor'){firstFloor=0;litFloorArea+=target.area;}
+  else{firstWall=0;litWallArea+=target.area;}
+ }
+
+ const ownIds=all.map((o,i)=>roomOf[i]===home.id?i:-1).filter(i=>i>=0&&rec[i].initial>0);
+ let second=null,third=null,cross=null,reach500=null,peak=0,ownIgnited=start>=0?1:0,otherIgnited=false,peakWithin=0;
+ let totals=[0,0],currentQ=0;
+ for(let t=dt;t<=maxTime+.0001;t+=dt){
+  const sQ=t<=95?80*Math.min(1,t/9):t<=150?80*Math.exp(-(t-95)/11.5):0;
+  const sources=[];
+  if(sQ>.1)sources.push({i:-1,q:sQ,x:origin.x,z:origin.z,rad:.30,room:home.id});
+  currentQ=0;
+  for(let j=0;j<N;j++){
+   const r=rec[j],o=all[j];if(!r.burning)continue;
+   const age=Math.max(0,t-r.born),want=Math.min(r.peakKW,r.alpha*Math.pow(age+5,2));
+   r.heatKW=Math.max(0,Math.min(want,r.energy/dt));
+   r.energy=Math.max(0,r.energy-r.heatKW*dt);r.temp=clamp(r.mat.tign+300*Math.sqrt(r.heatKW/Math.max(1,r.peakKW)),r.mat.tign,650);
+   if(r.energy<.05){r.energy=0;r.heatKW=0;r.burning=false;r.spent=true;}
+   else sources.push({i:j,q:r.heatKW,x:o.x,z:o.z,rad:Math.min(.85,Math.hypot(o.w,o.d)*.28),room:roomOf[j]});
+   if(roomOf[j]===home.id)currentQ+=r.heatKW;
+  }
+  // 裝修表面補充熱釋放率；不視為真實 CFD／熱解計算。
+  let surfaceQ=0;
+  for(const sf of patches){if(!sf.burning)continue;
+   const age=Math.max(0,t-sf.born),want=Math.min(sf.p.hrr*sf.area,sf.p.alpha*sf.area*(age+5)**2);
+   sf.heat=Math.min(want,sf.energy/dt);sf.energy=Math.max(0,sf.energy-sf.heat*dt);surfaceQ+=sf.heat;
+   if(sf.energy<=.05){sf.burning=false;sf.spent=true;sf.heat=0;}
+   else if(sf.heat>.1)sources.push({i:-2,q:sf.heat,x:sf.x,z:sf.z,rad:.3,room:home.id,kind:sf.kind});
+  }
+  currentQ+=surfaceQ;peakSurface=Math.max(peakSurface,surfaceQ);
+  // 表面單元依局部入射熱通量的累積超額熱劑量決定引燃（示範假設）。
+  // 每個表面單元有獨立能量預算，燃燒後也會作為家具的附加輻射源。
+  for(const sf of patches){if(sf.burning||sf.spent)continue;
+   let flux=0;
+   for(const src of sources){if(src.q<1)continue;
+    const dx=src.x-sf.x,dz=src.z-sf.z,d2=dx*dx+dz*dz;
+    if(src.i===-2 && d2<.0005)continue;
+    if(d2>23)continue;
+    const pass=src.i===-2?1:rayPass(src.x,src.z,sf.x,sf.z);
+    const f=src.kind===sf.kind?1.12:1;
+    flux+=Math.min(40,.38*src.q/(4*Math.PI*(d2+(sf.kind==='wall'?.35:.18)))*pass*f*sf.exposure);
+   }
+   flux=Math.min(85,flux);
+   sf.dose=Math.max(0,sf.dose+dt*(flux-sf.p.qcrit));
+   if(sf.dose>=sf.p.dose){sf.burning=true;sf.born=t;
+    if(sf.kind==='floor'){litFloorArea+=sf.area;if(firstFloor===null)firstFloor=t;}
+    else {litWallArea+=sf.area;if(firstWall===null)firstWall=t;}
+   }
+  }
+  if(t<=300)peakWithin=Math.max(peakWithin,currentQ);
+  peak=Math.max(peak,currentQ);if(reach500===null&&currentQ>=500)reach500=t;
+  for(let i=0;i<N;i++){
+   const r=rec[i],o=all[i];if(r.mat.inert||r.burning||r.spent)continue;
+   let rad=0,conv=0,contact=0;
+   for(const src of sources){if(src.i===i||src.q<1)continue;
+    const geom=src.i<0?riskPilotGeometry(src,o,home.id,roomOf[i]):pairs[src.i*N+i];
+    if(!geom)continue;
+    rad+=Math.min(65,.38*src.q/(4*Math.PI*(geom.distance*geom.distance+.14))*geom.pass);
+    if(geom.same)conv+=src.q*.0045/(geom.distance*geom.distance+1.4);
+    if(geom.distance<.29&&geom.pass>.6)contact+=Math.min(6,(.29-geom.distance)*15)*Math.min(1,src.q/220);
+   }
+   const flux=Math.min(90,rad+conv+contact),cool=.012*Math.max(0,r.temp-22);
+   r.temp=clamp(r.temp+(flux-cool)/r.mat.cap*dt,22,550);
+   if(flux>=r.mat.qcrit&&r.temp>=r.mat.tign){r.burning=true;r.born=t;
+    if(roomOf[i]===home.id){ownIgnited++;if(second===null)second=t;else if(third===null)third=t;}
+    else if(!otherIgnited){cross=t;otherIgnited=true;}
+   }
+  }
+  if(!sources.length&&t>155)break;
+ }
+ const n=ownIds.length;
+ const speed=second===null?0:100*Math.exp(-second/150);
+ const spread=n<2?0:100*Math.max(0,ownIgnited-1)/(n-1);
+ const growth=reach500===null?0:100*Math.exp(-reach500/220);
+ const crossing=cross===null?0:100*Math.exp(-cross/320);
+ // 非標準化權重：主要由第二件可燃物引燃時間決定，兼顧參與比例與熱成長。
+ const combustibleArea=(surfaces.floor.combustible?surfaces.floor.area:0)+(surfaces.wall.combustible?surfaces.wall.area:0);
+ const firstSurface=[firstFloor,firstWall].filter(x=>x!==null).sort((a,b)=>a-b)[0]??null;
+ const surfSpeed=firstSurface===null?0:100*Math.exp(-firstSurface/220);
+ const surfFraction=combustibleArea>0?100*Math.min(1,(litFloorArea+litWallArea)/combustibleArea):0;
+ const surfaceIndex=0.65*surfFraction+0.35*surfSpeed;
+ // 家具指標 85% + 裝修表面參與 15%：僅為教學比較權重，非規範評級。
+ const score=Math.round(clamp(.46*speed+.20*spread+.15*growth+.04*crossing+.15*surfaceIndex,0,100));
+ return {score,originId:origin.id,originType:origin.type,second,third,cross,reach500,peak:+peak.toFixed(1),ignited:ownIgnited,combustibles:n,
+   surfaces:{floor:{...surfaces.floor,first:firstFloor,burnedArea:+litFloorArea.toFixed(2)},wall:{...surfaces.wall,first:firstWall,burnedArea:+litWallArea.toFixed(2)},surfacePeakKW:+peakSurface.toFixed(1),surfaceIndex:+surfaceIndex.toFixed(1)},
+   components:{speed:+speed.toFixed(1),spread:+spread.toFixed(1),growth:+growth.toFixed(1),crossing:+crossing.toFixed(1),surface:+surfaceIndex.toFixed(1)}};
+}
+function riskPilotGeometry(source,o,sourceRoom,targetRoom){
+ const dst=targetDistance(source,o);return {distance:dst,pass:rayPass(source.x,source.z,o.x,o.z),same:sourceRoom===targetRoom};
+}
+function computeRisk(){
+ const began=performance.now();risk.pending=true;risk.error=null;
+ try{
+  const all=state.data.furniture,N=all.length; if(N>70)throw new Error('本版快速風險評估上限為 70 件家具。請減少物件或拆分案例；目前不顯示風險分數。'); const roomOf=all.map(o=>roomAt(o.x,o.z)?.id||null),props=all.map(fireProps),pairs=new Array(N*N);
+  for(let i=0;i<N;i++)for(let j=0;j<N;j++)if(i!==j){
+   const a=all[i],b=all[j],rad=Math.min(.85,Math.hypot(a.w,a.d)*.28);
+   pairs[i*N+j]={distance:targetDistance({x:a.x,z:a.z,rad},b),pass:rayPass(a.x,a.z,b.x,b.z),same:roomOf[i]===roomOf[j]};
+  }
+  const results=state.rooms.map(room=>{
+   const contents=all.filter((o,i)=>roomOf[i]===room.id),candidates=riskCandidates(contents);
+   if(!candidates.length&&(SURFACE_MATS[room.floor]||SURFACE_MATS[room.wall])){const floorFuel=!!SURFACE_MATS[room.floor];candidates.push({id:'finish-'+room.id,type:'finish',x:floorFuel?room.x+room.w/2:room.x+.12,z:room.z+room.d/2});}
+   const tests=candidates.map(o=>riskScenario(o,room,all,roomOf,props,pairs)).filter(Boolean);
+   tests.sort((a,b)=>b.score-a.score||(a.second??1e9)-(b.second??1e9));const worst=tests[0]||null;
+   return {id:room.id,name:room.name,area:+(room.w*room.d).toFixed(2),count:contents.length,combustibles:contents.filter(o=>fireProps(o).initialKJ>1).length,floor:surfaceSummary(room.floor,'floor',room.w*room.d),wall:surfaceSummary(room.wall,'wall',roomSurfacePatches(room).wallArea),score:worst?.score??0,worst,cases:tests,scenarioCount:tests.length};
+  });
+  risk.results=results;risk.lastRun=Date.now();risk.lastMS=+(performance.now()-began).toFixed(1);
+  if(risk.rebase||!risk.baseline){risk.baseline=deep(results);risk.rebase=false;}
+  if(!results.some(r=>r.id===risk.selectedId))risk.selectedId=results[0]?.id??null;
+ }catch(err){risk.results=[];risk.error=String(err);console.error('FIRE 3D risk analysis error:',err)}
+ risk.pending=false;
+ if(state.panelKey==='risk')renderPanel();
+}
+let riskTimer=null;
+function scheduleRisk(){clearTimeout(riskTimer);risk.pending=true;riskTimer=setTimeout(()=>computeRisk(),190);}
+function riskRebase(){risk.rebase=true;}
+window.__fire3dRiskDirty=scheduleRisk;window.__fire3dRiskRebase=riskRebase;
+function riskBaselineById(id){return risk.baseline?.find(r=>r.id===id)}
+function riskDeltaText(r){const old=riskBaselineById(r.id);if(!old||!r.scenarioCount||!old.scenarioCount)return '';const delta=r.score-old.score;if(delta===0)return '<span class="risk-delta">持平</span>';return `<span class="risk-delta ${delta>0?'raised':delta<0?'lowered':''}">${delta>0?'+':''}${delta} 分</span>`;}
+function riskPanel(){
+ const entry=risk.results.find(r=>r.id===risk.selectedId)||risk.results[0];
+ if(!entry)return '<p class="tiptxt">'+(risk.error?'風險資料無法計算：'+safeText(risk.error):'正在建立房間資料。')+'</p>';
+ const chosen=entry.worst;
+ const scored=risk.results.filter(r=>r.scenarioCount),avg=scored.length?Math.round(scored.reduce((s,r)=>s+r.score,0)/scored.length):null;
+ return `<p class="kicker">COMPARTMENT FIRE SPREAD · v0.3b</p>
+  <div class="row between" style="margin-bottom:13px"><span class="risk-chip">多起火位置測試 · 10 分鐘觀察窗</span><span class="risk-chip">${risk.pending?'重新計算中':`已評估房均值 ${avg===null?'—':avg} / 100`}</span></div>
+  <div class="sect"><div class="sect-title">各隔間相對風險</div><div class="list">${risk.results.map(r=>`<button class="risk-list-btn ${r.id===entry.id?'active':''}" data-action="riskSelect" data-arg="${safeText(r.id)}"><div><strong>${safeText(r.name)}</strong><br><small>${r.area.toFixed(1)}㎡ · ${r.combustibles} 件可燃家具 · ${safeText(r.floor.name)}／${safeText(r.wall.name)}</small></div><div style="text-align:right"><span class="risk-number" style="font-size:22px;color:${r.scenarioCount?riskColor(r.score):'#93a2a2'}">${riskScoreText(r)}</span>${riskDeltaText(r)}</div></button>`).join('')}</div></div>
+  <div class="sect"><div class="row between"><strong>${safeText(entry.name)}</strong><span class="risk-chip">${entry.scenarioCount?riskLabel(entry.score):'資料不足'}</span></div><div class="row between" style="margin-top:9px"><span class="risk-score" style="color:${entry.scenarioCount?riskColor(entry.score):'#93a2a2'}">${riskScoreText(entry)}<small style="font-size:13px;color:#849898;font-weight:400"> / 100</small></span><span class="subtle">${entry.scenarioCount} 組點火情境<br>${riskDeltaText(entry)}</span></div><div class="risk-bar"><i style="width:${entry.scenarioCount?entry.score:0}%;background:${riskColor(entry.score)}"></i></div></div>
+  <div class="sect"><div class="grid2">
+   <div class="risk-stat"><span>第二件家具引燃</span><strong>${riskFmtTime(chosen?.second)}</strong></div>
+   <div class="risk-stat"><span>第三件家具引燃</span><strong>${riskFmtTime(chosen?.third)}</strong></div>
+   <div class="risk-stat"><span>10 分鐘內本室引燃</span><strong>${chosen?.ignited??0} / ${chosen?.combustibles??0} 件</strong></div>
+   <div class="risk-stat"><span>本室峰值 HRR（近似）</span><strong>${chosen?.peak?.toFixed(0)??'—'} kW</strong></div>
+   <div class="risk-stat"><span>首次波及其他隔間</span><strong>${riskFmtTime(chosen?.cross)}</strong></div>
+   <div class="risk-stat"><span>本室達 500 kW</span><strong>${riskFmtTime(chosen?.reach500)}</strong></div>
+   <div class="risk-stat"><span>地坪首次引燃</span><strong>${riskFmtTime(chosen?.surfaces?.floor.first)}</strong></div>
+   <div class="risk-stat"><span>牆面首次引燃</span><strong>${riskFmtTime(chosen?.surfaces?.wall.first)}</strong></div>
+  </div></div>
+  <div class="sect"><div class="sect-title">地坪／牆面裝修層（示範假設）</div>
+   <div class="risk-stat" style="margin-bottom:7px"><span>地坪｜${safeText(entry.floor.name)}</span><strong>${entry.floor.combustible?entry.floor.qcrit+' kW/m² · '+entry.floor.fuel+' MJ/m²':'不計入可燃表面'}</strong><div class="risk-meta">${entry.floor.combustible?'估算燃燒面積 '+(chosen?.surfaces?.floor.burnedArea??0).toFixed(1)+' / '+entry.floor.area.toFixed(1)+' m²':'目前假設地坪層不燃，未計入底層'}</div></div>
+   <div class="risk-stat"><span>牆面｜${safeText(entry.wall.name)}</span><strong>${entry.wall.combustible?entry.wall.qcrit+' kW/m² · '+entry.wall.fuel+' MJ/m²':'不計入可燃表面'}</strong><div class="risk-meta">${entry.wall.combustible?'估算燃燒面積 '+(chosen?.surfaces?.wall.burnedArea??0).toFixed(1)+' / '+entry.wall.area.toFixed(1)+' m²':'目前假設薄漆或不燃基材，未計入未知基材'}</div></div>
+   <p class="risk-meta">左側為示範引燃熱通量門檻、右側為示範可燃能量面密度，皆非實測與法定分級。未知基材／黏著層／底墊未納入。表面參與佔本版分數 15%。</p></div>
+  <p class="risk-meta">${chosen?'示範起火物件：'+safeText(chosen.originType==='finish'?'房間裝修層':TYPES[chosen.originType]?.name||chosen.originType)+'。每間房選取最多三個代表性可燃家具，採固定火源條件執行快速正向模擬，顯示其中較不利的結果。':'本隔間無可燃家具與已建模之可燃裝修層，暫無點火測試對象（不代表沒有火災危害）。'}</p>
+  <div class="line"></div><div class="grid2 sect">${button('設為比較基準','riskBaseline')}${button(risk.heatmap?'關閉風險色塊':'開啟風險色塊','riskHeatmap')}</div>
+  <div class="grid2 sect">${button(risk.showNumbers?'隱藏房間分數':'顯示房間分數','riskNumbers')}${button('匯出風險報告','riskExport','','primary')}</div>
+  <p class="tiptxt">這是未校正模型的「條件式相對延燒指數」，不是起火機率、消防法規的安全等級或逃生時間。示範分數權重：第二件家具引燃速度 46%、家具引燃比例 20%、本室火勢成長 15%、跨房間引燃 4%、表面燃燒參與 15%。已加入部分地坪與牆面裝修層的風險近似計算，但正向動畫仍以 v0.2 家具火焰為主；未知基材、煙氣、CO、供氧與人員逃生尚未計入。${risk.error?'計算錯誤：'+safeText(risk.error):''}</p>`;
+}
+function riskAction(action,arg){
+ if(action==='riskSelect'){const r=state.rooms.find(r=>r.id===arg);if(r){risk.selectedId=r.id;state.selected={kind:'room',id:r.id,item:r};renderPanel();}return true;}
+ if(action==='riskBaseline'){risk.baseline=deep(risk.results);toast('已將目前公寓配置設為比較基準');renderPanel();return true;}
+ if(action==='riskHeatmap'){risk.heatmap=!risk.heatmap;renderPanel();return true;}
+ if(action==='riskNumbers'){risk.showNumbers=!risk.showNumbers;renderPanel();return true;}
+ if(action==='riskExport'){riskExport();return true;}
+ return false;
+}
+function riskExport(){const report={schema:'fire3d-spread-risk-v0.3b',engine:RISK_ENGINE,generated:new Date().toISOString(),sceneName:state.data.sceneName,configuration:deep(state.data),assumptions:{source:'已引燃的一件代表性家具＋80 kW/95 秒假設輔助火源',timeWindowSec:600,stepSec:0.8,candidatesMax:3,selection:'較不利情境（無可燃家具時可選表面已成功引燃情境）',weights:{secondIgnition:.46,ignitedFraction:.20,heatGrowth:.15,crossRoom:.04,surfaceParticipation:.15},surfaceMaterials:deep(SURFACE_MATS),notIncluded:['通風/供氧','煙層/CO','未知牆面基材及地板底墊／黏著層','逃生路徑/ASET/RSET'],disclaimer:'示範模型，非消防安全法定評分／不能用於真實案件鑑識或避難判定'},results:deep(risk.results),baseline:deep(risk.baseline)};
+ const a=document.createElement('a'),url=URL.createObjectURL(new Blob([JSON.stringify(report,null,2)],{type:'application/json'}));a.href=url;a.download='v0.3b_fire3d_risk_'+Date.now()+'.json';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1200);toast('已匯出風險評估 JSON（非鑑識報告）');
+}
+function drawRiskOverlay(w,h){if(!risk.results.length||(!risk.showNumbers&&!risk.heatmap))return;
+ const ctx=fxCtx;ctx.save();
+ for(const r of state.rooms){const data=riskById(r.id);if(!data)continue;const col=data.scenarioCount?riskColor(data.score):'#8b9f9f';
+  if(risk.heatmap&&data.scenarioCount){const pts=[[r.x+.08,r.z+.08],[r.x+r.w-.08,r.z+.08],[r.x+r.w-.08,r.z+r.d-.08],[r.x+.08,r.z+r.d-.08]].map(([x,z])=>project(x,.075,z));ctx.beginPath();ctx.moveTo(pts[0].x,pts[0].y);pts.slice(1).forEach(p=>ctx.lineTo(p.x,p.y));ctx.closePath();ctx.fillStyle=data.score>=70?'rgba(177,92,69,.19)':data.score>=40?'rgba(211,165,73,.18)':'rgba(73,157,137,.12)';ctx.fill();}
+  if(!risk.showNumbers)continue;const point=project(r.x+r.w/2,.11,r.z+r.d/2),xx=point.x,yy=point.y;
+  if(xx<-80||xx>w+80||yy<-80||yy>h+80)continue;const selected=state.focusTool==='risk'&&risk.selectedId===r.id;
+  ctx.font='700 14px system-ui, -apple-system, sans-serif';const ww=Math.max(36,ctx.measureText(riskScoreText(data)).width+25);
+  ctx.fillStyle='rgba(255,255,255,.94)';ctx.strokeStyle=selected?'#337e83':'#d9e5e2';ctx.lineWidth=selected?2.2:1;
+  ctx.beginPath();ctx.roundRect(xx-ww/2,yy-17,ww,32,9);ctx.fill();ctx.stroke();
+  ctx.fillStyle=col;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(riskScoreText(data),xx,yy-1);
+  if(state.focusTool==='risk'){ctx.font='500 10px system-ui, -apple-system, sans-serif';const txt=r.name.length>7?r.name.slice(0,7):r.name;const namelen=ctx.measureText(txt).width+16;ctx.fillStyle='rgba(255,255,255,.92)';ctx.fillRect(xx-namelen/2,yy+18,namelen,17);ctx.fillStyle='#536e72';ctx.fillText(txt,xx,yy+27);}
+ }
+ ctx.restore();
+}
+
+$('#firePlay').addEventListener('click',()=>toggleFire());$('#fireReset').addEventListener('click',()=>{resetFire();if(state.panelKey==='fire')renderPanel();});
+$('#fireSpeed').addEventListener('change',e=>{fire.speed=Number(e.target.value);updateFireUI();if(state.panelKey==='fire')renderPanel();});
+resetFire(true);
+computeRisk();
+
+window.__fire3dEditReset=updateFireSceneAfterEdit;
+$('#btnUndo').disabled=true;updateStatus();updateFireUI();render();$('#loading').remove();
+// 調試與自動化測試入口，不會修改公開 UI。
+window.__fire3d={getState:()=>deep(state.data),getLayout:()=>deep(state.rooms),selectRoom:id=>{let r=state.rooms.find(o=>o.id===id);if(r)select('room',r)},setRoomMode:()=>setActiveTool('rooms'),moveWall:(id,coord)=>{const anchors=openingAnchors();const changed=setWallCoordinate(id,coord,anchors);if(changed)touchSave();return changed},getSegments:()=>deep(state.segments),screenOfWall:id=>{let s=state.segments.find(v=>v.id===id);return s?project((s.x1+s.x2)/2,.17,(s.z1+s.z2)/2):null;},getWallConflicts:()=>[...state.wallConflicts],addFurniture,splitRoom,switchPreset,undo,exportJson,
+  fireStart:startFire,fireTick:(seconds)=>{if(!fire.started)startFire();fire.running=false;while(seconds>=.4&&!fire.finished){fireTick(.4);seconds-=.4;}state.geomDirty=true;updateFireUI();},
+  fireReset:resetFire,fireScenario:(s)=>{if(FIRE_SCENARIOS[s]&&!fire.started){fire.scenario=s;fire.placed=null;}},
+  firePlace:(p)=>{if(!fire.started&&roomAt(p.x,p.z))fire.placed={x:p.x,z:p.z,itemId:p.itemId||null};},
+  riskState:()=>({results:deep(risk.results),baseline:deep(risk.baseline),ms:risk.lastMS,error:risk.error}),riskCompute:computeRisk,riskBaseline:()=>{risk.baseline=deep(risk.results)},riskShow:()=>setActiveTool('risk'),riskSetRoomMaterial:(id,kind,material)=>{const r=state.rooms.find(q=>q.id===id);if(!r||!['floor','wall'].includes(kind)||!MAT[material]||!(kind==='floor'?['oak','walnut','tile','stone','carpet','vinyl'].includes(material):MAT[material].kind==='wall'))return false;checkpoint();r.node[kind]=material;calcLayout();touchSave();return true;},riskMove:(id,x,z)=>{const o=state.data.furniture.find(o=>o.id===id);if(!o||!Number.isFinite(x)||!Number.isFinite(z))return false;checkpoint();o.x=x;o.z=z;touchSave();return true;},
+  fireState:()=>({time:fire.simTime,started:fire.started,running:fire.running,finished:fire.finished,powerKW:fire.totalQ,peakKW:fire.peakQ,source:fire.source,events:deep(fire.events),objects:[...fire.records.values()].map(r=>({id:r.id,temp:r.temp,q:r.heatKW,burning:r.burning,spent:r.spent,damage:r.damage,energy:r.energy,flux:r.flux}))})};
+</script>
+</body>
+</html>
