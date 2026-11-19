@@ -1,0 +1,53 @@
+name: Update GA4 game popularity
+
+on:
+  schedule:
+    # 01:23 in Taiwan (UTC+8). Schedule can run later under GitHub load.
+    - cron: '23 17 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  id-token: write
+
+concurrency:
+  group: ga4-game-popularity
+  cancel-in-progress: false
+
+jobs:
+  update:
+    if: github.repository == 'chyijiunn/eduGame' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud (OIDC)
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: projects/923831647734/locations/global/workloadIdentityPools/github-actions/providers/github
+          service_account: edugame-ga4-reader@edugame-852fa.iam.gserviceaccount.com
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install GA4 Data API library
+        run: python -m pip install --disable-pip-version-check google-analytics-data
+
+      - name: Generate popularity.json
+        run: python scripts/ga4_popularity.py --property 13019182418 --index index.html --output island/popularity.json
+
+      - name: Commit result
+        run: |
+          git add island/popularity.json
+          if git diff --cached --quiet; then
+            echo 'No changes to report.'
+            exit 0
+          fi
+          git -c user.name='github-actions[bot]' \
+              -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+              commit -m 'Update GA4 game popularity'
+          git push
