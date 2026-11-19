@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#10181c">
+  <meta name="description" content="互動式細沙物理沙盤：可用手機傾斜讓鋼球滾動，觀察沙粒推擠、堆積、崩落與軌跡。">
+  <title>沙紋｜互動式動態沙盤 v1.0</title>
+  <!-- GA4：沿用教育遊戲站既有共用追蹤程式；此路徑適用於部署在網站根目錄的 /eduGame/ 下。 -->
+  <script src="/eduGame/ga4.js" defer></script>
+  <style>
+    :root{color-scheme:dark;--glass:rgba(20,30,33,.67);--stroke:rgba(235,242,240,.16);--ink:#f0f4f0;--muted:#9faeae;--accent:#d8e6dd;--shadow:0 16px 65px rgba(0,0,0,.25)}
+    *{box-sizing:border-box}html,body{margin:0;height:100%;overflow:hidden;background:#10181c;font-family:-apple-system,BlinkMacSystemFont,"Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif;color:var(--ink);-webkit-tap-highlight-color:transparent}
+    button,input,select{font:inherit}button{cursor:pointer}button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid #c3f1e9;outline-offset:3px}
+    #view{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:grab;outline:none}#view:active{cursor:grabbing}
+    #error{display:none;position:fixed;inset:0;z-index:20;align-items:center;justify-content:center;padding:24px;background:#111a1b;text-align:center;line-height:1.9}#error strong{font-size:20px}
+    .brand{position:fixed;top:calc(env(safe-area-inset-top) + 21px);left:24px;z-index:3;pointer-events:none;display:flex;gap:10px;align-items:center;letter-spacing:.15em;font-size:14px;font-weight:550;text-shadow:0 2px 9px #0008}
+    .brand .seal{height:23px;width:23px;border-radius:50%;border:1px solid #f8fbf8a4;display:grid;place-items:center;font-size:11px;letter-spacing:0}.brand small{font-weight:400;font-size:9px;letter-spacing:.13em;opacity:.55}
+    #status{position:fixed;right:24px;top:calc(env(safe-area-inset-top) + 22px);z-index:3;background:rgba(20,30,33,.47);border:1px solid #ffffff20;border-radius:99px;padding:7px 12px;color:#d4ded9;font-size:11px;pointer-events:none;letter-spacing:.04em;backdrop-filter:blur(15px);-webkit-backdrop-filter:blur(15px)}
+    #status:before{content:"";display:inline-block;height:5px;width:5px;border-radius:50%;background:#aecfba;margin-right:8px;vertical-align:2px}
+    .cluster{position:fixed;z-index:9;bottom:calc(env(safe-area-inset-bottom) + 22px);right:22px;display:flex;align-items:flex-end;flex-direction:column;gap:10px}
+    .tools{display:flex;flex-direction:column;align-items:flex-end;gap:9px;pointer-events:none;opacity:0;transform:translateY(10px);transition:transform .25s ease,opacity .23s ease}
+    .cluster.expanded .tools{pointer-events:auto;opacity:1;transform:translateY(0)}
+    .tool{height:44px;width:44px;display:grid;place-items:center;border-radius:50%;border:1px solid var(--stroke);background:var(--glass);color:var(--ink);box-shadow:0 5px 24px #0003;backdrop-filter:blur(17px);-webkit-backdrop-filter:blur(17px);transition:background .2s,border-color .2s,transform .2s}
+    .tool:hover{background:#52605f99;transform:translateY(-1px)}.tool.active{background:#ebf2ea;color:#203332}.tool svg{width:19px;height:19px;stroke:currentColor;stroke-width:1.65;fill:none;stroke-linecap:round;stroke-linejoin:round}
+    #more{height:50px;width:50px;background:#e8ede7;color:#1a2a29;border-color:#ebefe4b8}#more svg{width:22px;height:22px}#more .dots{display:block}#more .close{display:none}.cluster.expanded #more .dots{display:none}.cluster.expanded #more .close{display:block}
+    .toolrow{display:flex;gap:10px;align-items:center}.hintlabel{background:var(--glass);padding:7px 12px;border-radius:50px;font-size:11px;opacity:0;transform:translateX(6px);white-space:nowrap;transition:.2s;pointer-events:none}.toolrow:hover .hintlabel,.toolrow:focus-within .hintlabel{opacity:1;transform:none}
+    .panel{position:fixed;z-index:11;top:50%;left:0;transform:translate(-110%,-50%);width:min(332px,calc(100vw - 80px));max-height:min(78vh,720px);overflow:auto;overscroll-behavior:contain;background:rgba(21,32,34,.83);border:1px solid var(--stroke);border-left:none;border-radius:0 22px 22px 0;box-shadow:var(--shadow);backdrop-filter:blur(27px);-webkit-backdrop-filter:blur(27px);padding:24px 22px;transition:transform .28s cubic-bezier(.16,1,.3,1);scrollbar-width:thin;scrollbar-color:#556461 transparent}
+    .panel.open{transform:translate(0,-50%)}.panel header{display:flex;align-items:center;justify-content:space-between;margin:0 0 18px}.panel h2{font-size:16px;font-weight:570;letter-spacing:.11em;margin:0}.xbtn{color:#d7e3de;border:0;background:transparent;border-radius:9px;display:grid;place-items:center;padding:6px;font-size:23px;line-height:1}
+    .section{border-top:1px solid #ffffff1c;padding:17px 0}.section:first-of-type{border-top:0;padding-top:2px}.section-title{font-size:11px;letter-spacing:.13em;color:#b1c0b7;margin-bottom:13px}
+    .choices{display:grid;grid-template-columns:repeat(2,1fr);gap:7px}.choice{border:1px solid #ffffff20;color:#d0dcda;background:#ffffff08;border-radius:11px;padding:10px 8px;font-size:12px}.choice.selected{background:#dce8df;color:#1b3030;border-color:#dce8df}
+    .control{margin:14px 0 0}.control:first-of-type{margin-top:0}.control-head{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:12px;color:#e1e8e4}.control-value{font-size:11px;color:#aebdb8;font-variant-numeric:tabular-nums}
+    input[type=range]{appearance:none;-webkit-appearance:none;background:#ffffff26;height:3px;width:100%;margin:15px 0 6px;border-radius:9px;display:block}input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;height:15px;width:15px;border-radius:50%;background:#e7f1e9;box-shadow:0 0 0 4px #f0fff010;border:0}input[type=range]::-moz-range-thumb{height:15px;width:15px;border-radius:50%;background:#e7f1e9;border:0}
+    select{width:100%;background:#182426;border:1px solid #ffffff2c;border-radius:10px;color:var(--ink);font-size:12px;padding:10px 11px;margin-top:9px}
+    .smallbtn{padding:9px 12px;border-radius:10px;background:#dbe8df;border:1px solid transparent;color:#1e3330;font-size:12px}.smallbtn.secondary{background:#ffffff12;border:1px solid #ffffff2b;color:#e4ede8}.full{width:100%}.switchline{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:12px;padding:6px 0}.switchline input{appearance:none;-webkit-appearance:none;width:35px;height:20px;border-radius:20px;background:#64716d;position:relative;flex-shrink:0;transition:.2s}.switchline input:after{content:"";position:absolute;left:3px;top:3px;background:#ebf1ed;border-radius:50%;width:14px;height:14px;transition:.2s}.switchline input:checked{background:#9bb9aa}.switchline input:checked:after{transform:translateX(15px)}
+    .note{font-size:11px;line-height:1.75;color:#9cadab;margin:10px 0 0}.bottomactions{display:flex;gap:8px;margin-top:8px}.bottomactions button{flex:1}
+    #activate{position:fixed;z-index:5;left:50%;bottom:calc(env(safe-area-inset-bottom) + 36px);transform:translateX(-50%);background:#142124d9;border:1px solid #ffffff2a;padding:13px 15px;border-radius:18px;box-shadow:var(--shadow);display:none;gap:12px;align-items:center;backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);width:max-content;max-width:calc(100vw - 80px)}
+    #activate.visible{display:flex}#activate span{font-size:12px;line-height:1.45;color:#d9e6df}#activate button{white-space:nowrap}
+    #toast{position:fixed;z-index:16;left:50%;top:calc(env(safe-area-inset-top) + 76px);transform:translate(-50%,-8px);background:#dcebe2;color:#1a302e;padding:10px 16px;border-radius:40px;font-size:12px;opacity:0;pointer-events:none;transition:.23s;white-space:nowrap;max-width:90vw;text-overflow:ellipsis;overflow:hidden}#toast.show{opacity:1;transform:translate(-50%,0)}
+    .information{font-size:12px;line-height:1.9;color:#ccd7d1}.information b{font-weight:550;color:#f2f5f0}.information p{margin:0 0 11px}.footnote{color:#9eaead;font-size:11px;line-height:1.75}.tinyfoot{position:fixed;left:24px;bottom:calc(env(safe-area-inset-bottom) + 28px);color:#ebf1e5a0;font-size:10px;letter-spacing:.05em;pointer-events:none;text-shadow:0 1px 4px #0009}
+    @media(max-width:650px){.brand{top:calc(env(safe-area-inset-top) + 16px);left:17px}.brand small{display:none}#status{top:calc(env(safe-area-inset-top) + 17px);right:16px;font-size:10px}.cluster{right:15px;bottom:calc(env(safe-area-inset-bottom) + 16px)}.panel{width:min(312px,calc(100vw - 68px));padding:20px 18px}.tinyfoot{bottom:calc(env(safe-area-inset-bottom) + 24px);left:16px;max-width:55vw}#activate{bottom:calc(env(safe-area-inset-bottom) + 95px);padding:10px;max-width:calc(100vw - 32px)}}
+    @media (prefers-reduced-motion:reduce){*,*:before,*:after{transition-duration:.01ms!important}}
+  </style>
+</head>
+<body>
+<canvas id="view" aria-label="3D 動態沙盤；按住拖曳可移動視角或操作手動傾斜" tabindex="0"></canvas>
+<div id="error"><div><strong>無法啟動 3D 沙盤</strong><p>此裝置或瀏覽器未支援 WebGL 2。請使用新版 Safari、Chrome 或 Edge。</p></div></div>
+<div class="brand"><span class="seal">◌</span><span>沙紋</span><small>動態沙盤</small></div>
+<div id="status" role="status" aria-live="polite">準備中</div>
+<div class="tinyfoot" id="hint">拖曳旋轉視角 · 滾輪縮放</div>
+<div class="cluster" id="cluster">
+  <div class="tools" id="tools">
+    <div class="toolrow"><span class="hintlabel">設定</span><button class="tool" id="settingsBtn" aria-label="沙盤設定" title="沙盤設定"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 17h16M9 4v6M16 14v6"/></svg></button></div>
+    <div class="toolrow"><span class="hintlabel" id="pauseLabel">暫停</span><button class="tool" id="pauseBtn" aria-label="暫停模擬" title="暫停"><svg id="pauseSvg" viewBox="0 0 24 24"><path d="M8 5v14M16 5v14"/></svg></button></div>
+    <div class="toolrow"><span class="hintlabel">整平沙面</span><button class="tool" id="resetBtn" aria-label="整平沙面" title="整平沙面"><svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 2.4-5.7M4 4v5h5"/></svg></button></div>
+    <div class="toolrow"><span class="hintlabel">俯視</span><button class="tool" id="cameraBtn" aria-label="切換俯視角" title="俯視"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2"/><path d="M12 1v4M12 19v4M1 12h4M19 12h4"/></svg></button></div>
+    <div class="toolrow"><span class="hintlabel">全螢幕</span><button class="tool" id="fullBtn" aria-label="全螢幕" title="全螢幕"><svg viewBox="0 0 24 24"><path d="M8 4H4v4M16 4h4v4M4 16v4h4M20 16v4h-4"/></svg></button></div>
+    <div class="toolrow"><span class="hintlabel">說明</span><button class="tool" id="helpBtn" aria-label="系統說明" title="說明"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7v.5"/></svg></button></div>
+  </div>
+  <button class="tool" id="more" aria-expanded="false" aria-controls="tools" title="更多"><svg class="dots" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.2" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.2" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1.2" fill="currentColor" stroke="none"/></svg><svg class="close" viewBox="0 0 24 24"><path d="m5 5 14 14M19 5 5 19"/></svg></button>
+</div>
+<aside class="panel" id="panel" aria-label="沙盤設定" aria-hidden="true">
+  <header><h2>沙盤設定</h2><button id="panelClose" class="xbtn" aria-label="關閉設定">×</button></header>
+  <div class="section">
+    <div class="section-title">操控方式</div>
+    <div class="choices" id="modes">
+      <button class="choice" data-mode="tilt">裝置傾斜</button>
+      <button class="choice" data-mode="pattern">規律滾動</button>
+      <button class="choice" data-mode="wander">隨機漫遊</button>
+      <button class="choice" data-mode="manual">手動操控</button>
+    </div>
+    <div id="patternBox" style="display:none"><select id="patternType" aria-label="規律滾動路徑"><option value="spiral">漸開螺旋</option><option value="rings">同心圓</option><option value="flower">花瓣曲線</option><option value="lissajous">交錯曲線</option></select></div>
+    <div id="tiltBox" style="display:none"><div class="bottomactions"><button class="smallbtn" id="sensorBtn">啟用傾斜感測</button><button class="smallbtn secondary" id="calibrateBtn">水平校正</button></div><div class="note" id="sensorNote">感測器必須在 HTTPS 網址上經過授權。首次啟用會將目前持握角度設為水平基準。</div></div>
+    <div id="manualBox" class="note" style="display:none">按住沙盤拖曳即可傾斜；方向鍵亦可控制。按住 Shift 拖曳則旋轉視角。</div>
+  </div>
+  <div class="section">
+    <div class="section-title">鋼球與沙的物理參數</div>
+    <div class="control"><div class="control-head"><span>鋼球重量</span><output class="control-value" id="massVal">1.0×</output></div><input id="mass" type="range" min="0.5" max="3" step="0.1" value="1"></div>
+    <div class="control"><div class="control-head"><span>沙質鬆軟度</span><output class="control-value" id="softVal">1.0×</output></div><input id="soft" type="range" min="0.3" max="1.8" step="0.1" value="1"></div>
+    <div class="control"><div class="control-head"><span>沙粒安息角</span><output class="control-value" id="reposeVal">34°</output></div><input id="repose" type="range" min="24" max="43" step="1" value="34"></div>
+    <div class="control"><div class="control-head"><span>沙面滾動阻力</span><output class="control-value" id="frictionVal">1.0×</output></div><input id="friction" type="range" min="0.4" max="2.4" step="0.1" value="1"></div>
+  </div>
+  <div class="section">
+    <div class="section-title">視覺與效能</div>
+    <div class="control"><div class="control-head"><span>沙粒視覺粗細</span><output class="control-value" id="grainVal">1.0×</output></div><input id="grain" type="range" min="0.5" max="1.8" step="0.1" value="1"></div>
+    <div class="control"><div class="control-head"><span>動態顆粒密度</span><output class="control-value" id="densityVal">1.0×</output></div><input id="density" type="range" min="0.3" max="2" step="0.1" value="1"></div>
+    <div class="control"><div class="control-head"><span>沙面解析度</span></div><select id="quality"><option value="auto">自動（建議）</option><option value="low">流暢</option><option value="medium">細緻</option><option value="high">精細</option></select></div>
+    <div class="control"><div class="control-head"><span>觀察視角</span><output class="control-value" id="elevationVal">62°</output></div><input id="elevation" type="range" min="36" max="89" step="1" value="62"></div>
+    <div class="control"><div class="control-head"><span>自然光強度</span><output class="control-value" id="lightVal">1.0×</output></div><input id="light" type="range" min="0.65" max="1.35" step="0.05" value="1"></div>
+    <label class="switchline"><span>接觸處動態細沙顆粒</span><input id="particleToggle" type="checkbox" checked aria-label="顯示動態細沙顆粒"></label>
+    <div class="note">解析度切換會保留既有沙紋；粒子僅表現局部流動，主要沙量由高度場保存。</div>
+  </div>
+  <button id="resetInside" class="smallbtn secondary full">將沙面整平</button>
+</aside>
+<aside class="panel" id="help" aria-label="模擬說明" aria-hidden="true">
+  <header><h2>模擬說明</h2><button id="helpClose" class="xbtn" aria-label="關閉說明">×</button></header>
+  <div class="information">
+    <p><b>手機與平板</b>：選擇「裝置傾斜」並按下感測授權，再以當下的持握角度校正水平。傾斜越大，沿平面的重力分量越大。</p>
+    <p><b>電腦</b>：可選規律路徑、緩慢漫遊；手動模式以拖曳或方向鍵讓沙盤傾斜。一般模式可拖曳旋轉視角、滾輪縮放。</p>
+    <p><b>沙粒</b>：鋼球接觸區的沙面會下陷，沙量向外搬運並堆成沙脊，過陡的坡面會逐漸崩落。重複經過原有軌跡會改變舊地形，凹槽會反過來影響鋼球運動。</p>
+    <p><b>模型界線</b>：使用體積近似守恆的高度場、局部沙粒可視化與簡化滾動力學，並非每顆沙粒都做剛體碰撞的 DEM，也不是經實驗校準的工程級土壤模型。</p>
+  </div>
+  <div class="footnote">不蒐集或傳送裝置傾斜值。統計資料僅由網站原有 GA 共用程式處理（若網站已部署該程式）。</div>
+</aside>
+<div id="activate"><span>傾斜裝置，即可推動鋼球</span><button id="activateBtn" class="smallbtn">啟用感測器</button></div>
+<div id="toast" role="status" aria-live="polite"></div>
+<script>
+(() => {
+'use strict';
+const canvas=document.getElementById('view');
+const gl=canvas.getContext('webgl2',{antialias:true,alpha:false,depth:true,stencil:false,powerPreference:'high-performance',preserveDrawingBuffer:false});
+if(!gl){document.getElementById('error').style.display='flex';return;}
+const PI=Math.PI, TAU=2*PI, R=4.68, SIZE=10.30, MM_PER_UNIT=.1; // 一個世界單位對應約 10 cm；沙盤直徑約 94 cm
+const mobile=/iPhone|iPad|iPod|Android|Mobile/i.test(navigator.userAgent) || (navigator.maxTouchPoints>1 && innerWidth<1100);
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));const mix=(a,b,t)=>a+(b-a)*t;const smooth=(a,b,x)=>{let t=clamp((x-a)/(b-a),0,1);return t*t*(3-2*t);};
+const state={mode:mobile?'tilt':'pattern',pattern:'spiral',pause:false,mass:1,soft:1,repose:34,friction:1,quality:'auto',elevation:62,light:1,particles:true,grain:1,density:1};
+const ball={x:0,z:0,vx:0,vz:0,y:.2,r:.244,sink:.065,lastX:0,lastZ:0};
+const camera={yaw:.13,elevation:62,dist:17.7,targetDist:17.7,top:false};
+const auto={theta:0,t:0,ring:0,phase:0,wanderX:0,wanderZ:0,changeAt:0};
+const sensor={enabled:false,ready:false,hasEvent:false,beta:0,gamma:0,fx:0,fz:0,zeroX:0,zeroZ:0,tiltX:0,tiltZ:0};
+const manual={x:0,z:0,hold:false,keys:new Set()};
+let n=0,heights=null,delta=null,tex=null,texArray=null,gridBuffer=null,indexBuffer=null,indexCount=0,textureDirty=true,settle=0;
+let glWidth=1,glHeight=1,fps=60,slowFrames=0,lastT=0,acc=0,frame=0,clock=0;
+let activePanel=null,toastTimer=null,drag=null;
+const $=id=>document.getElementById(id);
+
+// 基本 4x4 相機矩陣（列主序陣列，符合 WebGL column-major）。
+function perspective(fov,aspect,near,far){const f=1/Math.tan(fov/2),o=new Float32Array(16);o[0]=f/aspect;o[5]=f;o[10]=(far+near)/(near-far);o[11]=-1;o[14]=(2*far*near)/(near-far);return o;}
+function lookAt(e,t){let zx=e[0]-t[0],zy=e[1]-t[1],zz=e[2]-t[2];let l=Math.hypot(zx,zy,zz);zx/=l;zy/=l;zz/=l;
+  let xx=zz,xy=0,xz=-zx;l=Math.hypot(xx,xz);xx/=l;xz/=l;let yx=zy*xz,yy=zz*xx-zx*xz,yz=-zy*xx;
+  return new Float32Array([xx,yx,zx,0,xy,yy,zy,0,xz,yz,zz,0,-(xx*e[0]+xy*e[1]+xz*e[2]),-(yx*e[0]+yy*e[1]+yz*e[2]),-(zx*e[0]+zy*e[1]+zz*e[2]),1]);}
+function mul4(a,b){const o=new Float32Array(16);for(let c=0;c<4;c++)for(let r=0;r<4;r++){let v=0;for(let k=0;k<4;k++)v+=a[k*4+r]*b[c*4+k];o[c*4+r]=v;}return o;}
+function shader(type,source){const s=gl.createShader(type);gl.shaderSource(s,source);gl.compileShader(s);if(!gl.getShaderParameter(s,gl.COMPILE_STATUS)){const error=gl.getShaderInfoLog(s);console.error(error,source);throw new Error('Shader：'+error);}return s;}
+function program(v,f){const p=gl.createProgram();gl.attachShader(p,shader(gl.VERTEX_SHADER,v));gl.attachShader(p,shader(gl.FRAGMENT_SHADER,f));gl.linkProgram(p);if(!gl.getProgramParameter(p,gl.LINK_STATUS))throw new Error(gl.getProgramInfoLog(p));return p;}
+const SHADERS={
+ bgV:`#version 300 es
+ precision highp float;
+ void main(){vec2 p=vec2(float(gl_VertexID==1)*4.0-1.0,float(gl_VertexID==2)*4.0-1.0);gl_Position=vec4(p,0,1);}`,
+ bgF:`#version 300 es
+ precision highp float;uniform vec2 uRes;out vec4 color;
+ float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
+ void main(){vec2 uv=gl_FragCoord.xy/uRes;float r=length((uv-.5)*vec2(uRes.x/uRes.y,1));float v=1.-smoothstep(.07,.87,r);float grain=(hash(floor(gl_FragCoord.xy*0.43))-.5)*.009;vec3 col=mix(vec3(.055,.079,.085),vec3(.12,.14,.143),v);color=vec4(col+grain,1);}`,
+ sandV:`#version 300 es
+ precision highp float;precision highp int;layout(location=0) in vec2 aUV;
+ uniform sampler2D uHeight;uniform mat4 uVP;uniform int uN;uniform float uSize;
+ out vec3 vPos;out vec3 vNor;out float vCavity;
+ float at(ivec2 c){c=clamp(c,ivec2(0),ivec2(uN-1));return texelFetch(uHeight,c,0).r;}
+ void main(){ivec2 q=ivec2(round(aUV*float(uN-1)));float h=at(q);float hl=at(q+ivec2(-1,0)),hr=at(q+ivec2(1,0)),hd=at(q+ivec2(0,-1)),hu=at(q+ivec2(0,1));float dx=uSize/float(uN-1);
+ vPos=vec3((aUV.x-.5)*uSize,h,(aUV.y-.5)*uSize);vNor=normalize(vec3(hl-hr,2.*dx,hd-hu));vCavity=clamp((hl+hr+hd+hu-4.*h)*11.0,0.,.85);gl_Position=uVP*vec4(vPos,1);}`,
+ sandF:`#version 300 es
+ precision highp float;in vec3 vPos,vNor;in float vCavity;
+ uniform float uRadius,uLight,uTime,uGrainScale;uniform vec3 uEye,uBall;out vec4 color;
+ float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453123);}
+ float noise(vec2 x){vec2 i=floor(x),f=fract(x);f=f*f*(3.-2.*f);return mix(mix(hash(i),hash(i+vec2(1,0)),f.x),mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),f.x),f.y);}
+ void main(){float d=length(vPos.xz);if(d>uRadius)discard;
+ vec3 N=normalize(vNor),L=normalize(vec3(-.58,.87,.47)),V=normalize(uEye-vPos);
+ float rough=noise(vPos.xz*20.)*.6+noise(vPos.xz*57./uGrainScale)*.4;
+ float freq=132./uGrainScale;float grain=hash(floor(vPos.xz*freq));float a=clamp(1.8-fwidth(vPos.x*freq)*.5,0.,1.);
+ float sparkle=pow(max(dot(reflect(-L,N),V),0.),25.)*.055;
+ float light=.50+.47*max(dot(N,L),0.)+sparkle;
+ float ao=1.-vCavity*.34;
+ float shadowD=length(vPos.xz-uBall.xz);float localShadow=1.-.41*(1.-smoothstep(.08,.60,shadowD));
+ float dune=.015*(rough-.5)+.022*(grain-.5)*a;
+ vec3 tint=vec3(.927,.916,.883)+vec3(dune*.89,dune,dune*1.04);
+ vec3 c=tint*light*ao*localShadow*uLight;
+ float edge=1.-smoothstep(uRadius-.17,uRadius,d);c*=1.-.045*edge;
+ color=vec4(clamp(c,0.,1.),1.);}`,
+ rimV:`#version 300 es
+ precision highp float;layout(location=0) in vec3 aPos;uniform mat4 uVP;out vec3 vPos;void main(){vPos=aPos;gl_Position=uVP*vec4(aPos,1);}`,
+ rimF:`#version 300 es
+ precision highp float;in vec3 vPos;uniform vec3 uEye;out vec4 color;
+ void main(){float r=length(vPos.xz);float th=atan(vPos.z,vPos.x);float stripe=sin(th*125.+sin(th*17.)*2.3)*.018+sin(th*9.)*.027;
+ vec3 dark=vec3(.093,.122,.13)+stripe;float upper=smoothstep(.024,.080,vPos.y);vec3 col=mix(dark*.65,dark+vec3(.052,.067,.066),upper);
+ float highlight=1.-smoothstep(.004,.028,abs(r-4.73));col+=vec3(.15,.17,.157)*highlight;
+ float edge=1.-smoothstep(4.9,5.04,r);col+=vec3(.028,.04,.039)*edge; color=vec4(col,1);}`,
+ shadowV:`#version 300 es
+ precision highp float;layout(location=0) in vec3 aPos;uniform mat4 uVP;out vec3 vPos;void main(){vPos=aPos;gl_Position=uVP*vec4(aPos,1);}`,
+ shadowF:`#version 300 es
+ precision highp float;in vec3 vPos;out vec4 color;void main(){float d=length(vPos.xz);float a=(1.-smoothstep(4.6,5.65,d))*.37;color=vec4(.012,.021,.025,a);}`,
+ ballV:`#version 300 es
+ precision highp float;layout(location=0) in vec3 aPos;layout(location=1) in vec3 aNor;uniform mat4 uVP;uniform vec3 uCenter;uniform float uRadius;
+ out vec3 vPos,vNor;void main(){vPos=aPos*uRadius+uCenter;vNor=aNor;gl_Position=uVP*vec4(vPos,1.);}`,
+ ballF:`#version 300 es
+ precision highp float;in vec3 vPos,vNor;uniform vec3 uEye;uniform float uLight;out vec4 color;
+ float box(float x,float a,float b,float s){return smoothstep(a-s,a+s,x)*(1.-smoothstep(b-s,b+s,x));}
+ void main(){vec3 N=normalize(vNor),V=normalize(uEye-vPos),re=reflect(-V,N);
+ float sky=smoothstep(-.50,.85,re.y);vec3 env=mix(vec3(.083,.13,.14),vec3(.67,.72,.73),sky);
+ float horizon=1.-smoothstep(.035,.29,abs(re.y+.02));env=mix(env,vec3(.22,.28,.30),horizon*.72);
+ float soft1=box(re.x,-.77,-.30,.085)*box(re.y,.08,.90,.13);
+ float soft2=box(re.x,.35,.59,.06)*box(re.y,.2,.99,.13);
+ float soft3=pow(max(dot(re,normalize(vec3(-.7,.85,.42))),0.),72.);
+ env+=vec3(.86,.91,.93)*soft1*.66+vec3(.8,.88,.92)*soft2*.54+vec3(.88,.96,1.)*soft3*.57;
+ float fres=pow(1.-max(dot(N,V),0.),5.);env=mix(env,vec3(.67,.77,.81),fres*.67);
+ env=clamp(env*.96*uLight,0.,1.);color=vec4(env,1);}`,
+ particleV:`#version 300 es
+ precision highp float;layout(location=0) in vec4 aP;uniform mat4 uVP;uniform float uDpr,uGrainScale;out float vLife;
+ void main(){vLife=aP.w;gl_Position=uVP*vec4(aP.xyz,1);gl_PointSize=clamp(3.4*uDpr*(1.+aP.w*.25)*sqrt(uGrainScale),1.5,8.);}`,
+ particleF:`#version 300 es
+ precision highp float;in float vLife;out vec4 color;void main(){float d=length(gl_PointCoord-.5);float alpha=(1.-smoothstep(.25,.49,d))*min(1.,vLife*2.2);if(alpha<.02)discard;color=vec4(.945,.936,.908,alpha*.88);}`
+};
+const prog={bg:program(SHADERS.bgV,SHADERS.bgF),sand:program(SHADERS.sandV,SHADERS.sandF),rim:program(SHADERS.rimV,SHADERS.rimF),shadow:program(SHADERS.shadowV,SHADERS.shadowF),ball:program(SHADERS.ballV,SHADERS.ballF),particles:program(SHADERS.particleV,SHADERS.particleF)};
+function uni(p,name){return gl.getUniformLocation(p,name);} // 小型 demo 每幀僅查詢少量制服變數
+function setMat(p,name,m){gl.uniformMatrix4fv(uni(p,name),false,m);}function set3(p,name,x,y,z){gl.uniform3f(uni(p,name),x,y,z);}
+const vao={};
+vao.bg=gl.createVertexArray();
+function mesh(attributes,indices=null){const out={vao:gl.createVertexArray(),count:0,ibo:null,vbos:[]};gl.bindVertexArray(out.vao);for(let i=0;i<attributes.length;i++){const a=attributes[i],b=gl.createBuffer();gl.bindBuffer(gl.ARRAY_BUFFER,b);gl.bufferData(gl.ARRAY_BUFFER,a.data,a.usage||gl.STATIC_DRAW);gl.enableVertexAttribArray(a.location);gl.vertexAttribPointer(a.location,a.size,gl.FLOAT,false,a.stride||0,a.offset||0);out.vbos.push(b);}if(indices){out.ibo=gl.createBuffer();gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,out.ibo);gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,new Uint32Array(indices),gl.STATIC_DRAW);out.count=indices.length;}else out.count=attributes[0].data.length/attributes[0].size;gl.bindVertexArray(null);return out;}
+function ringMesh(){let vertices=[],indices=[];const profile=[[4.58,-.12],[4.59,.005],[4.66,.052],[4.71,.074],[4.81,.084],[4.93,.076],[5.035,.036],[5.035,-.225],[4.95,-.225]];
+  const count=256;for(let i=0;i<=count;i++){let a=i/count*TAU;for(const [r,h] of profile)vertices.push(r*Math.cos(a),h,r*Math.sin(a));}
+  for(let i=0;i<count;i++)for(let j=0;j<profile.length-1;j++){let a=i*profile.length+j,b=(i+1)*profile.length+j;indices.push(a,b,a+1,b,b+1,a+1);}
+  return mesh([{location:0,size:3,data:new Float32Array(vertices)}],indices);
+}
+const rim=ringMesh();
+function shadowMesh(){let p=[0,-.255,0],idx=[];for(let i=0;i<=120;i++){let a=i/120*TAU;p.push(Math.cos(a)*5.78,-.255,Math.sin(a)*5.78);}for(let i=1;i<=120;i++)idx.push(0,i,i+1);return mesh([{location:0,size:3,data:new Float32Array(p)}],idx);}const floorShadow=shadowMesh();
+function sphereMesh(segments=52,rings=34){let pos=[],normal=[],ix=[];for(let y=0;y<=rings;y++){let v=y/rings,phi=v*PI;for(let x=0;x<=segments;x++){let u=x/segments,theta=u*TAU,px=Math.sin(phi)*Math.cos(theta),py=Math.cos(phi),pz=Math.sin(phi)*Math.sin(theta);pos.push(px,py,pz);normal.push(px,py,pz);}}
+for(let y=0;y<rings;y++)for(let x=0;x<segments;x++){let a=y*(segments+1)+x,b=a+segments+1;ix.push(a,b,a+1,b,b+1,a+1);}return mesh([{location:0,size:3,data:new Float32Array(pos)},{location:1,size:3,data:new Float32Array(normal)}],ix);}const sphere=sphereMesh();
+const particleCap=mobile?650:1200;
+const pts=Array.from({length:particleCap},()=>({x:0,y:0,z:0,vx:0,vy:0,vz:0,life:0,max:1}));let nextParticle=0;
+const particleBytes=new Float32Array(particleCap*4);const particleMesh=mesh([{location:0,size:4,data:particleBytes,usage:gl.DYNAMIC_DRAW}]);
+
+function resolutionForQuality(){if(state.quality==='low')return 160;if(state.quality==='medium')return 232;if(state.quality==='high')return 304;return mobile?192:256;}
+function initHeight(newN,retain=true){const prev=heights,old=n;n=newN;heights=new Float32Array(n*n);delta=new Float32Array(n*n);if(retain&&prev&&old){for(let j=0;j<n;j++)for(let i=0;i<n;i++){let px=i/(n-1)*(old-1),py=j/(n-1)*(old-1),ix=Math.min(old-2,Math.floor(px)),iy=Math.min(old-2,Math.floor(py)),fx=px-ix,fy=py-iy;heights[j*n+i]=mix(mix(prev[iy*old+ix],prev[iy*old+ix+1],fx),mix(prev[(iy+1)*old+ix],prev[(iy+1)*old+ix+1],fx),fy);}}
+else{for(let j=0;j<n;j++)for(let i=0;i<n;i++){let x=(i/(n-1)-.5)*SIZE,z=(j/(n-1)-.5)*SIZE;heights[j*n+i]=.0011*(Math.sin(x*17.3+z*9.1)+Math.sin(x*45-z*34))*.5;}}
+  if(tex)gl.deleteTexture(tex);tex=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,tex);gl.pixelStorei(gl.UNPACK_ALIGNMENT,1);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.NEAREST);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.NEAREST);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);gl.texImage2D(gl.TEXTURE_2D,0,gl.R32F,n,n,0,gl.RED,gl.FLOAT,heights);
+  if(gridBuffer){gl.deleteVertexArray(gridBuffer.vao);for(const b of gridBuffer.vbos)gl.deleteBuffer(b);if(gridBuffer.ibo)gl.deleteBuffer(gridBuffer.ibo);}
+  let uv=[],indices=[];for(let j=0;j<n;j++)for(let i=0;i<n;i++)uv.push(i/(n-1),j/(n-1));for(let j=0;j<n-1;j++)for(let i=0;i<n-1;i++){let a=j*n+i,b=a+n;indices.push(a,b,a+1,b,b+1,a+1);}
+  gridBuffer=mesh([{location:0,size:2,data:new Float32Array(uv)}],indices);textureDirty=true;settle=2;
+}
+function idx(x,z){let ix=clamp(Math.round((x/SIZE+.5)*(n-1)),0,n-1),iz=clamp(Math.round((z/SIZE+.5)*(n-1)),0,n-1);return iz*n+ix;}
+function sample(x,z){let px=clamp((x/SIZE+.5)*(n-1),0,n-1),py=clamp((z/SIZE+.5)*(n-1),0,n-1),i=Math.min(n-2,Math.floor(px)),j=Math.min(n-2,Math.floor(py)),fx=px-i,fy=py-j,o=j*n+i;return mix(mix(heights[o],heights[o+1],fx),mix(heights[o+n],heights[o+n+1],fx),fy);}
+function supportHeight(x,z,r){let v=0,wt=0;for(let k=0;k<10;k++){const a=k/10*TAU,rr=r*.87,xx=x+rr*Math.cos(a),zz=z+rr*Math.sin(a);if(Math.hypot(xx,zz)>R-.03)continue;v+=sample(xx,zz);wt++;}return wt?v/wt:sample(x,z);}
+// 球面接觸：從中心區移出體積，再按方位分配到外圈沙脊；存入高度陣列，並非在畫布上畫線。
+function stamp(x,z,vx,vz,dtFactor){let support=supportHeight(x,z,ball.r);let floor=-.24;
+  const massSink=clamp(.025+.035*state.mass*state.soft, .023,.13);ball.sink=mix(ball.sink,massSink,.11);
+  const bottom=support-ball.sink,center=bottom+ball.r, step=SIZE/(n-1);
+  const reach=ball.r*1.72;let minX=clamp(Math.floor((x-reach)/SIZE*(n-1)+(n-1)/2),1,n-2),maxX=clamp(Math.ceil((x+reach)/SIZE*(n-1)+(n-1)/2),1,n-2),minZ=clamp(Math.floor((z-reach)/SIZE*(n-1)+(n-1)/2),1,n-2),maxZ=clamp(Math.ceil((z+reach)/SIZE*(n-1)+(n-1)/2),1,n-2);
+  const speed=Math.hypot(vx,vz),vv=speed>.08?1/speed:0,dirX=vx*vv,dirZ=vz*vv;let removed=0,weights=0,fac=clamp(.48*dtFactor,.16,.78),bR=ball.r;
+  for(let j=minZ;j<=maxZ;j++)for(let i=minX;i<=maxX;i++){
+    const xx=(i/(n-1)-.5)*SIZE,zz=(j/(n-1)-.5)*SIZE;let rad=Math.hypot(xx-x,zz-z);if(Math.hypot(xx,zz)>R-.026)continue;let id=j*n+i;
+    if(rad<bR*.94){let surface=center-Math.sqrt(Math.max(.0,bR*bR-rad*rad));let h=heights[id],cut=clamp((h-surface)*fac,0,.019*dtFactor);cut=Math.min(cut,Math.max(0,h-floor));if(cut>0){heights[id]-=cut;removed+=cut;}}
+    else if(rad>bR*.97&&rad<bR*1.68){let rr=(rad-bR*1.20)/(bR*.31),w=Math.exp(-rr*rr*1.25);let cross=vv?Math.abs((xx-x)*dirZ-(zz-z)*dirX)/Math.max(rad,.001):.7;let front=vv?Math.max(0,((xx-x)*dirX+(zz-z)*dirZ)/Math.max(rad,.001)):0;w*=(.55+.9*cross+.20*front);weights+=w;}
+  }
+  if(removed>0&&weights>1e-8){let scale=removed/weights;for(let j=minZ;j<=maxZ;j++)for(let i=minX;i<=maxX;i++){
+     const xx=(i/(n-1)-.5)*SIZE,zz=(j/(n-1)-.5)*SIZE;let rad=Math.hypot(xx-x,zz-z);if(Math.hypot(xx,zz)>R-.026||rad<=bR*.97||rad>=bR*1.68)continue;let rr=(rad-bR*1.20)/(bR*.31),w=Math.exp(-rr*rr*1.25);let cross=vv?Math.abs((xx-x)*dirZ-(zz-z)*dirX)/Math.max(rad,.001):.7;let front=vv?Math.max(0,((xx-x)*dirX+(zz-z)*dirZ)/Math.max(rad,.001)):0;heights[j*n+i]+=scale*w*(.55+.9*cross+.20*front);
+  }textureDirty=true;settle=2.5;
+  if(state.particles){let count=clamp(Math.floor((6+speed*1.5)*state.density),2,30);for(let p=0;p<count;p++)spawn(x,z,dirX,dirZ,bR);}}
+}
+function relax(dt){if(settle<=0)return;const repose=Math.tan(state.repose*PI/180),spacing=SIZE/(n-1),limit=spacing*repose;
+  // 同時更新、成對交換：內部沙量的總和在浮點誤差範圍內保持不變。
+  delta.fill(0);const k=clamp(dt*10,0,.26),edge=R-.06;let changed=false;
+  for(let j=2;j<n-2;j++)for(let i=2;i<n-2;i++){let id=j*n+i,x=(i/(n-1)-.5)*SIZE,z=(j/(n-1)-.5)*SIZE;if(x*x+z*z>edge*edge)continue;
+    let h=heights[id];for(const nb of [id+1,id+n]){let d=h-heights[nb];if(Math.abs(d)<=limit)continue;let transfer=Math.sign(d)*Math.min((Math.abs(d)-limit)*k, .013);if(transfer>0)transfer=Math.min(transfer,Math.max(0,h+.24)*.42);else transfer=-Math.min(-transfer,Math.max(0,heights[nb]+.24)*.42);delta[id]-=transfer;delta[nb]+=transfer;changed=true;}
+  }
+  if(changed){for(let i=0;i<heights.length;i++)heights[i]+=delta[i];textureDirty=true;}settle-=dt;
+}
+function spawn(x,z,dx,dz,r){const p=pts[nextParticle++%particleCap],a=Math.random()*TAU,rr=r*(.95+Math.random()*.58);p.x=x+Math.cos(a)*rr;p.z=z+Math.sin(a)*rr;p.y=sample(p.x,p.z)+.005+Math.random()*.017;
+  const vel=.15+Math.random()*.48;p.vx=Math.cos(a)*vel+dx*.12;p.vz=Math.sin(a)*vel+dz*.12;p.vy=.22+Math.random()*.42;p.life=p.max=.38+Math.random()*.55;}
+function updateParticles(dt){for(const p of pts){if(p.life<=0)continue;p.life-=dt;if(p.life<=0)continue;p.x+=p.vx*dt;p.z+=p.vz*dt;p.vy-=3.5*dt;p.y+=p.vy*dt;
+  let surface=sample(p.x,p.z)+.007;if(p.y<=surface){p.y=surface;p.vy=Math.abs(p.vy)*.12;p.vx*=.42;p.vz*=.42;p.life=Math.min(p.life,.16);}}}
+function applyStampSegment(x0,z0,x1,z1,dt){let dist=Math.hypot(x1-x0,z1-z0),num=clamp(Math.ceil(dist/(ball.r*.38)),1,25),vx=ball.vx,vz=ball.vz;for(let i=1;i<=num;i++){let a=i/num;stamp(mix(x0,x1,a),mix(z0,z1,a),vx,vz,clamp((dist/num)/(ball.r*.36),.45,1.35));}}
+function chooseTarget(dt){auto.t+=dt;let x=0,z=0,speed=.7;
+ if(state.mode==='wander'){if(auto.t>auto.changeAt){const a=Math.random()*TAU,rr=Math.sqrt(Math.random())*(R-1.1);auto.wanderX=Math.cos(a)*rr;auto.wanderZ=Math.sin(a)*rr;auto.changeAt=auto.t+5+Math.random()*6;}return {x:auto.wanderX,z:auto.wanderZ,speed:.58,stop:true};}
+ if(state.pattern==='spiral'){let radius=.28+.079*auto.theta;auto.theta+=dt*.84/Math.max(.65,radius);radius=.28+.079*auto.theta;if(radius>R-.52){auto.theta=0;auto.phase+=PI*.61;}x=radius*Math.cos(auto.theta+auto.phase);z=radius*Math.sin(auto.theta+auto.phase);speed=.9;}
+ else if(state.pattern==='rings'){let radius=.75+auto.ring*.53;auto.theta+=dt*.66/Math.max(.6,radius);if(auto.theta>=TAU){auto.theta-=TAU;auto.ring=(auto.ring+1)%7;}radius=.75+auto.ring*.53;x=radius*Math.cos(auto.theta);z=radius*Math.sin(auto.theta);speed=.75;}
+ else if(state.pattern==='flower'){auto.theta+=dt*.24;let radius=2.75+1.08*Math.cos(5*auto.theta);x=radius*Math.cos(auto.theta);z=radius*Math.sin(auto.theta);speed=1.04;}
+ else{auto.theta+=dt*.28;x=3.7*Math.sin(auto.theta);z=2.3*Math.sin(1.91*auto.theta+.5);speed=.98;}
+ return{x,z,speed,stop:false};}
+function physics(dt){clock+=dt;const ox=ball.x,oz=ball.z;
+  const hL=sample(ball.x-.15,ball.z),hR=sample(ball.x+.15,ball.z),hD=sample(ball.x,ball.z-.15),hU=sample(ball.x,ball.z+.15);
+  const gx=(hR-hL)/.3,gz=(hU-hD)/.3;const rollG=9.81/MM_PER_UNIT*(5/7); // 實心球純滾動的 5/7 係數
+  let ax=clamp(-gx,-.25,.25)*rollG*.25,az=clamp(-gz,-.25,.25)*rollG*.25;
+  if(state.mode==='tilt'){
+    sensor.tiltX=mix(sensor.tiltX,sensor.enabled&&sensor.ready?clamp(sensor.fx-sensor.zeroX,-.65,.65):0,.12);
+    sensor.tiltZ=mix(sensor.tiltZ,sensor.enabled&&sensor.ready?clamp(sensor.fz-sensor.zeroZ,-.65,.65):0,.12);
+    ax+=rollG*sensor.tiltX;az+=rollG*sensor.tiltZ;
+  }else if(state.mode==='manual'){
+    const k=manual.keys, keyX=Number(k.has('ArrowRight')||k.has('d'))-Number(k.has('ArrowLeft')||k.has('a')),keyZ=Number(k.has('ArrowDown')||k.has('s'))-Number(k.has('ArrowUp')||k.has('w'));
+    let tx=manual.x+keyX*.10,tz=manual.z+keyZ*.10;ax+=rollG*clamp(tx,-.4,.4);az+=rollG*clamp(tz,-.4,.4);
+    if(!manual.hold){manual.x*=Math.exp(-dt*4);manual.z*=Math.exp(-dt*4);}
+  }else{
+    const q=chooseTarget(dt);let ex=q.x-ball.x,ez=q.z-ball.z,dist=Math.hypot(ex,ez),speed=q.stop?clamp(dist*.6,0,q.speed):q.speed;
+    let desiredX=dist>1e-6?ex/dist*speed:0,desiredZ=dist>1e-6?ez/dist*speed:0;
+    ax+=clamp((desiredX-ball.vx)*16,-26,26);az+=clamp((desiredZ-ball.vz)*16,-26,26);
+  }
+  let speed=Math.hypot(ball.vx,ball.vz),resist=state.friction*(.55+state.soft*.8)*(1+ball.sink*2.0);
+  if(state.mode==='tilt'||state.mode==='manual'){
+    const mag=Math.hypot(ax,az);if(speed<.038&&mag<resist*1.42){ball.vx=0;ball.vz=0;ax=az=0;}
+    else if(speed>.001){ax-=ball.vx/speed*resist;az-=ball.vz/speed*resist;}
+  }else resist*=.46;
+  ball.vx+=ax*dt;ball.vz+=az*dt;
+  let drag=Math.exp(-(state.friction*(.52+state.soft*.34)+(state.mode==='pattern'?.12:.18))*dt);
+  ball.vx*=drag;ball.vz*=drag;
+  let sp=Math.hypot(ball.vx,ball.vz),cap=state.mode==='tilt'||state.mode==='manual'?9:1.5;if(sp>cap){ball.vx*=cap/sp;ball.vz*=cap/sp;}
+  ball.x+=ball.vx*dt;ball.z+=ball.vz*dt;
+  let radius=Math.hypot(ball.x,ball.z),limit=R-ball.r-.055;
+  if(radius>limit){let nx=ball.x/radius,nz=ball.z/radius;ball.x=nx*limit;ball.z=nz*limit;let vOut=ball.vx*nx+ball.vz*nz;if(vOut>0){ball.vx-=(1.17*vOut)*nx;ball.vz-=(1.17*vOut)*nz;ball.vx*=.88;ball.vz*=.88;}}
+  let moved=Math.hypot(ball.x-ox,ball.z-oz);if(moved>.002||clock<2||frame%5===0){applyStampSegment(ox,oz,ball.x,ball.z,dt);}
+  ball.y=supportHeight(ball.x,ball.z,ball.r)+ball.r-ball.sink;
+}
+
+// 所有模擬、UI 與渲染都在本檔，不依賴外部 3D 函式庫。
+function resize(){const dpr=Math.min(devicePixelRatio||1,mobile?1.6:1.85);const w=Math.max(1,Math.floor(innerWidth*dpr)),h=Math.max(1,Math.floor(innerHeight*dpr));if(w===glWidth&&h===glHeight)return;canvas.width=w;canvas.height=h;glWidth=w;glHeight=h;gl.viewport(0,0,w,h);camera.targetDist=calcFit();}
+function calcFit(){let aspect=innerWidth/Math.max(1,innerHeight),fov=39*PI/180;let distance=(R+0.47)/(Math.tan(fov/2)*Math.min(1,aspect))*.99;return clamp(distance,13.0,48);}
+function currentCamera(dt){camera.dist=mix(camera.dist,camera.targetDist,Math.min(.2,dt*6));const e=camera.elevation*PI/180,ce=Math.cos(e),se=Math.sin(e);let eye=[camera.dist*ce*Math.sin(camera.yaw),camera.dist*se,camera.dist*ce*Math.cos(camera.yaw)];let vp=mul4(perspective(39*PI/180,glWidth/glHeight,.08,150),lookAt(eye,[0,0,0]));return {eye,vp};}
+function drawMesh(p,m,matrix,eye){gl.useProgram(p);setMat(p,'uVP',matrix);gl.bindVertexArray(m.vao);gl.drawElements(gl.TRIANGLES,m.count,gl.UNSIGNED_INT,0);}
+function render(dt){resize();if(textureDirty){gl.bindTexture(gl.TEXTURE_2D,tex);gl.texSubImage2D(gl.TEXTURE_2D,0,0,0,n,n,gl.RED,gl.FLOAT,heights);textureDirty=false;}
+ const {eye,vp}=currentCamera(dt);gl.enable(gl.DEPTH_TEST);gl.depthFunc(gl.LEQUAL);gl.disable(gl.CULL_FACE);gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+ gl.disable(gl.DEPTH_TEST);gl.useProgram(prog.bg);gl.uniform2f(uni(prog.bg,'uRes'),glWidth,glHeight);gl.bindVertexArray(vao.bg);gl.drawArrays(gl.TRIANGLES,0,3);
+ gl.enable(gl.DEPTH_TEST);gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);gl.depthMask(false);drawMesh(prog.shadow,floorShadow,vp,eye);gl.depthMask(true);gl.disable(gl.BLEND);
+ drawMesh(prog.rim,rim,vp,eye);
+ gl.useProgram(prog.sand);setMat(prog.sand,'uVP',vp);gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,tex);gl.uniform1i(uni(prog.sand,'uHeight'),0);gl.uniform1i(uni(prog.sand,'uN'),n);gl.uniform1f(uni(prog.sand,'uSize'),SIZE);gl.uniform1f(uni(prog.sand,'uRadius'),R);gl.uniform1f(uni(prog.sand,'uLight'),state.light);gl.uniform1f(uni(prog.sand,'uGrainScale'),state.grain);gl.uniform1f(uni(prog.sand,'uTime'),clock);set3(prog.sand,'uEye',...eye);set3(prog.sand,'uBall',ball.x,ball.y,ball.z);gl.bindVertexArray(gridBuffer.vao);gl.drawElements(gl.TRIANGLES,gridBuffer.count,gl.UNSIGNED_INT,0);
+ gl.useProgram(prog.ball);setMat(prog.ball,'uVP',vp);set3(prog.ball,'uCenter',ball.x,ball.y,ball.z);set3(prog.ball,'uEye',...eye);gl.uniform1f(uni(prog.ball,'uRadius'),ball.r);gl.uniform1f(uni(prog.ball,'uLight'),state.light);gl.bindVertexArray(sphere.vao);gl.drawElements(gl.TRIANGLES,sphere.count,gl.UNSIGNED_INT,0);
+ if(state.particles){let visible=0;for(const p of pts){if(p.life<=0)continue;let i=visible++*4;particleBytes[i]=p.x;particleBytes[i+1]=p.y;particleBytes[i+2]=p.z;particleBytes[i+3]=p.life/p.max;}
+ if(visible){gl.useProgram(prog.particles);setMat(prog.particles,'uVP',vp);gl.uniform1f(uni(prog.particles,'uDpr'),glWidth/innerWidth);gl.uniform1f(uni(prog.particles,'uGrainScale'),state.grain);gl.bindVertexArray(particleMesh.vao);gl.bindBuffer(gl.ARRAY_BUFFER,particleMesh.vbos[0]);gl.bufferSubData(gl.ARRAY_BUFFER,0,particleBytes.subarray(0,visible*4));gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);gl.depthMask(false);gl.drawArrays(gl.POINTS,0,visible);gl.depthMask(true);gl.disable(gl.BLEND);}}
+ gl.bindVertexArray(null);
+}
+function loop(time){try{let dt=lastT?clamp((time-lastT)/1000,.001,.06):1/60;lastT=time;frame++;fps=mix(fps,1/dt,.07);if(!state.pause){acc+=dt;let i=0;while(acc>=1/60&&i<4){physics(1/60);updateParticles(1/60);if(frame%2===0)relax(1/60);acc-=1/60;i++;}if(i===4)acc=0;}else acc=0;
+ render(dt);if(state.quality==='auto'&&fps<23){slowFrames++;if(slowFrames>170&&n>160){initHeight(n<=192?160:192,true);slowFrames=0;toast('已自動降低沙面解析度');}}else slowFrames=Math.max(0,slowFrames-1);
+ requestAnimationFrame(loop);}catch(e){console.error(e);$('error').style.display='flex';$('error').querySelector('p').textContent='渲染或模擬發生問題，請重新開啟頁面。錯誤：'+e.message;}}
+
+function toast(msg){$('toast').textContent=msg;$('toast').classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').classList.remove('show'),2600);}
+function setStatus(){let v={tilt:'傾斜操控',pattern:'規律 · '+({spiral:'螺旋',rings:'同心圓',flower:'花瓣',lissajous:'交錯曲線'}[state.pattern]),wander:'隨機漫遊',manual:'手動操控'}[state.mode];if(state.mode==='tilt'&&!sensor.ready)v='等待傾斜授權';$('status').textContent=state.pause?'已暫停':v;
+ document.querySelectorAll('#modes .choice').forEach(el=>el.classList.toggle('selected',el.dataset.mode===state.mode));$('patternBox').style.display=state.mode==='pattern'?'block':'none';$('tiltBox').style.display=state.mode==='tilt'?'block':'none';$('manualBox').style.display=state.mode==='manual'?'block':'none';$('activate').classList.toggle('visible',state.mode==='tilt'&&!sensor.ready&&!state.pause);$('hint').textContent=state.mode==='manual'?'拖曳傾斜 · Shift + 拖曳旋轉':state.mode==='tilt'?'移動裝置控制 · 拖曳旋轉視角':'拖曳旋轉視角 · 滾輪縮放';}
+function selectMode(mode){state.mode=mode;auto.theta=0;auto.t=0;auto.ring=0;auto.changeAt=0;auto.phase=0;manual.x=manual.z=0;setStatus();if(mode==='tilt'&&!sensor.ready)toast('請點選「啟用感測器」');}
+function showPanel(which){let p=$(which),already=activePanel===which&&p.classList.contains('open');for(const id of ['panel','help']){$(id).classList.remove('open');$(id).setAttribute('aria-hidden','true');}activePanel=null;
+ if(!already){p.classList.add('open');p.setAttribute('aria-hidden','false');activePanel=which;} }
+function closePanels(){for(const id of ['panel','help']){$(id).classList.remove('open');$(id).setAttribute('aria-hidden','true');}activePanel=null;}
+$('more').addEventListener('click',()=>{let c=$('cluster');c.classList.toggle('expanded');$('more').setAttribute('aria-expanded',c.classList.contains('expanded'));});
+$('settingsBtn').addEventListener('click',()=>showPanel('panel'));$('helpBtn').addEventListener('click',()=>showPanel('help'));$('panelClose').onclick=closePanels;$('helpClose').onclick=closePanels;
+$('pauseBtn').onclick=()=>{state.pause=!state.pause;$('pauseLabel').textContent=state.pause?'繼續':'暫停';$('pauseBtn').classList.toggle('active',state.pause);$('pauseSvg').innerHTML=state.pause?'<path d="m8 5 11 7-11 7z"/>':'<path d="M8 5v14M16 5v14"/>';setStatus();};
+function resetSand(){initHeight(n,false);ball.x=ball.z=ball.vx=ball.vz=0;ball.sink=.06;auto.theta=auto.t=auto.ring=auto.phase=0;auto.changeAt=0;for(const p of pts)p.life=0;toast('沙面已整平');}
+$('resetBtn').onclick=resetSand;$('resetInside').onclick=resetSand;
+$('cameraBtn').onclick=()=>{camera.top=!camera.top;camera.elevation=camera.top?88:state.elevation;camera.yaw=camera.top?0:.13;$('cameraBtn').classList.toggle('active',camera.top);toast(camera.top?'俯視模式':'斜視模式');};
+$('fullBtn').onclick=async()=>{try{if(!document.fullscreenElement){if(document.documentElement.requestFullscreen)await document.documentElement.requestFullscreen();else if(canvas.webkitEnterFullscreen)canvas.webkitEnterFullscreen();else toast('此瀏覽器不支援全螢幕');}else await document.exitFullscreen();}catch(e){toast('此瀏覽器無法進入全螢幕');}};
+document.querySelectorAll('#modes [data-mode]').forEach(b=>b.addEventListener('click',()=>selectMode(b.dataset.mode)));
+$('patternType').addEventListener('change',e=>{state.pattern=e.target.value;auto.theta=auto.t=auto.ring=auto.phase=0;setStatus();});
+for(const [id,key,output,fmt] of [['mass','mass','massVal',v=>v.toFixed(1)+'×'],['soft','soft','softVal',v=>v.toFixed(1)+'×'],['repose','repose','reposeVal',v=>v+'°'],['friction','friction','frictionVal',v=>v.toFixed(1)+'×'],['light','light','lightVal',v=>v.toFixed(2)+'×'],['grain','grain','grainVal',v=>v.toFixed(1)+'×'],['density','density','densityVal',v=>v.toFixed(1)+'×']]){$(id).oninput=e=>{state[key]=+e.target.value;$(output).textContent=fmt(state[key]);};}
+$('elevation').oninput=e=>{state.elevation=+e.target.value;camera.elevation=state.elevation;camera.top=false;$('cameraBtn').classList.remove('active');$('elevationVal').textContent=state.elevation+'°';};
+$('quality').onchange=e=>{state.quality=e.target.value;initHeight(resolutionForQuality(),true);};$('particleToggle').onchange=e=>state.particles=e.target.checked;
+
+// DeviceOrientation 必須由使用者手勢觸發 iOS 權限彈窗；只在本地處理，從不送到網站。
+function orientationRead(e){if(!Number.isFinite(e.beta)||!Number.isFinite(e.gamma))return;
+ const b=e.beta*PI/180,g=e.gamma*PI/180,angle=(screen.orientation&&typeof screen.orientation.angle==='number'?screen.orientation.angle:(typeof window.orientation==='number'?window.orientation:0))*PI/180;
+ let right=Math.sin(g)*Math.cos(b),down=Math.sin(b);const xx=right*Math.cos(angle)-down*Math.sin(angle),zz=right*Math.sin(angle)+down*Math.cos(angle);
+ sensor.fx=sensor.hasEvent?mix(sensor.fx,xx,.28):xx;sensor.fz=sensor.hasEvent?mix(sensor.fz,zz,.28):zz;
+ if(!sensor.hasEvent){sensor.zeroX=sensor.fx;sensor.zeroZ=sensor.fz;sensor.hasEvent=true;sensor.ready=true;setStatus();toast('感測器已啟用，已校正水平');}
+}
+async function enableSensor(){if(!window.isSecureContext){toast('傾斜感測需要 HTTPS 網址');return;}
+ if(typeof DeviceOrientationEvent==='undefined'){toast('此瀏覽器不支援傾斜感測');return;}
+ try{if(typeof DeviceOrientationEvent.requestPermission==='function'){const reply=await DeviceOrientationEvent.requestPermission();if(reply!=='granted'){toast('感測授權未開啟，可改用手動操控');return;}}
+  if(!sensor.enabled){window.addEventListener('deviceorientation',orientationRead,{passive:true});sensor.enabled=true;}
+  if(sensor.ready){sensor.zeroX=sensor.fx;sensor.zeroZ=sensor.fz;toast('已重新校正水平');}else toast('請輕微傾斜裝置以啟動感測');
+ }catch(e){console.warn(e);toast('無法取得傾斜權限，請檢查瀏覽器設定');}}
+$('activateBtn').onclick=enableSensor;$('sensorBtn').onclick=enableSensor;$('calibrateBtn').onclick=()=>{if(!sensor.ready){toast('請先啟用感測器');return;}sensor.zeroX=sensor.fx;sensor.zeroZ=sensor.fz;sensor.tiltX=sensor.tiltZ=0;toast('已設定目前角度為水平');};
+
+const pointers=new Map();function pointerPos(e){return{x:e.clientX,y:e.clientY};}
+canvas.addEventListener('pointerdown',e=>{if(e.pointerType==='mouse'&&e.button!==0)return;canvas.setPointerCapture(e.pointerId);pointers.set(e.pointerId,pointerPos(e));if(pointers.size===1){drag={x:e.clientX,y:e.clientY,lastX:e.clientX,lastY:e.clientY,startDist:camera.targetDist};if(state.mode==='manual'&&!e.shiftKey)manual.hold=true;}else if(pointers.size===2){drag=null;manual.hold=false;}});
+canvas.addEventListener('pointermove',e=>{if(!pointers.has(e.pointerId))return;let old=pointers.get(e.pointerId);pointers.set(e.pointerId,pointerPos(e));if(pointers.size===2){const a=[...pointers.values()];const d=Math.hypot(a[0].x-a[1].x,a[0].y-a[1].y);if(!drag||!drag.pinch){drag={pinch:d,zoom:camera.targetDist};return;}camera.targetDist=clamp(drag.zoom*drag.pinch/Math.max(1,d),10,50);return;}
+  if(!drag){drag={x:e.clientX,y:e.clientY,lastX:e.clientX,lastY:e.clientY};return;}
+  const dx=e.clientX-drag.lastX,dy=e.clientY-drag.lastY;drag.lastX=e.clientX;drag.lastY=e.clientY;
+  if(state.mode==='manual'&&!e.shiftKey){manual.hold=true;manual.x=clamp((e.clientX-drag.x)/Math.max(100,innerWidth*.3)*.27,-.40,.40);manual.z=clamp((e.clientY-drag.y)/Math.max(100,innerHeight*.28)*.27,-.40,.40);}else{camera.yaw+=dx*.006;camera.elevation=clamp(camera.elevation-dy*.14,30,89);camera.top=false;$('cameraBtn').classList.remove('active');}
+});
+function release(e){pointers.delete(e.pointerId);manual.hold=false;drag=null;}
+canvas.addEventListener('pointerup',release);canvas.addEventListener('pointercancel',release);
+canvas.addEventListener('wheel',e=>{e.preventDefault();camera.targetDist=clamp(camera.targetDist*Math.exp(e.deltaY*.00085),10,50);},{passive:false});
+window.addEventListener('keydown',e=>{if(['INPUT','SELECT','TEXTAREA'].includes(document.activeElement?.tagName))return;if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','w','a','s','d'].includes(e.key)){manual.keys.add(e.key);if(state.mode==='manual')e.preventDefault();}if(e.key==='Escape')closePanels();if(e.key===' '){if(e.target===document.body||e.target===canvas){e.preventDefault();$('pauseBtn').click();}}});
+window.addEventListener('keyup',e=>manual.keys.delete(e.key));window.addEventListener('blur',()=>{manual.keys.clear();manual.hold=false;});window.addEventListener('resize',()=>{resize();});
+
+try{initHeight(resolutionForQuality(),false);resize();camera.dist=camera.targetDist;setStatus();if(state.mode==='tilt'){$('hint').textContent='傾斜裝置控制 · 點擊啟用感測器';}requestAnimationFrame(loop);}catch(e){console.error(e);$('error').style.display='flex';$('error').querySelector('p').textContent=e.message;}
+})();
+</script>
+</body>
+</html>
