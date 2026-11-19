@@ -55,7 +55,7 @@ def game_for_path(path, games):
     return None
 
 
-def query_page_views(property_id):
+def query_page_views(property_id, start_date, end_date):
     client = BetaAnalyticsDataClient()
     totals = Counter()
     offset = 0
@@ -64,7 +64,7 @@ def query_page_views(property_id):
             property=f'properties/{property_id}',
             dimensions=[Dimension(name='hostName'), Dimension(name='pagePath')],
             metrics=[Metric(name='screenPageViews')],
-            date_ranges=[DateRange(start_date='30daysAgo', end_date='yesterday')],
+            date_ranges=[DateRange(start_date=start_date, end_date=end_date)],
             dimension_filter=FilterExpression(and_group={
                 'expressions': [
                     FilterExpression(filter=Filter(field_name='hostName', string_filter=Filter.StringFilter(
@@ -89,36 +89,50 @@ def query_page_views(property_id):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--index', default='index.html')
-    parser.add_argument('--output', default='island/popularity.json')
-    parser.add_argument('--property', default='13019182418')
+    parser.add_argument('--output', default='popularity.json')
+    parser.add_argument('--property', default='513884931')
     args = parser.parse_args()
     games = read_games(args.index)
-    page_views = query_page_views(args.property)
+    # Query two independent periods; GA4 only returns data collected since tracking began.
+    recent_views = query_page_views(args.property, '30daysAgo', 'yesterday')
+    all_time_views = query_page_views(args.property, '2020-01-01', 'yesterday')
     registered = sorted(games, key=lambda g: len(g['path']), reverse=True)
-    counts = Counter()
-    for path, views in page_views.items():
-        game_id = game_for_path(path, registered)
-        if game_id:
-            counts[game_id] += views
-    ranked = sorted((g for g in games if counts[g['id']] > 0), key=lambda g: (-counts[g['id']], g['id']))
+    def make_ranking(page_views):
+        counts = Counter()
+        for path, views in page_views.items():
+            game_id = game_for_path(path, registered)
+            if game_id:
+                counts[game_id] += views
+        ranked = sorted(games, key=lambda g: (-counts[g['id']], g['id']))
+        rows = [{'rank': index, 'id': game['id'], 'name': game['name'], 'views': counts[game['id']]}
+                for index, game in enumerate(ranked, 1)]
+        return rows, sum(counts[g['id']] > 0 for g in games)
+
+    recent_rows, recent_matched = make_ranking(recent_views)
+    all_time_rows, all_time_matched = make_ranking(all_time_views)
     now = datetime.now(TAIPEI)
     data = {
-        'schemaVersion': 1,
+        'schemaVersion': 2,
         'generatedAt': now.isoformat(timespec='seconds'),
         'timeZone': 'Asia/Taipei',
         'period': {'start': (now.date() - timedelta(days=30)).isoformat(),
                    'end': (now.date() - timedelta(days=1)).isoformat()},
+        'allTimePeriod': {'start': '2020-01-01',
+                          'end': (now.date() - timedelta(days=1)).isoformat()},
         'metric': 'screenPageViews',
         'source': 'GA4',
         'registeredGames': len(games),
-        'matchedGames': len(ranked),
-        'top': [{'rank': index, 'id': game['id'], 'name': game['name'], 'views': counts[game['id']]}
-                for index, game in enumerate(ranked[:10], 1)],
+        'matchedGames': recent_matched,
+        'allTimeMatchedGames': all_time_matched,
+        # Keep 'top' for older island consumers, now including every game.
+        # The first 10 rows are the recent Top 10.
+        'top': recent_rows,
+        'allTime': all_time_rows,
     }
     output = Path(args.output)
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(data, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
-    print(f'Generated {output}: {len(games)} games, {len(ranked)} with views, {len(data["top"])} ranked.')
+    print(f'Generated {output}: {len(games)} games, recent={recent_matched}, allTime={all_time_matched}.')
 
 
 if __name__ == '__main__':
