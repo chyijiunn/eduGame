@@ -86,6 +86,7 @@
         <div class="select">
           <select id="sort" aria-label="排序">
             <option value="recent">最近更新</option>
+            <option value="popular">熱門遊戲（近30天）</option>
             <option value="name">名稱 A→Z</option>
           </select>
           <select id="grade" aria-label="年級">
@@ -1180,6 +1181,53 @@ const SUBTAG_CATALOG = {
 
     const state={q:"",cats:new Set(),sort:"recent",grade:"all"};
 
+    // GA4 熱門資料：eduGame 兩種入口共用根目錄的 popularity.json。
+    // GitHub Actions 透過 GITHUB_TOKEN 提交時，GitHub Pages 可能不重新建置；
+    // 因此從 GitHub Raw 讀取，每個瀏覽器 10 分鐘檢查一次。
+    const POPULARITY_URL='https://raw.githubusercontent.com/chyijiunn/eduGame/main/popularity.json';
+    const POPULARITY_CACHE_KEY='eduGame.popularity.v1';
+    const POPULARITY_CACHE_TTL=10*60*1000;
+    let popularityRanks=new Map();
+    let popularityLoaded=false;
+    const recentCompare=(a,b)=>(b.updatedAt||'').localeCompare(a.updatedAt||'')||a.name.localeCompare(b.name,'zh-Hant');
+
+    function validPopularity(data){
+      return data && data.schemaVersion===1 && data.source==='GA4' &&
+        Array.isArray(data.top) && data.top.length<=100 &&
+        data.top.every(row=>row && typeof row.id==='string' && row.id.length<100 &&
+          Number.isInteger(row.rank) && row.rank>0 && Number.isFinite(row.views) && row.views>=0);
+    }
+    function applyPopularity(data){
+      if(!validPopularity(data))return false;
+      popularityRanks=new Map(data.top.map(row=>[row.id,{rank:row.rank,views:row.views}]));
+      popularityLoaded=true;
+      if(state.sort==='popular')render();
+      return true;
+    }
+    function readPopularityCache(){
+      try{
+        const value=JSON.parse(localStorage.getItem(POPULARITY_CACHE_KEY)||'null');
+        return value && Number.isFinite(value.checkedAt) && validPopularity(value.data) ? value : null;
+      }catch{return null}
+    }
+    async function loadPopularity(){
+      const cached=readPopularityCache();
+      if(cached)applyPopularity(cached.data); // 先使用暫存，避免頁面等待外部網路
+      if(cached && Date.now()-cached.checkedAt<POPULARITY_CACHE_TTL)return;
+      try{
+        const response=await fetch(POPULARITY_URL,{cache:'no-store'});
+        if(!response.ok)throw Error('HTTP '+response.status);
+        const data=await response.json();
+        if(!validPopularity(data))throw Error('熱門資料格式不正確');
+        applyPopularity(data);
+        try{localStorage.setItem(POPULARITY_CACHE_KEY,JSON.stringify({checkedAt:Date.now(),data}));}catch{}
+      }catch(error){
+        // 無網路時沿用舊統計；沒有統計時按最近更新排序，不阻擋其他功能。
+        console.warn('GA4 熱門資料暫時無法更新：',error);
+      }
+    }
+
+
     document.querySelectorAll('.chip').forEach(chip=>{
       chip.addEventListener('click',()=>{
         const c=chip.dataset.cat;
@@ -1226,8 +1274,18 @@ const SUBTAG_CATALOG = {
         });
       }
 
-      if(state.sort==='recent'){ list.sort((a,b)=>(b.updatedAt||"").localeCompare(a.updatedAt||"")); }
-      else { list.sort((a,b)=>a.name.localeCompare(b.name,'zh-Hant')); }
+      if(state.sort==='popular' && popularityLoaded){
+        // 統計檔只包含 Top 10：其餘遊戲僅按更新日排序，不假定瀏覽量為零。
+        list.sort((a,b)=>{
+          const ar=popularityRanks.get(a.id)?.rank??Infinity;
+          const br=popularityRanks.get(b.id)?.rank??Infinity;
+          return ar-br||recentCompare(a,b);
+        });
+      }else if(state.sort==='name'){
+        list.sort((a,b)=>a.name.localeCompare(b.name,'zh-Hant'));
+      }else{
+        list.sort(recentCompare);
+      }
 
       $grid.innerHTML="";
       if(!list.length){ $empty.hidden=false; return; }
@@ -1293,6 +1351,7 @@ const SUBTAG_CATALOG = {
     const initSort=params.get('sort'); if(initSort){ $sort.value=initSort; state.sort=initSort; }
 
     render();
+    loadPopularity();
     window.addEventListener('keydown',(e)=>{
       if(e.key==='/' && document.activeElement!==$q){ e.preventDefault(); $q.focus(); }
       if(e.key==='Escape' && document.activeElement===$q){ $q.value=''; state.q=''; render(); }
