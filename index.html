@@ -51,6 +51,11 @@
     .body{padding:14px 16px;display:grid;gap:6px}
     .title{font-weight:700;font-size:18px}
     .meta{color:var(--muted);font-size:13px}
+    /* 概述最多三行；超過時由 JavaScript 依實際排版截斷，確保結尾是三個半形句點。 */
+    .desc-excerpt{margin:0;line-height:1.6;max-height:4.8em;overflow:hidden;overflow-wrap:anywhere}
+    .modal-stats{margin:12px 0;padding:10px 12px;border:1px solid rgba(255,255,255,.10);border-radius:10px}
+    .modal-stats p{margin:4px 0}
+    .modal-stats small{display:block;margin-top:7px;color:var(--muted);font-size:12px}
     .tags{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
     .tag{font-size:12px;padding:3px 8px;border-radius:999px;background:rgba(14,165,233,.14);color:#7dd3fc;border:1px solid rgba(125,211,252,.35)}
     .actions{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-top:1px solid rgba(255,255,255,.08)}
@@ -1201,6 +1206,7 @@ const SUBTAG_CATALOG = {
     let allTimeRanks=new Map();
     let recentLoaded=false;
     let allTimeLoaded=false;
+    let popularityRequestSettled=false;
     const recentCompare=(a,b)=>(b.updatedAt||'').localeCompare(a.updatedAt||'')||a.name.localeCompare(b.name,'zh-Hant');
 
     function validRankRows(rows){
@@ -1220,6 +1226,7 @@ const SUBTAG_CATALOG = {
       recentLoaded=true;
       allTimeRanks=new Map((data.allTime||[]).map(row=>[row.id,{rank:row.rank,views:row.views}]));
       allTimeLoaded=Array.isArray(data.allTime);
+      updateModalStats();
       if(state.sort==='popular' || state.sort==='allTime')render();
       return true;
     }
@@ -1232,18 +1239,31 @@ const SUBTAG_CATALOG = {
     async function loadPopularity(){
       const cached=readPopularityCache();
       if(cached)applyPopularity(cached.data);
-      if(cached && Date.now()-cached.checkedAt<POPULARITY_CACHE_TTL)return;
-      try{
-        const response=await fetch(POPULARITY_URL,{cache:'no-store'});
-        if(!response.ok)throw Error('HTTP '+response.status);
-        const data=await response.json();
-        if(!validPopularity(data))throw Error('熱門資料格式不正確');
-        applyPopularity(data);
-        try{localStorage.setItem(POPULARITY_CACHE_KEY,JSON.stringify({checkedAt:Date.now(),data}));}catch{}
-      }catch(error){
-        // 網路失敗沿用舊資料，無資料時回退最近更新排序。
-        console.warn('GA4 熱門資料暫時無法更新：',error);
+      if(cached && Date.now()-cached.checkedAt<POPULARITY_CACHE_TTL){
+        popularityRequestSettled=true;
+        updateModalStats();
+        return;
       }
+      let lastError=null;
+      // GitHub Raw 為主，網站根目錄 JSON 為備援；不修改統計資料來源。
+      for(const url of [POPULARITY_URL,'./popularity.json']){
+        try{
+          const response=await fetch(url,{cache:'no-store'});
+          if(!response.ok)throw Error('HTTP '+response.status);
+          const data=await response.json();
+          if(!validPopularity(data))throw Error('熱門資料格式不正確');
+          applyPopularity(data);
+          try{localStorage.setItem(POPULARITY_CACHE_KEY,JSON.stringify({checkedAt:Date.now(),data}));}catch{}
+          popularityRequestSettled=true;
+          updateModalStats();
+          return;
+        }catch(error){
+          lastError=error;
+        }
+      }
+      popularityRequestSettled=true;
+      updateModalStats();
+      console.warn('GA4 熱門資料暫時無法更新：',lastError);
     }
 
     document.querySelectorAll('.chip').forEach(chip=>{
@@ -1259,15 +1279,35 @@ const SUBTAG_CATALOG = {
     $sort.addEventListener('change',()=>{state.sort=$sort.value;render();});
     $grade.addEventListener('change',()=>{state.grade=$grade.value;render();});
 
+    // popularity.json 提供的是 GA4「頁面瀏覽次數」，不是首頁 Go 按鈕的點擊事件數。
+    let selectedDetailGameId=null;
+    const viewCountText=(rows,loaded,id)=>{
+      if(!loaded)return popularityRequestSettled ? '目前無法取得' : '資料讀取中…';
+      const item=rows.get(id);
+      return item ? `${item.views.toLocaleString('zh-TW')} 次` : '尚無統計資料';
+    };
+    function updateModalStats(){
+      if(!modal.open || !selectedDetailGameId)return;
+      const recentEl=document.getElementById('modalRecentViews');
+      const allTimeEl=document.getElementById('modalAllTimeViews');
+      if(recentEl)recentEl.textContent=viewCountText(recentRanks,recentLoaded,selectedDetailGameId);
+      if(allTimeEl)allTimeEl.textContent=viewCountText(allTimeRanks,allTimeLoaded,selectedDetailGameId);
+    }
     function openModal(g){
+      selectedDetailGameId=g.id;
       $modalTitle.textContent=g.name;
       const catText = (g.cats||[]).map(categoryName).join('、') || "未分類";
       $modalContent.innerHTML=`
         <p style="margin-top:0;color:var(--muted)">ID：<code>${g.id}</code></p>
-        <p>${g.desc}</p>
+        <p class="modal-full-description"></p>
         <p><strong>分類：</strong>${catText} · <strong>年級：</strong>${gradeName(g.grade)}</p>
         <p><strong>標籤：</strong>${(g.tags||[]).join('、')||"—"}</p>
         <p><strong>更新日期：</strong>${formatDate(g.updatedAt)}</p>
+        <div class="modal-stats">
+          <p><strong>最近 30 天瀏覽：</strong><span id="modalRecentViews"></span></p>
+          <p><strong>累積瀏覽：</strong><span id="modalAllTimeViews"></span></p>
+          <small>資料來源：GA4 popularity.json；統計的是目標頁面瀏覽次數，非 Go 按鈕點擊數，每日更新。</small>
+        </div>
         <p><a href="${g.url}" target="_blank" rel="noopener">前往遊戲</a></p>
         <hr style="border-color: rgba(255,255,255,.12)">
         <details><summary>如何把遊戲下載？</summary>
@@ -1276,8 +1316,38 @@ const SUBTAG_CATALOG = {
             <li>有些頁面需要連上網頁才能有完整功能，離線使用需確認</li>
           </ol>
         </details>`;
+      $modalContent.querySelector('.modal-full-description').textContent=g.desc;
       modal.showModal();
+      updateModalStats();
     }
+    modal.addEventListener('close',()=>{selectedDetailGameId=null;});
+
+    // 依卡片實際寬度逐字截短，最後精確以「...」結尾（非單字元 …）。
+    // 用二分搜尋減少重排次數，視窗尺寸改變時重新計算。
+    function fitExcerpt(el){
+      const full=el.dataset.fullDesc || '';
+      el.textContent=full;
+      const lineHeight=parseFloat(getComputedStyle(el).lineHeight);
+      if(!Number.isFinite(lineHeight) || lineHeight<=0)return;
+      const limit=lineHeight*3+1;
+      if(el.scrollHeight<=limit)return;
+      let low=0, high=full.length;
+      while(low<high){
+        const mid=Math.ceil((low+high)/2);
+        el.textContent=full.slice(0,mid).trimEnd()+'...';
+        if(el.scrollHeight<=limit)low=mid;
+        else high=mid-1;
+      }
+      el.textContent=full.slice(0,low).trimEnd()+'...';
+    }
+    function fitAllExcerpts(){
+      document.querySelectorAll('.desc-excerpt').forEach(fitExcerpt);
+    }
+    let excerptResizeTimer;
+    window.addEventListener('resize',()=>{
+      clearTimeout(excerptResizeTimer);
+      excerptResizeTimer=setTimeout(fitAllExcerpts,120);
+    });
 
     function render(){
       const kw=state.q;
@@ -1317,8 +1387,7 @@ const SUBTAG_CATALOG = {
           </div>
           <div class="body">
             <div class="title">${g.name}</div>
-            <div class="meta">更新：${formatDate(g.updatedAt)} · 適用：${gradeName(g.grade)}</div>
-            <p>${g.desc}</p>
+            <p class="desc-excerpt"></p>
             <div class="tags">${(g.tags||[]).map(t=>`<span class="tag">${t}</span>`).join('')}</div>
           </div>
           <div class="actions">
@@ -1333,9 +1402,13 @@ const SUBTAG_CATALOG = {
             </a>
             <button class="btn secondary" aria-label="更多資訊：${g.name}" data-id="${g.id}">詳細資訊</button>
           </div>`;
+        const excerpt=card.querySelector('.desc-excerpt');
+        excerpt.dataset.fullDesc=g.desc;
+        excerpt.textContent=g.desc;
         card.querySelector('.btn.secondary').addEventListener('click',()=>openModal(g));
         $grid.appendChild(card);
       }
+      fitAllExcerpts();
     }
     document.addEventListener('click', e => {
       const a = e.target.closest('a[href]');
