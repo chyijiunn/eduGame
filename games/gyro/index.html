@@ -2,7 +2,7 @@
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>GYRO — 戰鬥陀螺場地雷切設計</title>
+<title>GYRO — 場地與發射器雷切設計</title>
 <script src="/eduGame/ga4.js" defer></script>
 <style>
 :root{color-scheme:dark;--bg:#080d17;--panel:rgba(14,21,35,.93);--line:#314052;--txt:#e4ebf5;--sub:#92a5b9;--accent:#65e3cf;--warn:#f3bf73;--blue:#8eb6f2}
@@ -78,6 +78,16 @@ button[hidden],#selectionControls[hidden]{display:none!important}
 button[hidden],div[hidden]{display:none!important}
 @media(max-width:1050px){.layout{grid-template-columns:minmax(0,1fr) 300px}.side.right{padding-left:12px;padding-right:12px}}
 @media(max-width:760px){.top{height:48px}.layout{height:calc(100dvh - 48px);display:block;position:relative}.stage{position:absolute;inset:0;width:100%;height:100%}.side.right{position:absolute;z-index:20;top:0;bottom:0;right:0;left:auto;height:100%;width:min(318px,90vw);max-width:90vw;transform:translateX(110%);transition:transform .2s ease;box-shadow:-12px 0 30px #0008;padding:12px 14px 25px}.side.right.open{transform:translateX(0)}.sidebar-modes{top:-12px}.brand{font-size:12px!important;letter-spacing:.6px!important}.top .mobile{display:inline-flex}.top .desktop{display:none!important}}
+
+/* v0.2 module navigation */
+.module-modes{display:flex;width:100%;margin-bottom:7px;border:0;gap:4px;padding:0;background:transparent}
+.module-modes button{flex:1;min-height:37px;border:1px solid #2f4356;border-radius:8px;background:transparent;font-size:12px}
+.module-modes button.active{border-color:#3f9f95!important}
+.sidebar-modes{top:-12px;margin-bottom:17px}
+#launcherPanelControls .fieldline label{white-space:nowrap}
+#launcherPanelControls .field{margin:11px 0}
+#launcherPanelControls .pills button{min-height:33px;padding:4px}
+@media(max-width:760px){.side.right{padding-top:12px}}
 </style>
 </head>
 <body>
@@ -96,6 +106,7 @@ button[hidden],div[hidden]{display:none!important}
  <div id="toast"></div>
 </main>
 <aside class="side right" id="rightPanel">
+ <div class="module-modes seg" role="tablist" aria-label="設計模組"><button class="active" id="moduleArena" role="tab" aria-selected="true" title="場地與底部齒輪">場地</button><button id="moduleLaunch" role="tab" aria-selected="false" title="手拉式發射器">發射器</button></div>
  <div class="sidebar-modes seg" role="tablist" aria-label="工作模式"><button class="active" id="tabEdit" role="tab" aria-selected="true">場地編輯</button><button id="tabCut" role="tab" aria-selected="false">切割排版</button></div>
  <div id="editPanelControls">
  <div class="hrow"><strong>繪圖工具</strong><span class="tiny">單位 mm</span></div>
@@ -130,6 +141,21 @@ button[hidden],div[hidden]{display:none!important}
    <div class="field"><div class="fieldline"><label for="shH">高度</label><input id="shH" type="number" min="8" step="1"></div></div>
   </div>
  </div>
+ </div>
+ <div id="launcherPanelControls" hidden>
+ <div class="hrow"><strong>拉條式發射器</strong><span class="tiny">分層雷切 · mm</span></div>
+ <div class="field"><div class="fieldline"><label for="launchTravel">有效抽拉行程</label><input id="launchTravel" type="number" min="100" max="340" step="10" value="220"></div></div>
+ <div class="field"><div class="fieldline"><label for="launchPitch">齒條圓周齒距</label><input id="launchPitch" type="number" min="3.7" max="5.5" step="0.1" value="4"></div></div>
+ <div class="field"><div class="fieldline"><label for="launchInput">輸入齒輪齒數</label><input id="launchInput" type="number" min="14" max="28" step="1" value="18"></div></div>
+ <div class="field"><div class="fieldline"><label for="launchLarge">增速齒輪齒數</label><input id="launchLarge" type="number" min="26" max="48" step="1" value="36"></div></div>
+ <div class="field"><div class="fieldline"><label for="launchOutput">輸出齒輪齒數</label><input id="launchOutput" type="number" min="14" max="30" step="1" value="18"></div></div>
+ <div class="field"><div class="fieldline"><label for="launchSheet">雷切板厚</label><input id="launchSheet" type="number" min="2.5" max="5" step="0.5" value="3"></div></div>
+ <div class="field"><div class="fieldline"><label for="launchAxle">傳動軸孔徑</label><input id="launchAxle" type="number" min="3.8" max="4.5" step="0.1" value="4.2"></div></div>
+ <div class="section">傳動動作預覽</div>
+ <div class="field"><div class="fieldline"><label for="pullPosition">手拉齒條位置</label><span class="tiny" id="pullReadout">0 mm</span></div><input id="pullPosition" type="range" min="0" max="220" value="0" step="1" style="width:100%;accent-color:#65e3cf;background:transparent"></div>
+ <div class="smallrow"><button id="pullHome" class="iconbtn ghost" title="齒條回到開始位置" aria-label="齒條歸位"><svg viewBox="0 0 24 24"><path d="M3 12h18m-13-5-5 5 5 5"/></svg></button><button id="pullEnd" class="iconbtn ghost" title="齒條拉到行程終點" aria-label="拉到終點"><svg viewBox="0 0 24 24"><path d="M3 12h18m-5-5 5 5-5 5"/></svg></button><span class="tiny" id="launchRatio"></span></div>
+ <div class="section">圖層預覽</div>
+ <div class="pills"><button class="active" data-launch-layer="all" title="同時顯示兩層傳動">全部</button><button data-launch-layer="lower" title="下層：手拉齒條與輸入小齒輪">下層</button><button data-launch-layer="upper" title="上層：大齒輪與輸出齒輪">上層</button></div>
  </div>
  <div id="cutPanelControls" hidden>
   <div class="hrow"><strong>零件排版</strong><span class="tiny">mm</span></div>
@@ -168,6 +194,7 @@ button[hidden],div[hidden]{display:none!important}
 </div>
 <dialog id="info"><button class="close ghost" id="closeInfo" title="關閉說明" aria-label="關閉">✕</button><h2>GYRO LASER LAB — 操作與限制</h2>
 <div id="infoMetrics"><h3>目前設計檢查</h3><div class="statrow"><div class="stat"><small>推算齒距</small><strong id="nominalPitch">–</strong></div><div class="stat"><small>實際齒距</small><strong id="actualPitch">–</strong></div></div><div id="warning" class="infowarn"></div><div id="sheetInfo" class="tiny"></div></div>
+<h3>發射器 v0.2：分層組立與限制</h3><p>切換至右側「發射器」，可調整手拉行程、圓周齒距、18→36→18 齒輪組及板厚。下層齒條驅動輸入齒輪，輸入小齒輪與上層大齒輪須使用兩根對稱 M3 定位柱剛性連接；上層大齒輪帶動輸出小齒輪，理論傳動比 = 大齒輪齒數／輸出齒輪齒數。滑桿只模擬齒條位移與角度關係，沒有摩擦或動力學。</p><p>切割排版包括底板、分隔板、上蓋、輸入齒輪、大齒輪、輸出齒輪、長齒條、三條導軌、發射頭、陀螺上蓋連接盤、試切片等 SVG。中間隔板與上蓋各設有大開孔，供耦合柱通過；M3 固定柱／軸承／墊片／螺絲不包含在雷切圖中。需確認各層齒輪同軸、板厚公差、齒背隙及轉動自由度。</p><p>發射頭的雙銷孔與配對盤的兩條弧形穿孔採試作卡槽，非已驗證的高速自動脫離機構；首次測試須以低速、完整護罩且不讓手靠近旋轉件。5 mm 木棒軸只連接自製陀螺上蓋盤，與發射器內 M4 軸分開。請勿在未固定連接盤與防護前高速發射。</p><p>此發射器是自訂規格，與原廠 BEYBLADE X 發射器不保證相容；場地的 10.7 mm X 軌道齒輪也不等於發射器的 4 mm 齒距。建議先切 8 齒測試片驗證齒條與齒輪，再製作完整裝置。</p>
 <h3>1. 建立對稱場地</h3><p>選用橢圓、圓形或矩形，在畫布拖曳建立外框；鏡像按鈕按下即切換反白狀態，會將每個圖形對垂直中軸反射並合併為單一外輪廓。選取圖形後可移動、拖右下角控制點縮放，或在右側輸入尺寸；拖曳空白處平移，滑鼠滾輪縮放，手機雙指平移及縮放。外框採「以中心為基準的放射線包絡」整合圖形，適合連續、無內凹回勾的競技場；如果加入與中心主體完全脫離的圖形，會產生非預期外框，請避免。</p>
 <h3>2. 挖空與齒條</h3><p>開啟「中央打通」可得到框架與中心開口；「內緣齒條」則沿內側產生獨立的可拆式模組。齒條不以 Bend 變形，而是沿節線等距逐齒定位。每段有相同數量的外凸卡榫，外框內邊產生對應卡槽，額外間隙為預留的輪廓間距，並非雷射實際切縫補償。</p>
 <h3>3. 分段與組立</h3><p>切割排版依類型緊湊群組：框架分段（FRAME）、獨立齒條分段（RACK）、跨接固定片（BRIDGE）、直線嚙合試切片（TEST）及 12 齒（可調）的底部齒輪（GEAR）。在「切割排版」可直接拖動各零件並旋轉；按右側緊湊排版圖示可重新自動排列，選取零件後可用旋轉按鈕、角度輸入框或拖動旋轉控制點改變朝向。框架分段兩端各有孔，使用跨接片搭配 M3 螺栓／墊片固定。齒條卡榫為同平面嵌合設計，受力時仍可能脫落，正式測試建議另外加背板或機械固定，避免飛散。材料板厚須與固定件、組立高度相容；整個競技場的底部凹面不包含在此版設計中。</p>
@@ -179,13 +206,13 @@ button[hidden],div[hidden]{display:none!important}
 <script>
 (()=>{'use strict';
 const $=id=>document.getElementById(id), TAU=Math.PI*2, rad=d=>d*Math.PI/180, clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
-const defaults={v:1, shapes:[{id:1,type:'ellipse',x:0,y:0,w:330,h:262,base:true}],mirror:true,hollow:true,rack:true,pitchLock:true,frameWidth:18,rackWidth:9,segmentCount:6,tabEach:3,tabWidth:7.5,tabDepth:3.2,clearance:0.15,gearDiameter:10.7,gearTeeth:12,pressure:20,shaft:5,holeExtra:0,layoutManual:null};
-let data=JSON.parse(JSON.stringify(defaults));try{const x=JSON.parse(localStorage.getItem('gyro.v0.1')||localStorage.getItem('xtreme-laser-lab.v0.1')); if(x&&Array.isArray(x.shapes)&&x.shapes.length&&x.v===1)data={...data,...x}}catch(e){}
-let tool='select',tab='edit',selected=null,drag=null,geom=null,layout=null,nextId=Math.max(...data.shapes.map(s=>s.id),1)+1;let view={scale:1.6,x:0,y:0}, pointerMap=new Map();let drawQueued=false, lastWarning='', toastTimeout=0;
+const defaults={v:2,launcher:{travel:220,pitch:4,input:18,large:36,output:18,sheet:3,axle:4.2,layoutManual:null}, shapes:[{id:1,type:'ellipse',x:0,y:0,w:330,h:262,base:true}],mirror:true,hollow:true,rack:true,pitchLock:true,frameWidth:18,rackWidth:9,segmentCount:6,tabEach:3,tabWidth:7.5,tabDepth:3.2,clearance:0.15,gearDiameter:10.7,gearTeeth:12,pressure:20,shaft:5,holeExtra:0,layoutManual:null};
+let data=JSON.parse(JSON.stringify(defaults));try{const x=JSON.parse(localStorage.getItem('gyro.v0.2')||localStorage.getItem('gyro.v0.1')||localStorage.getItem('xtreme-laser-lab.v0.1')); if(x&&Array.isArray(x.shapes)&&x.shapes.length&&([1,2].includes(x.v)))data={...data,...x,launcher:{...defaults.launcher,...x.launcher},v:2}}catch(e){}
+let tool='select',tab='edit',module='arena',selected=null,drag=null,geom=null,layout=null,arenaLayout=null,launcherLayout=null,launcherParts=[],launcherGeom=null,launchPull=0,launchLayer='all',nextId=Math.max(...data.shapes.map(s=>s.id),1)+1;let view={scale:1.6,x:0,y:0}, pointerMap=new Map();let drawQueued=false, lastWarning='', toastTimeout=0;
 const canvas=$('view'),ctx=canvas.getContext('2d');let selectedPart=null;
 const pAdd=(a,b)=>({x:a.x+b.x,y:a.y+b.y}),pSub=(a,b)=>({x:a.x-b.x,y:a.y-b.y}),pMul=(a,k)=>({x:a.x*k,y:a.y*k}),dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
 function setVal(id,value){const e=$(id); if(e)e.value=value}function toast(s){$('toast').textContent=s;$('toast').style.display='block';clearTimeout(toastTimeout);toastTimeout=setTimeout(()=>$('toast').style.display='none',2300)}
-function save(){try{localStorage.setItem('gyro.v0.1',JSON.stringify(data))}catch(e){}}
+function save(){try{localStorage.setItem('gyro.v0.2',JSON.stringify(data))}catch(e){}}
 function ray(shape,dx,dy){let x=shape.x,y=shape.y,w=Math.max(shape.w,1),h=Math.max(shape.h,1);
  if(shape.type==='ellipse'||shape.type==='circle') {let rx=w/2,ry=h/2,A=dx*dx/(rx*rx)+dy*dy/(ry*ry),B=-2*(dx*x/(rx*rx)+dy*y/(ry*ry)),C=x*x/(rx*rx)+y*y/(ry*ry)-1,D=B*B-4*A*C;if(D<0)return 0;let t=(-B+Math.sqrt(D))/(2*A);return Math.max(0,t)}
  let xl=x-w/2,xr=x+w/2,yt=y-h/2,yb=y+h/2,tmin=-Infinity,tmax=Infinity;
@@ -251,14 +278,114 @@ function generate(){geom=profile();const fw=data.frameWidth,rw=data.rackWidth,d=
  }
  const gear=makeGear();parts.push({name:`GEAR_${data.gearTeeth}T_SAMPLE`,layer:'GEAR',points:gear.points,holes:[{x:0,y:0,r:gear.hole}]});
  if(data.hollow&&data.rack)parts.push(straightCoupon());
- geom.parts=parts;geom.gear=gear;geom.tabs=all;geom.outside=Math.max(...geom.o.map(p=>Math.hypot(p.x,p.y)));layout=pack(parts);selectedPart=null;updateStats();
+ geom.parts=parts;geom.gear=gear;geom.tabs=all;geom.outside=Math.max(...geom.o.map(p=>Math.hypot(p.x,p.y)));
+ arenaLayout=pack(parts);buildLauncher();layout=module==='launcher'?launcherLayout:arenaLayout;selectedPart=null;updateStats();
+}
+// ====================== v0.2 手拉式發射器 ======================
+// 共同圓周齒距 p 使齒輪和直齒條在同一模數 m=p/pi。發射器內齒距與場地齒距獨立。
+function launcherGear(z,p,pressure){
+ const m=p/Math.PI,alpha=rad(pressure),rp=z*m/2,rb=rp*Math.cos(alpha),ra=rp+m,rf=Math.max(.4,rp-1.25*m),rootHalf=Math.PI/(2*z)+(Math.tan(alpha)-alpha),pts=[];
+ const inv=r=>r<=rb?0:Math.sqrt((r/rb)**2-1)-Math.atan(Math.sqrt((r/rb)**2-1)),half=r=>rootHalf-inv(r),polar=(r,a)=>({x:r*Math.cos(a),y:r*Math.sin(a)});
+ for(let k=0;k<z;k++){let ang=k*TAU/z;pts.push(polar(rf,ang-rootHalf));if(rb>rf)pts.push(polar(rb,ang-rootHalf));
+  for(let j=1;j<=10;j++){let r=Math.max(rb,rf)+(ra-Math.max(rb,rf))*j/10;pts.push(polar(r,ang-half(r)))}
+  let top=half(ra);for(let j=1;j<=7;j++)pts.push(polar(ra,ang-top+2*top*j/7));
+  for(let j=9;j>=0;j--){let r=Math.max(rb,rf)+(ra-Math.max(rb,rf))*j/10;pts.push(polar(r,ang+half(r)))}
+  pts.push(polar(rf,ang+rootHalf));let next=(k+1)*TAU/z-rootHalf;for(let j=1;j<=5;j++)pts.push(polar(rf,ang+rootHalf+(next-ang-rootHalf)*j/5));
+ }
+ return closedPoly(pts);
+}
+function rectPart(name,layer,x,y,w,h,holes=[]){return {name,layer,points:[{x,y},{x:x+w,y},{x:x+w,y:y+h},{x,y:y+h}],holes}}
+function discPart(name,layer,R,holes=[]){return {name,layer,points:Array.from({length:112},(_,i)=>({x:R*Math.cos(i*TAU/112),y:R*Math.sin(i*TAU/112)})),holes}}
+function launchRack(){let c=data.launcher,p=c.pitch,m=p/Math.PI,a=m,d=1.25*m,ta=Math.tan(rad(20)),toothL=Math.ceil((c.travel+4*p)/p)*p,n=Math.round(toothL/p),baseW=p/2+2*d*ta,tipW=p/2-2*a*ta;
+ let pts=[{x:0,y:0}];for(let k=0;k<n;k++){let x=(k+.5)*p;pts.push({x:x-baseW/2,y:0},{x:x-tipW/2,y:-(a+d)},{x:x+tipW/2,y:-(a+d)},{x:x+baseW/2,y:0})}
+ pts.push({x:toothL,y:0},{x:toothL,y:14},{x:-8,y:14},{x:-8,y:24},{x:-43,y:24},{x:-46,y:21},{x:-46,y:-6},{x:-43,y:-9},{x:-8,y:-9},{x:-8,y:0});
+ return {name:'LAUNCH_RACK_WINDER',layer:'L_RACK',points:closedPoly(pts),holes:[{x:-29,y:7,r:3.5}],toothL};
+}
+function launchSignature(){const c=data.launcher;return JSON.stringify(['launcher02',c.travel,c.pitch,c.input,c.large,c.output,c.sheet,c.axle])}
+function buildLauncher(){const c=data.launcher,p=c.pitch,m=p/Math.PI,R1=c.input*m/2,R2=c.large*m/2,R3=c.output*m/2,distAB=R2+R3;
+ const A={x:Math.max(43,R2+m+18),y:Math.max(39,R2+m+18)},B={x:A.x+distAB,y:A.y};
+ const bigRadius=R2+m,headR=17.5,frameW=Math.ceil(B.x+Math.max(R3+m,headR)+18),frameH=Math.ceil(Math.max(A.y+bigRadius,A.y+R1+1.25*m+14)+18),corner=[{x:9,y:9,r:1.65},{x:frameW-9,y:9,r:1.65},{x:9,y:frameH-9,r:1.65},{x:frameW-9,y:frameH-9,r:1.65}];
+ const shaft=(pt,r)=>({x:pt.x,y:pt.y,r});let pieces=[];
+ const rackRootY=A.y+R1+1.25*m,guideBottomY=rackRootY+16,guideUpperY=rackRootY-(m+1.25*m)-4.5;
+ // 同層導軌有避開輸入小齒輪齒頂，不會與齒輪實體重疊
+ const guideLower={x:11,y:guideBottomY,w:frameW-22,h:7};
+ const guideLeft={x:11,y:guideUpperY,w:Math.max(14,A.x-(R1+m)-17),h:6.5};
+ const rightStart=A.x+(R1+m)+6,guideRight={x:rightStart,y:guideUpperY,w:Math.max(18,frameW-rightStart-11),h:6.5};
+ const guides=[['GUIDE_LOWER',guideLower],['GUIDE_UPPER_LEFT',guideLeft],['GUIDE_UPPER_RIGHT',guideRight]];
+ const guideHoles=[];for(const [,g] of guides){let y=g.y+g.h/2;guideHoles.push({x:g.x+Math.min(6,g.w/3),y,r:1.65},{x:g.x+g.w-Math.min(6,g.w/3),y,r:1.65})}
+ const baseHoles=[...corner,shaft(A,c.axle/2),shaft(B,c.axle/2),...guideHoles];
+ pieces.push(rectPart('CASE_01_BOTTOM','L_BASE',0,0,frameW,frameH,baseHoles));
+ // A 軸中心須有兩根 M3 耦合定位柱通過分隔層，上蓋的 B 軸亦然
+ const middleHoles=[...corner,shaft(A,8.8),shaft(B,c.axle/2),...guideHoles];
+ pieces.push(rectPart('CASE_02_MIDDLE','L_MID',0,0,frameW,frameH,middleHoles));
+ const topHoles=[...corner,shaft(A,c.axle/2),shaft(B,8.8)];
+ pieces.push(rectPart('CASE_03_TOP','L_TOP',0,0,frameW,frameH,topHoles));
+ const axleHole={x:0,y:0,r:c.axle/2},pinPair=[{x:-5.5,y:0,r:1.65},{x:5.5,y:0,r:1.65}];
+ pieces.push({name:`PINION_INPUT_${c.input}T`,layer:'L_PINION',points:launcherGear(c.input,p,20),holes:[axleHole,...pinPair]});
+ pieces.push({name:`GEAR_COMPOUND_${c.large}T`,layer:'L_GEAR',points:launcherGear(c.large,p,20),holes:[axleHole,...pinPair]});
+ pieces.push({name:`GEAR_OUTPUT_${c.output}T`,layer:'L_GEAR',points:launcherGear(c.output,p,20),holes:[axleHole,...pinPair]});
+ const rack=launchRack();pieces.push(rack);
+ for(let [name,g] of guides){let y=g.h/2;pieces.push(rectPart(name,'L_GUIDE',0,0,g.w,g.h,[{x:Math.min(6,g.w/3),y,r:1.65},{x:g.w-Math.min(6,g.w/3),y,r:1.65}]))}
+ pieces.push(discPart('LAUNCHER_DRIVE_HEAD','L_COUPLER',17.5,[axleHole,...pinPair,{x:0,y:11.5,r:1.65},{x:0,y:-11.5,r:1.65}]));
+ // 對應插銷之短弧形孔，為試驗幾何：正式發射前需驗證卡合及脫離
+ const adapterHoles=[{x:0,y:0,r:2.5}];
+ function bayonetSlot(theta){const R=11.5,span=.37,seg=22,cap=12,points=[],width=t=>t<.20?2.9-(2.9-1.8)*t/.20:1.8;
+  const polar=(r,a)=>({x:r*Math.cos(a),y:r*Math.sin(a)});
+  for(let i=0;i<=seg;i++){let t=i/seg;points.push(polar(R+width(t),theta+span*t))}
+  let aEnd=theta+span,end=polar(R,aEnd),wr=width(1);
+  for(let i=1;i<=cap;i++){let phi=Math.PI*i/cap;points.push({x:end.x+wr*Math.cos(aEnd+phi),y:end.y+wr*Math.sin(aEnd+phi)})}
+  for(let i=seg;i>=0;i--){let t=i/seg;points.push(polar(R-width(t),theta+span*t))}
+  let begin=polar(R,theta),wb=width(0);
+  for(let i=1;i<cap;i++){let phi=Math.PI+Math.PI*i/cap;points.push({x:begin.x+wb*Math.cos(theta+phi),y:begin.y+wb*Math.sin(theta+phi)})}
+  return closedPoly(points);
+ }
+ const adapter=discPart('TOP_ADAPTER_FOR_5MM_WOOD','L_TOP_PLATE',20,adapterHoles);
+ adapter.cutouts=[bayonetSlot(Math.PI/2),bayonetSlot(3*Math.PI/2)];
+ pieces.push(adapter);
+ // 齒條試切件，與正式齒條共用節距；提供快速驗證節距的短試片
+ let coupon=launchRack();coupon.points=coupon.points.filter(pt=>pt.x>=0&&pt.x<=8*p); // 下面以正式封閉路徑覆寫，避免零碎端點
+ const cp=[];for(let k=0;k<8;k++){const x=(k+.5)*p,ta=Math.tan(rad(20)),bw=p/2+2*1.25*m*ta,tw=p/2-2*m*ta;
+  if(k===0)cp.push({x:0,y:0});cp.push({x:x-bw/2,y:0},{x:x-tw/2,y:-(2.25*m)},{x:x+tw/2,y:-(2.25*m)},{x:x+bw/2,y:0})}
+ cp.push({x:8*p,y:0},{x:8*p,y:12},{x:0,y:12});pieces.push({name:'TEST_RACK_8T',layer:'L_TEST',points:closedPoly(cp),holes:[]});
+ // 開口檢驗針規：兩款 5mm 木棒孔試切墊片
+ pieces.push(discPart('TEST_SHAFT_5_0', 'L_TEST',9,[{x:0,y:0,r:2.5}]));
+ pieces.push(discPart('TEST_SHAFT_5_1', 'L_TEST',9,[{x:0,y:0,r:2.55}]));
+ launcherParts=pieces;
+ launcherGeom={A,B,frameW,frameH,rackRootY,guideLower,guideLeft,guideRight,toothL:rack.toothL,ratio:c.large/c.output,inputRadius:R1,largeRadius:R2,outputRadius:R3,previewBounds:{minX:Math.min(A.x-2*c.pitch-c.travel-54,-58),minY:-23,maxX:Math.max(frameW+30,A.x+rack.toothL+38),maxY:frameH+37},pinPairs:pinPair,drawParts:pieces};
+ launcherLayout=pack(pieces,launchSignature(),data.launcher.layoutManual);
+ if(module==='launcher')layout=launcherLayout;
+ $('pullPosition').max=c.travel;launchPull=clamp(launchPull,0,c.travel);$('pullPosition').value=launchPull;
+ $('pullReadout').textContent=`${launchPull.toFixed(0)} mm`;
+ $('launchRatio').textContent=`${launcherGeom.ratio.toFixed(2)}× / ${(c.travel/(c.input*p)*c.large/c.output).toFixed(1)} 圈`;
+}
+function launcherPreviewPart(name,center,color,fill,angle=0){const src=launcherParts.find(p=>p.name===name);if(!src)return;
+ const ca=Math.cos(angle),sa=Math.sin(angle),points=src.points.map(v=>({x:center.x+v.x*ca-v.y*sa,y:center.y+v.x*sa+v.y*ca}));
+ drawPolygon(points,color,fill,1);for(let h of src.holes){let x=center.x+h.x*ca-h.y*sa,y=center.y+h.x*sa+h.y*ca;ctx.beginPath();ctx.arc(x,y,h.r,0,TAU);ctx.fillStyle='#080e19';ctx.fill();ctx.strokeStyle='#c5d5e5';ctx.lineWidth=.7/view.scale;ctx.stroke()}}
+function drawLauncherAssembly(){if(!launcherGeom)return;const g=launcherGeom,c=data.launcher,shapes=launcherParts;
+ // 固定底板為參考坐標，下層、上層使用不同填色。透明疊圖僅供檢視，不輸出為雷切圖。
+ ctx.save();ctx.globalAlpha=.55;const bottom=shapes.find(p=>p.name==='CASE_01_BOTTOM');drawPolygon(bottom.points,'#628eb6','#1d324d65',1);ctx.restore();
+ const ra=launchPull/g.inputRadius,rb=-ra*c.large/c.output;
+ if(launchLayer!=='upper'){
+  const r=shapes.find(p=>p.name==='LAUNCH_RACK_WINDER');drawPolygon(r.points.map(pt=>({x:g.A.x-2*c.pitch-launchPull+pt.x,y:g.rackRootY+pt.y})),'#40e1bf','#136b5c88',1);
+  launcherPreviewPart(`PINION_INPUT_${c.input}T`,g.A,'#cbb1ff','#533c7d88',-ra);
+  for(const [name,gg] of [['GUIDE_LOWER',g.guideLower],['GUIDE_UPPER_LEFT',g.guideLeft],['GUIDE_UPPER_RIGHT',g.guideRight]]){
+    ctx.fillStyle='#bc945055';ctx.fillRect(gg.x,gg.y,gg.w,gg.h);ctx.strokeStyle='#b99061';ctx.lineWidth=.7/view.scale;ctx.strokeRect(gg.x,gg.y,gg.w,gg.h)}
+ }
+ if(launchLayer!=='lower'){
+  launcherPreviewPart(`GEAR_COMPOUND_${c.large}T`,g.A,'#8eb6f2','#496a9d55',-ra);
+  launcherPreviewPart(`GEAR_OUTPUT_${c.output}T`,g.B,'#e3b9ff','#83469966',rb);
+  ctx.save();ctx.setLineDash([4/view.scale,3/view.scale]);ctx.strokeStyle='#83e4ca';ctx.lineWidth=1/view.scale;ctx.beginPath();ctx.arc(g.B.x,g.B.y,17.5,0,TAU);ctx.stroke();ctx.restore();
+ }
+ for(let [pt,lab] of [[g.A,'A'],[g.B,'B']]){ctx.beginPath();ctx.arc(pt.x,pt.y,1.3,0,TAU);ctx.fillStyle='#fff';ctx.fill();ctx.font=`${11/view.scale}px sans-serif`;ctx.textAlign='center';ctx.fillStyle='#cbdae7';ctx.fillText(lab,pt.x,pt.y-6)}
+ ctx.textAlign='left';ctx.fillStyle='#86a0b8';ctx.font=`${12/view.scale}px sans-serif`;ctx.fillText('抽拉 ←',g.A.x-c.travel/2,g.frameH+20);
+ ctx.fillText(launchLayer==='all'?'下層 + 上層':'僅'+(launchLayer==='lower'?'下層':'上層'),8,-12);
 }
 function bounds(points){let a=Infinity,b=Infinity,c=-Infinity,d=-Infinity;for(let p of points){a=Math.min(a,p.x);b=Math.min(b,p.y);c=Math.max(c,p.x);d=Math.max(d,p.y)}return {minX:a,minY:b,maxX:c,maxY:d,w:c-a,h:d-b}}
 function designSignature(){return JSON.stringify([data.shapes,data.mirror,data.hollow,data.rack,data.pitchLock,data.frameWidth,data.rackWidth,data.segmentCount,data.tabEach,data.tabWidth,data.tabDepth,data.clearance,data.gearDiameter,data.gearTeeth,data.pressure,data.shaft,data.holeExtra])}
-function variant(part,angle){const ca=Math.cos(angle),sa=Math.sin(angle),rot=p=>({x:Math.abs(p.x*ca-p.y*sa)<1e-10?0:p.x*ca-p.y*sa,y:Math.abs(p.x*sa+p.y*ca)<1e-10?0:p.x*sa+p.y*ca});let pts=part.points.map(rot),holes=part.holes.map(h=>({...h,...rot(h)})),bb=bounds(pts);
- return {name:part.name,layer:part.layer,points:pts.map(p=>({x:p.x-bb.minX,y:p.y-bb.minY})),holes:holes.map(h=>({...h,x:h.x-bb.minX,y:h.y-bb.minY})),w:bb.w,h:bb.h,src:part.name,angle:((angle*180/Math.PI)%360+360)%360}}
+function variant(part,angle){const ca=Math.cos(angle),sa=Math.sin(angle),rot=p=>({x:Math.abs(p.x*ca-p.y*sa)<1e-10?0:p.x*ca-p.y*sa,y:Math.abs(p.x*sa+p.y*ca)<1e-10?0:p.x*sa+p.y*ca});let pts=part.points.map(rot),holes=part.holes.map(h=>({...h,...rot(h)})),cutouts=(part.cutouts||[]).map(poly=>poly.map(rot)),bb=bounds(pts);
+ return {name:part.name,layer:part.layer,points:pts.map(p=>({x:p.x-bb.minX,y:p.y-bb.minY})),holes:holes.map(h=>({...h,x:h.x-bb.minX,y:h.y-bb.minY})),cutouts:cutouts.map(poly=>poly.map(h=>({x:h.x-bb.minX,y:h.y-bb.minY}))),w:bb.w,h:bb.h,src:part.name,angle:((angle*180/Math.PI)%360+360)%360}}
 function overlapsBox(a,b,gap=0){return a.x < b.x+b.w+gap && a.x+a.w+gap > b.x && a.y < b.y+b.h+gap && a.y+a.h+gap > b.y}
-function autoPackForWidth(parts,targetW){const order=['FRAME','RACK','BRIDGE','GEAR','TEST','PLATE'];let pieces=[],groupY=5,usedW=0;
+function autoPackForWidth(parts,targetW){const order=['FRAME','RACK','BRIDGE','GEAR','TEST','PLATE','L_BASE','L_MID','L_TOP','L_RACK','L_PINION','L_GEAR','L_GUIDE','L_COUPLER','L_TOP_PLATE','L_TEST'];let pieces=[],groupY=5,usedW=0;
  for(let layer of order){let group=parts.filter(p=>p.layer===layer);if(!group.length)continue;
   group.sort((a,b)=>{let x=bounds(b.points),y=bounds(a.points);return x.w*x.h-y.w*y.h});let placed=[],maxY=groupY;
   for(let src of group){let variants=[0,Math.PI/2,Math.PI,3*Math.PI/2].map(a=>variant(src,a));let best=null;
@@ -271,7 +398,7 @@ function autoPackForWidth(parts,targetW){const order=['FRAME','RACK','BRIDGE','G
    if(!best){ // Any part wider than the candidate strip may extend it; keep the file valid.
     let v=variants.reduce((a,b)=>a.w<b.w?a:b);best={v,box:{x:5,y:maxY+4,w:v.w,h:v.h}};
    }
-   let item={name:best.v.name,layer:best.v.layer,src:best.v.src,points:best.v.points.map(p=>({x:p.x+best.box.x,y:p.y+best.box.y})),holes:best.v.holes.map(h=>({...h,x:h.x+best.box.x,y:h.y+best.box.y})),box:{...best.box},autoX:best.box.x,autoY:best.box.y,autoW:best.box.w,autoH:best.box.h,autoAngle:best.v.angle,angle:best.v.angle};
+   let item={name:best.v.name,layer:best.v.layer,src:best.v.src,points:best.v.points.map(p=>({x:p.x+best.box.x,y:p.y+best.box.y})),holes:best.v.holes.map(h=>({...h,x:h.x+best.box.x,y:h.y+best.box.y})),cutouts:best.v.cutouts.map(poly=>poly.map(p=>({x:p.x+best.box.x,y:p.y+best.box.y}))),box:{...best.box},autoX:best.box.x,autoY:best.box.y,autoW:best.box.w,autoH:best.box.h,autoAngle:best.v.angle,angle:best.v.angle};
    placed.push(item);pieces.push(item);usedW=Math.max(usedW,best.box.x+best.box.w);maxY=Math.max(maxY,best.box.y+best.box.h);
   }
   groupY=maxY+5;
@@ -280,10 +407,10 @@ function autoPackForWidth(parts,targetW){const order=['FRAME','RACK','BRIDGE','G
 }
 function layoutBounds(pieces){if(!pieces.length)return{minX:0,minY:0,maxX:1,maxY:1,w:1,h:1};let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
  for(let p of pieces){minX=Math.min(minX,p.box.x);minY=Math.min(minY,p.box.y);maxX=Math.max(maxX,p.box.x+p.box.w);maxY=Math.max(maxY,p.box.y+p.box.h)}return{minX,minY,maxX,maxY,w:maxX-minX,h:maxY-minY}}
-function pack(parts){let total=parts.reduce((a,p)=>{let b=bounds(p.points);return a+b.w*b.h},0),sqr=Math.sqrt(total*1.5),poss=[280,340,400,460,520,590,670,760,860,980].filter(w=>w>=sqr*.6 && w<=sqr*2.4);
+function pack(parts,signature=designSignature(),manualRecord=data.layoutManual){let total=parts.reduce((a,p)=>{let b=bounds(p.points);return a+b.w*b.h},0),sqr=Math.sqrt(total*1.5),poss=[280,340,400,460,520,590,670,760,860,980].filter(w=>w>=sqr*.6 && w<=sqr*2.4);
  if(!poss.length)poss=[Math.max(280,Math.min(980,sqr))];let best=null;for(let W of poss){let p=autoPackForWidth(parts,W),b=layoutBounds(p);let area=(b.w+10)*(b.h+10),ratio=b.w/Math.max(1,b.h),score=area*(1+0.04*Math.abs(Math.log(ratio/1.25)));
   if(best===null||score<best.score)best={p,b,score};}
- let sign=designSignature(),manual=data.layoutManual?.signature===sign?data.layoutManual.offsets:null;
+ let sign=signature,manual=manualRecord?.signature===sign?manualRecord.offsets:null;
  if(manual){for(let p of best.p){let d=manual[p.src];if(!d)continue;if(Number.isFinite(d.angle))rotatePiece(p,d.angle);if(Number.isFinite(d.dx)&&Number.isFinite(d.dy))translatePiece(p,d.dx,d.dy)}}
  let lb=layoutBounds(best.p);return {placed:best.p,pages:[best.p],bounds:lb,width:lb.w,height:lb.h,signature:sign,overflow:false,overlapCount:countOverlaps(best.p)};
 }
@@ -301,7 +428,7 @@ function segmentTouch(a,b,c,d){
  return on(a,b,c)||on(a,b,d)||on(c,d,a)||on(c,d,b);
 }
 function filledAt(point,part){
- return isPointInside(point,part.points)&&!part.holes.some(h=>Math.hypot(point.x-h.x,point.y-h.y)<h.r-1e-6);
+ return isPointInside(point,part.points)&&!part.holes.some(h=>Math.hypot(point.x-h.x,point.y-h.y)<h.r-1e-6)&&!(part.cutouts||[]).some(poly=>isPointInside(point,poly));
 }
 function outlinesOverlap(a,b){
  if(!overlapsBox(a.box,b.box,0))return false;
@@ -321,19 +448,20 @@ function outlinesOverlap(a,b){
  return false;
 }
 function countOverlaps(pieces){let n=0;for(let i=0;i<pieces.length;i++)for(let j=i+1;j<pieces.length;j++)if(outlinesOverlap(pieces[i],pieces[j]))n++;return n}
-function translatePiece(p,dx,dy){p.points.forEach(v=>{v.x+=dx;v.y+=dy});p.holes.forEach(v=>{v.x+=dx;v.y+=dy});p.box.x+=dx;p.box.y+=dy}
+function translatePiece(p,dx,dy){p.points.forEach(v=>{v.x+=dx;v.y+=dy});p.holes.forEach(v=>{v.x+=dx;v.y+=dy});(p.cutouts||[]).forEach(poly=>poly.forEach(v=>{v.x+=dx;v.y+=dy}));p.box.x+=dx;p.box.y+=dy}
 function normAngle(a){return ((a%360)+360)%360}
 function rotatePiece(part,degrees){
- const src=geom.parts.find(x=>x.name===part.src);if(!src)return;
+ const src=(module==='launcher'?launcherParts:geom.parts).find(x=>x.name===part.src);if(!src)return;
  const center={x:part.box.x+part.box.w/2,y:part.box.y+part.box.h/2};
  const shape=variant(src,rad(normAngle(degrees)));
  const ox=center.x-shape.w/2,oy=center.y-shape.h/2;
  part.points=shape.points.map(p=>({x:p.x+ox,y:p.y+oy}));
- part.holes=shape.holes.map(h=>({...h,x:h.x+ox,y:h.y+oy}));
+ part.holes=shape.holes.map(h=>({...h,x:h.x+ox,y:h.y+oy}));part.cutouts=shape.cutouts.map(poly=>poly.map(h=>({x:h.x+ox,y:h.y+oy})));
  part.box={x:ox,y:oy,w:shape.w,h:shape.h};part.angle=normAngle(degrees);
 }
 function persistCutLayout(){
- data.layoutManual={signature:layout.signature,offsets:Object.fromEntries(layout.placed.map(p=>[p.src,{dx:(p.box.x+p.box.w/2)-(p.autoX+p.autoW/2),dy:(p.box.y+p.box.h/2)-(p.autoY+p.autoH/2),angle:p.angle}]))};
+ const record={signature:layout.signature,offsets:Object.fromEntries(layout.placed.map(p=>[p.src,{dx:(p.box.x+p.box.w/2)-(p.autoX+p.autoW/2),dy:(p.box.y+p.box.h/2)-(p.autoY+p.autoH/2),angle:p.angle}]))};
+ if(module==='launcher')data.launcher.layoutManual=record;else data.layoutManual=record;
  layout.bounds=layoutBounds(layout.placed);updateStats();save();scheduleDraw();
 }
 function setSelectedPart(p){selectedPart=p;$('partControls').hidden=!p;
@@ -344,14 +472,24 @@ function saveRotateFeedback(){persistCutLayout();if(layout.overlapCount)toast('�
 function polyPath(points,dx=0,dy=0){if(!points.length)return'';return 'M'+points.map(p=>`${(p.x+dx).toFixed(4)},${(p.y+dy).toFixed(4)}`).join(' L')+' Z'}
 function outputSVG(){const pcs=layout.placed,b=layoutBounds(pcs),pad=5,w=b.w+pad*2,h=b.h+pad*2,dx=pad-b.minX,dy=pad-b.minY;
  const esc=str=>str.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]));
- let str=`<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" width="${w.toFixed(3)}mm" height="${h.toFixed(3)}mm" viewBox="0 0 ${w.toFixed(3)} ${h.toFixed(3)}">\n<title>GYRO 0.1 / laser cut / mm</title>\n`;
- for(let layer of ['FRAME','RACK','BRIDGE','GEAR','TEST','PLATE']){const subset=pcs.filter(p=>p.layer===layer);if(!subset.length)continue;str+=`<g id="${layer}" fill="none" stroke="${{FRAME:'#2868ae',RACK:'#008b81',BRIDGE:'#c69136',GEAR:'#bd78c9',TEST:'#e1b26e',PLATE:'#2868ae'}[layer]}" stroke-width="0.1">\n`;
- for(let p of subset){str+=`<path id="${esc(p.name)}" d="${polyPath(p.points,dx,dy)}"/>\n`;for(let hole of p.holes)str+=`<circle cx="${(hole.x+dx).toFixed(4)}" cy="${(hole.y+dy).toFixed(4)}" r="${hole.r.toFixed(4)}"/>\n`;}str+='</g>\n'}
+ let str=`<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" width="${w.toFixed(3)}mm" height="${h.toFixed(3)}mm" viewBox="0 0 ${w.toFixed(3)} ${h.toFixed(3)}">\n<title>GYRO 0.2 ${module} laser cut mm</title>\n`;
+ const color={FRAME:'#2868ae',RACK:'#008b81',BRIDGE:'#c69136',GEAR:'#bd78c9',TEST:'#e1b26e',PLATE:'#2868ae',L_BASE:'#2868ae',L_MID:'#7293cf',L_TOP:'#7293cf',L_RACK:'#008b81',L_PINION:'#bd78c9',L_GEAR:'#bd78c9',L_GUIDE:'#c69136',L_COUPLER:'#49a5ac',L_TOP_PLATE:'#e1b26e',L_TEST:'#e1b26e'};
+ for(let layer of [...new Set(pcs.map(p=>p.layer))]){const subset=pcs.filter(p=>p.layer===layer);str+=`<g id="${esc(layer)}" fill="none" stroke="${color[layer]||'#64748b'}" stroke-width="0.1">\n`;
+ for(let p of subset){str+=`<path id="${esc(p.name)}" d="${polyPath(p.points,dx,dy)}"/>\n`;for(let hole of p.holes)str+=`<circle cx="${(hole.x+dx).toFixed(4)}" cy="${(hole.y+dy).toFixed(4)}" r="${hole.r.toFixed(4)}"/>\n`;for(const [index,poly] of (p.cutouts||[]).entries())str+=`<path id="${esc(p.name)}_CUTOUT_${index+1}" d="${polyPath(poly,dx,dy)}"/>\n`;}str+='</g>\n'}
  return str+'</svg>\n';}
 function dl(text,name,type='text/plain;charset=utf-8'){let blob=new Blob([text],{type}),link=document.createElement('a');link.href=URL.createObjectURL(blob);link.download=name;document.body.append(link);link.click();setTimeout(()=>{URL.revokeObjectURL(link.href);link.remove()},1200)}
 function exportSVG(){layout.overlapCount=countOverlaps(layout.placed);
- dl(outputSVG(),'gyro_0.1.svg','image/svg+xml');toast(layout.overlapCount?`已匯出 SVG；注意 ${layout.overlapCount} 處實際切割輪廓交疊，雷切前請調整`:'已匯出 SVG（毫米）')}
-function updateStats(){if(!geom||!layout)return;const fmt=(n,dp=2)=>n.toFixed(dp);$('nominalPitch').textContent=fmt(geom.pitchNom,3)+' mm';$('actualPitch').textContent=fmt(geom.pitchEff,3)+' mm';
+ dl(outputSVG(),`gyro_0.2_${module==='launcher'?'launcher':'arena'}.svg`,'image/svg+xml');toast(layout.overlapCount?`已匯出 SVG；注意 ${layout.overlapCount} 處實際切割輪廓交疊，雷切前請調整`:'已匯出 SVG（毫米）')}
+function updateStats(){if(!geom||!layout)return;const fmt=(n,dp=2)=>n.toFixed(dp);
+ if(module==='launcher'&&launcherGeom){const c=data.launcher,ratio=launcherGeom.ratio,m=c.pitch/Math.PI,root=(c.input/2-1.25)*m,wall=root-5.5-1.65;
+  $('nominalPitch').textContent=fmt(c.pitch,3)+' mm';$('actualPitch').textContent=fmt(c.pitch,3)+' mm';
+  const msgs=[`輸入 1:${fmt(ratio)} 增速；理論最大輸出圈數約 ${fmt(c.travel/(c.input*c.pitch)*ratio,2)} 圈，尚未計入摩擦與齒條端部無效行程。`,`下層齒輪與上層大齒輪必須以兩根 M3 柱共同鎖合；軸與孔不應僅依木板摩擦傳力。`,`發射頭雙銷與上蓋卡槽僅供試切配合，尚未完成可靠的自動脫離驗證。`,`長齒條、齒輪與導軌雷切後必須實測間隙及木板厚度。`];
+  if(wall<1.5)msgs.unshift(`輸入小齒輪 M3 耦合孔到齒根估計僅剩 ${fmt(wall)} mm，過薄，請增加圓周齒距或調整結構。`);
+  layout.overlapCount=countOverlaps(layout.placed);if(layout.overlapCount)msgs.push(`排版有 ${layout.overlapCount} 處實際切割線重疊，SVG 可下載但必須先調整。`);
+  $('warning').textContent=msgs.map(x=>'• '+x).join('\n');$('warning').style.whiteSpace='pre-line';
+  $('sheetInfo').textContent=`發射器｜理論增速比 ${fmt(ratio)}×｜板厚 ${c.sheet} mm｜有效拉程 ${c.travel} mm｜${launcherParts.length} 件｜排版約 ${fmt(layout.bounds.w,1)} × ${fmt(layout.bounds.h,1)} mm`;
+  return;}
+$('nominalPitch').textContent=fmt(geom.pitchNom,3)+' mm';$('actualPitch').textContent=fmt(geom.pitchEff,3)+' mm';
  const gearRoot=(data.gearTeeth*.5-1.25)*geom.pitchNom/Math.PI,wall=gearRoot-(data.shaft+data.holeExtra)/2;
  const arr=[];if(Math.abs(geom.profileScale-1)>.0005)arr.push(`齒距鎖定使外框比例微調 ${geom.profileScale>1?'+':''}${fmt((geom.profileScale-1)*100,3)}%。`);
  if(Math.abs(geom.error)>.2)arr.push(`齒距誤差 ${geom.error>0?'+':''}${fmt(geom.error,3)}%，與設定不完全相同，請微調場地尺寸。`);
@@ -361,7 +499,7 @@ function updateStats(){if(!geom||!layout)return;const fmt=(n,dp=2)=>n.toFixed(dp
  layout.overlapCount=countOverlaps(layout.placed);if(layout.overlapCount)arr.push(`切割排版有 ${layout.overlapCount} 處實際切割輪廓交疊（不是外接矩形重疊）；SVG 仍可下載，但雷切前應調整。`);
  arr.push('齒形由 10.7 mm 外徑與假設漸開線推算，與原廠 Bit 的相容性尚未驗證。');
  $('warning').textContent=arr.map(x=>'• '+x).join('\n');$('warning').style.whiteSpace='pre-line';
- $('sheetInfo').textContent=`${data.segmentCount} 段框架 + ${data.rack?data.segmentCount:0} 段齒條｜${geom.tabs} 個卡榫｜齒數 ${geom.n}｜齒距修正 ${((geom.profileScale-1)*100).toFixed(3)}%｜預估齒根厚度 ${fmt(wall)} mm｜圖面約 ${fmt(layout.bounds.w,1)} × ${fmt(layout.bounds.h,1)} mm`;
+ $('sheetInfo').textContent=module==='launcher'?`發射器｜齒輪比 ${launcherGeom?.ratio.toFixed(2)||'--'}×｜有效拉程 ${data.launcher.travel} mm｜雷切件 ${launcherParts.length}｜圖面約 ${fmt(layout.bounds.w,1)} × ${fmt(layout.bounds.h,1)} mm`:`${data.segmentCount} 段框架 + ${data.rack?data.segmentCount:0} 段齒條｜${geom.tabs} 個卡榫｜齒數 ${geom.n}｜齒距修正 ${((geom.profileScale-1)*100).toFixed(3)}%｜預估齒根厚度 ${fmt(wall)} mm｜圖面約 ${fmt(layout.bounds.w,1)} × ${fmt(layout.bounds.h,1)} mm`;
 }
 let previousStageSize={width:0,height:0};
 function resize(){const rect=$('stage').getBoundingClientRect();if(rect.width<1||rect.height<1)return;
@@ -377,17 +515,18 @@ function world(x,y){let v=trans();return {x:(x-v.cx)/view.scale,y:(y-v.cy)/view.
 function ptFromEvent(e){let rr=canvas.getBoundingClientRect();return {x:e.clientX-rr.left,y:e.clientY-rr.top}}
 function drawPolygon(pts,color,fill,stroke=1){if(!pts||pts.length<2)return;ctx.beginPath();pts.forEach((p,i)=>i===0?ctx.moveTo(p.x,p.y):ctx.lineTo(p.x,p.y));ctx.closePath();ctx.fillStyle=fill;ctx.fill();ctx.strokeStyle=color;ctx.lineWidth=stroke/view.scale;ctx.stroke()}
 function drawPrimitive(sh,mirrored=false){ctx.save();if(mirrored)ctx.globalAlpha=.44;const x=mirrored?-sh.x:sh.x,y=sh.y,w=sh.w,h=sh.h;ctx.beginPath();if(sh.type==='rect')ctx.rect(x-w/2,y-h/2,w,h);else ctx.ellipse(x,y,w/2,h/2,0,0,TAU);ctx.strokeStyle='#607caa';ctx.lineWidth=.9/view.scale;ctx.setLineDash([3/view.scale,3/view.scale]);ctx.stroke();ctx.setLineDash([]);ctx.restore()}
-function fit(){if(!geom)return;let r=canvas.getBoundingClientRect();if(!r.width||!r.height)return;let b;if(tab==='cut'){b=layout.bounds}else{b=bounds(geom.o);b.maxX+=Math.max(34,data.gearDiameter+31);}view.scale=Math.max(.06,Math.min((r.width-72)/Math.max(1,b.maxX-b.minX+20),(r.height-72)/Math.max(1,b.maxY-b.minY+20),4.2));view.x=-(b.minX+b.maxX)/2*view.scale;view.y=-(b.minY+b.maxY)/2*view.scale;scheduleDraw()}
+function fit(){if(!geom)return;let r=canvas.getBoundingClientRect();if(!r.width||!r.height)return;let b;if(tab==='cut'){b=layout.bounds}else if(module==='launcher'){b=launcherGeom.previewBounds;}else{b=bounds(geom.o);b.maxX+=Math.max(34,data.gearDiameter+31);}view.scale=Math.max(.06,Math.min((r.width-72)/Math.max(1,b.maxX-b.minX+20),(r.height-72)/Math.max(1,b.maxY-b.minY+20),4.2));view.x=-(b.minX+b.maxX)/2*view.scale;view.y=-(b.minY+b.maxY)/2*view.scale;scheduleDraw()}
 function draw(){const r=canvas.getBoundingClientRect(),dpr=canvas.width/Math.max(r.width,1);ctx.setTransform(dpr,0,0,dpr,0,0);ctx.fillStyle='#080e19';ctx.fillRect(0,0,r.width,r.height);if(!geom)return;let t=trans();ctx.save();ctx.translate(t.cx,t.cy);ctx.scale(view.scale,view.scale);
  const rectWorld={minX:(-t.cx)/view.scale,maxX:(r.width-t.cx)/view.scale,minY:(-t.cy)/view.scale,maxY:(r.height-t.cy)/view.scale};let gridStep=10;if(view.scale<.75)gridStep=50;
  ctx.beginPath();for(let x=Math.floor(rectWorld.minX/gridStep)*gridStep;x<=rectWorld.maxX;x+=gridStep){ctx.moveTo(x,rectWorld.minY);ctx.lineTo(x,rectWorld.maxY)}for(let y=Math.floor(rectWorld.minY/gridStep)*gridStep;y<=rectWorld.maxY;y+=gridStep){ctx.moveTo(rectWorld.minX,y);ctx.lineTo(rectWorld.maxX,y)}ctx.strokeStyle='#1b293b';ctx.lineWidth=.55/view.scale;ctx.stroke();
  if(tab==='cut'){
-  for(let part of layout.placed){let c={FRAME:'#5f8fc7',RACK:'#54d5bc',BRIDGE:'#efbe72',GEAR:'#bd9af7',TEST:'#ffc473',PLATE:'#8db6ff'}[part.layer],fill={FRAME:'#29426355',RACK:'#13665a66',BRIDGE:'#71572a55',GEAR:'#6f4d8c77',TEST:'#75604255',PLATE:'#29426355'}[part.layer];
+  for(let part of layout.placed){let c={FRAME:'#5f8fc7',RACK:'#54d5bc',BRIDGE:'#efbe72',GEAR:'#bd9af7',TEST:'#ffc473',PLATE:'#8db6ff',L_BASE:'#5f8fc7',L_MID:'#84a3cf',L_TOP:'#84a3cf',L_RACK:'#54d5bc',L_PINION:'#bd9af7',L_GEAR:'#bd9af7',L_GUIDE:'#efbe72',L_COUPLER:'#83e4ca',L_TOP_PLATE:'#ffc473',L_TEST:'#ffc473'}[part.layer]||'#8db6ff',fill={FRAME:'#29426355',RACK:'#13665a66',BRIDGE:'#71572a55',GEAR:'#6f4d8c77',TEST:'#75604255',PLATE:'#29426355',L_BASE:'#29426355',L_MID:'#36547355',L_TOP:'#2d445a55',L_RACK:'#13665a66',L_PINION:'#6f4d8c77',L_GEAR:'#6f4d8c77',L_GUIDE:'#71572a55',L_COUPLER:'#1c645b77',L_TOP_PLATE:'#75604255',L_TEST:'#75604255'}[part.layer]||'#29426355';
    drawPolygon(part.points,c,fill,1.05);for(let hole of part.holes){ctx.beginPath();ctx.arc(hole.x,hole.y,hole.r,0,TAU);ctx.fillStyle='#080e19';ctx.fill();ctx.strokeStyle='#f0b960';ctx.lineWidth=.65/view.scale;ctx.stroke()}
+   for(let poly of (part.cutouts||[])){drawPolygon(poly,'#ffc67a','#080e19',.75)}
    if(selectedPart===part){ctx.strokeStyle='#9df9e8';ctx.lineWidth=1.2/view.scale;ctx.setLineDash([4/view.scale,3/view.scale]);ctx.strokeRect(part.box.x-1.4,part.box.y-1.4,part.box.w+2.8,part.box.h+2.8);ctx.setLineDash([]);
     const handle=rotationHandle(part),top={x:part.box.x+part.box.w/2,y:part.box.y};ctx.beginPath();ctx.moveTo(top.x,top.y);ctx.lineTo(handle.x,handle.y);ctx.strokeStyle='#84eedf';ctx.lineWidth=1.3/view.scale;ctx.stroke();ctx.beginPath();ctx.arc(handle.x,handle.y,7/view.scale,0,TAU);ctx.fillStyle='#164b53';ctx.fill();ctx.strokeStyle='#a7fff0';ctx.lineWidth=1.5/view.scale;ctx.stroke();ctx.beginPath();ctx.arc(handle.x,handle.y,2.1/view.scale,0,TAU);ctx.fillStyle='#a7fff0';ctx.fill();}
   }
- }else{
+ }else if(module==='launcher'){drawLauncherAssembly()}else{
   for(let sh of data.shapes){drawPrimitive(sh);if(data.mirror&&Math.abs(sh.x)>.01)drawPrimitive(sh,true)}
   if(data.hollow){for(let part of geom.parts.filter(x=>x.layer==='FRAME')){drawPolygon(part.points,'#7197ce','#3d60843c',1.35);for(let h of part.holes){ctx.beginPath();ctx.arc(h.x,h.y,h.r,0,TAU);ctx.fillStyle='#080e19';ctx.fill();ctx.strokeStyle='#e6b967';ctx.lineWidth=.6/view.scale;ctx.stroke()}}
     if(data.rack)for(let part of geom.parts.filter(x=>x.layer==='RACK'))drawPolygon(part.points,'#50deca','#0d807655',1.05);
@@ -401,7 +540,7 @@ function draw(){const r=canvas.getBoundingClientRect(),dpr=canvas.width/Math.max
  }
  ctx.restore();
  // Crosshair measurement without modifying cut geometry.
- ctx.strokeStyle='#48637b';ctx.lineWidth=.75;let oo=screen({x:0,y:0});if(tab==='edit'){ctx.beginPath();ctx.moveTo(oo.x-12,oo.y);ctx.lineTo(oo.x+12,oo.y);ctx.moveTo(oo.x,oo.y-12);ctx.lineTo(oo.x,oo.y+12);ctx.stroke()}
+ ctx.strokeStyle='#48637b';ctx.lineWidth=.75;let oo=screen({x:0,y:0});if(tab==='edit'&&module==='arena'){ctx.beginPath();ctx.moveTo(oo.x-12,oo.y);ctx.lineTo(oo.x+12,oo.y);ctx.moveTo(oo.x,oo.y-12);ctx.lineTo(oo.x,oo.y+12);ctx.stroke()}
 }
 function isPointInside(point,poly){let yes=false;for(let i=0,j=poly.length-1;i<poly.length;j=i++){let a=poly[i],b=poly[j];if(((a.y>point.y)!=(b.y>point.y))&&(point.x<(b.x-a.x)*(point.y-a.y)/(b.y-a.y||1e-10)+a.x))yes=!yes}return yes}
 function pickCutPart(p){if(!layout)return null;for(let i=layout.placed.length-1;i>=0;i--){const part=layout.placed[i],b=part.box;if(p.x<b.x-1||p.x>b.x+b.w+1||p.y<b.y-1||p.y>b.y+b.h+1)continue;if(isPointInside(p,part.points)&&!part.holes.some(h=>Math.hypot(p.x-h.x,p.y-h.y)<h.r))return part}return null}
@@ -412,11 +551,24 @@ function rerender(shouldSave=true){try{generate();scheduleDraw();if(shouldSave)s
 function zoomAt(scale,x,y){let v=trans(),px=(x-v.cx)/view.scale,py=(y-v.cy)/view.scale;view.scale=clamp(scale,.13,9);view.x=x-v.w/2-px*view.scale;view.y=y-v.h/2-py*view.scale;scheduleDraw()}
 function setTool(name){tool=name;document.querySelectorAll('[data-tool]').forEach(b=>b.classList.toggle('active',b.dataset.tool===name));canvas.style.cursor=name==='select'?'default':'crosshair'}
 function setTab(name){tab=name;$('tabEdit').classList.toggle('active',name==='edit');$('tabCut').classList.toggle('active',name==='cut');$('tabEdit').setAttribute('aria-selected',String(name==='edit'));$('tabCut').setAttribute('aria-selected',String(name==='cut'));
- $('editPanelControls').hidden=name!=='edit';$('paramControls').hidden=name!=='edit';$('cutPanelControls').hidden=name!=='cut';setSelectedPart(null);if(innerWidth<=760)$('rightPanel').classList.remove('open');fit()}
+ $('editPanelControls').hidden=name!=='edit'||module==='launcher';$('paramControls').hidden=name!=='edit'||module==='launcher';$('launcherPanelControls').hidden=name!=='edit'||module!=='launcher';$('cutPanelControls').hidden=name!=='cut';setSelectedPart(null);updateStats();if(innerWidth<=760)$('rightPanel').classList.remove('open');fit()}
 
+
+function setModule(value){
+ if(value===module)return;module=value;layout=module==='launcher'?launcherLayout:arenaLayout;
+ $('moduleArena').classList.toggle('active',module==='arena');$('moduleLaunch').classList.toggle('active',module==='launcher');
+ $('moduleArena').setAttribute('aria-selected',String(module==='arena'));$('moduleLaunch').setAttribute('aria-selected',String(module==='launcher'));
+ $('tabEdit').textContent=module==='arena'?'場地編輯':'發射器編輯';selected=null;updateSelected();setTab('edit');updateStats();scheduleDraw();
+}
 function panel(id){$('rightPanel').classList.toggle('open',id==='rightPanel'? !$('rightPanel').classList.contains('open'):false)}
 function newPreset(which){selected=null;if(which==='oval')data.shapes=[{id:nextId++,type:'ellipse',x:0,y:0,w:330,h:262,base:true}];if(which==='round')data.shapes=[{id:nextId++,type:'circle',x:0,y:0,w:300,h:300,base:true}];if(which==='wide')data.shapes=[{id:nextId++,type:'ellipse',x:0,y:0,w:320,h:250,base:true},{id:nextId++,type:'ellipse',x:-106,y:0,w:155,h:155}];data.mirror=true;data.hollow=true;data.rack=true;syncButtons();updateSelected();rerender();fit()}
 function syncButtons(){$('pitchLockBtn').classList.toggle('active',data.pitchLock);$('pitchLockBtn').setAttribute('aria-pressed',String(data.pitchLock));$('mirrorBtn').classList.toggle('active',data.mirror);$('mirrorBtn').setAttribute('aria-pressed',String(data.mirror));$('cutoutBtn').classList.toggle('active',data.hollow);$('cutoutBtn').setAttribute('aria-pressed',String(data.hollow));$('rackBtn').classList.toggle('active',data.rack);$('rackBtn').setAttribute('aria-pressed',String(data.rack))}
+const launchKeys=[['launchTravel','travel',100,340],['launchPitch','pitch',3.7,5.5],['launchInput','input',14,28],['launchLarge','large',26,48],['launchOutput','output',14,30],['launchSheet','sheet',2.5,5],['launchAxle','axle',3.8,4.5]];
+for(const [id,key,min,max] of launchKeys){setVal(id,data.launcher[key]);$(id).addEventListener('change',()=>{let value=Number($(id).value);if(!Number.isFinite(value))return;value=clamp(value,min,max);if(['input','large','output','travel'].includes(key))value=Math.round(value);data.launcher[key]=value;setVal(id,value);rerender();fit()})}
+$('pullPosition').addEventListener('input',e=>{launchPull=Number(e.target.value);$('pullReadout').textContent=`${launchPull} mm`;scheduleDraw()});
+$('pullHome').onclick=()=>{launchPull=0;$('pullPosition').value=0;$('pullReadout').textContent='0 mm';scheduleDraw()};
+$('pullEnd').onclick=()=>{launchPull=data.launcher.travel;$('pullPosition').value=launchPull;$('pullReadout').textContent=`${launchPull} mm`;scheduleDraw()};
+for(const b of document.querySelectorAll('[data-launch-layer]'))b.onclick=()=>{launchLayer=b.dataset.launchLayer;document.querySelectorAll('[data-launch-layer]').forEach(el=>el.classList.toggle('active',el===b));scheduleDraw()};
 const numeric=['frameWidth','rackWidth','segmentCount','tabEach','tabWidth','tabDepth','clearance','gearDiameter','gearTeeth','pressure','shaft','holeExtra'];
 for(let id of numeric){setVal(id,data[id]);$(id).addEventListener('change',()=>{let el=$(id),v=Number(el.value);if(!Number.isFinite(v))return;const lim={frameWidth:[6,50],rackWidth:[4,30],segmentCount:[4,12],tabEach:[1,12],tabWidth:[3,18],tabDepth:[1.5,8],clearance:[0,.6],gearDiameter:[6,24],gearTeeth:[8,28],pressure:[14,30],shaft:[2,9],holeExtra:[-.3,.5]}[id];v=clamp(v,...lim);if(['gearTeeth','segmentCount','tabEach'].includes(id))v=Math.round(v);data[id]=v;setVal(id,v);rerender();if(tab==='cut')scheduleDraw()})}
 for(let [key,id] of [['x','shX'],['y','shY'],['w','shW'],['h','shH']])$(id).addEventListener('change',()=>{let sh=data.shapes.find(s=>s.id===selected);if(!sh)return;let v=Number($(id).value);if(!Number.isFinite(v))return;if(key==='w'||key==='h')v=clamp(v,8,1100);else v=clamp(v,-600,600);sh[key]=v;if(sh.type==='circle'&&(key==='w'||key==='h'))sh.w=sh.h=v;updateSelected();rerender()});
@@ -424,12 +576,12 @@ for(let b of document.querySelectorAll('[data-tool]'))b.addEventListener('click'
 for(let b of document.querySelectorAll('[data-preset]'))b.addEventListener('click',()=>newPreset(b.dataset.preset));
 $('pitchLockBtn').onclick=()=>{data.pitchLock=!data.pitchLock;syncButtons();rerender()};$('mirrorBtn').onclick=()=>{data.mirror=!data.mirror;syncButtons();rerender()};$('cutoutBtn').onclick=()=>{data.hollow=!data.hollow;syncButtons();rerender()};$('rackBtn').onclick=()=>{data.rack=!data.rack;syncButtons();rerender()};
 $('deleteShape').onclick=()=>{if(data.shapes.length<2){toast('至少需要保留一個主體圖形');return}data.shapes=data.shapes.filter(s=>s.id!==selected);selected=null;updateSelected();rerender()};
-$('resetBtn').onclick=()=>{data=JSON.parse(JSON.stringify(defaults));nextId=2;selected=null;for(let id of numeric)setVal(id,data[id]);updateSelected();syncButtons();newPreset('oval');toast('場地已重設')};
+$('resetBtn').onclick=()=>{const preservedLauncher=data.launcher;data=JSON.parse(JSON.stringify(defaults));data.launcher=preservedLauncher;nextId=2;selected=null;for(let id of numeric)setVal(id,data[id]);updateSelected();syncButtons();newPreset('oval');toast('場地已重設')};
 $('fitBtn').onclick=fit;$('zoomFit').onclick=fit;$('zoomIn').onclick=()=>zoomAt(view.scale*1.22,canvas.getBoundingClientRect().width/2,canvas.getBoundingClientRect().height/2);$('zoomOut').onclick=()=>zoomAt(view.scale/1.22,canvas.getBoundingClientRect().width/2,canvas.getBoundingClientRect().height/2);
-$('tabEdit').onclick=()=>setTab('edit');$('tabCut').onclick=()=>setTab('cut');$('infoBtn').onclick=()=>$('info').showModal();$('closeInfo').onclick=()=>$('info').close();$('info').addEventListener('click',e=>{if(e.target===$('info'))$('info').close()});
+$('moduleArena').onclick=()=>setModule('arena');$('moduleLaunch').onclick=()=>setModule('launcher');$('tabEdit').onclick=()=>setTab('edit');$('tabCut').onclick=()=>setTab('cut');$('infoBtn').onclick=()=>$('info').showModal();$('closeInfo').onclick=()=>$('info').close();$('info').addEventListener('click',e=>{if(e.target===$('info'))$('info').close()});
 $('openRight').onclick=()=>panel('rightPanel');
 $('svgBtn').onclick=exportSVG;
-$('autoArrangeSide').onclick=()=>{data.layoutManual=null;rerender();fit();setSelectedPart(null);toast('已重新緊湊排版')};
+$('autoArrangeSide').onclick=()=>{if(module==='launcher')data.launcher.layoutManual=null;else data.layoutManual=null;rerender();fit();setSelectedPart(null);toast('已重新緊湊排版')};
 for(const [id,delta] of [['rotM90',-90],['rotM15',-15],['rotP15',15],['rotP90',90]])$(id).onclick=()=>{if(selectedPart)rotateSelected(selectedPart.angle+delta)};
 $('partAngle').addEventListener('change',()=>{const a=Number($('partAngle').value);if(selectedPart&&Number.isFinite(a))rotateSelected(a)});
 canvas.addEventListener('wheel',e=>{e.preventDefault();let p=ptFromEvent(e);zoomAt(view.scale*Math.exp(-e.deltaY*.001),p.x,p.y)},{passive:false});
@@ -440,6 +592,7 @@ canvas.addEventListener('pointerdown',e=>{if(e.button===2)return;e.preventDefaul
   if(selectedPart&&dist(w,rotationHandle(selectedPart))<=13/view.scale){const cen={x:selectedPart.box.x+selectedPart.box.w/2,y:selectedPart.box.y+selectedPart.box.h/2};drag={type:'rotate',piece:selectedPart,center:cen,startA:Math.atan2(w.y-cen.y,w.x-cen.x),startAngle:selectedPart.angle};canvas.style.cursor='grabbing';return}
   const picked=pickCutPart(w);setSelectedPart(picked);
   if(picked&&e.button!==1&&!e.shiftKey){drag={type:'part',piece:picked,last:w};canvas.style.cursor='grabbing';scheduleDraw();return}drag={type:'pan',last:p};scheduleDraw();return}
+ if(module==='launcher'){drag={type:'pan',last:p};return}
  if(e.button===1||e.shiftKey){drag={type:'pan',last:p};return}
  const w=world(p.x,p.y);
  if(tool==='select'){
@@ -467,7 +620,7 @@ function finishPointer(e){pointerMap.delete(e.pointerId);if(pointerMap.size){dra
  else if(drag.type==='move'||drag.type==='resize'){save()}
  drag=null;scheduleDraw();
 }
-canvas.addEventListener('pointerup',finishPointer);canvas.addEventListener('pointercancel',finishPointer);window.addEventListener('keydown',e=>{if(e.key==='Escape'){$('info').close();drag=null;setTool('select')}if((e.key==='Delete'||e.key==='Backspace')&&document.activeElement?.tagName!=='INPUT'&&document.activeElement?.tagName!=='SELECT'){if(selected!==null&&data.shapes.length>1)$('deleteShape').click()}});
+canvas.addEventListener('pointerup',finishPointer);canvas.addEventListener('pointercancel',finishPointer);window.addEventListener('keydown',e=>{if(e.key==='Escape'){$('info').close();drag=null;setTool('select')}if(module==='arena'&&(e.key==='Delete'||e.key==='Backspace')&&document.activeElement?.tagName!=='INPUT'&&document.activeElement?.tagName!=='SELECT'){if(selected!==null&&data.shapes.length>1)$('deleteShape').click()}});
 window.addEventListener('resize',resize);if('ResizeObserver' in window)new ResizeObserver(resize).observe($('stage'));
  syncButtons();updateSelected();generate();resize();requestAnimationFrame(fit);
 })();
